@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { X, Upload, FileText, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
-import { supabase } from '../supabaseClient';
+import { supabase } from '../supabaseClient.ts';
 import * as pdfjsLib from 'pdfjs-dist';
 
 // Configurar el worker de PDF.js

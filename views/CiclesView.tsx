@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Train, ArrowRight, Save, Loader2, Trash2, X, Hash, Filter, Link as LinkIcon, CheckCircle2, List, LayoutGrid, Info, Wrench, AlertTriangle } from 'lucide-react';
-import { supabase } from '../supabaseClient';
-import { Assignment } from '../types';
+import { supabase } from '../supabaseClient.ts';
+import { Assignment } from '../types.ts';
 
 // Configuració de la flota segons requeriment: 61 unitats totals
 const FLEET_CONFIG = [

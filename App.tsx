@@ -1,11 +1,11 @@
 
 import React, { useState } from 'react';
 import { Search, RefreshCcw, Train, Menu, X, Upload } from 'lucide-react';
-import { AppTab } from './types';
-import CercarView from './views/CercarView';
-import OrganitzaView from './views/OrganitzaView';
-import CiclesView from './views/CiclesView';
-import FileUploadModal from './components/FileUploadModal';
+import { AppTab } from './types.ts';
+import CercarView from './views/CercarView.tsx';
+import OrganitzaView from './views/OrganitzaView.tsx';
+import CiclesView from './views/CiclesView.tsx';
+import FileUploadModal from './components/FileUploadModal.tsx';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AppTab>(AppTab.Cercar);

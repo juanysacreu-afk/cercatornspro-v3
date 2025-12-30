@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { SearchType, Shift, Circulation, DailyAssignment, PhonebookEntry, Assignment } from '../types';
+import { SearchType, Shift, Circulation, DailyAssignment, PhonebookEntry, Assignment } from '../types.ts';
 import { Search, User, Train, MapPin, Hash, ArrowRight, Loader2, Info, Phone, Clock, FileText, ChevronDown, ChevronUp, Map as MapIcon, Navigation, Coffee, Footprints, Circle, LayoutGrid, Timer, X, BookOpen, CalendarDays, Filter, AlertTriangle, Wrench } from 'lucide-react';
-import { supabase } from '../supabaseClient';
+import { supabase } from '../supabaseClient.ts';
 
 // Funció auxiliar per recuperar tots els registres d'una taula (superant el límit de 1000 de Supabase)
 async function fetchAllFromSupabase(table: string, queryBuilder: any) {
@@ -267,7 +267,6 @@ export const CercarView: React.FC = () => {
         segments.push({ start: currentPos, end: circStart, type: 'gap', codi: locationCode || 'DESCANS', color: getStatusColor(locationCode) });
       }
       segments.push({ start: circStart, end: circEnd, type: 'circ', codi: circ.codi, realCodi: circ.realCodi, color: 'bg-gray-300', linia: circ.linia, train: circ.train });
-      // Corrected typo 'cEnd' to 'circEnd'
       currentPos = Math.max(currentPos, circEnd);
     });
     

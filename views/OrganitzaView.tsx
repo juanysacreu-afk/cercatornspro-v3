@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { OrganizeType, PhonebookEntry, DailyAssignment } from '../types';
+import { OrganizeType, PhonebookEntry, DailyAssignment } from '../types.ts';
 import { Columns, ShieldAlert, Search, Phone, User, Hash, Loader2, Clock, LayoutGrid, ArrowRight, CheckCircle2, Coffee, X, Train, Info, UserCheck, Users, FastForward, Rewind, Bed, Timer, MapPin, Repeat } from 'lucide-react';
-import { supabase } from '../supabaseClient';
+import { supabase } from '../supabaseClient.ts';
 
 // Definició dels torns de reserva segons requeriment
 const RESERVAS_DATA = [
