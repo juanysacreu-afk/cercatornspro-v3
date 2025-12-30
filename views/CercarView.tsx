@@ -267,7 +267,6 @@ export const CercarView: React.FC = () => {
         segments.push({ start: currentPos, end: circStart, type: 'gap', codi: locationCode || 'DESCANS', color: getStatusColor(locationCode) });
       }
       segments.push({ start: circStart, end: circEnd, type: 'circ', codi: circ.codi, realCodi: circ.realCodi, color: 'bg-gray-300', linia: circ.linia, train: circ.train });
-      // Corrected typo 'cEnd' to 'circEnd'
       currentPos = Math.max(currentPos, circEnd);
     });
     
