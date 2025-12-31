@@ -1,0 +1,24 @@
+
+{
+  "name": "FGC Maquinista Pro",
+  "short_name": "Cercatorns",
+  "description": "Buscador de torns i gestió de flota per a maquinistes d'FGC",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F4F4F4",
+  "theme_color": "#53565A",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "https://www.fgc.cat/wp-content/uploads/2020/06/logo-FGC-square.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://www.fgc.cat/wp-content/uploads/2020/06/logo-FGC-square.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
