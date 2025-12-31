@@ -80,6 +80,7 @@ export enum SearchType {
 
 export enum OrganizeType {
   Comparador = 'comparador',
-  Cobertura = 'cobertura',
+  CirculacioDescoberta = 'circulacio_descoberta',
+  Maquinista = 'maquinista',
   Incidencia = 'incidencia'
 }

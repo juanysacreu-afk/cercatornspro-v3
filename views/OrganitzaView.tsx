@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { OrganizeType, PhonebookEntry, DailyAssignment } from '../types.ts';
-import { Columns, ShieldAlert, Search, Phone, User, Hash, Loader2, Clock, LayoutGrid, ArrowRight, CheckCircle2, Coffee, X, Train, Info, UserCheck, Users, FastForward, Rewind, Bed, Timer, MapPin, Repeat } from 'lucide-react';
+import { Columns, ShieldAlert, Search, Phone, User, Hash, Loader2, Clock, LayoutGrid, ArrowRight, CheckCircle2, Coffee, X, Train, Info, UserCheck, Users, FastForward, Rewind, Bed, Timer, MapPin, Repeat, Filter, UserCircle } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
 
 // Definició dels torns de reserva segons requeriment
@@ -31,7 +31,7 @@ export const OrganitzaView: React.FC = () => {
   const [turn2Data, setTurn2Data] = useState<any>(null);
   const [loadingComparator, setLoadingComparator] = useState(false);
 
-  // Estats per a la Cobertura (Buscador de Viatgers)
+  // Estats per a la Circulació descoberta (Buscador de Viatgers)
   const [coverageQuery, setCoverageQuery] = useState('');
   const [searchedCircData, setSearchedCircData] = useState<any>(null);
   const [mainDriverInfo, setMainDriverInfo] = useState<any>(null);
@@ -41,6 +41,13 @@ export const OrganitzaView: React.FC = () => {
   const [extensibleDriversResults, setExtensibleDriversResults] = useState<any[]>([]);
   const [reserveExtensionResults, setReserveExtensionResults] = useState<any[]>([]);
   const [loadingCoverage, setLoadingCoverage] = useState(false);
+
+  // Estats per a la pestanya Maquinista
+  const [maquinistaQuery, setMaquinistaQuery] = useState('');
+  const [allAssignments, setAllAssignments] = useState<DailyAssignment[]>([]);
+  const [phonebook, setPhonebook] = useState<Record<string, string[]>>({});
+  const [filterDisDes, setFilterDisDes] = useState(false);
+  const [loadingMaquinistes, setLoadingMaquinistes] = useState(false);
 
   const serveiTypes = ['0', '100', '400', '500'];
 
@@ -56,8 +63,38 @@ export const OrganitzaView: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // Efecte per carregar maquinistes quan s'entra a la pestanya
   useEffect(() => {
-    if (organizeType === OrganizeType.Cobertura) {
+    if (organizeType === OrganizeType.Maquinista) {
+      fetchMaquinistes();
+    }
+  }, [organizeType]);
+
+  const fetchMaquinistes = async () => {
+    setLoadingMaquinistes(true);
+    try {
+      const [assigRes, phoneRes] = await Promise.all([
+        supabase.from('daily_assignments').select('*').order('nom', { ascending: true }),
+        supabase.from('phonebook').select('nomina, phones')
+      ]);
+
+      if (assigRes.data) setAllAssignments(assigRes.data);
+      if (phoneRes.data) {
+        const phoneMap: Record<string, string[]> = {};
+        phoneRes.data.forEach((p: any) => {
+          phoneMap[p.nomina] = p.phones;
+        });
+        setPhonebook(phoneMap);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingMaquinistes(false);
+    }
+  };
+
+  useEffect(() => {
+    if (organizeType === OrganizeType.CirculacioDescoberta) {
       setMainDriverInfo(null);
       setSearchedCircData(null);
       setPassengerResults([]);
@@ -368,13 +405,28 @@ export const OrganitzaView: React.FC = () => {
   const gr = (turn1Data && turn2Data) ? { min: Math.min(getFgcMinutes(turn1Data.inici_torn), getFgcMinutes(turn2Data.inici_torn)), max: Math.max(getFgcMinutes(turn1Data.final_torn), getFgcMinutes(turn2Data.final_torn)) } : { min: 0, max: 0 };
   const coincidences = calculateCoincidences(turn1Data, turn2Data);
 
+  // Filtratge de maquinistes per a la nova pestanya
+  const filteredMaquinistes = allAssignments.filter(maquinista => {
+    const queryMatch = maquinista.nom.toLowerCase().includes(maquinistaQuery.toLowerCase()) || 
+                       maquinista.empleat_id.includes(maquinistaQuery);
+    
+    // Fix: replaced incorrect 'filterDisDis' with 'filterDisDes'
+    if (filterDisDes) {
+      const isDisDes = maquinista.torn.startsWith('DIS') || maquinista.torn.startsWith('DES');
+      return queryMatch && isDisDes;
+    }
+    
+    return queryMatch;
+  });
+
   return (
     <div className="space-y-6">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div><h1 className="text-3xl font-black text-fgc-grey tracking-tight">Organització i Cobertura</h1><p className="text-gray-500 font-medium">Anàlisi comparativa i gestió de "Viatgers".</p></div>
-        <div className="inline-flex bg-white p-1.5 rounded-2xl shadow-sm border border-gray-100">
-          <button onClick={() => setOrganizeType(OrganizeType.Comparador)} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black transition-all ${organizeType === OrganizeType.Comparador ? 'bg-fgc-grey text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}><Columns size={16} />Comparador</button>
-          <button onClick={() => setOrganizeType(OrganizeType.Cobertura)} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black transition-all ${organizeType === OrganizeType.Cobertura ? 'bg-fgc-grey text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}><ShieldAlert size={16} />Cobertura</button>
+        <div><h1 className="text-3xl font-black text-fgc-grey tracking-tight">Organització i Circulació Descoberta</h1><p className="text-gray-500 font-medium">Anàlisi comparativa i gestió de "Viatgers".</p></div>
+        <div className="inline-flex bg-white p-1.5 rounded-2xl shadow-sm border border-gray-100 overflow-x-auto max-w-full custom-scrollbar">
+          <button onClick={() => setOrganizeType(OrganizeType.Comparador)} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black transition-all whitespace-nowrap ${organizeType === OrganizeType.Comparador ? 'bg-fgc-grey text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}><Columns size={16} />Comparador</button>
+          <button onClick={() => setOrganizeType(OrganizeType.CirculacioDescoberta)} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black transition-all whitespace-nowrap ${organizeType === OrganizeType.CirculacioDescoberta ? 'bg-fgc-grey text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}><ShieldAlert size={16} />Circulació descoberta</button>
+          <button onClick={() => setOrganizeType(OrganizeType.Maquinista)} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black transition-all whitespace-nowrap ${organizeType === OrganizeType.Maquinista ? 'bg-fgc-grey text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}><User size={16} />Maquinistes</button>
         </div>
       </header>
 
@@ -415,7 +467,7 @@ export const OrganitzaView: React.FC = () => {
             </div>
           )}
         </div>
-      ) : (
+      ) : organizeType === OrganizeType.CirculacioDescoberta ? (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
           <div className="bg-white rounded-[40px] p-8 sm:p-10 border border-gray-100 shadow-sm space-y-8">
             <div className="max-w-3xl mx-auto space-y-6">
@@ -490,6 +542,112 @@ export const OrganitzaView: React.FC = () => {
                   </div>
                 </div>
               ) : coverageQuery ? (<div className="py-20 text-center space-y-4 opacity-40"><div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto text-gray-300"><Info size={28} /></div><p className="font-black text-fgc-grey uppercase tracking-[0.2em] text-[10px]">Cap dada per a {coverageQuery}</p></div>) : (<div className="py-20 text-center space-y-4"><div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto text-gray-200"><Train size={40} /></div><p className="text-gray-400 font-bold max-w-sm mx-auto leading-relaxed italic text-sm">Cerca una circulació per veure l'assignació completa de personal.</p></div>)}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+          <div className="bg-white rounded-[40px] p-6 sm:p-10 border border-gray-100 shadow-sm space-y-8">
+            <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                <input 
+                  type="text" 
+                  placeholder="Cerca per nom o nòmina..." 
+                  value={maquinistaQuery}
+                  onChange={(e) => setMaquinistaQuery(e.target.value)}
+                  className="w-full bg-gray-50 border-none rounded-[24px] py-4 pl-14 pr-8 focus:ring-4 focus:ring-fgc-green/20 outline-none font-black text-lg transition-all shadow-inner" 
+                />
+              </div>
+              <button 
+                onClick={() => setFilterDisDes(!filterDisDes)}
+                className={`flex items-center justify-center gap-3 px-8 py-4 rounded-[24px] font-black text-sm transition-all shadow-md ${
+                  filterDisDes ? 'bg-orange-500 text-white shadow-orange-500/20' : 'bg-white text-gray-400 border border-gray-100 hover:bg-gray-50'
+                }`}
+              >
+                <Filter size={18} />
+                FILTRE DIS / DES
+              </button>
+            </div>
+
+            <div className="pt-6 border-t border-dashed border-gray-100">
+              {loadingMaquinistes ? (
+                <div className="py-20 flex flex-col items-center justify-center gap-4">
+                  <Loader2 className="animate-spin text-fgc-green" size={40} />
+                  <p className="font-black text-gray-400 uppercase tracking-widest text-[10px]">Recuperant llistat...</p>
+                </div>
+              ) : filteredMaquinistes.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredMaquinistes.map((maquinista) => {
+                    const phones = phonebook[maquinista.empleat_id] || [];
+                    const isDisDes = maquinista.torn.startsWith('DIS') || maquinista.torn.startsWith('DES');
+                    return (
+                      <div 
+                        key={maquinista.id} 
+                        className={`bg-white rounded-[28px] p-5 border transition-all flex flex-col gap-4 group hover:shadow-xl ${
+                          isDisDes ? 'border-orange-200 bg-orange-50/10' : 'border-gray-100 hover:border-fgc-green/30'
+                        }`}
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xl shadow-md shrink-0 ${
+                            isDisDes ? 'bg-orange-500 text-white' : 'bg-fgc-grey text-white'
+                          }`}>
+                            {maquinista.nom.charAt(0)}
+                          </div>
+                          <div className="min-w-0">
+                            <h3 className="text-base font-black text-fgc-grey leading-tight uppercase truncate">{maquinista.nom}</h3>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-[10px] font-bold text-gray-400">#{maquinista.empleat_id}</span>
+                              <div className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                                isDisDes ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-400'
+                              }`}>
+                                {maquinista.torn}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col gap-2 pt-3 border-t border-gray-100/50">
+                          <div className="flex items-center gap-2 text-gray-500">
+                            <Clock size={12} className="text-fgc-green" />
+                            <span className="text-[11px] font-bold">{maquinista.hora_inici} — {maquinista.hora_fi}</span>
+                          </div>
+                          {maquinista.observacions && (
+                            <div className="flex items-center gap-2 text-gray-400 italic">
+                              <Info size={12} />
+                              <span className="text-[10px] truncate">{maquinista.observacions}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex flex-wrap gap-2 mt-auto">
+                          {phones.length > 0 ? (
+                            phones.map((p, idx) => (
+                              <a 
+                                key={idx} 
+                                href={`tel:${p}`} 
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black transition-all shadow-sm ${
+                                  isDisDes ? 'bg-orange-500 text-white hover:bg-orange-600' : 'bg-fgc-grey text-white hover:bg-fgc-dark'
+                                }`}
+                              >
+                                <Phone size={12} />
+                                {p}
+                              </a>
+                            ))
+                          ) : (
+                            <span className="text-[10px] font-bold text-gray-300 italic">Sense telèfons</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="py-20 text-center space-y-4 opacity-40">
+                  <UserCircle size={60} className="mx-auto text-gray-200" />
+                  <p className="font-black text-fgc-grey uppercase tracking-[0.2em] text-[10px]">No s'ha trobat personal per a la cerca actual</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
