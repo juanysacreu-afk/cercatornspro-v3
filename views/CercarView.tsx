@@ -87,7 +87,6 @@ export const CercarView: React.FC = () => {
     const fetchData = async () => {
       if (searchType === SearchType.Cicle) {
         setLoading(true);
-        // Recuperem tots els shifts per no perdre cicles de trens que estiguin més enllà del registre 1000
         const shiftsData = await fetchAllFromSupabase('shifts', supabase.from('shifts').select('circulations').eq('servei', selectedServei));
         const cyclesSet = new Set<string>();
         
@@ -105,7 +104,6 @@ export const CercarView: React.FC = () => {
       }
       
       if (searchType === SearchType.Estacio) {
-        // Obtenim totes les estacions sense límit de 1000 per no perdre estacions de la cua del dia
         const data = await fetchAllFromSupabase('circulations', supabase.from('circulations').select('estacions, inici, final'));
         if (data) {
           const stations = new Set<string>();
@@ -381,7 +379,6 @@ export const CercarView: React.FC = () => {
 
   const fetchFullTurnData = async (turnIds: string[]) => {
     if (!turnIds.length) return [];
-    // Paginem la consulta de shifts si n'hi ha molts (tot i que per servei rarament superen els 1000)
     const allServiceShifts = await fetchAllFromSupabase('shifts', supabase.from('shifts').select('id, circulations').eq('servei', selectedServei));
     
     const cycleMap = new Map<string, string>();
@@ -410,7 +407,6 @@ export const CercarView: React.FC = () => {
       }); 
     });
 
-    // Consultem circulacions per IDs, evitant límits de 1000 si la llista és molt llarga
     const circDetails = await fetchAllFromSupabase('circulations', supabase.from('circulations').select('*').in('id', Array.from(allCircIds)));
     const { data: trainAssig } = await supabase.from('assignments').select('*');
     
@@ -466,7 +462,6 @@ export const CercarView: React.FC = () => {
     setLoading(true); setShowSuggestions(false);
     try {
       if (searchType === SearchType.Cicle) {
-        // Obtenim tots els shifts per assegurar-nos de trobar el cicle encara que estigui al final de la llista
         const allShifts = await fetchAllFromSupabase('shifts', supabase.from('shifts').select('*').eq('servei', selectedServei));
         const cycleAssignments = await supabase.from('assignments').select('*').eq('cycle_id', searchVal).single();
         
@@ -474,19 +469,13 @@ export const CercarView: React.FC = () => {
           const flattenedCircs: any[] = [];
           const allCodiSet = new Set<string>();
           allShifts.forEach(shift => { (shift.circulations as any[])?.forEach(c => { const codi = typeof c === 'string' ? c : c.codi; if (c.cicle === searchVal) { flattenedCircs.push({ ...c, shift_id: shift.id, codi }); if (codi) allCodiSet.add(codi as string); } }); });
-          
-          // Paginem la consulta de circulacions per si n'hi ha moltes vinculades
           const details = await fetchAllFromSupabase('circulations', supabase.from('circulations').select('*').in('id', Array.from(allCodiSet)));
-          
           const enrichedCircs = flattenedCircs.map(fc => { const detail = details?.find(d => d.id === fc.codi); return { ...detail, ...fc }; });
           enrichedCircs.sort((a, b) => getFgcMinutes(a.sortida || '00:00') - getFgcMinutes(b.sortida || '00:00'));
           setResults([{ type: 'cycle_summary', cycle_id: searchVal, train: cycleAssignments.data?.train_number || 'S/A', circulations: enrichedCircs }]);
         }
       } else if (searchType === SearchType.Estacio) {
         if (!selectedStation) { setLoading(false); return; }
-        
-        // Estratègia optimitzada per estació:
-        // 1. Busquem tots els torns del servei seleccionat
         const allShifts = await fetchAllFromSupabase('shifts', supabase.from('shifts').select('id, circulations').eq('servei', selectedServei));
         const circIdsInService = new Set<string>();
         const cycleMap = new Map<string, string>();
@@ -499,7 +488,6 @@ export const CercarView: React.FC = () => {
           });
         });
 
-        // 2. Recuperem les dades d'aquestes circulacions concretes (sense límit de 1000)
         const allCircs = await fetchAllFromSupabase('circulations', supabase.from('circulations').select('*').in('id', Array.from(circIdsInService)));
         
         const matchingCircs: any[] = [];
@@ -509,7 +497,6 @@ export const CercarView: React.FC = () => {
 
         allCircs.forEach(c => {
           let stopTime: string | null = null;
-          // Comprovem inici, final o parades intermèdies amb trim per evitar fallos amb espais
           if (c.inici?.trim().toUpperCase() === targetStation) stopTime = c.sortida as string; 
           else if (c.final?.trim().toUpperCase() === targetStation) stopTime = c.arribada as string;
           else { 
@@ -582,15 +569,15 @@ export const CercarView: React.FC = () => {
     const isBroken = circ.train && brokenTrains.has(circ.train);
 
     return (
-      <div className={`p-2 sm:p-4 grid grid-cols-[1fr_1.2fr_1.8fr_1.8fr_1.2fr] items-center gap-2 sm:gap-4 w-full relative transition-colors ${isActive ? 'bg-red-50/30' : isBroken ? 'bg-red-50/20 shadow-inner' : ''}`}>
+      <div className={`p-2 sm:p-4 grid grid-cols-[auto_1fr_1fr_auto] md:grid-cols-[1fr_1.2fr_1.8fr_1.8fr_1.2fr] items-center gap-2 sm:gap-4 w-full relative transition-colors ${isActive ? 'bg-red-50/30' : isBroken ? 'bg-red-50/20 shadow-inner' : ''}`}>
         {/* COL 1: Codi / Línia */}
         <div className="flex items-center gap-2 overflow-visible px-1">
             <div className={`px-2.5 py-1.5 ${getLiniaColor(circ.linia)} text-white rounded-lg font-black text-xs sm:text-sm shadow-sm flex items-center justify-center min-w-[58px]`}>{circ.codi}</div>
-            <span className={`px-2 py-1 ${getLiniaColor(circ.linia)} text-white rounded-md font-black text-[9px] sm:text-[11px] shadow-sm flex-shrink-0`}>{circ.linia || '??'}</span>
+            <span className={`hidden md:flex px-2 py-1 ${getLiniaColor(circ.linia)} text-white rounded-md font-black text-[9px] sm:text-[11px] shadow-sm flex-shrink-0`}>{circ.linia || '??'}</span>
         </div>
         
-        {/* COL 2: Cicle / Unitat */}
-        <div className="flex justify-center">
+        {/* COL 2: Cicle / Unitat (Ocult en mòbil vertical) */}
+        <div className="hidden md:flex justify-center">
             {circ.cicle ? (
               <div className={`text-[10px] sm:text-sm font-black px-3 py-1.5 rounded-lg border shadow-sm flex items-center justify-center gap-2 transition-all w-full max-w-[150px] ${isBroken ? 'bg-red-600 text-white border-red-700 animate-pulse' : 'text-black bg-fgc-green/20 border-fgc-green/30'}`}>
                 <span className="shrink-0">{circ.cicle}</span>
@@ -606,16 +593,16 @@ export const CercarView: React.FC = () => {
             ) : (<span className="text-[10px] text-gray-300 font-bold uppercase tracking-widest italic opacity-40">Sense assignar</span>)}
         </div>
 
-        {/* COL 3: Sortida (Hora + Via + Estació) */}
+        {/* COL 3: Sortida (Hora + Via + Estació amagada en mòbil) */}
         <div className="flex items-center gap-2 sm:gap-4 justify-center min-w-0">
             <div className={`text-base sm:text-2xl font-black tabular-nums w-14 sm:w-16 text-center ${isActive || isBroken ? 'text-red-600' : 'text-fgc-grey'}`}>{circ.sortida || '--:--'}</div>
             <div className="bg-fgc-green/20 text-fgc-grey border border-fgc-green/30 px-2 py-0.5 rounded text-[10px] font-black shadow-sm shrink-0">V{circ.via_inici || '?'}</div>
-            <span className="text-[10px] sm:text-xs font-bold text-gray-400 truncate max-w-[100px] hidden sm:block">{circ.machinistInici || circ.inici || '---'}</span>
+            <span className="text-[10px] sm:text-xs font-bold text-gray-400 truncate max-w-[100px] hidden md:block">{circ.machinistInici || circ.inici || '---'}</span>
         </div>
 
-        {/* COL 4: Arribada (Hora + Via + Estació) */}
+        {/* COL 4: Arribada (Hora + Via + Estació amagada en mòbil) */}
         <div className="flex items-center gap-2 sm:gap-4 justify-center min-w-0">
-            <span className="text-[10px] sm:text-xs font-bold text-gray-400 truncate max-w-[100px] text-right hidden sm:block">{circ.machinistFinal || circ.final || '---'}</span>
+            <span className="text-[10px] sm:text-xs font-bold text-gray-400 truncate max-w-[100px] text-right hidden md:block">{circ.machinistFinal || circ.final || '---'}</span>
             <div className="bg-fgc-grey/10 text-fgc-grey border border-gray-200 px-2 py-0.5 rounded text-[10px] font-black shadow-sm shrink-0">V{circ.via_final || '?'}</div>
             <div className={`text-base sm:text-2xl font-black tabular-nums w-14 sm:w-16 text-center ${isActive || isBroken ? 'text-red-600' : 'text-fgc-grey'}`}>{circ.arribada || '--:--'}</div>
         </div>
@@ -644,15 +631,15 @@ export const CercarView: React.FC = () => {
     const isBroken = circ.train && brokenTrains.has(circ.train);
 
     return (
-      <div className={`p-2 sm:p-4 grid grid-cols-[1fr_1.2fr_1.8fr_1fr_1.2fr] items-center gap-2 sm:gap-4 w-full relative transition-colors ${isActive ? 'bg-red-50/40 shadow-inner' : isBroken ? 'bg-red-50/20' : ''}`}>
+      <div className={`p-2 sm:p-4 grid grid-cols-[auto_1fr_auto_auto] md:grid-cols-[1fr_1.2fr_1.8fr_1fr_1.2fr] items-center gap-2 sm:gap-4 w-full relative transition-colors ${isActive ? 'bg-red-50/40 shadow-inner' : isBroken ? 'bg-red-50/20' : ''}`}>
         {/* COL 1: Codi / Línia */}
         <div className="flex justify-start items-center gap-2 shrink-0 px-1">
           <div className={`px-2.5 py-1.5 ${getLiniaColor(circ.linia)} text-white rounded-lg font-black text-xs sm:text-sm shadow-sm flex items-center justify-center min-w-[58px]`}>{circ.id}</div>
-          <span className={`px-2 py-1 ${getLiniaColor(circ.linia)} text-white rounded-md font-black text-[9px] sm:text-[11px] shadow-sm`}>{circ.linia || '??'}</span>
+          <span className={`hidden md:flex px-2 py-1 ${getLiniaColor(circ.linia)} text-white rounded-md font-black text-[9px] sm:text-[11px] shadow-sm`}>{circ.linia || '??'}</span>
         </div>
 
-        {/* COL 2: Cicle / Unitat */}
-        <div className="flex justify-center shrink-0">
+        {/* COL 2: Cicle / Unitat (Ocult en mòbil vertical) */}
+        <div className="hidden md:flex justify-center shrink-0">
           {circ.cicle ? (
             <div className={`text-[10px] sm:text-sm font-black px-3 py-1.5 rounded-lg border shadow-sm flex items-center gap-2 w-full max-w-[140px] ${isBroken ? 'bg-red-600 text-white border-red-700 animate-pulse' : 'text-black bg-fgc-green/20 border-fgc-green/30'}`}>
               <span>{circ.cicle}</span>
