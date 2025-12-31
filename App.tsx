@@ -30,10 +30,10 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-fgc-light flex flex-col">
-      {/* Top Navigation Bar */}
-      <nav className="sticky top-0 z-50 bg-fgc-grey text-white shadow-md">
+      {/* Top Navigation Bar con soporte para Safe Areas */}
+      <nav className="sticky top-0 z-50 bg-fgc-grey text-white shadow-md safe-top">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-20">
+          <div className="flex items-center justify-between h-20 sm:h-24">
             {/* Logo & Title */}
             <div 
               className="flex items-center gap-4 cursor-pointer select-none group"
@@ -42,9 +42,9 @@ const App: React.FC = () => {
               <img 
                 src="https://www.fgc.cat/wp-content/uploads/2020/06/logo-FGC-square.png" 
                 alt="FGC Logo" 
-                className="w-12 h-12 rounded-lg object-cover shadow-sm transition-transform active:scale-95 group-hover:brightness-110"
+                className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg object-cover shadow-sm transition-transform active:scale-95 group-hover:brightness-110"
               />
-              <span className="text-2xl font-extrabold tracking-tight hidden sm:block">
+              <span className="text-xl sm:text-2xl font-extrabold tracking-tight hidden xs:block">
                 Cercatorns<span className="text-fgc-green">Pro</span>
               </span>
             </div>
@@ -89,7 +89,7 @@ const App: React.FC = () => {
 
         {/* Mobile menu */}
         {isMobileMenuOpen && (
-          <div className="md:hidden bg-fgc-grey border-t border-white/10 px-2 pt-2 pb-3 space-y-1">
+          <div className="md:hidden bg-fgc-grey border-t border-white/10 px-2 pt-2 pb-3 space-y-1 shadow-2xl">
             {navItems.map((item) => (
               <button
                 key={item.id}
@@ -97,7 +97,7 @@ const App: React.FC = () => {
                   setActiveTab(item.id);
                   setIsMobileMenuOpen(false);
                 }}
-                className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl text-base font-medium ${
+                className={`w-full flex items-center gap-4 px-4 py-4 rounded-xl text-lg font-bold ${
                   activeTab === item.id ? 'bg-fgc-green text-fgc-grey' : 'text-gray-300'
                 }`}
               >
@@ -110,9 +110,9 @@ const App: React.FC = () => {
                 setShowUploadModal(true);
                 setIsMobileMenuOpen(false);
               }}
-              className="w-full flex items-center gap-4 px-4 py-3 text-fgc-green font-medium"
+              className="w-full flex items-center gap-4 px-4 py-4 text-fgc-green font-bold text-lg border-t border-white/5 mt-2"
             >
-              <Upload size={18} />
+              <Upload size={20} />
               Carregar PDF Diari
             </button>
           </div>
@@ -120,7 +120,7 @@ const App: React.FC = () => {
       </nav>
 
       {/* Main Content */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 safe-bottom">
         {activeTab === AppTab.Cercar && <CercarView />}
         {activeTab === AppTab.Organitza && <OrganitzaView />}
         {activeTab === AppTab.Cicles && <CiclesView />}
