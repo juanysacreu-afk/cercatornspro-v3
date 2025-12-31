@@ -570,7 +570,7 @@ export const OrganitzaView: React.FC = () => {
                 <button 
                   onClick={() => setDisDesFilter('DES')}
                   className={`px-6 py-3 rounded-2xl font-black text-xs transition-all ${
-                    disDesFilter === 'DES' ? 'bg-orange-600 text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-white dark:hover:bg-white/5'
+                    disDesFilter === 'DES' ? 'bg-fgc-green dark:bg-fgc-green dark:text-fgc-grey text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-white dark:hover:bg-white/5'
                   }`}
                 >
                   NOMÉS DES
@@ -596,17 +596,23 @@ export const OrganitzaView: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {filteredMaquinistes.map((maquinista) => {
                     const phones = phonebook[maquinista.empleat_id] || [];
-                    const isDisDes = maquinista.torn.startsWith('DIS') || maquinista.torn.startsWith('DES');
+                    const isDis = maquinista.torn.startsWith('DIS');
+                    const isDes = maquinista.torn.startsWith('DES');
+                    
                     return (
                       <div 
                         key={maquinista.id} 
                         className={`bg-white dark:bg-gray-800 rounded-[28px] p-5 border transition-all flex flex-col gap-4 group hover:shadow-xl ${
-                          isDisDes ? 'border-orange-200 dark:border-orange-500/20 bg-orange-50/10 dark:bg-orange-500/5' : 'border-gray-100 dark:border-white/5 hover:border-fgc-green/30'
+                          isDis ? 'border-orange-200 dark:border-orange-500/20 bg-orange-50/10 dark:bg-orange-500/5 hover:border-orange-300' : 
+                          isDes ? 'border-green-200 dark:border-fgc-green/20 bg-green-50/10 dark:bg-fgc-green/5 hover:border-fgc-green/30' :
+                          'border-gray-100 dark:border-white/5 hover:border-fgc-green/30'
                         }`}
                       >
                         <div className="flex items-center gap-4">
                           <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xl shadow-md shrink-0 ${
-                            isDisDes ? 'bg-orange-500 text-white' : 'bg-fgc-grey dark:bg-black text-white'
+                            isDis ? 'bg-orange-500 text-white' : 
+                            isDes ? 'bg-fgc-green text-fgc-grey' : 
+                            'bg-fgc-grey dark:bg-black text-white'
                           }`}>
                             {maquinista.nom.charAt(0)}
                           </div>
@@ -615,7 +621,9 @@ export const OrganitzaView: React.FC = () => {
                             <div className="flex items-center gap-2 mt-0.5">
                               <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500">#{maquinista.empleat_id}</span>
                               <div className={`px-2 py-0.5 rounded text-[10px] font-black ${
-                                isDisDes ? 'bg-orange-500 text-white' : 'bg-gray-100 dark:bg-black text-gray-400 dark:text-gray-600'
+                                isDis ? 'bg-orange-500 text-white' : 
+                                isDes ? 'bg-fgc-green text-fgc-grey' : 
+                                'bg-gray-100 dark:bg-black text-gray-400 dark:text-gray-600'
                               }`}>
                                 {maquinista.torn}
                               </div>
@@ -643,7 +651,9 @@ export const OrganitzaView: React.FC = () => {
                                 key={idx} 
                                 href={`tel:${p}`} 
                                 className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black transition-all shadow-sm ${
-                                  isDisDes ? 'bg-orange-500 text-white hover:bg-orange-600' : 'bg-fgc-grey dark:bg-black text-white hover:bg-fgc-dark'
+                                  isDis ? 'bg-orange-500 text-white hover:bg-orange-600' : 
+                                  isDes ? 'bg-fgc-green text-fgc-grey hover:brightness-110' : 
+                                  'bg-fgc-grey dark:bg-black text-white hover:bg-fgc-dark'
                                 }`}
                               >
                                 <Phone size={12} />
