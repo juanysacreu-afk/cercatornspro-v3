@@ -1,22 +1,32 @@
 
 import React, { useState } from 'react';
-import { Search, RefreshCcw, Train, Menu, X, Upload } from 'lucide-react';
+import { Search, RefreshCcw, Train, Menu, X, Upload, BookOpen } from 'lucide-react';
 import { AppTab } from './types.ts';
 import CercarView from './views/CercarView.tsx';
 import OrganitzaView from './views/OrganitzaView.tsx';
 import CiclesView from './views/CiclesView.tsx';
+import AgendaView from './views/AgendaView.tsx';
 import FileUploadModal from './components/FileUploadModal.tsx';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AppTab>(AppTab.Cercar);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showSecretMenu, setShowSecretMenu] = useState(false);
 
   const navItems = [
     { id: AppTab.Cercar, label: 'Cercar', icon: <Search size={18} /> },
     { id: AppTab.Organitza, label: 'Organitza', icon: <RefreshCcw size={18} /> },
     { id: AppTab.Cicles, label: 'Cicles', icon: <Train size={18} /> }
   ];
+
+  if (showSecretMenu) {
+    navItems.push({ id: AppTab.Agenda, label: 'Agenda', icon: <BookOpen size={18} /> });
+  }
+
+  const toggleSecretMenu = () => {
+    setShowSecretMenu(prev => !prev);
+  };
 
   return (
     <div className="min-h-screen bg-fgc-light flex flex-col">
@@ -25,11 +35,14 @@ const App: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-20">
             {/* Logo & Title */}
-            <div className="flex items-center gap-4">
+            <div 
+              className="flex items-center gap-4 cursor-pointer select-none group"
+              onDoubleClick={toggleSecretMenu}
+            >
               <img 
                 src="https://www.fgc.cat/wp-content/uploads/2020/06/logo-FGC-square.png" 
                 alt="FGC Logo" 
-                className="w-12 h-12 rounded-lg object-cover shadow-sm"
+                className="w-12 h-12 rounded-lg object-cover shadow-sm transition-transform active:scale-95 group-hover:brightness-110"
               />
               <span className="text-2xl font-extrabold tracking-tight hidden sm:block">
                 Cercatorns<span className="text-fgc-green">Pro</span>
@@ -111,6 +124,7 @@ const App: React.FC = () => {
         {activeTab === AppTab.Cercar && <CercarView />}
         {activeTab === AppTab.Organitza && <OrganitzaView />}
         {activeTab === AppTab.Cicles && <CiclesView />}
+        {activeTab === AppTab.Agenda && <AgendaView />}
       </main>
 
       {showUploadModal && <FileUploadModal onClose={() => setShowUploadModal(false)} />}

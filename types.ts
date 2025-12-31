@@ -66,7 +66,8 @@ export interface Assignment {
 export enum AppTab {
   Cercar = 'cercar',
   Organitza = 'organitza',
-  Cicles = 'cicles'
+  Cicles = 'cicles',
+  Agenda = 'agenda'
 }
 
 export enum SearchType {
