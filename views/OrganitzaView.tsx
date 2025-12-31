@@ -18,6 +18,8 @@ const RESERVAS_DATA = [
   { id: 'QRR2', loc: 'RB', start: '14:00', end: '22:00' },
 ];
 
+type DisDesFilterType = 'OFF' | 'DIS' | 'DES' | 'BOTH';
+
 export const OrganitzaView: React.FC = () => {
   const [organizeType, setOrganizeType] = useState<OrganizeType>(OrganizeType.Comparador);
   const [loading, setLoading] = useState(false);
@@ -46,7 +48,7 @@ export const OrganitzaView: React.FC = () => {
   const [maquinistaQuery, setMaquinistaQuery] = useState('');
   const [allAssignments, setAllAssignments] = useState<DailyAssignment[]>([]);
   const [phonebook, setPhonebook] = useState<Record<string, string[]>>({});
-  const [filterDisDes, setFilterDisDes] = useState(false);
+  const [disDesFilter, setDisDesFilter] = useState<DisDesFilterType>('OFF');
   const [loadingMaquinistes, setLoadingMaquinistes] = useState(false);
 
   const serveiTypes = ['0', '100', '400', '500'];
@@ -410,11 +412,10 @@ export const OrganitzaView: React.FC = () => {
     const queryMatch = maquinista.nom.toLowerCase().includes(maquinistaQuery.toLowerCase()) || 
                        maquinista.empleat_id.includes(maquinistaQuery);
     
-    // Fix: replaced incorrect 'filterDisDis' with 'filterDisDes'
-    if (filterDisDes) {
-      const isDisDes = maquinista.torn.startsWith('DIS') || maquinista.torn.startsWith('DES');
-      return queryMatch && isDisDes;
-    }
+    if (disDesFilter === 'OFF') return queryMatch;
+    if (disDesFilter === 'DIS') return queryMatch && maquinista.torn.startsWith('DIS');
+    if (disDesFilter === 'DES') return queryMatch && maquinista.torn.startsWith('DES');
+    if (disDesFilter === 'BOTH') return queryMatch && (maquinista.torn.startsWith('DIS') || maquinista.torn.startsWith('DES'));
     
     return queryMatch;
   });
@@ -559,15 +560,40 @@ export const OrganitzaView: React.FC = () => {
                   className="w-full bg-gray-50 border-none rounded-[24px] py-4 pl-14 pr-8 focus:ring-4 focus:ring-fgc-green/20 outline-none font-black text-lg transition-all shadow-inner" 
                 />
               </div>
-              <button 
-                onClick={() => setFilterDisDes(!filterDisDes)}
-                className={`flex items-center justify-center gap-3 px-8 py-4 rounded-[24px] font-black text-sm transition-all shadow-md ${
-                  filterDisDes ? 'bg-orange-500 text-white shadow-orange-500/20' : 'bg-white text-gray-400 border border-gray-100 hover:bg-gray-50'
-                }`}
-              >
-                <Filter size={18} />
-                FILTRE DIS / DES
-              </button>
+              <div className="flex items-center gap-2 p-1 bg-gray-50 rounded-[26px] border border-gray-100">
+                <button 
+                  onClick={() => setDisDesFilter('OFF')}
+                  className={`px-6 py-3 rounded-2xl font-black text-xs transition-all ${
+                    disDesFilter === 'OFF' ? 'bg-fgc-grey text-white shadow-lg' : 'text-gray-400 hover:bg-white'
+                  }`}
+                >
+                  TOTS
+                </button>
+                <button 
+                  onClick={() => setDisDesFilter('DIS')}
+                  className={`px-6 py-3 rounded-2xl font-black text-xs transition-all ${
+                    disDesFilter === 'DIS' ? 'bg-orange-500 text-white shadow-lg' : 'text-gray-400 hover:bg-white'
+                  }`}
+                >
+                  NOMÉS DIS
+                </button>
+                <button 
+                  onClick={() => setDisDesFilter('DES')}
+                  className={`px-6 py-3 rounded-2xl font-black text-xs transition-all ${
+                    disDesFilter === 'DES' ? 'bg-orange-600 text-white shadow-lg' : 'text-gray-400 hover:bg-white'
+                  }`}
+                >
+                  NOMÉS DES
+                </button>
+                <button 
+                  onClick={() => setDisDesFilter('BOTH')}
+                  className={`px-6 py-3 rounded-2xl font-black text-xs transition-all ${
+                    disDesFilter === 'BOTH' ? 'bg-orange-700 text-white shadow-lg' : 'text-gray-400 hover:bg-white'
+                  }`}
+                >
+                  DIS + DES
+                </button>
+              </div>
             </div>
 
             <div className="pt-6 border-t border-dashed border-gray-100">

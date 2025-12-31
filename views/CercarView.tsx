@@ -194,41 +194,66 @@ export const CercarView: React.FC = () => {
     return 'bg-fgc-grey';
   };
 
-  const getShiftCurrentStatus = (turn: any) => {
+  const getShiftCurrentStatus = (turn: any, shiftIdx: number) => {
     const start = getFgcMinutes(turn.inici_torn);
     const end = getFgcMinutes(turn.final_torn);
     
-    if (nowMin < start) return { label: 'No ha iniciat', color: 'bg-gray-200 text-gray-500' };
-    if (nowMin >= end) return { label: 'Finalitzat', color: 'bg-fgc-grey text-white' };
+    if (nowMin < start) return { label: 'No ha iniciat', color: 'bg-gray-200 text-gray-500', targetId: null };
+    if (nowMin >= end) return { label: 'Finalitzat', color: 'bg-fgc-grey text-white', targetId: null };
     
     const circs = turn.fullCirculations || [];
-    for (const circ of circs) {
-      if (checkIfActive(circ.sortida, circ.arribada)) {
-        return { label: `LIVE: ${circ.codi}`, color: 'bg-red-500 text-white animate-pulse shadow-lg' };
+    for (let i = 0; i < circs.length; i++) {
+      if (checkIfActive(circs[i].sortida, circs[i].arribada)) {
+        return { 
+          label: `LIVE: ${circs[i].codi}`, 
+          color: 'bg-red-500 text-white animate-pulse shadow-lg',
+          targetId: `circ-row-${shiftIdx}-${i}`
+        };
       }
     }
     
-    let gapDuration = 0, gapEnd = end;
-    if (circs.length === 0) { 
-      gapDuration = end - start; gapEnd = end; 
-    } else {
-      const firstStart = getFgcMinutes(circs[0].sortida);
-      if (nowMin < firstStart) { 
-        gapDuration = firstStart - start; gapEnd = firstStart; 
-      } else {
-        for (let i = 0; i < circs.length; i++) {
-          const currentEnd = getFgcMinutes(circs[i].arribada);
-          const nextStart = circs[i+1] ? getFgcMinutes(circs[i+1].sortida) : end;
-          if (nowMin >= currentEnd && nowMin < nextStart) { 
-            gapDuration = nextStart - currentEnd; gapEnd = nextStart; break; 
-          }
-        }
+    if (circs.length === 0) {
+      return { label: `Temps: ${end - nowMin} min`, color: 'bg-yellow-400 text-fgc-grey shadow-sm', targetId: null };
+    }
+
+    const firstStart = getFgcMinutes(circs[0].sortida);
+    if (nowMin < firstStart) {
+      const remaining = firstStart - nowMin;
+      return { 
+        label: `${(firstStart - start) >= 15 ? 'Descans' : 'Temps'}: ${remaining} min`, 
+        color: (firstStart - start) >= 15 ? 'bg-fgc-green text-fgc-grey shadow-sm' : 'bg-yellow-400 text-fgc-grey shadow-sm',
+        targetId: `gap-pre-${shiftIdx}`
+      };
+    }
+
+    for (let i = 0; i < circs.length; i++) {
+      const currentEnd = getFgcMinutes(circs[i].arribada);
+      const nextStart = circs[i+1] ? getFgcMinutes(circs[i+1].sortida) : end;
+      if (nowMin >= currentEnd && nowMin < nextStart) {
+        const gapDuration = nextStart - currentEnd;
+        const remaining = nextStart - nowMin;
+        return { 
+          label: `${gapDuration >= 15 ? 'Descans' : 'Temps'}: ${remaining} min`, 
+          color: gapDuration >= 15 ? 'bg-fgc-green text-fgc-grey shadow-sm' : 'bg-yellow-400 text-fgc-grey shadow-sm',
+          targetId: `gap-row-${shiftIdx}-${i}`
+        };
       }
     }
     
-    const remaining = gapEnd - nowMin;
-    if (gapDuration >= 15) return { label: `Descans: ${remaining} min`, color: 'bg-fgc-green text-fgc-grey shadow-sm' };
-    else return { label: `Temps: ${remaining} min`, color: 'bg-yellow-400 text-fgc-grey shadow-sm' };
+    return { label: 'En servei', color: 'bg-fgc-green text-fgc-grey shadow-sm', targetId: null };
+  };
+
+  const scrollToElement = (id: string | null) => {
+    if (!id) return;
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Breu efecte visual per destacar on hem anat
+      element.classList.add('ring-4', 'ring-blue-400/50', 'z-50');
+      setTimeout(() => {
+        element.classList.remove('ring-4', 'ring-blue-400/50', 'z-50');
+      }, 2000);
+    }
   };
 
   const getTrainPhone = (train: string) => {
@@ -358,8 +383,8 @@ export const CercarView: React.FC = () => {
         <div className={`flex items-center gap-2 px-6 py-1.5 rounded-full text-[11px] font-black uppercase tracking-wider border transition-all ${
           isActiveGap 
             ? isRest 
-              ? 'bg-fgc-green border-fgc-green/30 text-fgc-grey shadow-sm scale-105' 
-              : 'bg-yellow-400 border-yellow-500/30 text-fgc-grey shadow-sm scale-105'
+              ? 'bg-fgc-green border-fgc-green/30 text-fgc-grey shadow-sm scale-105 ring-2 ring-fgc-grey/20' 
+              : 'bg-yellow-400 border-yellow-500/30 text-fgc-grey shadow-sm scale-105 ring-2 ring-yellow-500/20'
             : isRest 
               ? 'bg-fgc-green/15 text-fgc-grey border-fgc-green/30' 
               : 'bg-gray-50 text-gray-400 border-gray-100'
@@ -569,7 +594,7 @@ export const CercarView: React.FC = () => {
     const isBroken = circ.train && brokenTrains.has(circ.train);
 
     return (
-      <div className={`p-2 sm:p-4 grid grid-cols-[auto_1fr_1fr_auto] md:grid-cols-[1fr_1.2fr_1.8fr_1.8fr_1.2fr] items-center gap-2 sm:gap-4 w-full relative transition-colors ${isActive ? 'bg-red-50/30' : isBroken ? 'bg-red-50/20 shadow-inner' : ''}`}>
+      <div id={`circ-row-${itemKey}`} className={`p-2 sm:p-4 grid grid-cols-[auto_1fr_1fr_auto] md:grid-cols-[1fr_1.2fr_1.8fr_1.8fr_1.2fr] items-center gap-2 sm:gap-4 w-full relative transition-all ${isActive ? 'bg-red-50/30' : isBroken ? 'bg-red-50/20 shadow-inner' : ''}`}>
         {/* COL 1: Codi / Línia */}
         <div className="flex items-center gap-2 overflow-visible px-1">
             <div className={`px-2.5 py-1.5 ${getLiniaColor(circ.linia)} text-white rounded-lg font-black text-xs sm:text-sm shadow-sm flex items-center justify-center min-w-[58px]`}>{circ.codi}</div>
@@ -642,7 +667,7 @@ export const CercarView: React.FC = () => {
     const isBroken = circ.train && brokenTrains.has(circ.train);
 
     return (
-      <div className={`p-2 sm:p-4 grid grid-cols-[auto_1fr_auto_auto] md:grid-cols-[1fr_1.2fr_1.8fr_1fr_1.2fr] items-center gap-2 sm:gap-4 w-full relative transition-colors ${isActive ? 'bg-red-50/40 shadow-inner' : isBroken ? 'bg-red-50/20' : ''}`}>
+      <div id={`station-row-${itemKey}`} className={`p-2 sm:p-4 grid grid-cols-[auto_1fr_auto_auto] md:grid-cols-[1fr_1.2fr_1.8fr_1fr_1.2fr] items-center gap-2 sm:gap-4 w-full relative transition-all ${isActive ? 'bg-red-50/40 shadow-inner' : isBroken ? 'bg-red-50/20' : ''}`}>
         {/* COL 1: Codi / Línia */}
         <div className="flex justify-start items-center gap-2 shrink-0 px-1">
           <div className={`px-2.5 py-1.5 ${getLiniaColor(circ.linia)} text-white rounded-lg font-black text-xs sm:text-sm shadow-sm flex items-center justify-center min-w-[58px]`}>{circ.id}</div>
@@ -804,7 +829,7 @@ export const CercarView: React.FC = () => {
                     <CirculationHeader />
                     <div className="grid grid-cols-1 divide-y divide-gray-100">
                       {group.circulations.map((circ: any, cIdx: number) => {
-                        const itemKey = `group-${idx}-${cIdx}`; 
+                        const itemKey = `${idx}-${cIdx}`; 
                         const isActive = checkIfActive((circ.sortida || circ.stopTimeAtStation) as string, (circ.arribada || circ.stopTimeAtStation) as string);
                         const itineraryPoints = [{ nom: circ.inici, hora: circ.sortida, via: circ.via_inici }, ...(circ.estacions?.map((st: any) => ({ nom: st.nom, hora: st.hora || st.sortida || st.arribada, via: st.via })) || []), { nom: circ.final, hora: circ.arribada, via: circ.via_final }];
                         return (
@@ -828,7 +853,7 @@ export const CercarView: React.FC = () => {
                 </div>
               );
             }
-            const currentStatus = getShiftCurrentStatus(group);
+            const currentStatus = getShiftCurrentStatus(group, idx);
             return (
               <div key={idx} className="flex flex-col gap-1 group animate-in fade-in slide-in-from-bottom-12 duration-700">
                 <div className="bg-white p-6 sm:p-10 rounded-t-[32px] sm:rounded-t-[48px] border-x border-t border-gray-100 shadow-sm transition-all group-hover:shadow-md">
@@ -851,9 +876,12 @@ export const CercarView: React.FC = () => {
                         <span className="opacity-30 mx-1">—</span>
                         <span>{group.final_torn}</span>
                       </div>
-                      <div className={`px-5 py-2.5 rounded-2xl text-[10px] sm:text-xs font-black shadow-md border-b-4 border-black/10 transition-all ${currentStatus.color} whitespace-nowrap inline-block text-center`}>
+                      <button 
+                        onClick={() => scrollToElement(currentStatus.targetId)}
+                        className={`px-5 py-2.5 rounded-2xl text-[10px] sm:text-xs font-black shadow-md border-b-4 border-black/10 transition-all hover:brightness-110 active:scale-95 ${currentStatus.color} whitespace-nowrap inline-block text-center cursor-pointer`}
+                      >
                         {currentStatus.label}
-                      </div>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -881,14 +909,18 @@ export const CercarView: React.FC = () => {
                   <div className="border border-gray-100 rounded-[32px] overflow-hidden bg-white shadow-sm mb-4">
                     <CirculationHeader />
                     <div className="flex flex-col divide-y divide-gray-100">
-                      {group.fullCirculations?.[0] && (<TimeGapRow from={group.inici_torn as string} to={group.fullCirculations[0].sortida as string} />)}
+                      {group.fullCirculations?.[0] && (
+                        <div id={`gap-pre-${idx}`}>
+                          <TimeGapRow from={group.inici_torn as string} to={group.fullCirculations[0].sortida as string} />
+                        </div>
+                      )}
                       {group.fullCirculations?.map((circ: any, cIdx: number) => {
                         const shiftItemKey = `${idx}-${cIdx}`; 
                         const isActive = checkIfActive(circ.sortida as string, circ.arribada as string);
                         const itineraryPoints = [{ nom: circ.inici, hora: circ.sortida, via: circ.via_inici }, ...(circ.estacions?.map((st: any) => ({ nom: st.nom, hora: st.hora || st.sortida || st.arribada, via: st.via })) || []), { nom: circ.final, hora: circ.arribada, via: circ.via_final }];
                         return (
                           <React.Fragment key={cIdx}>
-                            <div className={`flex flex-col transition-all overflow-hidden relative ${isActive ? 'ring-2 ring-inset ring-red-600 z-10' : circ.codi === 'Viatger' ? 'bg-blue-50/10' : ''}`}>
+                            <div id={`circ-row-${shiftItemKey}`} className={`flex flex-col transition-all overflow-hidden relative ${isActive ? 'ring-2 ring-inset ring-red-600 z-10' : circ.codi === 'Viatger' ? 'bg-blue-50/10' : ''}`}>
                               <CirculationRow circ={circ} itemKey={shiftItemKey} />
                               {expandedItinerari === shiftItemKey && (
                                 <div className="p-4 sm:p-10 bg-white border-t border-gray-100 animate-in slide-in-from-top-4 duration-500 overflow-hidden">
@@ -899,7 +931,9 @@ export const CercarView: React.FC = () => {
                                 </div>
                               )}
                             </div>
-                            {cIdx < group.fullCirculations.length - 1 ? (<TimeGapRow from={circ.arribada as string} to={group.fullCirculations[cIdx + 1].sortida as string} />) : (<TimeGapRow from={circ.arribada as string} to={group.final_torn as string} />)}
+                            <div id={`gap-row-${shiftItemKey}`}>
+                              {cIdx < group.fullCirculations.length - 1 ? (<TimeGapRow from={circ.arribada as string} to={group.fullCirculations[cIdx + 1].sortida as string} />) : (<TimeGapRow from={circ.arribada as string} to={group.final_torn as string} />)}
+                            </div>
                           </React.Fragment>
                         );
                       })}
