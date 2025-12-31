@@ -1,5 +1,5 @@
 {
-  "name": "Copy of FGC Maquinista Pro v1.6",
+  "name": "Copy of FGC Maquinista Pro v1.7",
   "description": "Sistema avançat de gestió i cerca de torns per a maquinistes d'FGC, amb integració de Supabase i gestió de cicles.",
   "requestFramePermissions": [
     "camera"
