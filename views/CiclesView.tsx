@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Train, ArrowRight, Save, Loader2, Trash2, X, Hash, Filter, Link as LinkIcon, CheckCircle2, List, LayoutGrid, Info, Wrench, AlertTriangle } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
 import { Assignment } from '../types.ts';
@@ -18,21 +18,26 @@ const CiclesView: React.FC = () => {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [brokenTrains, setBrokenTrains] = useState<Set<string>>(new Set());
   const [availableShiftsCycles, setAvailableShiftsCycles] = useState<string[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showCycleSuggestions, setShowCycleSuggestions] = useState(false);
+  const [showTrainSuggestions, setShowTrainSuggestions] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [filterPending, setFilterPending] = useState(true);
   const [activeFleetSerie, setActiveFleetSerie] = useState('112');
   
-  const suggestionsRef = useRef<HTMLDivElement>(null);
+  const cycleSuggestionsRef = useRef<HTMLDivElement>(null);
+  const trainSuggestionsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchAllData();
     fetchAvailableCycles();
     
     const handleClickOutside = (event: MouseEvent) => {
-      if (suggestionsRef.current && !suggestionsRef.current.contains(event.target as Node)) {
-        setShowSuggestions(false);
+      if (cycleSuggestionsRef.current && !cycleSuggestionsRef.current.contains(event.target as Node)) {
+        setShowCycleSuggestions(false);
+      }
+      if (trainSuggestionsRef.current && !trainSuggestionsRef.current.contains(event.target as Node)) {
+        setShowTrainSuggestions(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -42,7 +47,6 @@ const CiclesView: React.FC = () => {
   const fetchAllData = async () => {
     setLoading(true);
     try {
-      // 1. Cercar assignacions actives
       const { data: assigData } = await supabase
         .from('assignments')
         .select('*')
@@ -50,7 +54,6 @@ const CiclesView: React.FC = () => {
       
       if (assigData) setAssignments(assigData);
 
-      // 2. Cercar estat de manteniment (trens avariats)
       const { data: statusData } = await supabase
         .from('train_status')
         .select('train_number')
@@ -80,10 +83,19 @@ const CiclesView: React.FC = () => {
     }
   };
 
+  const allFleetTrains = useMemo(() => {
+    const trains: string[] = [];
+    FLEET_CONFIG.forEach(config => {
+      for (let i = 1; i <= config.count; i++) {
+        trains.push(`${config.serie}.${i.toString().padStart(2, '0')}`);
+      }
+    });
+    return trains;
+  }, []);
+
   const handleSave = async () => {
     if (!newCycleId || !newTrainId) return;
     
-    // Bloqueig de seguretat si el tren està avariat
     if (brokenTrains.has(newTrainId)) {
       alert("No es pot assignar una unitat avariada a un cicle de servei.");
       return;
@@ -114,7 +126,6 @@ const CiclesView: React.FC = () => {
   const handleToggleBroken = async (trainNum: string, currentStatus: boolean) => {
     const newStatus = !currentStatus;
     
-    // Update optimista de la UI
     const newBroken = new Set(brokenTrains);
     if (newStatus) newBroken.add(trainNum);
     else newBroken.delete(trainNum);
@@ -132,7 +143,7 @@ const CiclesView: React.FC = () => {
       if (error) throw error;
     } catch (e) {
       console.error("Error actualitzant estat d'avaria:", e);
-      fetchAllData(); // Revertir canvis si falla la DB
+      fetchAllData();
     }
   };
 
@@ -143,13 +154,19 @@ const CiclesView: React.FC = () => {
   const assignedCycleIds = new Set(assignments.map(a => a.cycle_id));
   const assignedTrainNumbers = new Set(assignments.map(a => a.train_number));
 
-  const displayCycles = filterPending 
-    ? availableShiftsCycles.filter(c => !assignedCycleIds.has(c))
-    : availableShiftsCycles;
+  const filteredCyclesSuggestions = useMemo(() => {
+    if (!newCycleId) return availableShiftsCycles.filter(c => !assignedCycleIds.has(c)).slice(0, 10);
+    return availableShiftsCycles.filter(c => 
+      c.toLowerCase().includes(newCycleId.toLowerCase())
+    ).slice(0, 10);
+  }, [newCycleId, availableShiftsCycles, assignedCycleIds]);
 
-  const filteredCyclesSuggestions = displayCycles.filter(c => 
-    c.toLowerCase().includes(newCycleId.toLowerCase())
-  );
+  const filteredTrainSuggestions = useMemo(() => {
+    if (!newTrainId) return allFleetTrains.filter(t => !assignedTrainNumbers.has(t) && !brokenTrains.has(t)).slice(0, 10);
+    return allFleetTrains.filter(t => 
+      t.toLowerCase().includes(newTrainId.toLowerCase())
+    ).slice(0, 10);
+  }, [newTrainId, allFleetTrains, assignedTrainNumbers, brokenTrains]);
 
   return (
     <div className="space-y-6">
@@ -159,13 +176,13 @@ const CiclesView: React.FC = () => {
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Formulari d'assignació */}
         <div className="lg:col-span-1">
           <div className="bg-white rounded-[32px] p-8 shadow-sm border border-gray-100 sticky top-24 space-y-8">
             <div>
               <h3 className="text-lg font-black text-fgc-grey mb-6 uppercase tracking-tight">Nova Assignació</h3>
               <div className="space-y-6">
-                <div className="relative" ref={suggestionsRef}>
+                {/* ID Cicle Autocomplete */}
+                <div className="relative" ref={cycleSuggestionsRef}>
                   <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">ID Cicle</label>
                   <div className="relative">
                     <Hash className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
@@ -176,9 +193,9 @@ const CiclesView: React.FC = () => {
                       value={newCycleId}
                       onChange={(e) => {
                         setNewCycleId(e.target.value.toUpperCase());
-                        setShowSuggestions(true);
+                        setShowCycleSuggestions(true);
                       }}
-                      onFocus={() => setShowSuggestions(true)}
+                      onFocus={() => setShowCycleSuggestions(true)}
                     />
                     {newCycleId && (
                       <button onClick={() => setNewCycleId('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-300 hover:text-red-500 transition-colors">
@@ -187,26 +204,28 @@ const CiclesView: React.FC = () => {
                     )}
                   </div>
                   
-                  {showSuggestions && filteredCyclesSuggestions.length > 0 && (
+                  {showCycleSuggestions && filteredCyclesSuggestions.length > 0 && (
                     <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200">
                       {filteredCyclesSuggestions.map(c => (
                         <button 
                           key={c}
-                          className="w-full text-left px-6 py-3 hover:bg-fgc-green/10 font-black text-fgc-grey transition-colors flex items-center justify-between group"
-                          onClick={() => { setNewCycleId(c); setShowSuggestions(false); }}
+                          className="w-full text-left px-6 py-4 hover:bg-fgc-green/10 font-black text-fgc-grey transition-colors flex items-center justify-between group border-b border-gray-50 last:border-0"
+                          onClick={() => { setNewCycleId(c); setShowCycleSuggestions(false); }}
                         >
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-3">
+                            <span className="text-gray-300">#</span>
                             {c}
                             {assignedCycleIds.has(c) && <CheckCircle2 size={12} className="text-blue-500" />}
                           </div>
-                          <ArrowRight size={14} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                          <ArrowRight size={14} className="opacity-0 group-hover:opacity-100 transition-opacity text-fgc-green" />
                         </button>
                       ))}
                     </div>
                   )}
                 </div>
 
-                <div>
+                {/* Unitat de Tren Autocomplete */}
+                <div className="relative" ref={trainSuggestionsRef}>
                   <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Unitat de Tren</label>
                   <div className="relative">
                     <Train className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
@@ -215,9 +234,38 @@ const CiclesView: React.FC = () => {
                       className={`w-full bg-gray-50 border-none rounded-2xl py-4 pl-12 pr-4 focus:ring-4 focus:ring-fgc-green/20 outline-none font-black text-lg transition-all ${brokenTrains.has(newTrainId) ? 'text-red-600' : ''}`}
                       placeholder="Ex: 112.01"
                       value={newTrainId}
-                      onChange={(e) => setNewTrainId(e.target.value)}
+                      onChange={(e) => {
+                        setNewTrainId(e.target.value);
+                        setShowTrainSuggestions(true);
+                      }}
+                      onFocus={() => setShowTrainSuggestions(true)}
                     />
+                    {newTrainId && (
+                      <button onClick={() => setNewTrainId('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-300 hover:text-red-500 transition-colors">
+                        <X size={18} />
+                      </button>
+                    )}
                   </div>
+                  
+                  {showTrainSuggestions && filteredTrainSuggestions.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200">
+                      {filteredTrainSuggestions.map(t => (
+                        <button 
+                          key={t}
+                          className="w-full text-left px-6 py-4 hover:bg-fgc-green/10 font-black text-fgc-grey transition-colors flex items-center justify-between group border-b border-gray-50 last:border-0"
+                          onClick={() => { setNewTrainId(t); setShowTrainSuggestions(false); }}
+                        >
+                          <div className="flex items-center gap-3">
+                            <Train size={14} className="text-gray-300" />
+                            {t}
+                            {assignedTrainNumbers.has(t) && <CheckCircle2 size={12} className="text-blue-500" />}
+                          </div>
+                          <ArrowRight size={14} className="opacity-0 group-hover:opacity-100 transition-opacity text-fgc-green" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  
                   {brokenTrains.has(newTrainId) && (
                     <p className="text-[10px] text-red-500 font-black uppercase mt-2 ml-1 flex items-center gap-1">
                       <AlertTriangle size={12} /> Unitat fora de servei per avaria
@@ -252,16 +300,16 @@ const CiclesView: React.FC = () => {
                 </button>
               </div>
               <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar p-1">
-                {displayCycles.map(c => {
+                {availableShiftsCycles.filter(c => !filterPending || !assignedCycleIds.has(c)).map(c => {
                   const isAssigned = assignedCycleIds.has(c);
                   return (
                     <button
                       key={c}
-                      onClick={() => { setNewCycleId(c); setShowSuggestions(false); }}
+                      onClick={() => { setNewCycleId(c); setShowCycleSuggestions(false); }}
                       className={`py-3 px-2 rounded-xl text-xs font-black border transition-all relative ${
                         newCycleId === c 
                         ? 'bg-fgc-green text-fgc-grey border-fgc-green shadow-sm' 
-                        : isAssigned ? 'bg-blue-50 text-blue-500 border-blue-100 opacity-60' : 'bg-gray-50 text-gray-500 border-gray-100 hover:bg-white'
+                        : isAssigned ? 'bg-blue-50 text-blue-500 border-blue-100 opacity-60' : 'bg-gray-50 text-gray-400 border-gray-100 hover:bg-white'
                       }`}
                     >
                       {c}
@@ -274,9 +322,7 @@ const CiclesView: React.FC = () => {
           </div>
         </div>
 
-        {/* Llistat i Inventari de Flota */}
         <div className="lg:col-span-2 space-y-8">
-          {/* Llistat d'assignacions actuals */}
           <div className="bg-white rounded-[40px] shadow-sm border border-gray-100 overflow-hidden">
             <div className="p-8 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -332,7 +378,6 @@ const CiclesView: React.FC = () => {
             </div>
           </div>
 
-          {/* Panell de Flota per Sèries */}
           <div className="bg-white rounded-[40px] shadow-sm border border-gray-100 overflow-hidden">
             <div className="p-8 border-b border-gray-100 bg-gray-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
@@ -386,7 +431,10 @@ const CiclesView: React.FC = () => {
                     <div key={trainNum} className="relative group">
                       <button
                         disabled={isOccupied || isBroken}
-                        onClick={() => setNewTrainId(trainNum)}
+                        onClick={() => {
+                          setNewTrainId(trainNum);
+                          setShowTrainSuggestions(false);
+                        }}
                         className={`w-full p-4 rounded-2xl border transition-all text-center flex flex-col items-center gap-1.5 ${
                           isBroken
                             ? 'bg-red-50 text-red-600 border-red-200 ring-1 ring-red-100'
@@ -402,7 +450,6 @@ const CiclesView: React.FC = () => {
                         {isBroken && <span className="text-[8px] font-black uppercase text-red-400">FORA DE SERVEI</span>}
                       </button>
 
-                      {/* Botó per gestionar manteniment */}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
