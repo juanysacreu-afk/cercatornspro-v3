@@ -24,6 +24,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
+      darkMode: 'class',
       theme: {
         extend: {
           colors: {
@@ -43,7 +44,6 @@
   </script>
   <style>
     body { 
-      background-color: #F4F4F4; 
       scroll-behavior: smooth; 
       -webkit-tap-highlight-color: transparent;
       user-select: none;
@@ -73,7 +73,7 @@
 }
 </script>
 </head>
-<body class="font-sans text-fgc-grey antialiased">
+<body class="font-sans text-fgc-grey antialiased transition-colors duration-300">
   <div id="root"></div>
   <script type="module" src="/index.tsx"></script>
 </body>
