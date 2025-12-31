@@ -574,6 +574,17 @@ export const CercarView: React.FC = () => {
         <div className="flex items-center gap-2 overflow-visible px-1">
             <div className={`px-2.5 py-1.5 ${getLiniaColor(circ.linia)} text-white rounded-lg font-black text-xs sm:text-sm shadow-sm flex items-center justify-center min-w-[58px]`}>{circ.codi}</div>
             <span className={`hidden md:flex px-2 py-1 ${getLiniaColor(circ.linia)} text-white rounded-md font-black text-[9px] sm:text-[11px] shadow-sm flex-shrink-0`}>{circ.linia || '??'}</span>
+            {/* Només mòbil: Icona de trucada a la unitat */}
+            {circ.train && trainPhone && (
+              <a 
+                href={`tel:${trainPhone}`} 
+                onClick={(e) => e.stopPropagation()}
+                className={`md:hidden p-2 rounded-lg border shadow-sm transition-all active:scale-90 ${isBroken ? 'bg-red-600 text-white border-red-700' : 'bg-fgc-green/20 text-fgc-grey border-fgc-green/30'}`}
+                title={`Trucar a la unitat ${circ.train}`}
+              >
+                <Phone size={14} />
+              </a>
+            )}
         </div>
         
         {/* COL 2: Cicle / Unitat (Ocult en mòbil vertical) */}
@@ -636,6 +647,17 @@ export const CercarView: React.FC = () => {
         <div className="flex justify-start items-center gap-2 shrink-0 px-1">
           <div className={`px-2.5 py-1.5 ${getLiniaColor(circ.linia)} text-white rounded-lg font-black text-xs sm:text-sm shadow-sm flex items-center justify-center min-w-[58px]`}>{circ.id}</div>
           <span className={`hidden md:flex px-2 py-1 ${getLiniaColor(circ.linia)} text-white rounded-md font-black text-[9px] sm:text-[11px] shadow-sm`}>{circ.linia || '??'}</span>
+          {/* Només mòbil: Icona de trucada a la unitat */}
+          {circ.train && trainPhone && (
+            <a 
+              href={`tel:${trainPhone}`} 
+              onClick={(e) => e.stopPropagation()}
+              className={`md:hidden p-2 rounded-lg border shadow-sm transition-all active:scale-90 ${isBroken ? 'bg-red-600 text-white border-red-700' : 'bg-fgc-green/20 text-fgc-grey border-fgc-green/30'}`}
+              title={`Trucar a la unitat ${circ.train}`}
+            >
+              <Phone size={14} />
+            </a>
+          )}
         </div>
 
         {/* COL 2: Cicle / Unitat (Ocult en mòbil vertical) */}
