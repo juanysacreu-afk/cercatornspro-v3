@@ -26,14 +26,12 @@ export const OrganitzaView: React.FC = () => {
   const [nowMin, setNowMin] = useState<number>(0);
   const [selectedServei, setSelectedServei] = useState<string>('0');
 
-  // Estats per al comparador
   const [turn1Id, setTurn1Id] = useState('');
   const [turn2Id, setTurn2Id] = useState('');
   const [turn1Data, setTurn1Data] = useState<any>(null);
   const [turn2Data, setTurn2Data] = useState<any>(null);
   const [loadingComparator, setLoadingComparator] = useState(false);
 
-  // Estats per a la Circulació descoberta (Buscador de Viatgers)
   const [coverageQuery, setCoverageQuery] = useState('');
   const [searchedCircData, setSearchedCircData] = useState<any>(null);
   const [mainDriverInfo, setMainDriverInfo] = useState<any>(null);
@@ -44,7 +42,6 @@ export const OrganitzaView: React.FC = () => {
   const [reserveExtensionResults, setReserveExtensionResults] = useState<any[]>([]);
   const [loadingCoverage, setLoadingCoverage] = useState(false);
 
-  // Estats per a la pestanya Maquinista
   const [maquinistaQuery, setMaquinistaQuery] = useState('');
   const [allAssignments, setAllAssignments] = useState<DailyAssignment[]>([]);
   const [phonebook, setPhonebook] = useState<Record<string, string[]>>({});
@@ -65,7 +62,6 @@ export const OrganitzaView: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Efecte per carregar maquinistes quan s'entra a la pestanya
   useEffect(() => {
     if (organizeType === OrganizeType.Maquinista) {
       fetchMaquinistes();
@@ -124,11 +120,10 @@ export const OrganitzaView: React.FC = () => {
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
   }
 
-  // Helper per saber si una reserva està activa en un minut FGC concret
   const isReserveActive = (res: any, timeMin: number) => {
     const start = getFgcMinutes(res.start);
     const end = getFgcMinutes(res.end);
-    if (start > end) { // Torn de nit
+    if (start > end) {
       return timeMin >= start || timeMin < end;
     }
     return timeMin >= start && timeMin < end;
@@ -143,7 +138,7 @@ export const OrganitzaView: React.FC = () => {
     if (c === 'NA') return 'bg-orange-500';
     if (c === 'PN') return 'bg-[#00B140]';
     if (c === 'TB') return 'bg-[#a67c52]'; 
-    return 'bg-gray-200';
+    return 'bg-gray-200 dark:bg-gray-700';
   };
 
   const getShortTornId = (id: string) => {
@@ -275,7 +270,6 @@ export const OrganitzaView: React.FC = () => {
           if (maxExtensionCapacityMin > 0) {
             const isAtOriginAtDeparture = segs.find(seg => seg.type === 'gap' && seg.codi.toUpperCase() === depOrigen.toUpperCase() && seg.start <= sortidaMin && seg.end > sortidaMin);
             if (isAtOriginAtDeparture) {
-              // 1. Perllongament TOTAL
               const hasConflictsTotal = segs.some(seg => seg.type === 'circ' && seg.start >= sortidaMin && seg.start < (arribadaMin + (arribadaMin - sortidaMin) + 10));
               if (!hasConflictsTotal) {
                 const shiftFinalMin = getFgcMinutes(tData.final_torn);
@@ -285,8 +279,6 @@ export const OrganitzaView: React.FC = () => {
                 }
               }
 
-              // 2. Perllongament + RESERVA (Intercepció)
-              // Busquem si la circulació passa per alguna dependència on hi hagi reserva activa
               const itinerary = [
                 { nom: searchedCirc.inici, hora: searchedCirc.sortida },
                 ...(searchedCirc.estacions || []),
@@ -298,11 +290,10 @@ export const OrganitzaView: React.FC = () => {
                 const pointMin = getFgcMinutes(point.hora || point.arribada || point.sortida);
                 const pointName = (point.nom || '').toUpperCase();
                 
-                // Busquem qualsevol reserva que estigui en aquesta estació en aquest moment
                 const reserve = RESERVAS_DATA.find(r => pointName.includes(r.loc) && isReserveActive(r, pointMin));
                 
                 if (reserve) {
-                  const returnToOriginTimeMin = pointMin + 25; // Estimació viatger tornada
+                  const returnToOriginTimeMin = pointMin + 25; 
                   const hasConflictsPartial = segs.some(seg => seg.type === 'circ' && seg.start >= sortidaMin && seg.start < returnToOriginTimeMin);
                   
                   if (!hasConflictsPartial) {
@@ -383,18 +374,18 @@ export const OrganitzaView: React.FC = () => {
     return (
       <div className="space-y-3 relative z-10">
         <div className="flex justify-between items-center px-4">
-          <div className="flex items-center gap-2"><span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{label}</span>{turnId && <span className="bg-fgc-grey text-white text-[9px] font-black px-2 py-0.5 rounded-md uppercase whitespace-nowrap">Torn {turnId}</span>}</div>
-          <div className="flex items-center gap-1.5 text-gray-400"><Clock size={12} /><span className="text-[10px] font-bold">{formatFgcTime(globalMin)} — {formatFgcTime(globalMax)}</span></div>
+          <div className="flex items-center gap-2"><span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">{label}</span>{turnId && <span className="bg-fgc-grey dark:bg-black text-white text-[9px] font-black px-2 py-0.5 rounded-md uppercase whitespace-nowrap">Torn {turnId}</span>}</div>
+          <div className="flex items-center gap-1.5 text-gray-400 dark:text-gray-500"><Clock size={12} /><span className="text-[10px] font-bold">{formatFgcTime(globalMin)} — {formatFgcTime(globalMax)}</span></div>
         </div>
-        <div className="h-14 bg-gray-100/30 rounded-[24px] p-1.5 relative border border-gray-100 shadow-inner">
+        <div className="h-14 bg-gray-100/30 dark:bg-black/30 rounded-[24px] p-1.5 relative border border-gray-100 dark:border-white/5 shadow-inner transition-colors">
           {segments.map((seg, i) => {
             const left = ((seg.start - globalMin) / total) * 100; const width = ((seg.end - seg.start) / total) * 100;
             return (
-              <div key={i} style={{ left: `${left}%`, width: `${width}%` }} className={`absolute top-1.5 bottom-1.5 rounded-xl flex items-center justify-center transition-all group cursor-pointer z-10 ${colorMode === 'coincidence' ? 'bg-fgc-green border-2 border-white/40 shadow-sm hover:brightness-105' : seg.type === 'circ' ? 'bg-gray-300' : getStatusColor(seg.codi)}`}>
-                {width > 4 && <span className={`text-[9px] font-black truncate px-1 ${seg.type === 'circ' ? 'text-gray-600' : 'text-white'}`}>{seg.codi}</span>}
-                <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 bg-fgc-grey text-white text-[10px] font-bold py-2 px-3 rounded-xl opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 whitespace-nowrap z-[100] pointer-events-none shadow-2xl border border-white/10">
+              <div key={i} style={{ left: `${left}%`, width: `${width}%` }} className={`absolute top-1.5 bottom-1.5 rounded-xl flex items-center justify-center transition-all group cursor-pointer z-10 ${colorMode === 'coincidence' ? 'bg-fgc-green border-2 border-white/40 shadow-sm hover:brightness-105' : seg.type === 'circ' ? 'bg-gray-300 dark:bg-gray-700' : getStatusColor(seg.codi)}`}>
+                {width > 4 && <span className={`text-[9px] font-black truncate px-1 ${seg.type === 'circ' ? 'text-gray-600 dark:text-gray-300' : 'text-white'}`}>{seg.codi}</span>}
+                <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 bg-fgc-grey dark:bg-black text-white text-[10px] font-bold py-2 px-3 rounded-xl opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 whitespace-nowrap z-[100] pointer-events-none shadow-2xl border border-white/10">
                   <div className="flex flex-col gap-0.5"><span className="text-fgc-green uppercase text-[8px] tracking-widest">{seg.type === 'gap' || colorMode === 'coincidence' ? 'ESTADA' : 'CIRCULACIÓ'}</span><span className="text-base font-black">{seg.codi}</span><span className="opacity-60">{formatFgcTime(seg.start)} — {formatFgcTime(seg.end)} ({seg.end - seg.start} min)</span></div>
-                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-[6px] border-transparent border-t-fgc-grey" />
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-[6px] border-transparent border-t-fgc-grey dark:border-t-black" />
                 </div>
               </div>
             );
@@ -407,7 +398,6 @@ export const OrganitzaView: React.FC = () => {
   const gr = (turn1Data && turn2Data) ? { min: Math.min(getFgcMinutes(turn1Data.inici_torn), getFgcMinutes(turn2Data.inici_torn)), max: Math.max(getFgcMinutes(turn1Data.final_torn), getFgcMinutes(turn2Data.final_torn)) } : { min: 0, max: 0 };
   const coincidences = calculateCoincidences(turn1Data, turn2Data);
 
-  // Filtratge de maquinistes per a la nova pestanya
   const filteredMaquinistes = allAssignments.filter(maquinista => {
     const queryMatch = maquinista.nom.toLowerCase().includes(maquinistaQuery.toLowerCase()) || 
                        maquinista.empleat_id.includes(maquinistaQuery);
@@ -423,46 +413,46 @@ export const OrganitzaView: React.FC = () => {
   return (
     <div className="space-y-6">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div><h1 className="text-3xl font-black text-fgc-grey tracking-tight">Organització i Circulació Descoberta</h1><p className="text-gray-500 font-medium">Anàlisi comparativa i gestió de "Viatgers".</p></div>
-        <div className="inline-flex bg-white p-1.5 rounded-2xl shadow-sm border border-gray-100 overflow-x-auto max-w-full custom-scrollbar">
-          <button onClick={() => setOrganizeType(OrganizeType.Comparador)} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black transition-all whitespace-nowrap ${organizeType === OrganizeType.Comparador ? 'bg-fgc-grey text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}><Columns size={16} />Comparador</button>
-          <button onClick={() => setOrganizeType(OrganizeType.CirculacioDescoberta)} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black transition-all whitespace-nowrap ${organizeType === OrganizeType.CirculacioDescoberta ? 'bg-fgc-grey text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}><ShieldAlert size={16} />Circulació descoberta</button>
-          <button onClick={() => setOrganizeType(OrganizeType.Maquinista)} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black transition-all whitespace-nowrap ${organizeType === OrganizeType.Maquinista ? 'bg-fgc-grey text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}><User size={16} />Maquinistes</button>
+        <div><h1 className="text-3xl font-black text-fgc-grey dark:text-white tracking-tight">Organització i Circulació Descoberta</h1><p className="text-gray-500 dark:text-gray-400 font-medium">Anàlisi comparativa i gestió de "Viatgers".</p></div>
+        <div className="inline-flex bg-white dark:bg-gray-900 p-1.5 rounded-2xl shadow-sm border border-gray-100 dark:border-white/5 overflow-x-auto max-w-full custom-scrollbar transition-colors">
+          <button onClick={() => setOrganizeType(OrganizeType.Comparador)} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black transition-all whitespace-nowrap ${organizeType === OrganizeType.Comparador ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5'}`}><Columns size={16} />Comparador</button>
+          <button onClick={() => setOrganizeType(OrganizeType.CirculacioDescoberta)} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black transition-all whitespace-nowrap ${organizeType === OrganizeType.CirculacioDescoberta ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5'}`}><ShieldAlert size={16} />Circulació descoberta</button>
+          <button onClick={() => setOrganizeType(OrganizeType.Maquinista)} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black transition-all whitespace-nowrap ${organizeType === OrganizeType.Maquinista ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5'}`}><User size={16} />Maquinistes</button>
         </div>
       </header>
 
       {organizeType === OrganizeType.Comparador ? (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-          <div className="flex justify-center"><div className="inline-flex bg-white p-1 rounded-2xl shadow-sm border border-gray-100">{serveiTypes.map(s => (<button key={s} onClick={() => { setSelectedServei(s); setTurn1Data(null); setTurn2Data(null); setTurn1Id(''); setTurn2Id(''); }} className={`px-6 py-2 rounded-xl text-sm font-black transition-all ${selectedServei === s ? 'bg-fgc-grey text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}>S-{s}</button>))}</div></div>
+          <div className="flex justify-center"><div className="inline-flex bg-white dark:bg-gray-900 p-1 rounded-2xl shadow-sm border border-gray-100 dark:border-white/5 transition-colors">{serveiTypes.map(s => (<button key={s} onClick={() => { setSelectedServei(s); setTurn1Data(null); setTurn2Data(null); setTurn1Id(''); setTurn2Id(''); }} className={`px-6 py-2 rounded-xl text-sm font-black transition-all ${selectedServei === s ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5'}`}>S-{s}</button>))}</div></div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <CompareInputSlot label="Primer Torn" value={turn1Id} onChange={setTurn1Id} data={turn1Data} nowMin={nowMin} getSegments={getSegments} onClear={() => {setTurn1Id(''); setTurn1Data(null);}} />
             <CompareInputSlot label="Segon Torn" value={turn2Id} onChange={setTurn2Id} data={turn2Data} nowMin={nowMin} getSegments={getSegments} onClear={() => {setTurn2Id(''); setTurn2Data(null);}} />
           </div>
           <div className="flex justify-center"><button onClick={handleCompare} disabled={!turn1Id || !turn2Id || loadingComparator} className="bg-fgc-green text-fgc-grey px-12 py-5 rounded-[28px] font-black text-lg shadow-xl shadow-fgc-green/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-3 disabled:opacity-50 disabled:scale-100 group">{loadingComparator ? <Loader2 className="animate-spin" size={24} /> : <RefreshCcw size={24} />}ANALITZAR COINCIDÈNCIES</button></div>
           {(turn1Data && turn2Data) && (
-            <div className="bg-white rounded-[48px] p-8 sm:p-14 border border-gray-100 shadow-sm space-y-16 animate-in zoom-in-95 duration-500 overflow-visible">
+            <div className="bg-white dark:bg-gray-900 rounded-[48px] p-8 sm:p-14 border border-gray-100 dark:border-white/5 shadow-sm space-y-16 animate-in zoom-in-95 duration-500 overflow-visible transition-colors">
               <SimpleTimeline label="CRONOGRAMA TORN A" turnId={turn1Data.id} segments={getSegments(turn1Data)} globalMin={gr.min} globalMax={gr.max} />
               <SimpleTimeline label="CRONOGRAMA TORN B" turnId={turn2Data.id} segments={getSegments(turn2Data)} globalMin={gr.min} globalMax={gr.max} />
-              <div className="pt-10 border-t border-dashed border-gray-200 overflow-visible">
-                <div className="flex items-center justify-between mb-8"><div className="flex items-center gap-4"><div className="p-3 bg-fgc-green rounded-2xl text-fgc-grey shadow-lg shadow-fgc-green/10"><LayoutGrid size={24} /></div><div><h3 className="text-xl font-black text-fgc-grey tracking-tight">Timeline de Coincidències</h3><p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-0.5">Moments en què coincideixen a la mateixa estació</p></div></div><div className="bg-gray-50 px-5 py-2 rounded-2xl border border-gray-100 flex items-center gap-3"><span className="text-[10px] font-black text-gray-400 uppercase">Trobades detectades:</span><span className="text-xl font-black text-fgc-green">{coincidences.length}</span></div></div>
+              <div className="pt-10 border-t border-dashed border-gray-200 dark:border-white/10 overflow-visible transition-colors">
+                <div className="flex items-center justify-between mb-8"><div className="flex items-center gap-4"><div className="p-3 bg-fgc-green rounded-2xl text-fgc-grey shadow-lg shadow-fgc-green/10"><LayoutGrid size={24} /></div><div><h3 className="text-xl font-black text-fgc-grey dark:text-white tracking-tight">Timeline de Coincidències</h3><p className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mt-0.5">Moments en què coincideixen a la mateixa estació</p></div></div><div className="bg-gray-50 dark:bg-black/20 px-5 py-2 rounded-2xl border border-gray-100 dark:border-white/5 flex items-center gap-3 transition-colors"><span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase">Trobades detectades:</span><span className="text-xl font-black text-fgc-green">{coincidences.length}</span></div></div>
                 <SimpleTimeline label="Mapa visual de trobades" segments={coincidences} colorMode="coincidence" globalMin={gr.min} globalMax={gr.max} />
                 {coincidences.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-10">
                     {coincidences.map((c, i) => (
-                      <div key={i} className="bg-white rounded-[32px] p-7 border border-gray-100 flex flex-col gap-6 hover:shadow-2xl hover:border-fgc-green/30 transition-all group relative overflow-hidden">
+                      <div key={i} className="bg-white dark:bg-gray-800 rounded-[32px] p-7 border border-gray-100 dark:border-white/5 flex flex-col gap-6 hover:shadow-2xl hover:border-fgc-green/30 transition-all group relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-24 h-24 bg-fgc-green/5 -mr-8 -mt-8 rounded-full blur-2xl group-hover:bg-fgc-green/10 transition-colors" />
                         <div className="flex items-center justify-between relative z-10"><div className={`px-5 py-2 rounded-2xl font-black text-sm text-white shadow-lg ${getStatusColor(c.codi)}`}>{c.codi}</div><div className="flex items-center gap-2 bg-fgc-green/10 text-fgc-green px-3 py-1.5 rounded-xl font-black text-xs border border-fgc-green/10"><Clock size={14} />{c.duration} min</div></div>
-                        <div className="space-y-1 relative z-10"><p className="text-[10px] font-black text-gray-300 uppercase tracking-widest ml-1">Franja Horària</p><div className="flex items-center gap-3"><span className="text-2xl font-black text-fgc-grey">{formatFgcTime(c.start)}</span><ArrowRight className="text-fgc-green" size={18} /><span className="text-2xl font-black text-fgc-grey">{formatFgcTime(c.end)}</span></div></div>
-                        <div className="h-px bg-gray-100 w-full" />
+                        <div className="space-y-1 relative z-10"><p className="text-[10px] font-black text-gray-300 dark:text-gray-600 uppercase tracking-widest ml-1">Franja Horària</p><div className="flex items-center gap-3"><span className="text-2xl font-black text-fgc-grey dark:text-gray-200">{formatFgcTime(c.start)}</span><ArrowRight className="text-fgc-green" size={18} /><span className="text-2xl font-black text-fgc-grey dark:text-gray-200">{formatFgcTime(c.end)}</span></div></div>
+                        <div className="h-px bg-gray-100 dark:bg-white/5 w-full transition-colors" />
                         <div className="space-y-4 relative z-10">
-                            <div className="flex items-center gap-4"><div className="h-10 min-w-[2.5rem] px-2 rounded-xl bg-fgc-grey text-white flex items-center justify-center font-black text-xs shadow-md">{getShortTornId(c.turn1)}</div><div className="min-w-0"><p className="text-[9px] font-black text-gray-400 uppercase tracking-tighter leading-none">Maquinista A</p><p className="text-sm font-bold text-fgc-grey truncate">{c.driver1}</p></div></div>
-                            <div className="flex items-center gap-4"><div className="h-10 min-w-[2.5rem] px-2 rounded-xl bg-fgc-grey/10 text-fgc-grey flex items-center justify-center font-black text-xs border border-fgc-grey/20">{getShortTornId(c.turn2)}</div><div className="min-w-0"><p className="text-[9px] font-black text-gray-400 uppercase tracking-tighter leading-none">Maquinista B</p><p className="text-sm font-bold text-fgc-grey truncate">{c.driver2}</p></div></div>
+                            <div className="flex items-center gap-4"><div className="h-10 min-w-[2.5rem] px-2 rounded-xl bg-fgc-grey dark:bg-black text-white flex items-center justify-center font-black text-xs shadow-md">{getShortTornId(c.turn1)}</div><div className="min-w-0"><p className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-tighter leading-none">Maquinista A</p><p className="text-sm font-bold text-fgc-grey dark:text-gray-300 truncate">{c.driver1}</p></div></div>
+                            <div className="flex items-center gap-4"><div className="h-10 min-w-[2.5rem] px-2 rounded-xl bg-fgc-grey/10 dark:bg-white/5 text-fgc-grey dark:text-gray-400 flex items-center justify-center font-black text-xs border border-fgc-grey/20 dark:border-white/10 transition-colors">{getShortTornId(c.turn2)}</div><div className="min-w-0"><p className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-tighter leading-none">Maquinista B</p><p className="text-sm font-bold text-fgc-grey dark:text-gray-300 truncate">{c.driver2}</p></div></div>
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="bg-gray-50/50 rounded-[40px] p-20 text-center border-2 border-dashed border-gray-100 mt-6"><div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm"><Coffee className="text-gray-300" size={32} /></div><p className="text-gray-400 font-black uppercase tracking-[0.2em] text-sm">Cap coincidència detectada</p></div>
+                  <div className="bg-gray-50/50 dark:bg-black/20 rounded-[40px] p-20 text-center border-2 border-dashed border-gray-100 dark:border-white/5 mt-6 transition-colors"><div className="w-20 h-20 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm"><Coffee className="text-gray-300 dark:text-gray-600" size={32} /></div><p className="text-gray-400 dark:text-gray-500 font-black uppercase tracking-[0.2em] text-sm">Cap coincidència detectada</p></div>
                 )}
               </div>
             </div>
@@ -470,32 +460,32 @@ export const OrganitzaView: React.FC = () => {
         </div>
       ) : organizeType === OrganizeType.CirculacioDescoberta ? (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-          <div className="bg-white rounded-[40px] p-8 sm:p-10 border border-gray-100 shadow-sm space-y-8">
+          <div className="bg-white dark:bg-gray-900 rounded-[40px] p-8 sm:p-10 border border-gray-100 dark:border-white/5 shadow-sm space-y-8 transition-colors">
             <div className="max-w-3xl mx-auto space-y-6">
-              <div className="text-center space-y-1"><h2 className="text-2xl font-black text-fgc-grey uppercase tracking-tight">Consulta de Circulació</h2><p className="text-xs font-medium text-gray-400">Personal assignat a la circulació en temps real.</p></div>
-              <div className="flex justify-center gap-2"><div className="flex items-center gap-2 bg-gray-50 p-1 rounded-xl border border-gray-100">{serveiTypes.map(s => (<button key={s} onClick={() => setSelectedServei(s)} className={`px-4 py-1.5 rounded-lg text-[10px] font-black transition-all ${selectedServei === s ? 'bg-fgc-grey text-white shadow-md' : 'text-gray-400 hover:bg-white'}`}>S-{s}</button>))}</div></div>
-              <div className="relative"><Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400" size={20} /><input type="text" placeholder="Número de circulació (Ex: 1102)..." value={coverageQuery} onChange={(e) => setCoverageQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSearchCoverage()} className="w-full bg-gray-50 border-none rounded-[24px] py-4 pl-14 pr-8 focus:ring-4 focus:ring-fgc-green/20 outline-none font-black text-lg transition-all placeholder:text-gray-300 shadow-inner" /><button onClick={handleSearchCoverage} disabled={!coverageQuery || loadingCoverage} className="absolute right-3 top-1/2 -translate-y-1/2 bg-fgc-green text-fgc-grey px-6 py-2 rounded-xl font-black text-xs hover:scale-105 active:scale-95 transition-all shadow-md disabled:opacity-50">{loadingCoverage ? <Loader2 className="animate-spin" size={16} /> : 'CERCAR'}</button></div>
+              <div className="text-center space-y-1"><h2 className="text-2xl font-black text-fgc-grey dark:text-white uppercase tracking-tight">Consulta de Circulació</h2><p className="text-xs font-medium text-gray-400 dark:text-gray-500">Personal assignat a la circulació en temps real.</p></div>
+              <div className="flex justify-center gap-2"><div className="flex items-center gap-2 bg-gray-50 dark:bg-black/20 p-1 rounded-xl border border-gray-100 dark:border-white/5 transition-colors">{serveiTypes.map(s => (<button key={s} onClick={() => setSelectedServei(s)} className={`px-4 py-1.5 rounded-lg text-[10px] font-black transition-all ${selectedServei === s ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-md' : 'text-gray-400 dark:text-gray-500 hover:bg-white dark:hover:bg-white/5'}`}>S-{s}</button>))}</div></div>
+              <div className="relative"><Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={20} /><input type="text" placeholder="Número de circulació (Ex: 1102)..." value={coverageQuery} onChange={(e) => setCoverageQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSearchCoverage()} className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] py-4 pl-14 pr-8 focus:ring-4 focus:ring-fgc-green/20 outline-none font-black text-lg transition-all placeholder:text-gray-300 dark:text-white dark:placeholder:text-gray-600 shadow-inner" /><button onClick={handleSearchCoverage} disabled={!coverageQuery || loadingCoverage} className="absolute right-3 top-1/2 -translate-y-1/2 bg-fgc-green text-fgc-grey px-6 py-2 rounded-xl font-black text-xs hover:scale-105 active:scale-95 transition-all shadow-md disabled:opacity-50">{loadingCoverage ? <Loader2 className="animate-spin" size={16} /> : 'CERCAR'}</button></div>
             </div>
 
-            <div className="pt-6 border-t border-dashed border-gray-100">
-              {loadingCoverage ? (<div className="py-20 flex flex-col items-center justify-center gap-4"><Loader2 className="animate-spin text-fgc-green" size={40} /><p className="font-black text-gray-400 uppercase tracking-widest text-[10px]">Actualitzant dades...</p></div>) : (mainDriverInfo || passengerResults.length > 0 || adjacentPassengerResults.anterior.length > 0 || adjacentPassengerResults.posterior.length > 0 || restingDriversResults.length > 0 || extensibleDriversResults.length > 0 || reserveExtensionResults.length > 0) ? (
+            <div className="pt-6 border-t border-dashed border-gray-100 dark:border-white/10 transition-colors">
+              {loadingCoverage ? (<div className="py-20 flex flex-col items-center justify-center gap-4"><Loader2 className="animate-spin text-fgc-green" size={40} /><p className="font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest text-[10px]">Actualitzant dades...</p></div>) : (mainDriverInfo || passengerResults.length > 0 || adjacentPassengerResults.anterior.length > 0 || adjacentPassengerResults.posterior.length > 0 || restingDriversResults.length > 0 || extensibleDriversResults.length > 0 || reserveExtensionResults.length > 0) ? (
                 <div className="space-y-10">
                   {mainDriverInfo && (
                     <div className="space-y-4">
-                      <div className="flex items-center gap-2 px-2"><UserCheck className="text-fgc-green" size={16} /><h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Maquinista titular</h3></div>
-                      <div className="bg-white rounded-[24px] p-5 sm:p-6 border-2 border-fgc-green shadow-lg shadow-fgc-green/5 relative overflow-hidden group">
+                      <div className="flex items-center gap-2 px-2"><UserCheck className="text-fgc-green" size={16} /><h3 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Maquinista titular</h3></div>
+                      <div className="bg-white dark:bg-gray-800 rounded-[24px] p-5 sm:p-6 border-2 border-fgc-green shadow-lg shadow-fgc-green/5 relative overflow-hidden group transition-colors">
                         <div className="flex flex-col">
                           <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-4">
-                              <div className="h-12 min-w-[3.5rem] px-3 bg-fgc-grey text-white rounded-xl flex items-center justify-center font-black text-xl shadow-md shrink-0 whitespace-nowrap">{mainDriverInfo.id}</div>
-                              <div className="min-w-0"><p className="text-xl font-black text-fgc-grey tracking-tight leading-none truncate">{mainDriverInfo.driver?.nom}</p><div className="flex items-center gap-2 mt-1"><span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Nom. {mainDriverInfo.driver?.nomina}</span>{mainDriverInfo.fullCirculations?.find((c: any) => c.codi?.toUpperCase() === coverageQuery.toUpperCase())?.train && (<span className="bg-fgc-green/20 text-fgc-grey px-2 py-0.5 rounded text-[9px] font-black uppercase flex items-center gap-1"><Train size={10} /> {mainDriverInfo.fullCirculations.find((c: any) => c.codi?.toUpperCase() === coverageQuery.toUpperCase()).train}</span>)}</div></div>
+                              <div className="h-12 min-w-[3.5rem] px-3 bg-fgc-grey dark:bg-black text-white rounded-xl flex items-center justify-center font-black text-xl shadow-md shrink-0 whitespace-nowrap">{mainDriverInfo.id}</div>
+                              <div className="min-w-0"><p className="text-xl font-black text-fgc-grey dark:text-white tracking-tight leading-none truncate">{mainDriverInfo.driver?.nom}</p><div className="flex items-center gap-2 mt-1"><div className="w-2 h-2 bg-fgc-green rounded-full animate-pulse" /><span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Nom. {mainDriverInfo.driver?.nomina}</span>{mainDriverInfo.fullCirculations?.find((c: any) => c.codi?.toUpperCase() === coverageQuery.toUpperCase())?.train && (<span className="bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-grey dark:text-fgc-green px-2 py-0.5 rounded text-[9px] font-black uppercase flex items-center gap-1"><Train size={10} /> {mainDriverInfo.fullCirculations.find((c: any) => c.codi?.toUpperCase() === coverageQuery.toUpperCase()).train}</span>)}</div></div>
                             </div>
-                            <div className="flex gap-1">{mainDriverInfo.driver?.phones?.map((p: string, i: number) => (<a key={i} href={`tel:${p}`} className="flex items-center justify-center gap-2 bg-fgc-grey text-white px-5 py-2.5 rounded-xl font-black text-xs hover:bg-fgc-dark transition-all shadow-md active:scale-95 whitespace-nowrap"><Phone size={14} /> {p}</a>))}</div>
+                            <div className="flex gap-1">{mainDriverInfo.driver?.phones?.map((p: string, i: number) => (<a key={i} href={`tel:${p}`} className="flex items-center justify-center gap-2 bg-fgc-grey dark:bg-black text-white px-5 py-2.5 rounded-xl font-black text-xs hover:bg-fgc-dark transition-all shadow-md active:scale-95 whitespace-nowrap"><Phone size={14} /> {p}</a>))}</div>
                           </div>
-                          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pt-3 border-t border-gray-100">
-                            <div className="flex items-center gap-2"><span className="text-[9px] font-black text-gray-400 uppercase tracking-tighter">TORN:</span><span className="text-base sm:text-lg font-black text-fgc-grey whitespace-nowrap">{mainDriverInfo.inici_torn} — {mainDriverInfo.final_torn} <span className="text-xs font-bold text-gray-400 ml-2">({mainDriverInfo.duracio})</span></span></div>
-                            {searchedCircData && (<div className="flex items-center gap-2"><span className="text-[9px] font-black text-fgc-green uppercase tracking-tighter">CIRCULACIÓ:</span><span className="text-base sm:text-lg font-black text-fgc-grey whitespace-nowrap">{searchedCircData.sortida} — {searchedCircData.arribada}</span></div>)}
-                            {searchedCircData && (<div className="flex items-center gap-2"><span className="text-[9px] font-black text-blue-500 uppercase tracking-tighter">VIES:</span><span className="text-base sm:text-lg font-black text-fgc-grey whitespace-nowrap">V{searchedCircData.via_inici || '?'} → V{searchedCircData.via_final || '?'}</span></div>)}
+                          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pt-3 border-t border-gray-100 dark:border-white/5 transition-colors">
+                            <div className="flex items-center gap-2"><span className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-tighter">TORN:</span><span className="text-base sm:text-lg font-black text-fgc-grey dark:text-gray-200 whitespace-nowrap">{mainDriverInfo.inici_torn} — {mainDriverInfo.final_torn} <span className="text-xs font-bold text-gray-400 dark:text-gray-500 ml-2">({mainDriverInfo.duracio})</span></span></div>
+                            {searchedCircData && (<div className="flex items-center gap-2"><span className="text-[9px] font-black text-fgc-green uppercase tracking-tighter">CIRCULACIÓ:</span><span className="text-base sm:text-lg font-black text-fgc-grey dark:text-gray-200 whitespace-nowrap">{searchedCircData.sortida} — {searchedCircData.arribada}</span></div>)}
+                            {searchedCircData && (<div className="flex items-center gap-2"><span className="text-[9px] font-black text-blue-500 uppercase tracking-tighter">VIES:</span><span className="text-base sm:text-lg font-black text-fgc-grey dark:text-gray-200 whitespace-nowrap">V{searchedCircData.via_inici || '?'} → V{searchedCircData.via_final || '?'}</span></div>)}
                           </div>
                         </div>
                       </div>
@@ -503,68 +493,68 @@ export const OrganitzaView: React.FC = () => {
                   )}
 
                   <div className="space-y-4">
-                    <div className="flex items-center gap-2 px-2"><Users className="text-blue-500" size={16} /><h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Maquinistes de viatger ({passengerResults.length})</h3></div>
-                    {passengerResults.length > 0 ? (<div className="flex flex-col gap-2">{passengerResults.map((torn, idx) => <CompactViatgerRow key={idx} torn={torn} viatgerCirc={torn.fullCirculations?.find((c: any) => c.codi === 'Viatger' && c.observacions && c.observacions.split('-')[0].toUpperCase() === coverageQuery.toUpperCase())} colorClass="border-l-blue-500" />)}</div>) : (<div className="bg-gray-50/50 rounded-2xl p-6 text-center border border-dashed border-gray-200"><p className="text-gray-400 font-bold italic text-xs">Cap maquinista de viatger detectat.</p></div>)}
+                    <div className="flex items-center gap-2 px-2"><Users className="text-blue-500" size={16} /><h3 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Maquinistes de viatger ({passengerResults.length})</h3></div>
+                    {passengerResults.length > 0 ? (<div className="flex flex-col gap-2">{passengerResults.map((torn, idx) => <CompactViatgerRow key={idx} torn={torn} viatgerCirc={torn.fullCirculations?.find((c: any) => c.codi === 'Viatger' && c.observacions && c.observacions.split('-')[0].toUpperCase() === coverageQuery.toUpperCase())} colorClass="border-l-blue-500" />)}</div>) : (<div className="bg-gray-50/50 dark:bg-black/20 rounded-2xl p-6 text-center border border-dashed border-gray-200 dark:border-white/10 transition-colors"><p className="text-gray-400 dark:text-gray-600 font-bold italic text-xs">Cap maquinista de viatger detectat.</p></div>)}
                   </div>
 
                   <div className="space-y-4">
-                    <div className="flex items-center gap-2 px-2"><Users className="text-purple-500" size={16} /><h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Maquinistes de viatger (Anterior / Posterior)</h3></div>
+                    <div className="flex items-center gap-2 px-2"><Users className="text-purple-500" size={16} /><h3 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Maquinistes de viatger (Anterior / Posterior)</h3></div>
                     {(adjacentPassengerResults.anterior.length > 0 || adjacentPassengerResults.posterior.length > 0) ? (<div className="flex flex-col gap-2">
                       {adjacentPassengerResults.anterior.map((torn, idx) => <CompactViatgerRow key={`ant-${idx}`} torn={torn} viatgerCirc={torn.fullCirculations?.find((c: any) => c.codi === 'Viatger' && c.observacions && c.observacions.split('-')[0].toUpperCase() === torn.adjacentCode?.toUpperCase())} colorClass="border-l-purple-400" label={<span className="flex items-center gap-1 text-[8px] text-purple-600 font-black uppercase"><Rewind size={10} /> {torn.adjacentCode} (Ant)</span>} />)}
                       {adjacentPassengerResults.posterior.map((torn, idx) => <CompactViatgerRow key={`post-${idx}`} torn={torn} viatgerCirc={torn.fullCirculations?.find((c: any) => c.codi === 'Viatger' && c.observacions && c.observacions.split('-')[0].toUpperCase() === torn.adjacentCode?.toUpperCase())} colorClass="border-l-purple-600" label={<span className="flex items-center gap-1 text-[8px] text-purple-600 font-black uppercase"><FastForward size={10} /> {torn.adjacentCode} (Post)</span>} />)}
-                    </div>) : (<div className="bg-gray-50/50 rounded-2xl p-6 text-center border border-dashed border-gray-200"><p className="text-gray-400 font-bold italic text-xs">Cap viatger en circulacions adjacents.</p></div>)}
+                    </div>) : (<div className="bg-gray-50/50 dark:bg-black/20 rounded-2xl p-6 text-center border border-dashed border-gray-200 dark:border-white/10 transition-colors"><p className="text-gray-400 dark:text-gray-600 font-bold italic text-xs">Cap viatger en circulacions adjacents.</p></div>)}
                   </div>
 
                   <div className="space-y-4">
-                    <div className="flex items-center gap-2 px-2"><Coffee className="text-fgc-green" size={16} /><h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Maquinistes en descans ({restingDriversResults.length})</h3></div>
-                    {restingDriversResults.length > 0 ? (<div className="flex flex-col gap-2">{restingDriversResults.map((torn, idx) => (<div key={idx} className="bg-white rounded-2xl p-3 border border-gray-100 shadow-sm hover:shadow-md transition-all flex items-center gap-4 border-l-4 border-l-fgc-green">
-                      <div className="h-10 min-w-[2.5rem] px-2 bg-fgc-grey/10 text-fgc-grey rounded-xl flex items-center justify-center font-black text-xs shadow-sm shrink-0 whitespace-nowrap">{torn.id}</div>
-                      <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center sm:gap-6"><div className="flex-1 min-w-0"><div className="flex items-center gap-2"><p className="text-sm font-black text-fgc-grey truncate">{torn.driver?.nom}</p><span className="flex items-center gap-1 text-[8px] text-fgc-green font-black uppercase tracking-widest"><MapPin size={10} /> {torn.restSegment.codi}</span></div><p className="text-[8px] font-black text-gray-300 uppercase tracking-widest">Nom. {torn.driver?.nomina}</p></div><div className="flex items-center gap-3 text-fgc-grey shrink-0"><div className="flex items-center gap-1.5 bg-fgc-green/10 px-3 py-1 rounded-lg border border-fgc-green/20"><span className="text-[10px] font-black uppercase text-fgc-grey">{formatFgcTime(torn.restSegment.start)}</span><ArrowRight size={10} className="text-fgc-green" /><span className="text-[10px] font-black uppercase text-fgc-grey">{formatFgcTime(torn.restSegment.end)}</span></div><div className="text-[10px] font-black text-fgc-green bg-fgc-green/5 px-2 py-0.5 rounded border border-fgc-green/10 min-w-[80px] text-center">{torn.restSegment.end - torn.restSegment.start} MIN DESCANS</div></div></div>
-                      <div className="flex gap-1 shrink-0">{torn.driver?.phones?.map((p: string, i: number) => (<a key={i} href={`tel:${p}`} className="w-8 h-8 bg-fgc-grey text-white rounded-lg flex items-center justify-center hover:bg-fgc-dark transition-all shadow-sm"><Phone size={12} /></a>))}</div>
-                    </div>))}</div>) : (<div className="bg-gray-50/50 rounded-2xl p-6 text-center border border-dashed border-gray-200"><p className="text-gray-400 font-bold italic text-xs">Cap maquinista en descans.</p></div>)}
+                    <div className="flex items-center gap-2 px-2"><Coffee className="text-fgc-green" size={16} /><h3 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Maquinistes en descans ({restingDriversResults.length})</h3></div>
+                    {restingDriversResults.length > 0 ? (<div className="flex flex-col gap-2">{restingDriversResults.map((torn, idx) => (<div key={idx} className="bg-white dark:bg-gray-800 rounded-2xl p-3 border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-md transition-all flex items-center gap-4 border-l-4 border-l-fgc-green">
+                      <div className="h-10 min-w-[2.5rem] px-2 bg-fgc-grey/10 dark:bg-black text-fgc-grey dark:text-gray-300 rounded-xl flex items-center justify-center font-black text-xs shadow-sm shrink-0 whitespace-nowrap">{torn.id}</div>
+                      <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center sm:gap-6"><div className="flex-1 min-w-0"><div className="flex items-center gap-2"><p className="text-sm font-black text-fgc-grey dark:text-gray-200 truncate">{torn.driver?.nom}</p><span className="flex items-center gap-1 text-[8px] text-fgc-green font-black uppercase tracking-widest"><MapPin size={10} /> {torn.restSegment.codi}</span></div><p className="text-[8px] font-black text-gray-300 dark:text-gray-600 uppercase tracking-widest">Nom. {torn.driver?.nomina}</p></div><div className="flex items-center gap-3 text-fgc-grey dark:text-gray-300 shrink-0"><div className="flex items-center gap-1.5 bg-fgc-green/10 dark:bg-fgc-green/5 px-3 py-1 rounded-lg border border-fgc-green/20 dark:border-fgc-green/10 transition-colors"><span className="text-[10px] font-black uppercase text-fgc-grey dark:text-gray-300">{formatFgcTime(torn.restSegment.start)}</span><ArrowRight size={10} className="text-fgc-green" /><span className="text-[10px] font-black uppercase text-fgc-grey dark:text-gray-300">{formatFgcTime(torn.restSegment.end)}</span></div><div className="text-[10px] font-black text-fgc-green bg-fgc-green/5 px-2 py-0.5 rounded border border-fgc-green/10 min-w-[80px] text-center">{torn.restSegment.end - torn.restSegment.start} MIN DESCANS</div></div></div>
+                      <div className="flex gap-1 shrink-0">{torn.driver?.phones?.map((p: string, i: number) => (<a key={i} href={`tel:${p}`} className="w-8 h-8 bg-fgc-grey dark:bg-black text-white rounded-lg flex items-center justify-center hover:bg-fgc-dark transition-all shadow-sm"><Phone size={12} /></a>))}</div>
+                    </div>))}</div>) : (<div className="bg-gray-50/50 dark:bg-black/20 rounded-2xl p-6 text-center border border-dashed border-gray-200 dark:border-white/10 transition-colors"><p className="text-gray-400 dark:text-gray-600 font-bold italic text-xs">Cap maquinista en descans.</p></div>)}
                   </div>
 
                   <div className="space-y-4">
-                    <div className="flex items-center gap-2 px-2"><Timer className="text-orange-500" size={16} /><h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Torns amb possibilitat de perllongar ({extensibleDriversResults.length})</h3></div>
-                    {extensibleDriversResults.length > 0 ? (<div className="flex flex-col gap-2">{extensibleDriversResults.map((torn, idx) => (<div key={idx} className="bg-white rounded-2xl p-3 border border-gray-100 shadow-sm hover:shadow-md transition-all flex items-center gap-4 border-l-4 border-l-orange-500">
-                      <div className="h-10 min-w-[2.5rem] px-2 bg-orange-50 text-orange-600 rounded-xl flex items-center justify-center font-black text-xs shadow-sm shrink-0 whitespace-nowrap">{torn.id}</div>
-                      <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center sm:gap-6"><div className="flex-1 min-w-0"><div className="flex items-center gap-2"><p className="text-sm font-black text-fgc-grey truncate">{torn.driver?.nom}</p><span className="flex items-center gap-1 text-[8px] text-orange-500 font-black uppercase tracking-widest"><Timer size={10} /> Extensible</span></div><div className="flex items-center gap-2 mt-0.5"><p className="text-[8px] font-black text-gray-300 uppercase tracking-widest">Nom. {torn.driver?.nomina}</p><span className="text-[8px] font-bold text-gray-400 uppercase">Durada: {torn.duracio}</span></div></div><div className="flex items-center gap-3 text-fgc-grey shrink-0"><div className="flex flex-col items-end"><div className="flex items-center gap-1.5 bg-orange-50 px-3 py-1 rounded-lg border border-orange-100"><span className="text-[10px] font-black uppercase text-orange-700">{formatFgcTime(getFgcMinutes(torn.final_torn))}</span><ArrowRight size={10} className="text-orange-300" /><span className="text-[10px] font-black uppercase text-orange-700">{formatFgcTime(torn.extData.estimatedReturn)}</span></div><span className="text-[8px] font-black text-orange-400 uppercase tracking-tighter mt-1">Extra: +{torn.extData.extraNeeded} min</span></div><div className="text-[10px] font-black text-white bg-orange-500 px-3 py-1 rounded-lg border border-orange-600 min-w-[100px] text-center shadow-sm">{Math.floor((525 - (torn.extData.originalDuration + torn.extData.extraNeeded)))} MIN MARGE</div></div></div>
+                    <div className="flex items-center gap-2 px-2"><Timer className="text-orange-500" size={16} /><h3 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Torns amb possibilitat de perllongar ({extensibleDriversResults.length})</h3></div>
+                    {extensibleDriversResults.length > 0 ? (<div className="flex flex-col gap-2">{extensibleDriversResults.map((torn, idx) => (<div key={idx} className="bg-white dark:bg-gray-800 rounded-2xl p-3 border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-md transition-all flex items-center gap-4 border-l-4 border-l-orange-500">
+                      <div className="h-10 min-w-[2.5rem] px-2 bg-orange-50 dark:bg-orange-950/20 text-orange-600 rounded-xl flex items-center justify-center font-black text-xs shadow-sm shrink-0 whitespace-nowrap">{torn.id}</div>
+                      <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center sm:gap-6"><div className="flex-1 min-w-0"><div className="flex items-center gap-2"><p className="text-sm font-black text-fgc-grey dark:text-gray-200 truncate">{torn.driver?.nom}</p><span className="flex items-center gap-1 text-[8px] text-orange-500 font-black uppercase tracking-widest"><Timer size={10} /> Extensible</span></div><div className="flex items-center gap-2 mt-0.5"><p className="text-[8px] font-black text-gray-300 dark:text-gray-600 uppercase tracking-widest">Nom. {torn.driver?.nomina}</p><span className="text-[8px] font-bold text-gray-400 dark:text-gray-500 uppercase">Durada: {torn.duracio}</span></div></div><div className="flex items-center gap-3 text-fgc-grey dark:text-gray-300 shrink-0"><div className="flex flex-col items-end"><div className="flex items-center gap-1.5 bg-orange-50 dark:bg-orange-950/20 px-3 py-1 rounded-lg border border-orange-100 dark:border-orange-900/40 transition-colors"><span className="text-[10px] font-black uppercase text-orange-700 dark:text-orange-400">{formatFgcTime(getFgcMinutes(torn.final_torn))}</span><ArrowRight size={10} className="text-orange-300" /><span className="text-[10px] font-black uppercase text-orange-700 dark:text-orange-400">{formatFgcTime(torn.extData.estimatedReturn)}</span></div><span className="text-[8px] font-black text-orange-400 uppercase tracking-tighter mt-1">Extra: +{torn.extData.extraNeeded} min</span></div><div className="text-[10px] font-black text-white bg-orange-500 px-3 py-1 rounded-lg border border-orange-600 min-w-[100px] text-center shadow-sm">{Math.floor((525 - (torn.extData.originalDuration + torn.extData.extraNeeded)))} MIN MARGE</div></div></div>
                       <div className="flex gap-1 shrink-0">{torn.driver?.phones?.map((p: string, i: number) => (<a key={i} href={`tel:${p}`} className="w-8 h-8 bg-orange-500 text-white rounded-lg flex items-center justify-center hover:bg-orange-600 transition-all shadow-sm"><Phone size={12} /></a>))}</div>
-                    </div>))}</div>) : (<div className="bg-gray-50/50 rounded-2xl p-6 text-center border border-dashed border-gray-200"><p className="text-gray-400 font-bold italic text-xs">Cap torn extensible fins al final.</p></div>)}
+                    </div>))}</div>) : (<div className="bg-gray-50/50 dark:bg-black/20 rounded-2xl p-6 text-center border border-dashed border-gray-200 dark:border-white/10 transition-colors"><p className="text-gray-400 dark:text-gray-600 font-bold italic text-xs">Cap torn extensible fins al final.</p></div>)}
                   </div>
 
                   <div className="space-y-4">
-                    <div className="flex items-center gap-2 px-2"><Repeat className="text-indigo-500" size={16} /><h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Perllongament + Reserva ({reserveExtensionResults.length})</h3></div>
-                    {reserveExtensionResults.length > 0 ? (<div className="flex flex-col gap-2">{reserveExtensionResults.map((torn, idx) => (<div key={idx} className="bg-white rounded-2xl p-3 border border-gray-100 shadow-sm hover:shadow-md transition-all flex items-center gap-4 border-l-4 border-l-indigo-500">
-                      <div className="h-10 min-w-[2.5rem] px-2 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center font-black text-xs shadow-sm shrink-0 whitespace-nowrap">{torn.id}</div>
-                      <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center sm:gap-6"><div className="flex-1 min-w-0"><div className="flex items-center gap-2"><p className="text-sm font-black text-fgc-grey truncate">{torn.driver?.nom}</p><span className="flex items-center gap-1 text-[8px] text-indigo-500 font-black uppercase tracking-widest"><Repeat size={10} /> Intercepció {torn.resData.reservaId}</span></div><div className="flex items-center gap-2 mt-0.5"><p className="text-[8px] font-black text-gray-300 uppercase tracking-widest">Nom. {torn.driver?.nomina}</p><span className="text-[8px] font-bold text-indigo-400 uppercase">Intercepció a {torn.resData.name} ({torn.resData.interceptTime})</span></div></div><div className="flex items-center gap-3 text-fgc-grey shrink-0"><div className="flex flex-col items-center"><div className="flex items-center gap-1.5 bg-indigo-50 px-3 py-1 rounded-lg border border-indigo-100"><span className="text-[10px] font-black uppercase text-indigo-700">{formatFgcTime(getFgcMinutes(torn.final_torn))}</span><ArrowRight size={10} className="text-indigo-300" /><span className="text-[10px] font-black uppercase text-indigo-700">{formatFgcTime(getFgcMinutes(torn.resData.interceptTime) + 25)}</span></div><span className="text-[8px] font-black text-indigo-400 uppercase tracking-tighter mt-1">Extra: +{torn.resData.extraNeeded} min</span></div><div className="text-[10px] font-black text-white bg-indigo-500 px-3 py-1 rounded-lg border border-indigo-600 min-w-[100px] text-center shadow-sm">{Math.floor((525 - (torn.resData.originalDuration + torn.resData.extraNeeded)))} MIN MARGE</div></div></div>
+                    <div className="flex items-center gap-2 px-2"><Repeat className="text-indigo-500" size={16} /><h3 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Perllongament + Reserva ({reserveExtensionResults.length})</h3></div>
+                    {reserveExtensionResults.length > 0 ? (<div className="flex flex-col gap-2">{reserveExtensionResults.map((torn, idx) => (<div key={idx} className="bg-white dark:bg-gray-800 rounded-2xl p-3 border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-md transition-all flex items-center gap-4 border-l-4 border-l-indigo-500">
+                      <div className="h-10 min-w-[2.5rem] px-2 bg-indigo-50 dark:bg-indigo-950/20 text-indigo-600 rounded-xl flex items-center justify-center font-black text-xs shadow-sm shrink-0 whitespace-nowrap">{torn.id}</div>
+                      <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center sm:gap-6"><div className="flex-1 min-w-0"><div className="flex items-center gap-2"><p className="text-sm font-black text-fgc-grey dark:text-gray-200 truncate">{torn.driver?.nom}</p><span className="flex items-center gap-1 text-[8px] text-indigo-500 font-black uppercase tracking-widest"><Repeat size={10} /> Intercepció {torn.resData.reservaId}</span></div><div className="flex items-center gap-2 mt-0.5"><p className="text-[8px] font-black text-gray-300 dark:text-gray-600 uppercase tracking-widest">Nom. {torn.driver?.nomina}</p><span className="text-[8px] font-bold text-indigo-400 uppercase">Intercepció a {torn.resData.name} ({torn.resData.interceptTime})</span></div></div><div className="flex items-center gap-3 text-fgc-grey dark:text-gray-300 shrink-0"><div className="flex flex-col items-center"><div className="flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-950/20 px-3 py-1 rounded-lg border border-indigo-100 dark:border-indigo-900/40 transition-colors"><span className="text-[10px] font-black uppercase text-indigo-700 dark:text-indigo-400">{formatFgcTime(getFgcMinutes(torn.final_torn))}</span><ArrowRight size={10} className="text-indigo-300" /><span className="text-[10px] font-black uppercase text-indigo-700 dark:text-indigo-400">{formatFgcTime(getFgcMinutes(torn.resData.interceptTime) + 25)}</span></div><span className="text-[8px] font-black text-indigo-400 uppercase tracking-tighter mt-1">Extra: +{torn.resData.extraNeeded} min</span></div><div className="text-[10px] font-black text-white bg-indigo-500 px-3 py-1 rounded-lg border border-indigo-600 min-w-[100px] text-center shadow-sm">{Math.floor((525 - (torn.resData.originalDuration + torn.resData.extraNeeded)))} MIN MARGE</div></div></div>
                       <div className="flex gap-1 shrink-0">{torn.driver?.phones?.map((p: string, i: number) => (<a key={i} href={`tel:${p}`} className="w-8 h-8 bg-indigo-500 text-white rounded-lg flex items-center justify-center hover:bg-indigo-600 transition-all shadow-sm"><Phone size={12} /></a>))}</div>
-                    </div>))}</div>) : (<div className="bg-gray-50/50 rounded-2xl p-6 text-center border border-dashed border-gray-200"><p className="text-gray-400 font-bold italic text-xs">Cap possibilitat d'intercepció amb reserves.</p></div>)}
+                    </div>))}</div>) : (<div className="bg-gray-50/50 dark:bg-black/20 rounded-2xl p-6 text-center border border-dashed border-gray-200 dark:border-white/10 transition-colors"><p className="text-gray-400 dark:text-gray-600 font-bold italic text-xs">Cap possibilitat d'intercepció amb reserves.</p></div>)}
                   </div>
                 </div>
-              ) : coverageQuery ? (<div className="py-20 text-center space-y-4 opacity-40"><div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto text-gray-300"><Info size={28} /></div><p className="font-black text-fgc-grey uppercase tracking-[0.2em] text-[10px]">Cap dada per a {coverageQuery}</p></div>) : (<div className="py-20 text-center space-y-4"><div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto text-gray-200"><Train size={40} /></div><p className="text-gray-400 font-bold max-w-sm mx-auto leading-relaxed italic text-sm">Cerca una circulació per veure l'assignació completa de personal.</p></div>)}
+              ) : coverageQuery ? (<div className="py-20 text-center space-y-4 opacity-40 transition-colors"><div className="w-16 h-16 bg-gray-100 dark:bg-black/20 rounded-full flex items-center justify-center mx-auto text-gray-300 dark:text-gray-700"><Info size={28} /></div><p className="font-black text-fgc-grey dark:text-gray-400 uppercase tracking-[0.2em] text-[10px]">Cap dada per a {coverageQuery}</p></div>) : (<div className="py-20 text-center space-y-4 transition-colors"><div className="w-20 h-20 bg-gray-50 dark:bg-black/20 rounded-full flex items-center justify-center mx-auto text-gray-200 dark:text-gray-800"><Train size={40} /></div><p className="text-gray-400 dark:text-gray-500 font-bold max-w-sm mx-auto leading-relaxed italic text-sm">Cerca una circulació per veure l'assignació completa de personal.</p></div>)}
             </div>
           </div>
         </div>
       ) : (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-          <div className="bg-white rounded-[40px] p-6 sm:p-10 border border-gray-100 shadow-sm space-y-8">
+          <div className="bg-white dark:bg-gray-900 rounded-[40px] p-6 sm:p-10 border border-gray-100 dark:border-white/5 shadow-sm space-y-8 transition-colors">
             <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4">
               <div className="relative flex-1">
-                <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={20} />
                 <input 
                   type="text" 
                   placeholder="Cerca per nom o nòmina..." 
                   value={maquinistaQuery}
                   onChange={(e) => setMaquinistaQuery(e.target.value)}
-                  className="w-full bg-gray-50 border-none rounded-[24px] py-4 pl-14 pr-8 focus:ring-4 focus:ring-fgc-green/20 outline-none font-black text-lg transition-all shadow-inner" 
+                  className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] py-4 pl-14 pr-8 focus:ring-4 focus:ring-fgc-green/20 outline-none font-black text-lg transition-all dark:text-white dark:placeholder:text-gray-600 shadow-inner" 
                 />
               </div>
-              <div className="flex items-center gap-2 p-1 bg-gray-50 rounded-[26px] border border-gray-100">
+              <div className="flex items-center gap-2 p-1 bg-gray-50 dark:bg-black/20 rounded-[26px] border border-gray-100 dark:border-white/5 transition-colors">
                 <button 
                   onClick={() => setDisDesFilter('OFF')}
                   className={`px-6 py-3 rounded-2xl font-black text-xs transition-all ${
-                    disDesFilter === 'OFF' ? 'bg-fgc-grey text-white shadow-lg' : 'text-gray-400 hover:bg-white'
+                    disDesFilter === 'OFF' ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-white dark:hover:bg-white/5'
                   }`}
                 >
                   TOTS
@@ -572,7 +562,7 @@ export const OrganitzaView: React.FC = () => {
                 <button 
                   onClick={() => setDisDesFilter('DIS')}
                   className={`px-6 py-3 rounded-2xl font-black text-xs transition-all ${
-                    disDesFilter === 'DIS' ? 'bg-orange-500 text-white shadow-lg' : 'text-gray-400 hover:bg-white'
+                    disDesFilter === 'DIS' ? 'bg-orange-500 text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-white dark:hover:bg-white/5'
                   }`}
                 >
                   NOMÉS DIS
@@ -580,7 +570,7 @@ export const OrganitzaView: React.FC = () => {
                 <button 
                   onClick={() => setDisDesFilter('DES')}
                   className={`px-6 py-3 rounded-2xl font-black text-xs transition-all ${
-                    disDesFilter === 'DES' ? 'bg-orange-600 text-white shadow-lg' : 'text-gray-400 hover:bg-white'
+                    disDesFilter === 'DES' ? 'bg-orange-600 text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-white dark:hover:bg-white/5'
                   }`}
                 >
                   NOMÉS DES
@@ -588,7 +578,7 @@ export const OrganitzaView: React.FC = () => {
                 <button 
                   onClick={() => setDisDesFilter('BOTH')}
                   className={`px-6 py-3 rounded-2xl font-black text-xs transition-all ${
-                    disDesFilter === 'BOTH' ? 'bg-orange-700 text-white shadow-lg' : 'text-gray-400 hover:bg-white'
+                    disDesFilter === 'BOTH' ? 'bg-orange-700 text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-white dark:hover:bg-white/5'
                   }`}
                 >
                   DIS + DES
@@ -596,11 +586,11 @@ export const OrganitzaView: React.FC = () => {
               </div>
             </div>
 
-            <div className="pt-6 border-t border-dashed border-gray-100">
+            <div className="pt-6 border-t border-dashed border-gray-100 dark:border-white/10 transition-colors">
               {loadingMaquinistes ? (
                 <div className="py-20 flex flex-col items-center justify-center gap-4">
                   <Loader2 className="animate-spin text-fgc-green" size={40} />
-                  <p className="font-black text-gray-400 uppercase tracking-widest text-[10px]">Recuperant llistat...</p>
+                  <p className="font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest text-[10px]">Recuperant llistat...</p>
                 </div>
               ) : filteredMaquinistes.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -610,22 +600,22 @@ export const OrganitzaView: React.FC = () => {
                     return (
                       <div 
                         key={maquinista.id} 
-                        className={`bg-white rounded-[28px] p-5 border transition-all flex flex-col gap-4 group hover:shadow-xl ${
-                          isDisDes ? 'border-orange-200 bg-orange-50/10' : 'border-gray-100 hover:border-fgc-green/30'
+                        className={`bg-white dark:bg-gray-800 rounded-[28px] p-5 border transition-all flex flex-col gap-4 group hover:shadow-xl ${
+                          isDisDes ? 'border-orange-200 dark:border-orange-500/20 bg-orange-50/10 dark:bg-orange-500/5' : 'border-gray-100 dark:border-white/5 hover:border-fgc-green/30'
                         }`}
                       >
                         <div className="flex items-center gap-4">
                           <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xl shadow-md shrink-0 ${
-                            isDisDes ? 'bg-orange-500 text-white' : 'bg-fgc-grey text-white'
+                            isDisDes ? 'bg-orange-500 text-white' : 'bg-fgc-grey dark:bg-black text-white'
                           }`}>
                             {maquinista.nom.charAt(0)}
                           </div>
                           <div className="min-w-0">
-                            <h3 className="text-base font-black text-fgc-grey leading-tight uppercase truncate">{maquinista.nom}</h3>
+                            <h3 className="text-base font-black text-fgc-grey dark:text-white leading-tight uppercase truncate">{maquinista.nom}</h3>
                             <div className="flex items-center gap-2 mt-0.5">
-                              <span className="text-[10px] font-bold text-gray-400">#{maquinista.empleat_id}</span>
+                              <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500">#{maquinista.empleat_id}</span>
                               <div className={`px-2 py-0.5 rounded text-[10px] font-black ${
-                                isDisDes ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-400'
+                                isDisDes ? 'bg-orange-500 text-white' : 'bg-gray-100 dark:bg-black text-gray-400 dark:text-gray-600'
                               }`}>
                                 {maquinista.torn}
                               </div>
@@ -633,13 +623,13 @@ export const OrganitzaView: React.FC = () => {
                           </div>
                         </div>
 
-                        <div className="flex flex-col gap-2 pt-3 border-t border-gray-100/50">
-                          <div className="flex items-center gap-2 text-gray-500">
+                        <div className="flex flex-col gap-2 pt-3 border-t border-gray-100/50 dark:border-white/5 transition-colors">
+                          <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
                             <Clock size={12} className="text-fgc-green" />
                             <span className="text-[11px] font-bold">{maquinista.hora_inici} — {maquinista.hora_fi}</span>
                           </div>
                           {maquinista.observacions && (
-                            <div className="flex items-center gap-2 text-gray-400 italic">
+                            <div className="flex items-center gap-2 text-gray-400 dark:text-gray-600 italic">
                               <Info size={12} />
                               <span className="text-[10px] truncate">{maquinista.observacions}</span>
                             </div>
@@ -653,7 +643,7 @@ export const OrganitzaView: React.FC = () => {
                                 key={idx} 
                                 href={`tel:${p}`} 
                                 className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black transition-all shadow-sm ${
-                                  isDisDes ? 'bg-orange-500 text-white hover:bg-orange-600' : 'bg-fgc-grey text-white hover:bg-fgc-dark'
+                                  isDisDes ? 'bg-orange-500 text-white hover:bg-orange-600' : 'bg-fgc-grey dark:bg-black text-white hover:bg-fgc-dark'
                                 }`}
                               >
                                 <Phone size={12} />
@@ -661,7 +651,7 @@ export const OrganitzaView: React.FC = () => {
                               </a>
                             ))
                           ) : (
-                            <span className="text-[10px] font-bold text-gray-300 italic">Sense telèfons</span>
+                            <span className="text-[10px] font-bold text-gray-300 dark:text-gray-700 italic">Sense telèfons</span>
                           )}
                         </div>
                       </div>
@@ -669,9 +659,9 @@ export const OrganitzaView: React.FC = () => {
                   })}
                 </div>
               ) : (
-                <div className="py-20 text-center space-y-4 opacity-40">
-                  <UserCircle size={60} className="mx-auto text-gray-200" />
-                  <p className="font-black text-fgc-grey uppercase tracking-[0.2em] text-[10px]">No s'ha trobat personal per a la cerca actual</p>
+                <div className="py-20 text-center space-y-4 opacity-40 transition-colors">
+                  <UserCircle size={60} className="mx-auto text-gray-200 dark:text-gray-800" />
+                  <p className="font-black text-fgc-grey dark:text-gray-400 uppercase tracking-[0.2em] text-[10px]">No s'ha trobat personal per a la cerca actual</p>
                 </div>
               )}
             </div>
@@ -683,9 +673,9 @@ export const OrganitzaView: React.FC = () => {
 };
 
 const CompactViatgerRow = ({ torn, viatgerCirc, colorClass, label }: { torn: any, viatgerCirc: any, colorClass: string, label?: React.ReactNode }) => (
-  <div className={`bg-white rounded-2xl p-3 border border-gray-100 shadow-sm hover:shadow-md transition-all flex items-center gap-4 border-l-4 ${colorClass}`}>
-    <div className="h-10 min-w-[2.5rem] px-2 bg-fgc-grey/10 text-fgc-grey rounded-xl flex items-center justify-center font-black text-xs shadow-sm shrink-0 whitespace-nowrap">{torn.id}</div>
-    <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center sm:gap-6"><div className="flex-1 min-w-0"><div className="flex items-center gap-2"><p className="text-sm font-black text-fgc-grey truncate">{torn.driver?.nom}</p>{label}</div><p className="text-[8px] font-black text-gray-300 uppercase tracking-widest whitespace-nowrap">Nom. {torn.driver?.nomina}</p></div><div className="flex items-center gap-3 text-blue-500 shrink-0"><div className="flex items-center gap-1.5 bg-blue-50 px-3 py-1 rounded-lg border border-blue-100/50"><span className="text-[10px] font-black uppercase text-blue-600 whitespace-nowrap">{viatgerCirc?.machinistInici || '--'}</span><ArrowRight size={10} className="text-blue-300" /><span className="text-[10px] font-black uppercase text-blue-600 whitespace-nowrap">{viatgerCirc?.machinistFinal || '--'}</span></div><div className="text-[10px] font-bold text-gray-400 min-w-[70px] whitespace-nowrap">{torn.inici_torn} - {torn.final_torn}</div></div></div>
+  <div className={`bg-white dark:bg-gray-800 rounded-2xl p-3 border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-md transition-all flex items-center gap-4 border-l-4 ${colorClass}`}>
+    <div className="h-10 min-w-[2.5rem] px-2 bg-fgc-grey/10 dark:bg-black text-fgc-grey dark:text-gray-300 rounded-xl flex items-center justify-center font-black text-xs shadow-sm shrink-0 whitespace-nowrap">{torn.id}</div>
+    <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center sm:gap-6"><div className="flex-1 min-w-0"><div className="flex items-center gap-2"><p className="text-sm font-black text-fgc-grey dark:text-gray-200 truncate">{torn.driver?.nom}</p>{label}</div><p className="text-[8px] font-black text-gray-300 dark:text-gray-600 uppercase tracking-widest whitespace-nowrap">Nom. {torn.driver?.nomina}</p></div><div className="flex items-center gap-3 text-blue-500 shrink-0"><div className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-950/20 px-3 py-1 rounded-lg border border-blue-100/50 dark:border-blue-900/30 transition-colors"><span className="text-[10px] font-black uppercase text-blue-600 dark:text-blue-400 whitespace-nowrap">{viatgerCirc?.machinistInici || '--'}</span><ArrowRight size={10} className="text-blue-300" /><span className="text-[10px] font-black uppercase text-blue-600 dark:text-blue-400 whitespace-nowrap">{viatgerCirc?.machinistFinal || '--'}</span></div><div className="text-[10px] font-bold text-gray-400 dark:text-gray-600 min-w-[70px] whitespace-nowrap">{torn.inici_torn} - {torn.final_torn}</div></div></div>
     <div className="flex gap-1 shrink-0">{torn.driver?.phones?.map((p: string, i: number) => (<a key={i} href={`tel:${p}`} className="w-8 h-8 bg-blue-500 text-white rounded-lg flex items-center justify-center hover:bg-blue-600 transition-all shadow-sm"><Phone size={12} /></a>))}</div>
   </div>
 );
@@ -703,16 +693,16 @@ const CompareInputSlot = ({ label, value, onChange, data, onClear, nowMin, getSe
   };
   const currentActivity = data ? getSegments(data).find(s => nowMin >= s.start && nowMin < s.end) : null;
   return (
-    <div className="bg-white rounded-[32px] p-8 border border-gray-100 shadow-sm flex flex-col min-h-[400px] transition-all relative" ref={containerRef}>
-      <div className="flex items-center justify-between mb-6"><h3 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em]">{label}</h3>{data && (<button onClick={onClear} className="p-2.5 hover:bg-red-50 text-red-500 rounded-full transition-colors bg-red-50/10"><X size={18} /></button>)}</div>
+    <div className="bg-white dark:bg-gray-900 rounded-[32px] p-8 border border-gray-100 dark:border-white/5 shadow-sm flex flex-col min-h-[400px] transition-all relative" ref={containerRef}>
+      <div className="flex items-center justify-between mb-6"><h3 className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">{label}</h3>{data && (<button onClick={onClear} className="p-2.5 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-500 rounded-full transition-colors bg-red-50/10"><X size={18} /></button>)}</div>
       {data ? (<div className="flex-1 animate-in fade-in zoom-in-95 duration-300">
-          <div className="flex items-center gap-5 mb-6"><div className="h-16 min-w-[4rem] px-4 bg-fgc-grey text-white rounded-2xl flex items-center justify-center font-black text-2xl shadow-xl whitespace-nowrap">{data.id}</div><div className="min-w-0"><p className="text-2xl font-black text-fgc-grey leading-tight truncate">{data.driver?.nom}</p><div className="flex items-center gap-2 mt-1"><div className="w-2 h-2 bg-fgc-green rounded-full animate-pulse" /><p className="text-[10px] font-black text-fgc-green uppercase tracking-widest">Actiu ara</p></div></div></div>
-          <div className="mb-6 bg-gray-50/50 p-6 rounded-[28px] border border-gray-100 relative overflow-hidden group">
+          <div className="flex items-center gap-5 mb-6"><div className="h-16 min-w-[4rem] px-4 bg-fgc-grey dark:bg-black text-white rounded-2xl flex items-center justify-center font-black text-2xl shadow-xl whitespace-nowrap">{data.id}</div><div className="min-w-0"><p className="text-2xl font-black text-fgc-grey dark:text-white leading-tight truncate">{data.driver?.nom}</p><div className="flex items-center gap-2 mt-1"><div className="w-2 h-2 bg-fgc-green rounded-full animate-pulse" /><p className="text-[10px] font-black text-fgc-green uppercase tracking-widest">Actiu ara</p></div></div></div>
+          <div className="mb-6 bg-gray-50/50 dark:bg-black/20 p-6 rounded-[28px] border border-gray-100 dark:border-white/5 relative overflow-hidden group transition-colors">
             <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity"><Clock size={64} /></div>
-            {currentActivity ? (<div className="space-y-3 relative z-10"><div className="flex items-center justify-between"><span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Activitat Actual</span><span className="text-[9px] font-black text-red-500 animate-pulse uppercase">EN VINCLE</span></div><div className="flex items-center gap-4"><div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm ${currentActivity.type === 'circ' ? 'bg-fgc-grey text-white' : 'bg-fgc-green text-fgc-grey'}`}>{currentActivity.type === 'circ' ? <Train size={24} /> : <Coffee size={24} />}</div><div><p className="text-xl font-black text-fgc-grey">{currentActivity.codi}</p>{currentActivity.train && (<div className="flex items-center gap-1.5 text-xs font-bold text-fgc-green"><Hash size={12} /> Unitat: {currentActivity.train}</div>)}</div></div></div>) : (<div className="text-center py-2"><p className="text-sm font-bold text-gray-300 italic">Fora d'horari</p></div>)}
+            {currentActivity ? (<div className="space-y-3 relative z-10"><div className="flex items-center justify-between"><span className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Activitat Actual</span><span className="text-[9px] font-black text-red-500 animate-pulse uppercase">EN VINCLE</span></div><div className="flex items-center gap-4"><div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm ${currentActivity.type === 'circ' ? 'bg-fgc-grey dark:bg-black text-white' : 'bg-fgc-green text-fgc-grey'}`}>{currentActivity.type === 'circ' ? <Train size={24} /> : <Coffee size={24} />}</div><div><p className="text-xl font-black text-fgc-grey dark:text-white">{currentActivity.codi}</p>{currentActivity.train && (<div className="flex items-center gap-1.5 text-xs font-bold text-fgc-green"><Hash size={12} /> Unitat: {currentActivity.train}</div>)}</div></div></div>) : (<div className="text-center py-2"><p className="text-sm font-bold text-gray-300 dark:text-gray-700 italic">Fora d'horari</p></div>)}
           </div>
-          <div className="grid grid-cols-2 gap-4"><div className="bg-gray-50/50 p-4 rounded-2xl border border-gray-100"><p className="text-[9px] font-black text-gray-300 uppercase tracking-widest mb-1.5 flex items-center gap-2"><Clock size={10} /> Torn</p><p className="text-sm font-black text-fgc-grey whitespace-nowrap">{data.inici_torn} — {data.final_torn}</p></div><div className="bg-gray-50/50 p-4 rounded-2xl border border-gray-100"><p className="text-[9px] font-black text-gray-300 uppercase tracking-widest mb-1.5 flex items-center gap-2"><User size={10} /> Nòmina</p><p className="text-sm font-black text-fgc-grey whitespace-nowrap">{data.driver?.nomina}</p></div>{data.driver?.phones?.length > 0 && (<div className="col-span-2 bg-fgc-green/10 p-4 rounded-2xl border border-fgc-green/20"><p className="text-[9px] font-black text-fgc-green uppercase tracking-widest mb-2 flex items-center gap-2"><Phone size={10} /> Contacte Directe</p><div className="flex flex-wrap gap-2">{data.driver.phones.map((p: string, i: number) => (<a key={i} href={`tel:${p}`} className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl text-xs font-black text-fgc-grey shadow-sm hover:bg-fgc-green transition-all whitespace-nowrap"><Phone size={12} /> {p}</a>))}</div></div>)}</div>
-      </div>) : (<div className="flex-1 flex flex-col items-center justify-center text-center px-4"><div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-6 text-gray-300"><Hash size={36} /></div><p className="text-sm text-gray-400 mb-8 max-w-[240px] font-medium leading-relaxed">Cerca un codi de torn.</p><div className="w-full relative"><Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400" size={20} /><input type="text" placeholder="Ex: Q002, Q004..." value={value} onChange={(e) => handleInputChange(e.target.value.toUpperCase())} onFocus={() => value.length > 0 && setShowSug(true)} className="w-full bg-gray-50 border-none rounded-[24px] py-5 pl-14 pr-8 focus:ring-4 focus:ring-fgc-green/20 outline-none font-black text-xl transition-all placeholder:text-gray-300" />{showSug && suggestions.length > 0 && (<div className="absolute top-full left-0 right-0 mt-3 bg-white rounded-[24px] shadow-2xl border border-gray-100 z-[100] overflow-hidden overflow-y-auto max-h-56 animate-in slide-in-from-top-2">{suggestions.map((s, idx) => (<button key={idx} onClick={() => { onChange(s); setShowSug(false); }} className="w-full text-left px-8 py-4 text-base font-black text-fgc-grey hover:bg-gray-50 hover:text-fgc-green transition-all border-b border-gray-50 last:border-0 flex items-center justify-between group">{s}<ArrowRight className="opacity-0 group-hover:opacity-100 transition-opacity" size={16} /></button>))}</div>)}</div></div>)}
+          <div className="grid grid-cols-2 gap-4"><div className="bg-gray-50/50 dark:bg-black/20 p-4 rounded-2xl border border-gray-100 dark:border-white/5 transition-colors"><p className="text-[9px] font-black text-gray-300 dark:text-gray-600 uppercase tracking-widest mb-1.5 flex items-center gap-2"><Clock size={10} /> Torn</p><p className="text-sm font-black text-fgc-grey dark:text-gray-200 whitespace-nowrap">{data.inici_torn} — {data.final_torn}</p></div><div className="bg-gray-50/50 dark:bg-black/20 p-4 rounded-2xl border border-gray-100 dark:border-white/5 transition-colors"><p className="text-[9px] font-black text-gray-300 dark:text-gray-600 uppercase tracking-widest mb-1.5 flex items-center gap-2"><User size={10} /> Nòmina</p><p className="text-sm font-black text-fgc-grey dark:text-gray-200 whitespace-nowrap">{data.driver?.nomina}</p></div>{data.driver?.phones?.length > 0 && (<div className="col-span-2 bg-fgc-green/10 dark:bg-fgc-green/5 p-4 rounded-2xl border border-fgc-green/20 dark:border-fgc-green/10 transition-colors"><p className="text-[9px] font-black text-fgc-green uppercase tracking-widest mb-2 flex items-center gap-2"><Phone size={10} /> Contacte Directe</p><div className="flex flex-wrap gap-2">{data.driver.phones.map((p: string, i: number) => (<a key={i} href={`tel:${p}`} className="flex items-center gap-2 bg-white dark:bg-black px-3 py-1.5 rounded-xl text-xs font-black text-fgc-grey dark:text-gray-200 shadow-sm hover:bg-fgc-green dark:hover:text-black transition-all whitespace-nowrap"><Phone size={12} /> {p}</a>))}</div></div>)}</div>
+      </div>) : (<div className="flex-1 flex flex-col items-center justify-center text-center px-4"><div className="w-20 h-20 bg-gray-50 dark:bg-black/20 rounded-full flex items-center justify-center mb-6 text-gray-300 dark:text-gray-700 transition-colors"><Hash size={36} /></div><p className="text-sm text-gray-400 dark:text-gray-500 mb-8 max-w-[240px] font-medium leading-relaxed">Cerca un codi de torn.</p><div className="w-full relative"><Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-600" size={20} /><input type="text" placeholder="Ex: Q002, Q004..." value={value} onChange={(e) => handleInputChange(e.target.value.toUpperCase())} onFocus={() => value.length > 0 && setShowSug(true)} className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] py-5 pl-14 pr-8 focus:ring-4 focus:ring-fgc-green/20 outline-none font-black text-xl transition-all placeholder:text-gray-300 dark:text-white dark:placeholder:text-gray-700 shadow-inner" />{showSug && suggestions.length > 0 && (<div className="absolute top-full left-0 right-0 mt-3 bg-white dark:bg-gray-800 rounded-[24px] shadow-2xl border border-gray-100 dark:border-white/10 z-[100] overflow-hidden overflow-y-auto max-h-56 animate-in slide-in-from-top-2 transition-colors">{suggestions.map((s, idx) => (<button key={idx} onClick={() => { onChange(s); setShowSug(false); }} className="w-full text-left px-8 py-4 text-base font-black text-fgc-grey dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-fgc-green transition-all border-b border-gray-50 dark:border-white/5 last:border-0 flex items-center justify-between group">{s}<ArrowRight className="opacity-0 group-hover:opacity-100 transition-opacity" size={16} /></button>))}</div>)}</div></div>)}
     </div>
   );
 };

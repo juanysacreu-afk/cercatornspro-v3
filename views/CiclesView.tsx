@@ -47,20 +47,14 @@ const CiclesView: React.FC = () => {
   const fetchAllData = async () => {
     setLoading(true);
     try {
-      const { data: assigData } = await supabase
-        .from('assignments')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const [assigData, statusData] = await Promise.all([
+        supabase.from('assignments').select('*').order('created_at', { ascending: false }),
+        supabase.from('train_status').select('train_number').eq('is_broken', true)
+      ]);
       
-      if (assigData) setAssignments(assigData);
-
-      const { data: statusData } = await supabase
-        .from('train_status')
-        .select('train_number')
-        .eq('is_broken', true);
-      
-      if (statusData) {
-        setBrokenTrains(new Set(statusData.map(s => s.train_number)));
+      if (assigData.data) setAssignments(assigData.data);
+      if (statusData.data) {
+        setBrokenTrains(new Set(statusData.data.map(s => s.train_number)));
       }
     } catch (e) {
       console.error("Error carregant dades de flota:", e);
@@ -171,24 +165,23 @@ const CiclesView: React.FC = () => {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-3xl font-black text-fgc-grey tracking-tight">Gestió de Cicles</h1>
-        <p className="text-gray-500 font-medium">Assignació d'unitats de tren i control d'estat de la flota.</p>
+        <h1 className="text-3xl font-black text-fgc-grey dark:text-white tracking-tight">Gestió de Cicles</h1>
+        <p className="text-gray-500 dark:text-gray-400 font-medium">Assignació d'unitats de tren i control d'estat de la flota.</p>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-1">
-          <div className="bg-white rounded-[32px] p-8 shadow-sm border border-gray-100 sticky top-24 space-y-8">
+          <div className="bg-white dark:bg-gray-900 rounded-[32px] p-8 shadow-sm border border-gray-100 dark:border-white/5 sticky top-24 space-y-8 transition-colors">
             <div>
-              <h3 className="text-lg font-black text-fgc-grey mb-6 uppercase tracking-tight">Nova Assignació</h3>
+              <h3 className="text-lg font-black text-fgc-grey dark:text-white mb-6 uppercase tracking-tight">Nova Assignació</h3>
               <div className="space-y-6">
-                {/* ID Cicle Autocomplete */}
                 <div className="relative" ref={cycleSuggestionsRef}>
-                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">ID Cicle</label>
+                  <label className="block text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em] mb-3 ml-1">ID Cicle</label>
                   <div className="relative">
-                    <Hash className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                    <Hash className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={18} />
                     <input 
                       type="text" 
-                      className="w-full bg-gray-50 border-none rounded-2xl py-4 pl-12 pr-4 focus:ring-4 focus:ring-fgc-green/20 outline-none font-black text-lg transition-all"
+                      className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-2xl py-4 pl-12 pr-4 focus:ring-4 focus:ring-fgc-green/20 outline-none font-black text-lg transition-all dark:text-white dark:placeholder:text-gray-700"
                       placeholder="Ex: C42"
                       value={newCycleId}
                       onChange={(e) => {
@@ -205,15 +198,15 @@ const CiclesView: React.FC = () => {
                   </div>
                   
                   {showCycleSuggestions && filteredCyclesSuggestions.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 z-50 overflow-hidden max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200">
                       {filteredCyclesSuggestions.map(c => (
                         <button 
                           key={c}
-                          className="w-full text-left px-6 py-4 hover:bg-fgc-green/10 font-black text-fgc-grey transition-colors flex items-center justify-between group border-b border-gray-50 last:border-0"
+                          className="w-full text-left px-6 py-4 hover:bg-fgc-green/10 font-black text-fgc-grey dark:text-gray-200 transition-colors flex items-center justify-between group border-b border-gray-50 dark:border-white/5 last:border-0"
                           onClick={() => { setNewCycleId(c); setShowCycleSuggestions(false); }}
                         >
                           <div className="flex items-center gap-3">
-                            <span className="text-gray-300">#</span>
+                            <span className="text-gray-300 dark:text-gray-600">#</span>
                             {c}
                             {assignedCycleIds.has(c) && <CheckCircle2 size={12} className="text-blue-500" />}
                           </div>
@@ -224,14 +217,13 @@ const CiclesView: React.FC = () => {
                   )}
                 </div>
 
-                {/* Unitat de Tren Autocomplete */}
                 <div className="relative" ref={trainSuggestionsRef}>
-                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Unitat de Tren</label>
+                  <label className="block text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em] mb-3 ml-1">Unitat de Tren</label>
                   <div className="relative">
-                    <Train className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                    <Train className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={18} />
                     <input 
                       type="text" 
-                      className={`w-full bg-gray-50 border-none rounded-2xl py-4 pl-12 pr-4 focus:ring-4 focus:ring-fgc-green/20 outline-none font-black text-lg transition-all ${brokenTrains.has(newTrainId) ? 'text-red-600' : ''}`}
+                      className={`w-full bg-gray-50 dark:bg-black/20 border-none rounded-2xl py-4 pl-12 pr-4 focus:ring-4 focus:ring-fgc-green/20 outline-none font-black text-lg transition-all dark:text-white dark:placeholder:text-gray-700 ${brokenTrains.has(newTrainId) ? 'text-red-600' : ''}`}
                       placeholder="Ex: 112.01"
                       value={newTrainId}
                       onChange={(e) => {
@@ -248,15 +240,15 @@ const CiclesView: React.FC = () => {
                   </div>
                   
                   {showTrainSuggestions && filteredTrainSuggestions.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 z-50 overflow-hidden max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200">
                       {filteredTrainSuggestions.map(t => (
                         <button 
                           key={t}
-                          className="w-full text-left px-6 py-4 hover:bg-fgc-green/10 font-black text-fgc-grey transition-colors flex items-center justify-between group border-b border-gray-50 last:border-0"
+                          className="w-full text-left px-6 py-4 hover:bg-fgc-green/10 font-black text-fgc-grey dark:text-gray-200 transition-colors flex items-center justify-between group border-b border-gray-50 dark:border-white/5 last:border-0"
                           onClick={() => { setNewTrainId(t); setShowTrainSuggestions(false); }}
                         >
                           <div className="flex items-center gap-3">
-                            <Train size={14} className="text-gray-300" />
+                            <Train size={14} className="text-gray-300 dark:text-gray-600" />
                             {t}
                             {assignedTrainNumbers.has(t) && <CheckCircle2 size={12} className="text-blue-500" />}
                           </div>
@@ -284,16 +276,16 @@ const CiclesView: React.FC = () => {
               </div>
             </div>
 
-            <div className="pt-8 border-t border-gray-100">
+            <div className="pt-8 border-t border-gray-100 dark:border-white/10">
               <div className="flex items-center justify-between mb-4 px-1">
                 <div className="flex items-center gap-2">
                   <Filter size={14} className="text-fgc-green" />
-                  <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Cicles Disponibles</h3>
+                  <h3 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Cicles Disponibles</h3>
                 </div>
                 <button 
                   onClick={() => setFilterPending(!filterPending)}
                   className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase transition-all border ${
-                    filterPending ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-gray-100 text-gray-400 border-gray-200'
+                    filterPending ? 'bg-orange-50 dark:bg-orange-950/20 text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-900/50' : 'bg-gray-100 dark:bg-black/20 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-white/5'
                   }`}
                 >
                   {filterPending ? 'Pendents' : 'Tots'}
@@ -309,11 +301,11 @@ const CiclesView: React.FC = () => {
                       className={`py-3 px-2 rounded-xl text-xs font-black border transition-all relative ${
                         newCycleId === c 
                         ? 'bg-fgc-green text-fgc-grey border-fgc-green shadow-sm' 
-                        : isAssigned ? 'bg-blue-50 text-blue-500 border-blue-100 opacity-60' : 'bg-gray-50 text-gray-400 border-gray-100 hover:bg-white'
+                        : isAssigned ? 'bg-blue-50 dark:bg-blue-900/10 text-blue-500 dark:text-blue-400 border-blue-100 dark:border-blue-900/30 opacity-60' : 'bg-gray-50 dark:bg-black/20 text-gray-400 dark:text-gray-600 border-gray-100 dark:border-white/5 hover:bg-white dark:hover:bg-white/5'
                       }`}
                     >
                       {c}
-                      {isAssigned && <CheckCircle2 size={10} className="absolute -top-1.5 -right-1.5 text-blue-500 bg-white rounded-full shadow-sm" />}
+                      {isAssigned && <CheckCircle2 size={10} className="absolute -top-1.5 -right-1.5 text-blue-500 bg-white dark:bg-gray-900 rounded-full shadow-sm" />}
                     </button>
                   );
                 })}
@@ -323,13 +315,13 @@ const CiclesView: React.FC = () => {
         </div>
 
         <div className="lg:col-span-2 space-y-8">
-          <div className="bg-white rounded-[40px] shadow-sm border border-gray-100 overflow-hidden">
-            <div className="p-8 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
+          <div className="bg-white dark:bg-gray-900 rounded-[40px] shadow-sm border border-gray-100 dark:border-white/5 overflow-hidden transition-colors">
+            <div className="p-8 border-b border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-black/20 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <LinkIcon size={18} className="text-fgc-green" />
-                <h3 className="font-black text-fgc-grey uppercase tracking-tight">Assignacions Actives</h3>
+                <h3 className="font-black text-fgc-grey dark:text-white uppercase tracking-tight">Assignacions Actives</h3>
               </div>
-              <div className="bg-fgc-grey text-white px-3 py-1 rounded-full text-[10px] font-black">{assignments.length} EN SERVEI</div>
+              <div className="bg-fgc-grey dark:bg-black text-white px-3 py-1 rounded-full text-[10px] font-black">{assignments.length} EN SERVEI</div>
             </div>
             
             <div className="p-6 sm:p-8">
@@ -345,15 +337,15 @@ const CiclesView: React.FC = () => {
                     return (
                       <div 
                         key={cycle.cycle_id} 
-                        className={`group p-4 rounded-2xl border transition-all flex items-center justify-between gap-4 ${isBroken ? 'bg-red-50 border-red-200 shadow-lg' : 'bg-gray-50/50 border-gray-100 hover:bg-white hover:shadow-lg'}`}
+                        className={`group p-4 rounded-2xl border transition-all flex items-center justify-between gap-4 ${isBroken ? 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900 shadow-lg' : 'bg-gray-50/50 dark:bg-black/20 border-gray-100 dark:border-white/5 hover:bg-white dark:hover:bg-white/5 hover:shadow-lg'}`}
                       >
                         <div className="flex items-center gap-4 min-w-0">
-                          <div className={`h-12 w-fit min-w-[3.5rem] px-3 rounded-xl flex items-center justify-center font-black text-sm shadow-md whitespace-nowrap ${isBroken ? 'bg-red-600 text-white' : 'bg-fgc-grey text-white'}`}>
+                          <div className={`h-12 w-fit min-w-[3.5rem] px-3 rounded-xl flex items-center justify-center font-black text-sm shadow-md whitespace-nowrap ${isBroken ? 'bg-red-600 text-white' : 'bg-fgc-grey dark:bg-black text-white'}`}>
                             {cycle.cycle_id}
                           </div>
                           <div className="min-w-0">
-                            <p className={`text-[9px] font-black uppercase tracking-widest leading-none mb-1 ${isBroken ? 'text-red-400' : 'text-gray-400'}`}>UNITAT</p>
-                            <p className={`text-lg font-black leading-tight truncate ${isBroken ? 'text-red-700' : 'text-fgc-grey'}`}>
+                            <p className={`text-[9px] font-black uppercase tracking-widest leading-none mb-1 ${isBroken ? 'text-red-400' : 'text-gray-400 dark:text-gray-500'}`}>UNITAT</p>
+                            <p className={`text-lg font-black leading-tight truncate ${isBroken ? 'text-red-700 dark:text-red-400' : 'text-fgc-grey dark:text-gray-200'}`}>
                               {cycle.train_number}
                             </p>
                             {isBroken && <span className="text-[8px] font-black text-red-500 uppercase flex items-center gap-1 mt-0.5"><AlertTriangle size={8} /> AVARIAT</span>}
@@ -361,7 +353,7 @@ const CiclesView: React.FC = () => {
                         </div>
                         <button 
                           onClick={() => handleDelete(cycle.cycle_id)}
-                          className={`p-2.5 rounded-xl transition-all sm:opacity-0 sm:group-hover:opacity-100 shrink-0 ${isBroken ? 'text-red-400 hover:bg-red-100' : 'text-gray-300 hover:text-red-500 hover:bg-red-50'}`}
+                          className={`p-2.5 rounded-xl transition-all sm:opacity-0 sm:group-hover:opacity-100 shrink-0 ${isBroken ? 'text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40' : 'text-gray-300 dark:text-gray-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20'}`}
                         >
                           <Trash2 size={18} />
                         </button>
@@ -371,26 +363,26 @@ const CiclesView: React.FC = () => {
                 </div>
               ) : (
                 <div className="py-20 text-center space-y-4 flex flex-col items-center opacity-30">
-                  <Train size={64} className="text-gray-200" />
-                  <p className="text-gray-400 font-black uppercase tracking-[0.2em]">Sense assignacions</p>
+                  <Train size={64} className="text-gray-200 dark:text-gray-800" />
+                  <p className="text-gray-400 dark:text-gray-600 font-black uppercase tracking-[0.2em]">Sense assignacions</p>
                 </div>
               )}
             </div>
           </div>
 
-          <div className="bg-white rounded-[40px] shadow-sm border border-gray-100 overflow-hidden">
-            <div className="p-8 border-b border-gray-100 bg-gray-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="bg-white dark:bg-gray-900 rounded-[40px] shadow-sm border border-gray-100 dark:border-white/5 overflow-hidden transition-colors">
+            <div className="p-8 border-b border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-black/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <LayoutGrid size={18} className="text-fgc-green" />
-                <h3 className="font-black text-fgc-grey uppercase tracking-tight">Estat de la Flota per Sèries</h3>
+                <h3 className="font-black text-fgc-grey dark:text-white uppercase tracking-tight">Estat de la Flota per Sèries</h3>
               </div>
-              <div className="flex bg-white p-1 rounded-xl shadow-sm border border-gray-100">
+              <div className="flex bg-white dark:bg-black p-1 rounded-xl shadow-sm border border-gray-100 dark:border-white/10">
                 {FLEET_CONFIG.map((config) => (
                   <button
                     key={config.serie}
                     onClick={() => setActiveFleetSerie(config.serie)}
                     className={`px-4 py-2 rounded-lg text-xs font-black transition-all ${
-                      activeFleetSerie === config.serie ? 'bg-fgc-grey text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'
+                      activeFleetSerie === config.serie ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5'
                     }`}
                   >
                     S-{config.serie}
@@ -403,17 +395,17 @@ const CiclesView: React.FC = () => {
               <div className="flex flex-wrap items-center gap-6 mb-8 px-2">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 bg-fgc-green rounded-full shadow-sm shadow-fgc-green/40" />
-                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Disponible</span>
+                  <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Disponible</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-gray-300 rounded-full" />
-                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">En Servei</span>
+                  <div className="w-3 h-3 bg-gray-300 dark:bg-gray-700 rounded-full" />
+                  <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">En Servei</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 bg-red-500 rounded-full shadow-sm shadow-red-500/40" />
-                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Avariat</span>
+                  <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Avariat</span>
                 </div>
-                <div className="ml-auto flex items-center gap-1.5 text-blue-500">
+                <div className="ml-auto flex items-center gap-1.5 text-blue-500 dark:text-blue-400">
                   <Info size={14} />
                   <span className="text-[10px] font-black uppercase tracking-tighter">Clica la clau per marcar avaria</span>
                 </div>
@@ -437,16 +429,16 @@ const CiclesView: React.FC = () => {
                         }}
                         className={`w-full p-4 rounded-2xl border transition-all text-center flex flex-col items-center gap-1.5 ${
                           isBroken
-                            ? 'bg-red-50 text-red-600 border-red-200 ring-1 ring-red-100'
+                            ? 'bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900 ring-1 ring-red-100 dark:ring-red-900/50'
                             : isOccupied 
-                              ? 'bg-gray-50 text-gray-300 border-gray-100 opacity-60 cursor-not-allowed' 
-                              : 'bg-white text-fgc-grey border-gray-100 hover:border-fgc-green hover:shadow-xl hover:scale-105 active:scale-95'
+                              ? 'bg-gray-50 dark:bg-black/20 text-gray-300 dark:text-gray-700 border-gray-100 dark:border-white/5 opacity-60 cursor-not-allowed' 
+                              : 'bg-white dark:bg-gray-800 text-fgc-grey dark:text-gray-300 border-gray-100 dark:border-white/5 hover:border-fgc-green hover:shadow-xl hover:scale-105 active:scale-95'
                         }`}
                       >
-                        {isBroken ? <AlertTriangle size={20} className="text-red-500" /> : <Train size={20} className={isOccupied ? 'text-gray-200' : 'text-fgc-green'} />}
+                        {isBroken ? <AlertTriangle size={20} className="text-red-500" /> : <Train size={20} className={isOccupied ? 'text-gray-200 dark:text-gray-700' : 'text-fgc-green'} />}
                         <span className="text-base font-black tracking-tight">{trainNum}</span>
                         {!isOccupied && !isBroken && <div className="h-1.5 w-8 bg-fgc-green rounded-full mt-1" />}
-                        {isOccupied && <span className="text-[8px] font-black uppercase opacity-60">{assignments.find(a => a.train_number === trainNum)?.cycle_id}</span>}
+                        {isOccupied && <span className="text-[8px] font-black uppercase opacity-60 dark:opacity-40">{assignments.find(a => a.train_number === trainNum)?.cycle_id}</span>}
                         {isBroken && <span className="text-[8px] font-black uppercase text-red-400">FORA DE SERVEI</span>}
                       </button>
 
@@ -457,8 +449,8 @@ const CiclesView: React.FC = () => {
                         }}
                         className={`absolute -top-2 -right-2 w-8 h-8 rounded-full flex items-center justify-center shadow-lg border-2 transition-all z-20 ${
                           isBroken 
-                            ? 'bg-red-600 text-white border-white scale-110' 
-                            : 'bg-white text-gray-400 border-gray-100 opacity-0 group-hover:opacity-100 hover:text-red-500 hover:border-red-500 hover:scale-110'
+                            ? 'bg-red-600 text-white border-white dark:border-gray-800 scale-110' 
+                            : 'bg-white dark:bg-gray-700 text-gray-400 dark:text-gray-400 border-gray-100 dark:border-white/10 opacity-0 group-hover:opacity-100 hover:text-red-500 hover:border-red-500 hover:scale-110'
                         }`}
                       >
                         <Wrench size={14} />
