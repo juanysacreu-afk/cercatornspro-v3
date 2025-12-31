@@ -119,12 +119,22 @@ const App: React.FC = () => {
         )}
       </nav>
 
-      {/* Main Content */}
+      {/* Main Content: Mantenim les vistes muntades però ocultes per preservar l'estat */}
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 safe-bottom">
-        {activeTab === AppTab.Cercar && <CercarView />}
-        {activeTab === AppTab.Organitza && <OrganitzaView />}
-        {activeTab === AppTab.Cicles && <CiclesView />}
-        {activeTab === AppTab.Agenda && <AgendaView />}
+        <div className={activeTab === AppTab.Cercar ? 'block' : 'hidden'}>
+          <CercarView />
+        </div>
+        <div className={activeTab === AppTab.Organitza ? 'block' : 'hidden'}>
+          <OrganitzaView />
+        </div>
+        <div className={activeTab === AppTab.Cicles ? 'block' : 'hidden'}>
+          <CiclesView />
+        </div>
+        {showSecretMenu && (
+          <div className={activeTab === AppTab.Agenda ? 'block' : 'hidden'}>
+            <AgendaView />
+          </div>
+        )}
       </main>
 
       {showUploadModal && <FileUploadModal onClose={() => setShowUploadModal(false)} />}
