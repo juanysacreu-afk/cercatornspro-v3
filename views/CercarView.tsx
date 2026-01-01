@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { SearchType, Shift, Circulation, DailyAssignment, PhonebookEntry, Assignment } from '../types.ts';
-import { Search, User, Train, MapPin, Hash, ArrowRight, Loader2, Info, Phone, Clock, FileText, ChevronDown, ChevronUp, Map as MapIcon, Navigation, Coffee, Footprints, Circle, LayoutGrid, Timer, X, BookOpen, CalendarDays, Filter, AlertTriangle, Wrench } from 'lucide-react';
+import { Search, User, Train, MapPin, Hash, ArrowRight, Loader2, Info, Phone, Clock, FileText, ChevronDown, ChevronUp, Map as MapIcon, Navigation, Coffee, Footprints, Circle, LayoutGrid, Timer, X, BookOpen, CalendarDays, Filter, AlertTriangle, Wrench, Users } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
 
 // Funció auxiliar per recuperar tots els registres d'una taula (superant el límit de 1000 de Supabase)
@@ -405,13 +405,12 @@ export const CercarView: React.FC = () => {
   const fetchFullTurnData = async (turnIds: string[]) => {
     if (!turnIds.length) return [];
     
-    // Obtenim tots els torns del servei seleccionat o tots si és una cerca global?
-    // Per consistència, busquem els shifts concrets independentment del servei triat al toggle
     const { data: shifts, error: shiftError } = await supabase.from('shifts').select('*').in('id', turnIds);
     if (!shifts || shifts.length === 0) return [];
 
     const shortIdsToQuery = shifts.map(s => getShortTornId(s.id as string));
     const { data: dailyAssig } = await supabase.from('daily_assignments').select('*').in('torn', shortIdsToQuery);
+    
     const employeeIds = dailyAssig?.map(d => d.empleat_id).filter(Boolean) || [];
     const { data: phones } = await supabase.from('phonebook').select('*').in('nomina', employeeIds as string[]);
     
@@ -429,9 +428,23 @@ export const CercarView: React.FC = () => {
     
     return shifts.map(shift => {
       const shortId = getShortTornId(shift.id as string);
-      const assignment = dailyAssig?.find(d => d.torn === shortId);
-      const driverPhone = phones?.find(p => p.nomina === assignment?.empleat_id);
+      // Canviem find per filter per admetre múltiples maquinistes
+      const assignments = dailyAssig?.filter(d => d.torn === shortId) || [];
       
+      const drivers = assignments.map(assig => {
+        const phoneData = phones?.find(p => p.nomina === assig.empleat_id);
+        return {
+          nom: assig.nom || 'No assignat',
+          cognoms: assig.cognoms || '',
+          nomina: assig.empleat_id || '---',
+          phones: phoneData?.phones || [],
+          observacions: assig.observacions || '',
+          abs_parc_c: assig.abs_parc_c,
+          dta: assig.dta,
+          dpa: assig.dpa
+        };
+      });
+
       const fullCirculations = (shift.circulations as any[])?.map((cRef: any) => {
         const isViatger = cRef.codi === 'Viatger';
         const obsParts = isViatger && cRef.observacions ? cRef.observacions.split('-') : [];
@@ -464,16 +477,7 @@ export const CercarView: React.FC = () => {
 
       return { 
         ...shift, 
-        driver: { 
-          nom: assignment?.nom || 'No assignat', 
-          cognoms: assignment?.cognoms || '',
-          nomina: assignment?.empleat_id || '---', 
-          phones: driverPhone?.phones || [], 
-          observacions: assignment?.observacions || '',
-          abs_parc_c: assignment?.abs_parc_c,
-          dta: assignment?.dta,
-          dpa: assignment?.dpa
-        }, 
+        drivers: drivers.length > 0 ? drivers : [{ nom: 'No assignat', cognoms: '', nomina: '---', phones: [], observacions: '' }], 
         fullCirculations 
       };
     });
@@ -512,7 +516,6 @@ export const CercarView: React.FC = () => {
     setLoading(true); setShowSuggestions(false);
     try {
       if (searchType === SearchType.Cicle) {
-        // Cerca de cicles segons el servei actual
         const allShifts = await fetchAllFromSupabase('shifts', supabase.from('shifts').select('*').eq('servei', selectedServei));
         const cycleAssignments = await supabase.from('assignments').select('*').eq('cycle_id', searchVal).single();
         
@@ -562,10 +565,26 @@ export const CercarView: React.FC = () => {
         const enrichedMatching = await Promise.all(matchingCircs.map(async mc => {
           const shift = allShifts?.find(s => (s.circulations as any[])?.some(cRef => (typeof cRef === 'string' ? cRef : cRef.codi) === mc.id));
           const shortId = shift ? getShortTornId(shift.id as string) : null;
-          const { data: assig } = shortId ? await supabase.from('daily_assignments').select('*').eq('torn', shortId).single() : { data: null };
-          const { data: phone } = assig?.empleat_id ? await supabase.from('phonebook').select('*').eq('nomina', assig.empleat_id).single() : { data: null };
           
-          // Buscar cicle per aquesta circulació
+          // Canviem single() per select() per agafar diversos maquinistes
+          const { data: assignments } = shortId ? await supabase.from('daily_assignments').select('*').eq('torn', shortId) : { data: [] };
+          const employeeIds = assignments?.map(a => a.empleat_id).filter(Boolean) || [];
+          const { data: phones } = employeeIds.length > 0 ? await supabase.from('phonebook').select('*').in('nomina', employeeIds) : { data: [] };
+          
+          const drivers = (assignments || []).map(assig => {
+            const pData = phones?.find(p => p.nomina === assig.empleat_id);
+            return {
+              nom: assig.nom || 'No assignat',
+              cognoms: assig.cognoms || '',
+              nomina: assig.empleat_id || '---',
+              phones: pData?.phones || [],
+              observacions: assig.observacions || '',
+              abs_parc_c: assig.abs_parc_c,
+              dta: assig.dta,
+              dpa: assig.dpa
+            };
+          });
+
           const cRef = shift?.circulations.find((cr: any) => (typeof cr === 'string' ? cr : cr.codi) === mc.id);
           const cCicle = typeof cRef === 'object' ? cRef.cicle : null;
           const cycleInfo = cCicle ? trainAssig?.find(ta => ta.cycle_id === cCicle) : null;
@@ -573,16 +592,7 @@ export const CercarView: React.FC = () => {
           return { 
             ...mc, 
             shift_id: shift?.id || '---', 
-            driver: { 
-              nom: assig?.nom || 'No assignat', 
-              cognoms: assig?.cognoms || '', 
-              nomina: assig?.empleat_id || '---', 
-              phones: phone?.phones || [],
-              observacions: assig?.observacions || '',
-              abs_parc_c: assig?.abs_parc_c,
-              dta: assig?.dta,
-              dpa: assig?.dpa
-            }, 
+            drivers: drivers.length > 0 ? drivers : [{ nom: 'No assignat', cognoms: '', nomina: '---', phones: [] }], 
             cicle: cCicle, 
             train: cycleInfo?.train_number 
           };
@@ -590,7 +600,6 @@ export const CercarView: React.FC = () => {
 
         setResults([{ type: 'station_summary', station: selectedStation, circulations: enrichedMatching.sort((a, b) => getFgcMinutes(a.stopTimeAtStation) - getFgcMinutes(b.stopTimeAtStation)) }]);
       } else {
-        // Cerca GLOBAL de Torns, Maquinistes o Circulacions (ignorant toggle de servei inicial)
         let turnIds: string[] = [];
         switch (searchType) {
           case SearchType.Torn:
@@ -626,7 +635,6 @@ export const CercarView: React.FC = () => {
 
   const handleSuggestionClick = (id: string) => { setQuery(id); setShowSuggestions(false); executeSearch(id); };
   
-  // Quan canviem el servei, només refresquem si no és una cerca de maquinista/torn que ja és global
   useEffect(() => { 
     if ((searchType === SearchType.Cicle && query) || (searchType === SearchType.Estacio && selectedStation)) {
       executeSearch(); 
@@ -734,18 +742,30 @@ export const CercarView: React.FC = () => {
           ) : (<span className="text-[10px] text-gray-300 dark:text-gray-600 font-bold uppercase tracking-widest italic opacity-40">Sense assignar</span>)}
         </div>
 
-        <div className="flex flex-col items-start px-2 min-w-0">
-          <span className={`text-sm sm:text-lg font-black leading-tight truncate w-full ${isActive ? 'text-red-700 dark:text-red-400' : isBroken ? 'text-red-600' : 'text-fgc-grey dark:text-gray-200'}`}>{circ.driver?.cognoms || ''}, {circ.driver?.nom || ''}</span>
-          <div className="flex flex-wrap items-center gap-3 mt-0.5">
-            <span className="text-[9px] font-black text-fgc-green uppercase tracking-widest">Torn {circ.shift_id}</span>
-            <div className="flex gap-1.5">{circ.driver?.phones?.map((p: string, i: number) => (<a key={i} href={`tel:${p}`} className="text-blue-500 hover:text-blue-700 flex items-center p-1 bg-blue-50 dark:bg-blue-900/20 rounded-md transition-colors"><Phone size={10} /></a>))}</div>
-            {circ.driver?.observacions && (
-               <div className="flex items-center gap-1 bg-gray-100 dark:bg-white/5 px-2 py-0.5 rounded border border-gray-200/50 dark:border-white/10 max-w-[150px] truncate" title={circ.driver.observacions}>
-                 <Info size={10} className="text-fgc-green shrink-0" />
-                 <span className="text-[9px] font-bold text-gray-500 dark:text-gray-400 truncate italic">{circ.driver.observacions}</span>
-               </div>
-            )}
-          </div>
+        <div className="flex flex-col items-start px-2 min-w-0 gap-2">
+          {circ.drivers.map((driver: any, dIdx: number) => (
+            <div key={dIdx} className="flex flex-col items-start w-full">
+              <span className={`text-sm sm:text-lg font-black leading-tight truncate w-full ${isActive ? 'text-red-700 dark:text-red-400' : isBroken ? 'text-red-600' : 'text-fgc-grey dark:text-gray-200'}`}>
+                {driver.cognoms || ''}, {driver.nom || ''}
+              </span>
+              <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                <span className="text-[9px] font-black text-fgc-green uppercase tracking-widest whitespace-nowrap">Torn {circ.shift_id}</span>
+                <div className="flex gap-1.5">
+                  {driver.phones?.map((p: string, i: number) => (
+                    <a key={i} href={`tel:${p}`} className="text-blue-500 hover:text-blue-700 flex items-center p-1 bg-blue-50 dark:bg-blue-900/20 rounded-md transition-colors">
+                      <Phone size={10} />
+                    </a>
+                  ))}
+                </div>
+                {driver.observacions && (
+                  <div className="flex items-center gap-1 bg-gray-100 dark:bg-white/5 px-2 py-0.5 rounded border border-gray-200/50 dark:border-white/10 max-w-[150px] truncate" title={driver.observacions}>
+                    <Info size={10} className="text-fgc-green shrink-0" />
+                    <span className="text-[9px] font-bold text-gray-500 dark:text-gray-400 truncate italic">{driver.observacions}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
 
         <div className="flex justify-center shrink-0">
@@ -870,7 +890,14 @@ export const CercarView: React.FC = () => {
                   <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                     <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 flex-1">
                       <div className="flex flex-col gap-1">
-                        <h2 className="text-xl sm:text-3xl font-black text-fgc-grey dark:text-white tracking-tighter uppercase leading-tight">Torn {group.id}</h2>
+                        <div className="flex items-center gap-3">
+                          <h2 className="text-xl sm:text-3xl font-black text-fgc-grey dark:text-white tracking-tighter uppercase leading-tight">Torn {group.id}</h2>
+                          {group.drivers.length > 1 && (
+                            <span className="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-lg text-[9px] font-black uppercase flex items-center gap-1">
+                              <Users size={10} /> Compartit ({group.drivers.length})
+                            </span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-2">
                            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 dark:bg-white/5 text-gray-500 rounded-lg text-[10px] font-black uppercase border border-gray-200/50">
                              <Timer size={12} /> {group.duracio}
@@ -893,30 +920,43 @@ export const CercarView: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="bg-fgc-green p-6 sm:p-10 border-x border-fgc-green/20 shadow-sm">
-                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 sm:gap-10">
-                    <div className="flex items-center gap-6 sm:gap-8">
-                      <div className="w-14 h-14 sm:w-16 sm:h-16 bg-white/40 dark:bg-black/20 rounded-full flex items-center justify-center text-fgc-grey border-2 border-white/60 shrink-0"><User size={28} strokeWidth={2.5} /></div>
-                      <div className="space-y-1">
-                        <h3 className="text-xl sm:text-2xl font-black text-fgc-grey tracking-tight leading-tight uppercase">
-                          {group.driver.cognoms}, {group.driver.nom}
-                        </h3>
-                        <div className="flex flex-wrap gap-2 items-center">
-                          <div className="inline-flex items-center bg-fgc-grey text-white px-2.5 py-0.5 rounded-lg font-black text-[9px] sm:text-[10px] tracking-widest uppercase">Nómina: {group.driver.nomina}</div>
-                          {group.driver.abs_parc_c === 'S' && <span className="bg-red-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded">ABS</span>}
-                          {group.driver.dta === 'S' && <span className="bg-blue-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded">DTA</span>}
-                          {group.driver.dpa === 'S' && <span className="bg-purple-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded">DPA</span>}
-                        </div>
-                        {group.driver.observacions && (
-                          <div className="flex items-start gap-2 bg-black/10 dark:bg-black/20 px-3 py-2 rounded-xl border border-black/5 max-w-lg">
-                            <Info size={14} className="text-fgc-grey dark:text-gray-300 mt-0.5 shrink-0" />
-                            <p className="text-[11px] sm:text-xs font-bold text-fgc-grey dark:text-gray-200 leading-snug italic">{group.driver.observacions}</p>
+                {/* Secció de maquinistes - ara suporta múltiples */}
+                <div className="bg-fgc-green divide-y divide-white/20 border-x border-fgc-green/20 shadow-sm overflow-hidden">
+                  {group.drivers.map((driver: any, dIdx: number) => (
+                    <div key={dIdx} className="p-6 sm:p-10 transition-colors hover:bg-white/5">
+                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 sm:gap-10">
+                        <div className="flex items-center gap-6 sm:gap-8 w-full md:w-auto">
+                          <div className="w-14 h-14 sm:w-16 sm:h-16 bg-white/40 dark:bg-black/20 rounded-full flex items-center justify-center text-fgc-grey border-2 border-white/60 shrink-0">
+                            {group.drivers.length > 1 ? <span className="font-black text-lg">{dIdx + 1}</span> : <User size={28} strokeWidth={2.5} />}
                           </div>
-                        )}
+                          <div className="space-y-1 min-w-0 flex-1 md:flex-none">
+                            <h3 className="text-xl sm:text-2xl font-black text-fgc-grey tracking-tight leading-tight uppercase truncate">
+                              {driver.cognoms}, {driver.nom}
+                            </h3>
+                            <div className="flex flex-wrap gap-2 items-center">
+                              <div className="inline-flex items-center bg-fgc-grey text-white px-2.5 py-0.5 rounded-lg font-black text-[9px] sm:text-[10px] tracking-widest uppercase">Nómina: {driver.nomina}</div>
+                              {driver.abs_parc_c === 'S' && <span className="bg-red-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded">ABS</span>}
+                              {driver.dta === 'S' && <span className="bg-blue-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded">DTA</span>}
+                              {driver.dpa === 'S' && <span className="bg-purple-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded">DPA</span>}
+                            </div>
+                            {driver.observacions && (
+                              <div className="flex items-start gap-2 bg-black/10 dark:bg-black/20 px-3 py-2 rounded-xl border border-black/5 max-w-lg mt-2">
+                                <Info size={14} className="text-fgc-grey dark:text-gray-300 mt-0.5 shrink-0" />
+                                <p className="text-[11px] sm:text-xs font-bold text-fgc-grey dark:text-gray-200 leading-snug italic">{driver.observacions}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2 sm:gap-3 w-full md:w-auto">
+                          {driver.phones?.map((p: string, i: number) => (
+                            <a key={i} href={`tel:${p}`} className="flex-1 md:flex-none flex items-center justify-center gap-2.5 bg-fgc-grey text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-black hover:bg-fgc-dark transition-all active:scale-95">
+                              <Phone size={14} />{p}
+                            </a>
+                          ))}
+                        </div>
                       </div>
                     </div>
-                    <div className="flex flex-wrap gap-2 sm:gap-3">{group.driver.phones?.map((p: string, i: number) => (<a key={i} href={`tel:${p}`} className="flex items-center gap-2.5 bg-fgc-grey text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-black hover:bg-fgc-dark transition-all active:scale-95"><Phone size={14} />{p}</a>))}</div>
-                  </div>
+                  ))}
                 </div>
                 
                 <div className="bg-white dark:bg-gray-900 p-4 sm:p-10 rounded-b-[32px] sm:rounded-b-[48px] border-x border-b border-gray-100 dark:border-white/5 shadow-sm overflow-hidden">
