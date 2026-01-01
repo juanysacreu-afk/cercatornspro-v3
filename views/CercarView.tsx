@@ -404,18 +404,10 @@ export const CercarView: React.FC = () => {
 
   const fetchFullTurnData = async (turnIds: string[]) => {
     if (!turnIds.length) return [];
-    const allServiceShifts = await fetchAllFromSupabase('shifts', supabase.from('shifts').select('id, circulations').eq('servei', selectedServei));
     
-    const cycleMap = new Map<string, string>();
-    allServiceShifts?.forEach(s => {
-      (s.circulations as any[])?.forEach(c => {
-        const codi = typeof c === 'string' ? c : c.codi;
-        const cicle = typeof c === 'object' ? c.cicle : null;
-        if (codi && cicle && codi !== 'Viatger') cycleMap.set(codi as string, cicle as string);
-      });
-    });
-
-    const { data: shifts } = await supabase.from('shifts').select('*').in('id', turnIds).eq('servei', selectedServei);
+    // Obtenim tots els torns del servei seleccionat o tots si és una cerca global?
+    // Per consistència, busquem els shifts concrets independentment del servei triat al toggle
+    const { data: shifts, error: shiftError } = await supabase.from('shifts').select('*').in('id', turnIds);
     if (!shifts || shifts.length === 0) return [];
 
     const shortIdsToQuery = shifts.map(s => getShortTornId(s.id as string));
@@ -439,6 +431,7 @@ export const CercarView: React.FC = () => {
       const shortId = getShortTornId(shift.id as string);
       const assignment = dailyAssig?.find(d => d.torn === shortId);
       const driverPhone = phones?.find(p => p.nomina === assignment?.empleat_id);
+      
       const fullCirculations = (shift.circulations as any[])?.map((cRef: any) => {
         const isViatger = cRef.codi === 'Viatger';
         const obsParts = isViatger && cRef.observacions ? cRef.observacions.split('-') : [];
@@ -451,12 +444,38 @@ export const CercarView: React.FC = () => {
           machinistInici = obsParts[1];
           machinistFinal = obsParts[2];
         }
+        
         let cCicle = typeof cRef === 'object' ? cRef.cicle : null;
-        if (isViatger && !cCicle && realCodiId) cCicle = cycleMap.get(realCodiId);
         const cycleInfo = cCicle ? trainAssig?.find(ta => ta.cycle_id === cCicle) : null;
-        return { ...detail, ...(typeof cRef === 'object' ? cRef : {}), id: cRef.codi, realCodi: isViatger ? realCodiId : null, codi: cRef.codi, machinistInici, machinistFinal, cicle: cCicle, train: cycleInfo?.train_number, linia: detail?.linia || cRef.linia };
+        
+        return { 
+          ...detail, 
+          ...(typeof cRef === 'object' ? cRef : {}), 
+          id: cRef.codi, 
+          realCodi: isViatger ? realCodiId : null, 
+          codi: cRef.codi, 
+          machinistInici, 
+          machinistFinal, 
+          cicle: cCicle, 
+          train: cycleInfo?.train_number, 
+          linia: detail?.linia || cRef.linia 
+        };
       }).sort((a: any, b: any) => getFgcMinutes(a.sortida || '00:00') - getFgcMinutes(b.sortida || '00:00'));
-      return { ...shift, driver: { nom: assignment?.nom || 'No assignat', nomina: assignment?.empleat_id || '---', phones: driverPhone?.phones || [], observacions: assignment?.observacions || '' }, fullCirculations };
+
+      return { 
+        ...shift, 
+        driver: { 
+          nom: assignment?.nom || 'No assignat', 
+          cognoms: assignment?.cognoms || '',
+          nomina: assignment?.empleat_id || '---', 
+          phones: driverPhone?.phones || [], 
+          observacions: assignment?.observacions || '',
+          abs_parc_c: assignment?.abs_parc_c,
+          dta: assignment?.dta,
+          dpa: assignment?.dpa
+        }, 
+        fullCirculations 
+      };
     });
   };
 
@@ -467,11 +486,17 @@ export const CercarView: React.FC = () => {
       return;
     }
     if (searchType === SearchType.Torn) {
-      const { data } = await supabase.from('shifts').select('id').eq('servei', selectedServei).ilike('id', `%${val}%`).limit(8);
+      const { data } = await supabase.from('shifts').select('id').ilike('id', `%${val}%`).limit(8);
       if (data) { setSuggestions((data as any[]).map(item => item.id as string)); setShowSuggestions(true); }
     } else if (searchType === SearchType.Maquinista) {
-      const { data } = await supabase.from('daily_assignments').select('nom, empleat_id').or(`nom.ilike.%${val}%,empleat_id.ilike.%${val}%`).limit(8);
-      if (data) { const unique = Array.from(new Set((data as any[]).map(d => `${d.nom} (${d.empleat_id})`))) as string[]; setSuggestions(unique); setShowSuggestions(true); }
+      const { data } = await supabase.from('daily_assignments')
+        .select('nom, cognoms, empleat_id')
+        .or(`nom.ilike.%${val}%,cognoms.ilike.%${val}%,empleat_id.ilike.%${val}%`)
+        .limit(8);
+      if (data) { 
+        const unique = Array.from(new Set((data as any[]).map(d => `${d.cognoms || ''}, ${d.nom || ''} (${d.empleat_id})`))) as string[]; 
+        setSuggestions(unique); setShowSuggestions(true); 
+      }
     } else if (searchType === SearchType.Circulacio) {
       const { data } = await supabase.from('circulations').select('id').ilike('id', `%${val}%`).limit(8);
       if (data) { setSuggestions((data as any[]).map(item => item.id as string)); setShowSuggestions(true); }
@@ -487,6 +512,7 @@ export const CercarView: React.FC = () => {
     setLoading(true); setShowSuggestions(false);
     try {
       if (searchType === SearchType.Cicle) {
+        // Cerca de cicles segons el servei actual
         const allShifts = await fetchAllFromSupabase('shifts', supabase.from('shifts').select('*').eq('servei', selectedServei));
         const cycleAssignments = await supabase.from('assignments').select('*').eq('cycle_id', searchVal).single();
         
@@ -503,18 +529,15 @@ export const CercarView: React.FC = () => {
         if (!selectedStation) { setLoading(false); return; }
         const allShifts = await fetchAllFromSupabase('shifts', supabase.from('shifts').select('id, circulations').eq('servei', selectedServei));
         const circIdsInService = new Set<string>();
-        const cycleMap = new Map<string, string>();
         
         allShifts?.forEach(s => {
           (s.circulations as any[])?.forEach(c => {
             const codi = typeof c === 'string' ? c : c.codi;
             if (codi && codi !== 'Viatger') circIdsInService.add(codi as string);
-            if (c.cicle) cycleMap.set(codi as string, c.cicle as string);
           });
         });
 
         const allCircs = await fetchAllFromSupabase('circulations', supabase.from('circulations').select('*').in('id', Array.from(circIdsInService)));
-        
         const matchingCircs: any[] = [];
         const startMinRange = getFgcMinutes(startTime);
         const endMinRange = getFgcMinutes(endTime);
@@ -541,40 +564,75 @@ export const CercarView: React.FC = () => {
           const shortId = shift ? getShortTornId(shift.id as string) : null;
           const { data: assig } = shortId ? await supabase.from('daily_assignments').select('*').eq('torn', shortId).single() : { data: null };
           const { data: phone } = assig?.empleat_id ? await supabase.from('phonebook').select('*').eq('nomina', assig.empleat_id).single() : { data: null };
-          const cCicle = cycleMap.get(mc.id as string);
+          
+          // Buscar cicle per aquesta circulació
+          const cRef = shift?.circulations.find((cr: any) => (typeof cr === 'string' ? cr : cr.codi) === mc.id);
+          const cCicle = typeof cRef === 'object' ? cRef.cicle : null;
           const cycleInfo = cCicle ? trainAssig?.find(ta => ta.cycle_id === cCicle) : null;
-          return { ...mc, shift_id: shift?.id || '---', driver: { nom: assig?.nom || 'No assignat', nomina: assig?.empleat_id || '---', phones: phone?.phones || [] }, cicle: cCicle, train: cycleInfo?.train_number };
+          
+          return { 
+            ...mc, 
+            shift_id: shift?.id || '---', 
+            driver: { 
+              nom: assig?.nom || 'No assignat', 
+              cognoms: assig?.cognoms || '', 
+              nomina: assig?.empleat_id || '---', 
+              phones: phone?.phones || [],
+              observacions: assig?.observacions || '',
+              abs_parc_c: assig?.abs_parc_c,
+              dta: assig?.dta,
+              dpa: assig?.dpa
+            }, 
+            cicle: cCicle, 
+            train: cycleInfo?.train_number 
+          };
         }));
 
         setResults([{ type: 'station_summary', station: selectedStation, circulations: enrichedMatching.sort((a, b) => getFgcMinutes(a.stopTimeAtStation) - getFgcMinutes(b.stopTimeAtStation)) }]);
       } else {
+        // Cerca GLOBAL de Torns, Maquinistes o Circulacions (ignorant toggle de servei inicial)
         let turnIds: string[] = [];
         switch (searchType) {
           case SearchType.Torn:
-            const { data: s } = await supabase.from('shifts').select('id').eq('servei', selectedServei).ilike('id', `%${searchVal}%`);
+            const { data: s } = await supabase.from('shifts').select('id').ilike('id', `%${searchVal}%`);
             turnIds = s?.map(x => x.id as string) || [];
             break;
           case SearchType.Maquinista:
             const nominaMatch = searchVal.match(/\((\d+)\)$/);
             const filterVal = nominaMatch ? nominaMatch[1] : searchVal;
-            const { data: m } = await supabase.from('daily_assignments').select('torn').or(`nom.ilike.%${filterVal}%,empleat_id.ilike.%${filterVal}%`);
-            const shortTorns = Array.from(new Set(m?.map(x => x.torn) || []));
-            const { data: allS } = await supabase.from('shifts').select('id').eq('servei', selectedServei);
-            turnIds = allS?.filter(shift => shortTorns.includes(getShortTornId(shift.id as string))).map(x => x.id as string) || [];
+            const { data: m } = await supabase.from('daily_assignments')
+              .select('torn')
+              .or(`nom.ilike.%${filterVal}%,cognoms.ilike.%${filterVal}%,empleat_id.ilike.%${filterVal}%`);
+            
+            const shortTorns = Array.from(new Set(m?.map(x => x.torn?.trim()) || []));
+            const { data: matchingShifts } = await supabase.from('shifts').select('id');
+            turnIds = matchingShifts?.filter(shift => shortTorns.includes(getShortTornId(shift.id as string))).map(x => x.id as string) || [];
             break;
           case SearchType.Circulacio:
-            const { data: c } = await supabase.from('shifts').select('id, circulations').eq('servei', selectedServei);
+            const { data: c } = await supabase.from('shifts').select('id, circulations');
             turnIds = c?.filter(turn => (turn.circulations as any[])?.some((circ: any) => (typeof circ === 'string' ? circ : circ.codi)?.toLowerCase().includes(searchVal.toLowerCase()))).map(turn => turn.id as string) || [];
             break;
         }
-        const fullData = await fetchFullTurnData(turnIds);
-        setResults(fullData);
+        
+        if (turnIds.length > 0) {
+          const fullData = await fetchFullTurnData(turnIds);
+          setResults(fullData);
+        } else {
+          setResults([]);
+        }
       }
     } catch (error) { console.error("Error cercant dades:", error); } finally { setLoading(false); }
   };
 
   const handleSuggestionClick = (id: string) => { setQuery(id); setShowSuggestions(false); executeSearch(id); };
-  useEffect(() => { if (query || (searchType === SearchType.Estacio && selectedStation)) executeSearch(); }, [selectedServei]);
+  
+  // Quan canviem el servei, només refresquem si no és una cerca de maquinista/torn que ja és global
+  useEffect(() => { 
+    if ((searchType === SearchType.Cicle && query) || (searchType === SearchType.Estacio && selectedStation)) {
+      executeSearch(); 
+    }
+  }, [selectedServei]);
+
   const toggleItinerari = (id: string) => { setExpandedItinerari(expandedItinerari === id ? null : id); };
 
   const CirculationHeader = () => (
@@ -588,31 +646,22 @@ export const CercarView: React.FC = () => {
   );
 
   const CirculationRow = ({ circ, itemKey }: { circ: any; itemKey: string }) => {
-    const isViatger = circ.codi === 'Viatger';
     const trainPhone = getTrainPhone(circ.train);
     const isActive = checkIfActive(circ.sortida, circ.arribada);
     const isBroken = circ.train && brokenTrains.has(circ.train);
 
     return (
       <div id={`circ-row-${itemKey}`} className={`p-2 sm:p-4 grid grid-cols-[auto_1fr_1fr_auto] md:grid-cols-[1fr_1.2fr_1.8fr_1.8fr_1.2fr] items-center gap-2 sm:gap-4 w-full relative transition-all ${isActive ? 'bg-red-50/30 dark:bg-red-950/20' : isBroken ? 'bg-red-50/20 dark:bg-red-950/10 shadow-inner' : ''}`}>
-        {/* COL 1: Codi / Línia */}
         <div className="flex items-center gap-2 overflow-visible px-1">
             <div className={`px-2.5 py-1.5 ${getLiniaColor(circ.linia)} text-white rounded-lg font-black text-xs sm:text-sm shadow-sm flex items-center justify-center min-w-[58px]`}>{circ.codi}</div>
             <span className={`hidden md:flex px-2 py-1 ${getLiniaColor(circ.linia)} text-white rounded-md font-black text-[9px] sm:text-[11px] shadow-sm flex-shrink-0`}>{circ.linia || '??'}</span>
-            {/* Només mòbil: Icona de trucada a la unitat */}
             {circ.train && trainPhone && (
-              <a 
-                href={`tel:${trainPhone}`} 
-                onClick={(e) => e.stopPropagation()}
-                className={`md:hidden p-2 rounded-lg border shadow-sm transition-all active:scale-90 ${isBroken ? 'bg-red-600 text-white border-red-700' : 'bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-grey dark:text-fgc-green border-fgc-green/30 dark:border-fgc-green/20'}`}
-                title={`Trucar a la unitat ${circ.train}`}
-              >
+              <a href={`tel:${trainPhone}`} onClick={(e) => e.stopPropagation()} className={`md:hidden p-2 rounded-lg border shadow-sm transition-all active:scale-90 ${isBroken ? 'bg-red-600 text-white border-red-700' : 'bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-grey dark:text-fgc-green border-fgc-green/30 dark:border-fgc-green/20'}`}>
                 <Phone size={14} />
               </a>
             )}
         </div>
         
-        {/* COL 2: Cicle / Unitat (Ocult en mòbil vertical) */}
         <div className="hidden md:flex justify-center">
             {circ.cicle ? (
               <div className={`text-[10px] sm:text-sm font-black px-3 py-1.5 rounded-lg border shadow-sm flex items-center justify-center gap-2 transition-all w-full max-w-[150px] ${isBroken ? 'bg-red-600 text-white border-red-700 animate-pulse' : 'text-black dark:text-gray-200 bg-fgc-green/20 dark:bg-fgc-green/10 border-fgc-green/30 dark:border-fgc-green/20'}`}>
@@ -629,29 +678,20 @@ export const CercarView: React.FC = () => {
             ) : (<span className="text-[10px] text-gray-300 dark:text-gray-600 font-bold uppercase tracking-widest italic opacity-40">Sense assignar</span>)}
         </div>
 
-        {/* COL 3: Sortida (Hora + Via + Estació amagada en mòbil) */}
         <div className="flex items-center gap-2 sm:gap-4 justify-center min-w-0">
             <div className={`text-base sm:text-2xl font-black tabular-nums w-14 sm:w-16 text-center ${isActive || isBroken ? 'text-red-600' : 'text-fgc-grey dark:text-gray-200'}`}>{circ.sortida || '--:--'}</div>
             <div className="bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-grey dark:text-fgc-green border border-fgc-green/30 dark:border-fgc-green/20 px-2 py-0.5 rounded text-[10px] font-black shadow-sm shrink-0">V{circ.via_inici || '?'}</div>
             <span className="text-[10px] sm:text-xs font-bold text-gray-400 dark:text-gray-500 truncate max-w-[100px] hidden md:block">{circ.machinistInici || circ.inici || '---'}</span>
         </div>
 
-        {/* COL 4: Arribada (Hora + Via + Estació amagada en mòbil) */}
         <div className="flex items-center gap-2 sm:gap-4 justify-center min-w-0">
             <span className="text-[10px] sm:text-xs font-bold text-gray-400 dark:text-gray-500 truncate max-w-[100px] text-right hidden md:block">{circ.machinistFinal || circ.final || '---'}</span>
             <div className="bg-fgc-grey/10 dark:bg-white/5 text-fgc-grey dark:text-gray-400 border border-gray-200 dark:border-white/10 px-2 py-0.5 rounded text-[10px] font-black shadow-sm shrink-0">V{circ.via_final || '?'}</div>
             <div className={`text-base sm:text-2xl font-black tabular-nums w-14 sm:w-16 text-center ${isActive || isBroken ? 'text-red-600' : 'text-fgc-grey dark:text-gray-200'}`}>{circ.arribada || '--:--'}</div>
         </div>
 
-        {/* COL 5: Estat / Detalls */}
         <div className="flex justify-end items-center gap-2 sm:gap-3 px-1 sm:px-4">
-          {isBroken && (
-            <div className="hidden lg:flex flex-col items-end">
-              <span className="text-[9px] font-black text-white bg-red-600 px-2 py-1 rounded-full border border-red-700 animate-pulse flex items-center gap-1 shadow-md">
-                <AlertTriangle size={10} /> AVARIA
-              </span>
-            </div>
-          )}
+          {isBroken && <span className="hidden lg:flex text-[9px] font-black text-white bg-red-600 px-2 py-1 rounded-full border border-red-700 animate-pulse items-center gap-1 shadow-md"><AlertTriangle size={10} /> AVARIA</span>}
           {isActive && <span className="hidden xl:inline text-[9px] font-black text-red-500 animate-pulse bg-red-50 dark:bg-red-950/40 px-2.5 py-1 rounded-full border border-red-100 dark:border-red-900 shadow-sm">ACTIU</span>}
           <button onClick={() => toggleItinerari(itemKey)} className={`p-2 sm:p-3 rounded-xl shadow-md hover:shadow-xl transition-all active:scale-95 border-b-2 border-black/5 flex items-center gap-2 shrink-0 ${isActive ? 'bg-red-600 text-white border-red-700' : isBroken ? 'bg-red-600 text-white border-red-700' : 'bg-fgc-green text-fgc-grey border-fgc-green'}`}>
             <BookOpen size={16} /><span className="hidden lg:inline text-[10px] font-black uppercase tracking-tighter">Itinerari</span>
@@ -668,24 +708,16 @@ export const CercarView: React.FC = () => {
 
     return (
       <div id={`station-row-${itemKey}`} className={`p-2 sm:p-4 grid grid-cols-[auto_1fr_auto_auto] md:grid-cols-[1fr_1.2fr_1.8fr_1fr_1.2fr] items-center gap-2 sm:gap-4 w-full relative transition-all ${isActive ? 'bg-red-50/40 dark:bg-red-950/20 shadow-inner' : isBroken ? 'bg-red-50/20 dark:bg-red-950/10' : ''}`}>
-        {/* COL 1: Codi / Línia */}
         <div className="flex justify-start items-center gap-2 shrink-0 px-1">
           <div className={`px-2.5 py-1.5 ${getLiniaColor(circ.linia)} text-white rounded-lg font-black text-xs sm:text-sm shadow-sm flex items-center justify-center min-w-[58px]`}>{circ.id}</div>
           <span className={`hidden md:flex px-2 py-1 ${getLiniaColor(circ.linia)} text-white rounded-md font-black text-[9px] sm:text-[11px] shadow-sm`}>{circ.linia || '??'}</span>
-          {/* Només mòbil: Icona de trucada a la unitat */}
           {circ.train && trainPhone && (
-            <a 
-              href={`tel:${trainPhone}`} 
-              onClick={(e) => e.stopPropagation()}
-              className={`md:hidden p-2 rounded-lg border shadow-sm transition-all active:scale-90 ${isBroken ? 'bg-red-600 text-white border-red-700' : 'bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-grey dark:text-fgc-green border-fgc-green/30 dark:border-fgc-green/20'}`}
-              title={`Trucar a la unitat ${circ.train}`}
-            >
+            <a href={`tel:${trainPhone}`} onClick={(e) => e.stopPropagation()} className={`md:hidden p-2 rounded-lg border shadow-sm transition-all active:scale-90 ${isBroken ? 'bg-red-600 text-white border-red-700' : 'bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-grey dark:text-fgc-green border-fgc-green/30 dark:border-fgc-green/20'}`}>
               <Phone size={14} />
             </a>
           )}
         </div>
 
-        {/* COL 2: Cicle / Unitat (Ocult en mòbil vertical) */}
         <div className="hidden md:flex justify-center shrink-0">
           {circ.cicle ? (
             <div className={`text-[10px] sm:text-sm font-black px-3 py-1.5 rounded-lg border shadow-sm flex items-center gap-2 w-full max-w-[140px] ${isBroken ? 'bg-red-600 text-white border-red-700 animate-pulse' : 'text-black dark:text-gray-200 bg-fgc-green/20 dark:bg-fgc-green/10 border-fgc-green/30 dark:border-fgc-green/20'}`}>
@@ -702,23 +734,26 @@ export const CercarView: React.FC = () => {
           ) : (<span className="text-[10px] text-gray-300 dark:text-gray-600 font-bold uppercase tracking-widest italic opacity-40">Sense assignar</span>)}
         </div>
 
-        {/* COL 3: Maquinista */}
         <div className="flex flex-col items-start px-2 min-w-0">
-          <span className={`text-sm sm:text-lg font-black leading-tight truncate w-full ${isActive ? 'text-red-700 dark:text-red-400' : isBroken ? 'text-red-600' : 'text-fgc-grey dark:text-gray-200'}`}>{circ.driver?.nom}</span>
-          <div className="flex items-center gap-3 mt-0.5">
+          <span className={`text-sm sm:text-lg font-black leading-tight truncate w-full ${isActive ? 'text-red-700 dark:text-red-400' : isBroken ? 'text-red-600' : 'text-fgc-grey dark:text-gray-200'}`}>{circ.driver?.cognoms || ''}, {circ.driver?.nom || ''}</span>
+          <div className="flex flex-wrap items-center gap-3 mt-0.5">
             <span className="text-[9px] font-black text-fgc-green uppercase tracking-widest">Torn {circ.shift_id}</span>
             <div className="flex gap-1.5">{circ.driver?.phones?.map((p: string, i: number) => (<a key={i} href={`tel:${p}`} className="text-blue-500 hover:text-blue-700 flex items-center p-1 bg-blue-50 dark:bg-blue-900/20 rounded-md transition-colors"><Phone size={10} /></a>))}</div>
+            {circ.driver?.observacions && (
+               <div className="flex items-center gap-1 bg-gray-100 dark:bg-white/5 px-2 py-0.5 rounded border border-gray-200/50 dark:border-white/10 max-w-[150px] truncate" title={circ.driver.observacions}>
+                 <Info size={10} className="text-fgc-green shrink-0" />
+                 <span className="text-[9px] font-bold text-gray-500 dark:text-gray-400 truncate italic">{circ.driver.observacions}</span>
+               </div>
+            )}
           </div>
         </div>
 
-        {/* COL 4: Hora a l'estació */}
         <div className="flex justify-center shrink-0">
           <div className={`px-4 py-2 rounded-xl border transition-all tabular-nums ${isActive ? 'bg-red-600 text-white border-red-700 animate-pulse shadow-md scale-105' : isBroken ? 'bg-red-600 text-white border-red-700 shadow-sm' : 'bg-fgc-green/10 dark:bg-fgc-green/5 border-fgc-green/20 dark:border-fgc-green/10'}`}>
             <span className={`text-base sm:text-2xl font-black ${isActive || isBroken ? 'text-white' : 'text-fgc-grey dark:text-gray-200'}`}>{circ.stopTimeAtStation || '--:--'}</span>
           </div>
         </div>
 
-        {/* COL 5: Detalls */}
         <div className="flex justify-end pr-1 sm:pr-4 items-center gap-2 shrink-0">
           {isBroken && <span className="hidden lg:inline text-[9px] font-black text-red-600 animate-pulse flex items-center gap-1 bg-red-50 dark:bg-red-950/40 px-2 py-1 rounded-full border border-red-100 dark:border-red-900"><Wrench size={10} /> AVARIA</span>}
           <button onClick={() => toggleItinerari(itemKey)} className={`p-2 sm:p-3 rounded-xl shadow-md hover:shadow-xl transition-all active:scale-95 border-b-2 border-black/5 flex items-center gap-2 ${isActive || isBroken ? 'bg-red-600 text-white border-red-700' : 'bg-fgc-green text-fgc-grey'}`}>
@@ -759,33 +794,15 @@ export const CercarView: React.FC = () => {
               <div className="flex-1 space-y-2"><label className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-4">Selecciona Estació</label><div className="relative"><MapPin className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={24} /><select value={selectedStation} onChange={(e) => setSelectedStation(e.target.value)} className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] sm:rounded-[32px] py-4 sm:py-6 pl-16 pr-8 focus:ring-4 focus:ring-fgc-green/20 outline-none text-lg sm:text-2xl font-bold appearance-none cursor-pointer dark:text-white"><option value="" className="dark:bg-gray-900">Tria una estació...</option>{allStations.map(st => <option key={st} value={st} className="dark:bg-gray-900">{st}</option>)}</select><ChevronDown className="absolute right-8 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none" size={24} /></div></div>
               <div className="flex-1 flex flex-row gap-4 items-end">
                 <div className="flex-1 space-y-2 relative">
-                  <label className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-4 flex items-center gap-2">
-                    De les
-                    <button 
-                      onClick={() => setStartTime(getCurrentTimeStr())} 
-                      title="Hora actual"
-                      className="text-fgc-green hover:text-fgc-grey dark:hover:text-white transition-colors flex items-center"
-                    >
-                      <Clock size={12} />
-                    </button>
-                  </label>
-                  <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] sm:rounded-[32px] py-4 sm:py-6 px-6 focus:ring-4 focus:ring-fgc-green/20 outline-none text-lg sm:text-2xl font-bold cursor-pointer dark:text-white" />
+                  <label className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-4 flex items-center gap-2">De les<button onClick={() => setStartTime(getCurrentTimeStr())} className="text-fgc-green"><Clock size={12} /></button></label>
+                  <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] sm:rounded-[32px] py-4 sm:py-6 px-6 focus:ring-4 focus:ring-fgc-green/20 outline-none text-lg sm:text-2xl font-bold dark:text-white" />
                 </div>
                 <div className="flex-1 space-y-2 relative">
-                  <label className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-4 flex items-center gap-2">
-                    A les
-                    <button 
-                      onClick={() => setEndTime(getCurrentTimeStr())} 
-                      title="Hora actual"
-                      className="text-fgc-green hover:text-fgc-grey dark:hover:text-white transition-colors flex items-center"
-                    >
-                      <Clock size={12} />
-                    </button>
-                  </label>
-                  <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] sm:rounded-[32px] py-4 sm:py-6 px-6 focus:ring-4 focus:ring-fgc-green/20 outline-none text-lg sm:text-2xl font-bold cursor-pointer dark:text-white" />
+                  <label className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-4 flex items-center gap-2">A les<button onClick={() => setEndTime(getCurrentTimeStr())} className="text-fgc-green"><Clock size={12} /></button></label>
+                  <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] sm:rounded-[32px] py-4 sm:py-6 px-6 focus:ring-4 focus:ring-fgc-green/20 outline-none text-lg sm:text-2xl font-bold dark:text-white" />
                 </div>
               </div>
-              <button onClick={() => executeSearch()} className="bg-fgc-green text-fgc-grey h-[60px] sm:h-[76px] px-8 sm:px-12 rounded-[24px] sm:rounded-[32px] text-lg sm:text-xl font-black shadow-xl shadow-fgc-green/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3 shrink-0"><Search size={22} />CERCAR</button>
+              <button onClick={() => executeSearch()} className="bg-fgc-green text-fgc-grey h-[60px] sm:h-[76px] px-8 sm:px-12 rounded-[24px] sm:rounded-[32px] text-lg sm:text-xl font-black shadow-xl shadow-fgc-green/20 hover:scale-105 active:scale-95 flex items-center justify-center gap-3 shrink-0"><Search size={22} />CERCAR</button>
             </div>
           </div>
         ) : (
@@ -793,17 +810,11 @@ export const CercarView: React.FC = () => {
             <div className="relative flex flex-col sm:flex-row items-stretch sm:items-center gap-4" ref={suggestionsRef}>
               <div className="relative flex-1">
                 <div className="absolute inset-y-0 left-6 flex items-center pointer-events-none text-gray-400 dark:text-gray-500">{loading ? <Loader2 className="animate-spin" size={24} /> : <Search size={24} />}</div>
-                <input type="text" placeholder={`Cerca per ${searchType.toUpperCase()}...`} className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] sm:rounded-[32px] py-4 sm:py-6 pl-14 sm:pl-16 pr-6 sm:pr-8 focus:ring-4 focus:ring-fgc-green/20 outline-none text-lg sm:text-2xl font-bold transition-all placeholder:text-gray-300 dark:text-white dark:placeholder:text-gray-600" value={query} onChange={(e) => handleInputChange(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && executeSearch()} onFocus={() => setShowSuggestions(true)} />
+                <input type="text" placeholder={`Cerca per ${searchType.toUpperCase()}...`} className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] sm:rounded-[32px] py-4 sm:py-6 pl-14 sm:pl-16 pr-6 sm:pr-8 focus:ring-4 focus:ring-fgc-green/20 outline-none text-lg sm:text-2xl font-bold placeholder:text-gray-300 dark:text-white dark:placeholder:text-gray-600" value={query} onChange={(e) => handleInputChange(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && executeSearch()} onFocus={() => setShowSuggestions(true)} />
                 {showSuggestions && suggestions.length > 0 && (<div className="absolute top-full left-2 right-2 mt-2 bg-white dark:bg-gray-800 rounded-[24px] shadow-2xl border border-gray-100 dark:border-white/10 z-[200] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">{suggestions.map((id, sIdx) => (<button key={sIdx} onClick={() => handleSuggestionClick(id)} className="w-full text-left px-6 sm:px-8 py-3 sm:py-4 text-base sm:text-xl font-bold text-fgc-grey dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-fgc-green transition-colors flex items-center justify-between group"><span>{id}</span><ArrowRight size={18} className="opacity-0 group-hover:opacity-100 transition-opacity" /></button>))}</div>)}
               </div>
               <button onClick={() => executeSearch()} className="bg-fgc-green text-fgc-grey h-[60px] sm:h-[76px] px-8 sm:px-10 rounded-[24px] sm:rounded-[32px] text-lg sm:text-xl font-black shadow-xl shadow-fgc-green/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3"><Search size={22} />CERCAR</button>
             </div>
-            {searchType === SearchType.Cicle && availableCycles.length > 0 && (
-              <div className="animate-in fade-in slide-in-from-top-4 duration-500 pt-4 border-t border-gray-50 dark:border-white/5">
-                <div className="flex items-center gap-3 mb-6 px-2"><Filter size={16} className="text-fgc-green" /><h3 className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Selecció ràpida de Cicle (S-{selectedServei})</h3></div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar p-1">{filteredCyclesList.map(c => (<button key={c} onClick={() => handleSuggestionClick(c)} className={`py-4 px-3 rounded-2xl font-black text-sm transition-all border-b-4 active:scale-95 flex flex-col items-center justify-center gap-1 group/btn ${query === c ? 'bg-fgc-green text-fgc-grey border-fgc-green shadow-lg scale-105 z-10' : 'bg-white dark:bg-black/20 text-fgc-grey dark:text-gray-300 border-gray-200 dark:border-white/5 hover:border-fgc-green/30 hover:bg-gray-50 dark:hover:bg-white/10 shadow-sm'}`}><span className={`text-[9px] font-black uppercase tracking-tighter opacity-40 group-hover/btn:opacity-60 ${query === c ? 'text-fgc-grey' : 'text-gray-400 dark:text-gray-600'}`}>CICLE</span>{c}</button>))}{filteredCyclesList.length === 0 && (<div className="col-span-full py-8 text-center text-gray-300 dark:text-gray-700 italic font-medium">No s'han trobat cicles per a "{query}"</div>)}</div>
-              </div>
-            )}
           </div>
         )}
       </div>
@@ -824,7 +835,6 @@ export const CercarView: React.FC = () => {
                       </div>
                     </div>
                   </div>
-
                   <div className="border border-gray-100 dark:border-white/5 rounded-[32px] overflow-hidden bg-white dark:bg-black/20 shadow-sm">
                     <CirculationHeader />
                     <div className="grid grid-cols-1 divide-y divide-gray-100 dark:divide-white/5">
@@ -856,30 +866,27 @@ export const CercarView: React.FC = () => {
             const currentStatus = getShiftCurrentStatus(group, idx);
             return (
               <div key={idx} className="flex flex-col gap-1 group animate-in fade-in slide-in-from-bottom-12 duration-700">
-                <div className="bg-white dark:bg-gray-900 p-6 sm:p-10 rounded-t-[32px] sm:rounded-t-[48px] border-x border-t border-gray-100 dark:border-white/5 shadow-sm transition-all group-hover:shadow-md">
+                <div className="bg-white dark:bg-gray-900 p-6 sm:p-10 rounded-t-[32px] sm:rounded-t-[48px] border-x border-t border-gray-100 dark:border-white/5 shadow-sm">
                   <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                     <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 flex-1">
                       <div className="flex flex-col gap-1">
-                        <h2 className="text-xl sm:text-3xl font-black text-fgc-grey dark:text-white tracking-tighter uppercase whitespace-nowrap overflow-hidden text-ellipsis leading-tight">Torn {group.id}</h2>
+                        <h2 className="text-xl sm:text-3xl font-black text-fgc-grey dark:text-white tracking-tighter uppercase leading-tight">Torn {group.id}</h2>
                         <div className="flex items-center gap-2">
-                           <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 rounded-lg text-[10px] font-black uppercase tracking-tighter border border-gray-200/50 dark:border-white/10">
+                           <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 dark:bg-white/5 text-gray-500 rounded-lg text-[10px] font-black uppercase border border-gray-200/50">
                              <Timer size={12} /> {group.duracio}
                            </div>
-                           <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 rounded-lg text-[10px] font-black uppercase tracking-tighter border border-gray-200/50 dark:border-white/10">
+                           <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 dark:bg-white/5 text-gray-500 rounded-lg text-[10px] font-black uppercase border border-gray-200/50">
                              <MapPin size={12} /> {group.dependencia}
                            </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2.5 text-base sm:text-xl font-black text-fgc-green bg-fgc-green/5 dark:bg-fgc-green/10 px-4 py-2 rounded-xl border border-fgc-green/10 whitespace-nowrap">
+                      <div className="flex items-center gap-2.5 text-base sm:text-xl font-black text-fgc-green bg-fgc-green/5 px-4 py-2 rounded-xl border border-fgc-green/10 whitespace-nowrap">
                         <Clock size={20} />
                         <span>{group.inici_torn}</span>
                         <span className="opacity-30 mx-1">—</span>
                         <span>{group.final_torn}</span>
                       </div>
-                      <button 
-                        onClick={() => scrollToElement(currentStatus.targetId)}
-                        className={`px-5 py-2.5 rounded-2xl text-[10px] sm:text-xs font-black shadow-md border-b-4 border-black/10 transition-all hover:brightness-110 active:scale-95 ${currentStatus.color} whitespace-nowrap inline-block text-center cursor-pointer`}
-                      >
+                      <button onClick={() => scrollToElement(currentStatus.targetId)} className={`px-5 py-2.5 rounded-2xl text-[10px] sm:text-xs font-black shadow-md border-b-4 border-black/10 transition-all ${currentStatus.color}`}>
                         {currentStatus.label}
                       </button>
                     </div>
@@ -889,50 +896,50 @@ export const CercarView: React.FC = () => {
                 <div className="bg-fgc-green p-6 sm:p-10 border-x border-fgc-green/20 shadow-sm">
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 sm:gap-10">
                     <div className="flex items-center gap-6 sm:gap-8">
-                      <div className="w-14 h-14 sm:w-16 sm:h-16 bg-white/40 dark:bg-black/20 rounded-full flex items-center justify-center text-fgc-grey dark:text-gray-200 border-2 border-white/60 dark:border-white/20 shadow-inner shrink-0"><User size={28} strokeWidth={2.5} /></div>
-                      <div className="space-y-1"><h3 className="text-xl sm:text-2xl font-black text-fgc-grey dark:text-gray-900 tracking-tight leading-tight">{group.driver.nom}</h3><div className="inline-flex items-center bg-fgc-grey dark:bg-black text-white px-2.5 py-0.5 rounded-lg font-black text-[9px] sm:text-[10px] tracking-widest uppercase">Nómina: {group.driver.nomina}</div></div>
+                      <div className="w-14 h-14 sm:w-16 sm:h-16 bg-white/40 dark:bg-black/20 rounded-full flex items-center justify-center text-fgc-grey border-2 border-white/60 shrink-0"><User size={28} strokeWidth={2.5} /></div>
+                      <div className="space-y-1">
+                        <h3 className="text-xl sm:text-2xl font-black text-fgc-grey tracking-tight leading-tight uppercase">
+                          {group.driver.cognoms}, {group.driver.nom}
+                        </h3>
+                        <div className="flex flex-wrap gap-2 items-center">
+                          <div className="inline-flex items-center bg-fgc-grey text-white px-2.5 py-0.5 rounded-lg font-black text-[9px] sm:text-[10px] tracking-widest uppercase">Nómina: {group.driver.nomina}</div>
+                          {group.driver.abs_parc_c === 'S' && <span className="bg-red-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded">ABS</span>}
+                          {group.driver.dta === 'S' && <span className="bg-blue-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded">DTA</span>}
+                          {group.driver.dpa === 'S' && <span className="bg-purple-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded">DPA</span>}
+                        </div>
+                        {group.driver.observacions && (
+                          <div className="flex items-start gap-2 bg-black/10 dark:bg-black/20 px-3 py-2 rounded-xl border border-black/5 max-w-lg">
+                            <Info size={14} className="text-fgc-grey dark:text-gray-300 mt-0.5 shrink-0" />
+                            <p className="text-[11px] sm:text-xs font-bold text-fgc-grey dark:text-gray-200 leading-snug italic">{group.driver.observacions}</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex flex-col md:items-end gap-4 w-full md:w-auto">
-                      <div className="flex flex-wrap gap-2 sm:gap-3">{group.driver.phones?.map((p: string, i: number) => (<a key={i} href={`tel:${p}`} className="flex items-center gap-2.5 bg-fgc-grey dark:bg-black text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-black hover:bg-fgc-dark transition-all shadow-xl active:scale-95 group/tel"><Phone size={14} className="group-hover/tel:rotate-12 transition-transform" />{p}</a>))}</div>
-                    </div>
+                    <div className="flex flex-wrap gap-2 sm:gap-3">{group.driver.phones?.map((p: string, i: number) => (<a key={i} href={`tel:${p}`} className="flex items-center gap-2.5 bg-fgc-grey text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-black hover:bg-fgc-dark transition-all active:scale-95"><Phone size={14} />{p}</a>))}</div>
                   </div>
                 </div>
                 
                 <div className="bg-white dark:bg-gray-900 p-4 sm:p-10 rounded-b-[32px] sm:rounded-b-[48px] border-x border-b border-gray-100 dark:border-white/5 shadow-sm overflow-hidden">
                   <ShiftTimeline turn={group} />
-                  <div className="flex items-center gap-3 sm:gap-4 mb-6 sm:mb-8 w-full">
-                    <div className="h-px bg-gray-100 dark:bg-white/5 flex-1" />
-                    <div className="flex items-center gap-2"><Train size={14} className="text-gray-300 dark:text-gray-600" /><h4 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Full de Servei</h4></div>
-                    <div className="h-px bg-gray-100 dark:bg-white/5 flex-1" />
-                  </div>
-
                   <div className="border border-gray-100 dark:border-white/5 rounded-[32px] overflow-hidden bg-white dark:bg-black/20 shadow-sm mb-4">
                     <CirculationHeader />
                     <div className="flex flex-col divide-y divide-gray-100 dark:divide-white/5">
-                      {group.fullCirculations?.[0] && (
-                        <div id={`gap-pre-${idx}`}>
-                          <TimeGapRow from={group.inici_torn as string} to={group.fullCirculations[0].sortida as string} />
-                        </div>
-                      )}
                       {group.fullCirculations?.map((circ: any, cIdx: number) => {
                         const shiftItemKey = `${idx}-${cIdx}`; 
                         const isActive = checkIfActive(circ.sortida as string, circ.arribada as string);
                         const itineraryPoints = [{ nom: circ.inici, hora: circ.sortida, via: circ.via_inici }, ...(circ.estacions?.map((st: any) => ({ nom: st.nom, hora: st.hora || st.sortida || st.arribada, via: st.via })) || []), { nom: circ.final, hora: circ.arribada, via: circ.via_final }];
                         return (
                           <React.Fragment key={cIdx}>
-                            <div id={`circ-row-${shiftItemKey}`} className={`flex flex-col transition-all overflow-hidden relative ${isActive ? 'ring-2 ring-inset ring-red-600 z-10' : circ.codi === 'Viatger' ? 'bg-blue-50/10 dark:bg-blue-900/5' : ''}`}>
+                            <div id={`circ-row-${shiftItemKey}`} className={`flex flex-col relative ${isActive ? 'ring-2 ring-inset ring-red-600 z-10' : ''}`}>
                               <CirculationRow circ={circ} itemKey={shiftItemKey} />
                               {expandedItinerari === shiftItemKey && (
-                                <div className="p-4 sm:p-10 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-white/5 animate-in slide-in-from-top-4 duration-500 overflow-hidden">
+                                <div className="p-4 sm:p-10 bg-white dark:bg-gray-900 border-t border-gray-100 animate-in slide-in-from-top-4 duration-500 overflow-hidden">
                                   <div className="relative flex flex-col pl-8 sm:pl-16 pr-2 sm:pr-6 py-4 space-y-0">
                                     <div className="absolute left-[15px] sm:left-[29px] top-10 bottom-10 w-0.5 sm:w-1 bg-gray-100 dark:bg-gray-800 rounded-full" />
                                     {itineraryPoints.map((point, pIdx) => (<ItineraryPoint key={pIdx} point={point} isFirst={pIdx === 0} isLast={pIdx === itineraryPoints.length - 1} nextPoint={itineraryPoints[pIdx + 1]}/>))}
                                   </div>
                                 </div>
                               )}
-                            </div>
-                            <div id={`gap-row-${shiftItemKey}`}>
-                              {cIdx < group.fullCirculations.length - 1 ? (<TimeGapRow from={circ.arribada as string} to={group.fullCirculations[cIdx + 1].sortida as string} />) : (<TimeGapRow from={circ.arribada as string} to={group.final_torn as string} />)}
                             </div>
                           </React.Fragment>
                         );
@@ -944,9 +951,9 @@ export const CercarView: React.FC = () => {
             );
           })
         ) : (query.length >= 1 || (searchType === SearchType.Estacio && selectedStation)) && !loading ? (
-          <div className="bg-white dark:bg-gray-900 rounded-[32px] sm:rounded-[56px] py-20 sm:py-32 text-center text-gray-400 flex flex-col items-center gap-6 sm:gap-8 shadow-sm border border-gray-100 dark:border-white/5"><div className="w-24 h-24 sm:w-32 sm:h-32 bg-gray-50 dark:bg-black/20 rounded-full flex items-center justify-center text-gray-100 dark:text-gray-800"><Search size={48} /></div><div className="space-y-2"><p className="text-xl sm:text-2xl font-black text-fgc-grey dark:text-gray-200 uppercase tracking-tighter">No s'han trobat dades</p><p className="text-sm sm:text-base text-gray-400 dark:text-gray-500 font-medium">Revisa els paràmetres per a S-{selectedServei}.</p></div></div>
+          <div className="bg-white dark:bg-gray-900 rounded-[32px] py-20 text-center text-gray-400 flex flex-col items-center gap-6"><div className="w-24 h-24 bg-gray-50 dark:bg-black/20 rounded-full flex items-center justify-center text-gray-100"><Search size={48} /></div><div className="space-y-2"><p className="text-xl font-black text-fgc-grey uppercase">No s'han trobat dades</p><p className="text-sm font-medium">Revisa els paràmetres de cerca.</p></div></div>
         ) : !loading && (
-          <div className="text-center py-24 sm:py-40 opacity-10 flex flex-col items-center"><Train size={80} className="text-fgc-grey dark:text-gray-200 mb-8" /><p className="text-lg sm:text-2xl font-black uppercase tracking-[0.4em] text-fgc-grey dark:text-white">Consulta de Torns Activa</p></div>
+          <div className="text-center py-24 opacity-10 flex flex-col items-center"><Train size={80} className="text-fgc-grey mb-8" /><p className="text-lg font-black uppercase tracking-[0.4em] text-fgc-grey">Consulta de Torns Activa</p></div>
         )}
       </div>
     </div>

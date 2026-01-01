@@ -44,6 +44,7 @@ export interface DailyAssignment {
   hora_fi: string;
   empleat_id: string;
   nom: string;
+  cognoms: string;
   observacions: string;
   rango_horario_extra: string;
   created_at: string;
