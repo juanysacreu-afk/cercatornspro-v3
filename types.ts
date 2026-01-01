@@ -47,6 +47,10 @@ export interface DailyAssignment {
   observacions: string;
   rango_horario_extra: string;
   created_at: string;
+  data_servei?: string;
+  abs_parc_c?: string;
+  dta?: string;
+  dpa?: string;
 }
 
 export interface PhonebookEntry {

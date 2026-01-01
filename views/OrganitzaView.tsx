@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { OrganizeType, PhonebookEntry, DailyAssignment } from '../types.ts';
-import { Columns, ShieldAlert, Search, Phone, User, Hash, Loader2, Clock, LayoutGrid, ArrowRight, CheckCircle2, Coffee, X, Train, Info, UserCheck, Users, FastForward, Rewind, Bed, Timer, MapPin, Repeat, Filter, UserCircle } from 'lucide-react';
+import { Columns, ShieldAlert, Search, Phone, User, Hash, Loader2, Clock, LayoutGrid, ArrowRight, CheckCircle2, Coffee, X, Train, Info, UserCheck, Users, FastForward, Rewind, Bed, Timer, MapPin, Repeat, Filter, UserCircle, ChevronDown } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
 
 // Definició dels torns de reserva segons requeriment
@@ -18,7 +18,7 @@ const RESERVAS_DATA = [
   { id: 'QRR2', loc: 'RB', start: '14:00', end: '22:00' },
 ];
 
-type DisDesFilterType = 'OFF' | 'DIS' | 'DES' | 'BOTH';
+type DisDesFilterType = 'ALL' | 'DIS' | 'DES' | 'DIS_DES' | 'FOR' | 'VAC' | 'DAG';
 
 export const OrganitzaView: React.FC = () => {
   const [organizeType, setOrganizeType] = useState<OrganizeType>(OrganizeType.Comparador);
@@ -45,9 +45,11 @@ export const OrganitzaView: React.FC = () => {
   const [maquinistaQuery, setMaquinistaQuery] = useState('');
   const [allAssignments, setAllAssignments] = useState<DailyAssignment[]>([]);
   const [phonebook, setPhonebook] = useState<Record<string, string[]>>({});
-  const [disDesFilter, setDisDesFilter] = useState<DisDesFilterType>('OFF');
+  const [disDesFilter, setDisDesFilter] = useState<DisDesFilterType>('DIS'); // Canviat a DIS per defecte
+  const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
   const [loadingMaquinistes, setLoadingMaquinistes] = useState(false);
 
+  const filterRef = useRef<HTMLDivElement>(null);
   const serveiTypes = ['0', '100', '400', '500'];
 
   useEffect(() => {
@@ -60,6 +62,16 @@ export const OrganitzaView: React.FC = () => {
     updateTime();
     const interval = setInterval(updateTime, 60000);
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
+        setIsFilterMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   useEffect(() => {
@@ -402,13 +414,27 @@ export const OrganitzaView: React.FC = () => {
     const queryMatch = maquinista.nom.toLowerCase().includes(maquinistaQuery.toLowerCase()) || 
                        maquinista.empleat_id.includes(maquinistaQuery);
     
-    if (disDesFilter === 'OFF') return queryMatch;
-    if (disDesFilter === 'DIS') return queryMatch && maquinista.torn.startsWith('DIS');
-    if (disDesFilter === 'DES') return queryMatch && maquinista.torn.startsWith('DES');
-    if (disDesFilter === 'BOTH') return queryMatch && (maquinista.torn.startsWith('DIS') || maquinista.torn.startsWith('DES'));
+    if (!queryMatch) return false;
+    if (disDesFilter === 'ALL') return true;
+    if (disDesFilter === 'DIS') return maquinista.torn.startsWith('DIS');
+    if (disDesFilter === 'DES') return maquinista.torn.startsWith('DES');
+    if (disDesFilter === 'DIS_DES') return maquinista.torn.startsWith('DIS') || maquinista.torn.startsWith('DES');
+    if (disDesFilter === 'FOR') return maquinista.torn.startsWith('FOR');
+    if (disDesFilter === 'VAC') return maquinista.torn.startsWith('VAC');
+    if (disDesFilter === 'DAG') return maquinista.torn.startsWith('DAG');
     
-    return queryMatch;
+    return true;
   });
+
+  const filterLabels: Record<DisDesFilterType, string> = {
+    ALL: 'Tots',
+    DIS: 'DIS',
+    DES: 'DES',
+    DIS_DES: 'DIS + DES',
+    FOR: 'FOR',
+    VAC: 'VAC',
+    DAG: 'DAG'
+  };
 
   return (
     <div className="space-y-6">
@@ -550,39 +576,39 @@ export const OrganitzaView: React.FC = () => {
                   className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] py-4 pl-14 pr-8 focus:ring-4 focus:ring-fgc-green/20 outline-none font-black text-lg transition-all dark:text-white dark:placeholder:text-gray-600 shadow-inner" 
                 />
               </div>
-              <div className="flex items-center gap-2 p-1 bg-gray-50 dark:bg-black/20 rounded-[26px] border border-gray-100 dark:border-white/5 transition-colors">
+              
+              {/* Nou Menú de Filtre Desplegable */}
+              <div className="relative" ref={filterRef}>
                 <button 
-                  onClick={() => setDisDesFilter('OFF')}
-                  className={`px-6 py-3 rounded-2xl font-black text-xs transition-all ${
-                    disDesFilter === 'OFF' ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-white dark:hover:bg-white/5'
-                  }`}
+                  onClick={() => setIsFilterMenuOpen(!isFilterMenuOpen)}
+                  className="h-full flex items-center justify-between gap-3 px-6 py-4 bg-gray-50 dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-[24px] font-black text-sm text-fgc-grey dark:text-gray-200 transition-all hover:bg-gray-100 dark:hover:bg-white/10 min-w-[180px] shadow-sm"
                 >
-                  TOTS
+                  <div className="flex items-center gap-2">
+                    <Filter size={16} className="text-fgc-green" />
+                    <span>Filtre: {filterLabels[disDesFilter]}</span>
+                  </div>
+                  <ChevronDown size={18} className={`transition-transform duration-300 ${isFilterMenuOpen ? 'rotate-180' : ''}`} />
                 </button>
-                <button 
-                  onClick={() => setDisDesFilter('DIS')}
-                  className={`px-6 py-3 rounded-2xl font-black text-xs transition-all ${
-                    disDesFilter === 'DIS' ? 'bg-orange-500 text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-white dark:hover:bg-white/5'
-                  }`}
-                >
-                  NOMÉS DIS
-                </button>
-                <button 
-                  onClick={() => setDisDesFilter('DES')}
-                  className={`px-6 py-3 rounded-2xl font-black text-xs transition-all ${
-                    disDesFilter === 'DES' ? 'bg-fgc-green dark:bg-fgc-green dark:text-fgc-grey text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-white dark:hover:bg-white/5'
-                  }`}
-                >
-                  NOMÉS DES
-                </button>
-                <button 
-                  onClick={() => setDisDesFilter('BOTH')}
-                  className={`px-6 py-3 rounded-2xl font-black text-xs transition-all ${
-                    disDesFilter === 'BOTH' ? 'bg-orange-700 text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-white dark:hover:bg-white/5'
-                  }`}
-                >
-                  DIS + DES
-                </button>
+
+                {isFilterMenuOpen && (
+                  <div className="absolute top-full right-0 mt-3 w-64 bg-white dark:bg-gray-800 rounded-[24px] shadow-2xl border border-gray-100 dark:border-white/10 py-3 z-[100] animate-in fade-in slide-in-from-top-4 duration-200">
+                    {(Object.keys(filterLabels) as DisDesFilterType[]).map((option) => (
+                      <button
+                        key={option}
+                        onClick={() => {
+                          setDisDesFilter(option);
+                          setIsFilterMenuOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-6 py-4 text-sm font-black transition-colors hover:bg-gray-50 dark:hover:bg-white/5 ${
+                          disDesFilter === option ? 'text-fgc-green' : 'text-fgc-grey dark:text-gray-200'
+                        }`}
+                      >
+                        {filterLabels[option]}
+                        {disDesFilter === option && <CheckCircle2 size={16} />}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -637,9 +663,9 @@ export const OrganitzaView: React.FC = () => {
                             <span className="text-[11px] font-bold">{maquinista.hora_inici} — {maquinista.hora_fi}</span>
                           </div>
                           {maquinista.observacions && (
-                            <div className="flex items-center gap-2 text-gray-400 dark:text-gray-600 italic">
-                              <Info size={12} />
-                              <span className="text-[10px] truncate">{maquinista.observacions}</span>
+                            <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+                              <Info size={12} className="text-fgc-green" />
+                              <span className="text-[11px] font-bold truncate">{maquinista.observacions}</span>
                             </div>
                           )}
                         </div>
