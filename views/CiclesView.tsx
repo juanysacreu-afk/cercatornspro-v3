@@ -298,10 +298,12 @@ const CiclesView: React.FC = () => {
                     <button
                       key={c}
                       onClick={() => { setNewCycleId(c); setShowCycleSuggestions(false); }}
-                      className={`py-3 px-2 rounded-xl text-xs font-black border transition-all relative ${
+                      className={`py-3 px-2 rounded-xl text-sm font-black border transition-all relative ${
                         newCycleId === c 
                         ? 'bg-fgc-green text-fgc-grey border-fgc-green shadow-sm' 
-                        : isAssigned ? 'bg-blue-50 dark:bg-blue-900/10 text-blue-500 dark:text-blue-400 border-blue-100 dark:border-blue-900/30 opacity-60' : 'bg-gray-50 dark:bg-black/20 text-gray-400 dark:text-gray-600 border-gray-100 dark:border-white/5 hover:bg-white dark:hover:bg-white/5'
+                        : isAssigned 
+                          ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-300 border-blue-100 dark:border-blue-900/40 opacity-80' 
+                          : 'bg-white dark:bg-gray-800 text-fgc-grey dark:text-gray-200 border-gray-100 dark:border-white/5 hover:border-fgc-green hover:shadow-md'
                       }`}
                     >
                       {c}
@@ -432,7 +434,7 @@ const CiclesView: React.FC = () => {
                             ? 'bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900 ring-1 ring-red-100 dark:ring-red-900/50'
                             : isOccupied 
                               ? 'bg-gray-50 dark:bg-black/20 text-gray-300 dark:text-gray-700 border-gray-100 dark:border-white/5 opacity-60 cursor-not-allowed' 
-                              : 'bg-white dark:bg-gray-800 text-fgc-grey dark:text-gray-300 border-gray-100 dark:border-white/5 hover:border-fgc-green hover:shadow-xl hover:scale-105 active:scale-95'
+                              : 'bg-white dark:bg-gray-800 text-fgc-grey dark:text-gray-200 border-gray-100 dark:border-white/5 hover:border-fgc-green hover:shadow-xl hover:scale-105 active:scale-95'
                         }`}
                       >
                         {isBroken ? <AlertTriangle size={20} className="text-red-500" /> : <Train size={20} className={isOccupied ? 'text-gray-200 dark:text-gray-700' : 'text-fgc-green'} />}
