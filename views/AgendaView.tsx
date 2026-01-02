@@ -35,9 +35,12 @@ export const AgendaView: React.FC = () => {
       ]);
 
       if (pbResponse.data) {
-        const sorted = (pbResponse.data as PhonebookEntry[]).sort((a, b) => 
-          a.nom.localeCompare(b.nom)
-        );
+        // Ordenem per cognoms (cognom1, després cognom2) i finalment pel nom
+        const sorted = (pbResponse.data as PhonebookEntry[]).sort((a, b) => {
+          const surnameA = `${a.cognom1 || ''} ${a.cognom2 || ''}`.trim();
+          const surnameB = `${b.cognom1 || ''} ${b.cognom2 || ''}`.trim();
+          return surnameA.localeCompare(surnameB) || a.nom.localeCompare(b.nom);
+        });
         setAllAgents(sorted);
       }
       if (assigResponse.data) {
@@ -63,7 +66,8 @@ export const AgendaView: React.FC = () => {
     let list = allAgents;
     
     if (selectedLetter && !query) {
-      list = list.filter(a => a.nom.toUpperCase().startsWith(selectedLetter));
+      // Ara filtrem per la lletra inicial del primer cognom
+      list = list.filter(a => (a.cognom1 || '').toUpperCase().startsWith(selectedLetter));
     }
 
     if (query) {
@@ -91,7 +95,7 @@ export const AgendaView: React.FC = () => {
     <div className="space-y-8 animate-in fade-in duration-500">
       <header>
         <h1 className="text-3xl font-black text-fgc-grey dark:text-white tracking-tight uppercase">Agenda de Personal</h1>
-        <p className="text-gray-500 dark:text-gray-400 font-medium">Directori del servei amb dades de contacte i torns actius.</p>
+        <p className="text-gray-500 dark:text-gray-400 font-medium">Directori del servei amb dades de contacte i torns actius ordenats per cognom.</p>
       </header>
 
       <div className="relative max-w-2xl mx-auto" ref={searchRef}>
@@ -128,10 +132,10 @@ export const AgendaView: React.FC = () => {
               >
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 bg-fgc-grey dark:bg-black text-white rounded-full flex items-center justify-center font-black text-xs">
-                    {agent.nom.charAt(0)}
+                    {(agent.cognom1 || agent.nom).charAt(0)}
                   </div>
                   <div>
-                    <p className="font-black text-fgc-grey dark:text-gray-200 uppercase leading-none">{agent.nom} {agent.cognom1} {agent.cognom2}</p>
+                    <p className="font-black text-fgc-grey dark:text-gray-200 uppercase leading-none">{agent.cognom1} {agent.cognom2}, {agent.nom}</p>
                     <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mt-1">Nòmina: {agent.nomina}</p>
                   </div>
                 </div>
@@ -182,10 +186,10 @@ export const AgendaView: React.FC = () => {
                   
                   <div className="flex items-center gap-5 mb-8 relative z-10">
                     <div className="w-16 h-16 bg-fgc-grey dark:bg-black text-white rounded-2xl flex items-center justify-center font-black text-2xl shadow-lg shrink-0">
-                      {agent.nom.charAt(0)}
+                      {(agent.cognom1 || agent.nom).charAt(0)}
                     </div>
                     <div className="min-w-0">
-                      <h3 className="text-xl font-black text-fgc-grey dark:text-white leading-tight uppercase truncate">{agent.nom} {agent.cognom1} {agent.cognom2}</h3>
+                      <h3 className="text-xl font-black text-fgc-grey dark:text-white leading-tight uppercase truncate">{agent.cognom1} {agent.cognom2}, {agent.nom}</h3>
                       <div className="flex items-center gap-2 mt-1">
                         <Hash size={12} className="text-gray-400 dark:text-gray-500" />
                         <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">{agent.nomina}</span>
