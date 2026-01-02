@@ -52,6 +52,7 @@ export interface DailyAssignment {
   abs_parc_c?: string;
   dta?: string;
   dpa?: string;
+  tipus_torn?: string;
 }
 
 export interface PhonebookEntry {

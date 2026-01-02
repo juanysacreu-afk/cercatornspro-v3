@@ -86,7 +86,10 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
         }
 
         if (match) {
-          const torn = match[1];
+          const rawTorn = match[1];
+          let cleanedTorn = rawTorn;
+          let tipusTorn = null;
+          
           let horaInici = "00:00";
           let horaFi = "00:00";
           let empId = "";
@@ -94,6 +97,18 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
           let restOfLine = "";
 
           if (isOperative) {
+            // Lògica de normalització de torns: treure sufix R o T (ex: 032R, 107T)
+            const rtMatch = cleanedTorn.match(/^(Q?\d+)([RT])$/);
+            if (rtMatch) {
+              cleanedTorn = rtMatch[1];
+              tipusTorn = rtMatch[2] === 'R' ? 'Reducció' : 'Torn';
+            }
+            
+            // Si el resultat és purament numèric, afegim prefix 'Q' per quadrar amb el sistema
+            if (/^\d+$/.test(cleanedTorn)) {
+              cleanedTorn = 'Q' + cleanedTorn;
+            }
+
             horaInici = match[3];
             horaFi = match[4];
             empId = match[5];
@@ -106,7 +121,6 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
           }
           
           // Processar "restOfLine" per trobar indicadors S/N (Flags)
-          // Busquem 3 lletres S/N separades per espais que solen anar després del nom
           const flagsMatch = restOfLine.match(/^(.*?)\s+([SN])\s+([SN])\s+([SN])(?:\s+[SN])?(?:\s+(.*))?$/);
           
           let nom = restOfLine;
@@ -119,7 +133,6 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
             f3 = flagsMatch[4];
             obs = flagsMatch[5] ? flagsMatch[5].trim() : "";
           } else {
-            // Si no hi ha flags explícits, intentem separar per espais dobles per les observacions
             const parts = restOfLine.split(/\s{2,}/);
             nom = parts[0].trim();
             if (parts.length > 1) {
@@ -128,7 +141,8 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
           }
 
           extractedData.push({
-            torn: torn,
+            torn: cleanedTorn,
+            tipus_torn: tipusTorn,
             hora_inici: horaInici,
             hora_fi: horaFi,
             empleat_id: empId,

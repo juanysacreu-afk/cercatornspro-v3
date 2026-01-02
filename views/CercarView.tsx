@@ -489,7 +489,8 @@ export const CercarView: React.FC = () => {
           observacions: assig.observacions || '',
           abs_parc_c: assig.abs_parc_c,
           dta: assig.dta,
-          dpa: assig.dpa
+          dpa: assig.dpa,
+          tipus_torn: assig.tipus_torn
         };
       });
 
@@ -610,7 +611,7 @@ export const CercarView: React.FC = () => {
           const { data: phones } = employeeIds.length > 0 ? await supabase.from('phonebook').select('*').in('nomina', employeeIds) : { data: [] };
           const drivers = (assignments || []).map(assig => {
             const pData = phones?.find(p => p.nomina === assig.empleat_id);
-            return { nom: assig.nom || 'No assignat', cognoms: assig.cognoms || '', nomina: assig.empleat_id || '---', phones: pData?.phones || [], observacions: assig.observacions || '', abs_parc_c: assig.abs_parc_c, dta: assig.dta, dpa: assig.dpa };
+            return { nom: assig.nom || 'No assignat', cognoms: assig.cognoms || '', nomina: assig.empleat_id || '---', phones: pData?.phones || [], observacions: assig.observacions || '', abs_parc_c: assig.abs_parc_c, dta: assig.dta, dpa: assig.dpa, tipus_torn: assig.tipus_torn };
           });
           const cRef = shift?.circulations.find((cr: any) => (typeof cr === 'string' ? cr : cr.codi) === mc.id);
           const cCicle = typeof cRef === 'object' ? cRef.cicle : null;
@@ -776,9 +777,20 @@ export const CercarView: React.FC = () => {
         <div className="flex flex-col items-start px-2 min-w-0 gap-2">
           {circ.drivers.map((driver: any, dIdx: number) => (
             <div key={dIdx} className="flex flex-col items-start w-full">
-              <span className={`text-sm sm:text-lg font-black leading-tight truncate w-full ${isActive ? 'text-red-700 dark:text-red-400' : isBroken ? 'text-red-600' : 'text-fgc-grey dark:text-gray-200'}`}>
-                {driver.cognoms || ''}, {driver.nom || ''}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className={`text-sm sm:text-lg font-black leading-tight truncate w-full ${isActive ? 'text-red-700 dark:text-red-400' : isBroken ? 'text-red-600' : 'text-fgc-grey dark:text-gray-200'}`}>
+                  {driver.cognoms || ''}, {driver.nom || ''}
+                </span>
+                {driver.tipus_torn && (
+                  <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border shrink-0 ${
+                    driver.tipus_torn === 'Reducció' 
+                      ? 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800' 
+                      : 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800'
+                  }`}>
+                    {driver.tipus_torn === 'Reducció' ? 'REDUCCIÓ' : 'TORN'}
+                  </span>
+                )}
+              </div>
               <div className="flex flex-wrap items-center gap-2 mt-0.5">
                 <span className="text-[9px] font-black text-fgc-green uppercase tracking-widest whitespace-nowrap">Torn {circ.shift_id}</span>
                 {shiftStatus && (
@@ -983,6 +995,15 @@ export const CercarView: React.FC = () => {
                             <div className="space-y-1 min-w-0 flex-1 md:flex-none">
                               <div className="flex items-center gap-3">
                                 <h3 className="text-xl sm:text-2xl font-black text-fgc-grey tracking-tight leading-tight uppercase truncate">{driver.cognoms}, {driver.nom}</h3>
+                                {driver.tipus_torn && (
+                                  <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase shadow-sm border ${
+                                    driver.tipus_torn === 'Reducció' 
+                                      ? 'bg-purple-600 text-white border-purple-700' 
+                                      : 'bg-blue-600 text-white border-blue-700'
+                                  }`}>
+                                    {driver.tipus_torn}
+                                  </span>
+                                )}
                                 {isWorking && (
                                   <div className="bg-fgc-grey text-white px-3 py-1 rounded-full text-[9px] font-black uppercase flex items-center gap-1.5 shadow-sm animate-bounce">
                                     <div className="w-1.5 h-1.5 bg-fgc-green rounded-full animate-pulse" />

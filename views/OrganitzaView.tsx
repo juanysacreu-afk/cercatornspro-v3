@@ -164,9 +164,11 @@ export const OrganitzaView: React.FC = () => {
     if (!shift) return null;
 
     const shortId = getShortTornId(shift.id as string);
-    const { data: assignment } = await supabase.from('daily_assignments').select('*').eq('torn', shortId).single();
-    const { data: driverPhone } = assignment?.empleat_id 
-      ? await supabase.from('phonebook').select('*').eq('nomina', assignment.empleat_id).single() 
+    const { data: assignments } = await supabase.from('daily_assignments').select('*').eq('torn', shortId);
+    const primaryAssignment = assignments?.[0] || null;
+    
+    const { data: driverPhone } = primaryAssignment?.empleat_id 
+      ? await supabase.from('phonebook').select('*').eq('nomina', primaryAssignment.empleat_id).single() 
       : { data: null };
 
     const circulations = (shift.circulations as any[]) || [];
@@ -194,7 +196,23 @@ export const OrganitzaView: React.FC = () => {
         return { ...detail, ...c, codi, machinistInici, machinistFinal, train: cycleInfo?.train_number, realCodi: isViatger ? realCodiId : null };
     }).sort((a: any, b: any) => getFgcMinutes(a.sortida || '00:00') - getFgcMinutes(b.sortida || '00:00'));
 
-    return { ...shift, driver: { nom: assignment?.nom || 'No assignat', cognoms: assignment?.cognoms || '', nomina: assignment?.empleat_id || '---', phones: driverPhone?.phones || [] }, fullCirculations: fullCircs };
+    return { 
+      ...shift, 
+      driver: { 
+        nom: primaryAssignment?.nom || 'No assignat', 
+        cognoms: primaryAssignment?.cognoms || '', 
+        nomina: primaryAssignment?.empleat_id || '---', 
+        phones: driverPhone?.phones || [],
+        tipus_torn: primaryAssignment?.tipus_torn
+      }, 
+      drivers: (assignments || []).map(a => ({
+        nom: a.nom,
+        cognoms: a.cognoms,
+        nomina: a.empleat_id,
+        tipus_torn: a.tipus_torn
+      })),
+      fullCirculations: fullCircs 
+    };
   };
 
   const handleCompare = async () => {
@@ -506,7 +524,21 @@ export const OrganitzaView: React.FC = () => {
                           <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-4">
                               <div className="h-12 min-w-[3.5rem] px-3 bg-fgc-grey dark:bg-black text-white rounded-xl flex items-center justify-center font-black text-xl shadow-md shrink-0 whitespace-nowrap">{mainDriverInfo.id}</div>
-                              <div className="min-w-0"><p className="text-xl font-black text-fgc-grey dark:text-white tracking-tight leading-none truncate">{mainDriverInfo.driver?.cognoms}, {mainDriverInfo.driver?.nom}</p><div className="flex items-center gap-2 mt-1"><div className="w-2 h-2 bg-fgc-green rounded-full animate-pulse" /><span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Nom. {mainDriverInfo.driver?.nomina}</span>{mainDriverInfo.fullCirculations?.find((c: any) => c.codi?.toUpperCase() === coverageQuery.toUpperCase())?.train && (<span className="bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-grey dark:text-fgc-green px-2 py-0.5 rounded text-[9px] font-black uppercase flex items-center gap-1"><Train size={10} /> {mainDriverInfo.fullCirculations.find((c: any) => c.codi?.toUpperCase() === coverageQuery.toUpperCase()).train}</span>)}</div></div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <p className="text-xl font-black text-fgc-grey dark:text-white tracking-tight leading-none truncate">{mainDriverInfo.driver?.cognoms}, {mainDriverInfo.driver?.nom}</p>
+                                  {mainDriverInfo.driver?.tipus_torn && (
+                                    <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border shrink-0 ${
+                                      mainDriverInfo.driver.tipus_torn === 'Reducció' 
+                                        ? 'bg-purple-600 text-white border-purple-700' 
+                                        : 'bg-blue-600 text-white border-blue-700'
+                                    }`}>
+                                      {mainDriverInfo.driver.tipus_torn}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2 mt-1"><div className="w-2 h-2 bg-fgc-green rounded-full animate-pulse" /><span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Nom. {mainDriverInfo.driver?.nomina}</span>{mainDriverInfo.fullCirculations?.find((c: any) => c.codi?.toUpperCase() === coverageQuery.toUpperCase())?.train && (<span className="bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-grey dark:text-fgc-green px-2 py-0.5 rounded text-[9px] font-black uppercase flex items-center gap-1"><Train size={10} /> {mainDriverInfo.fullCirculations.find((c: any) => c.codi?.toUpperCase() === coverageQuery.toUpperCase()).train}</span>)}</div>
+                              </div>
                             </div>
                             <div className="flex gap-1">{mainDriverInfo.driver?.phones?.map((p: string, i: number) => (<a key={i} href={`tel:${p}`} className="flex items-center justify-center gap-2 bg-fgc-grey dark:bg-black text-white px-5 py-2.5 rounded-xl font-black text-xs hover:bg-fgc-dark transition-all shadow-md active:scale-95 whitespace-nowrap"><Phone size={14} /> {p}</a>))}</div>
                           </div>
@@ -644,7 +676,18 @@ export const OrganitzaView: React.FC = () => {
                             {maquinista.cognoms?.charAt(0) || maquinista.nom?.charAt(0)}
                           </div>
                           <div className="min-w-0">
-                            <h3 className="text-base font-black text-fgc-grey dark:text-white leading-tight uppercase truncate">{maquinista.cognoms}, {maquinista.nom}</h3>
+                            <div className="flex items-center gap-2">
+                              <h3 className="text-base font-black text-fgc-grey dark:text-white leading-tight uppercase truncate">{maquinista.cognoms}, {maquinista.nom}</h3>
+                              {maquinista.tipus_torn && (
+                                <span className={`px-2 py-0.5 rounded text-[7px] font-black uppercase border shrink-0 ${
+                                  maquinista.tipus_torn === 'Reducció' 
+                                    ? 'bg-purple-600 text-white border-purple-700' 
+                                    : 'bg-blue-600 text-white border-blue-700'
+                                }`}>
+                                  {maquinista.tipus_torn === 'Reducció' ? 'RED' : 'TORN'}
+                                </span>
+                              )}
+                            </div>
                             <div className="flex items-center gap-2 mt-0.5">
                               <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500">#{maquinista.empleat_id}</span>
                               <div className={`px-2 py-0.5 rounded text-[10px] font-black ${
@@ -719,7 +762,7 @@ export const OrganitzaView: React.FC = () => {
 const CompactViatgerRow: React.FC<{ torn: any, viatgerCirc: any, colorClass: string, label?: React.ReactNode }> = ({ torn, viatgerCirc, colorClass, label }) => (
   <div className={`bg-white dark:bg-gray-800 rounded-2xl p-3 border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-md transition-all flex items-center gap-4 border-l-4 ${colorClass}`}>
     <div className="h-10 min-w-[2.5rem] px-2 bg-fgc-grey/10 dark:bg-black text-fgc-grey dark:text-gray-300 rounded-xl flex items-center justify-center font-black text-xs shadow-sm shrink-0 whitespace-nowrap">{torn.id}</div>
-    <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center sm:gap-6"><div className="flex-1 min-w-0"><div className="flex items-center gap-2"><p className="text-sm font-black text-fgc-grey dark:text-gray-200 truncate">{torn.driver?.cognoms}, {torn.driver?.nom}</p>{label}</div><p className="text-[8px] font-black text-gray-300 dark:text-gray-600 uppercase tracking-widest whitespace-nowrap">Nom. {torn.driver?.nomina}</p></div><div className="flex items-center gap-3 text-blue-500 shrink-0"><div className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-950/20 px-3 py-1 rounded-lg border border-blue-100/50 dark:border-blue-900/30 transition-colors"><span className="text-[10px] font-black uppercase text-blue-600 dark:text-blue-400 whitespace-nowrap">{viatgerCirc?.machinistInici || '--'}</span><ArrowRight size={10} className="text-blue-300" /><span className="text-[10px] font-black uppercase text-blue-600 dark:text-blue-400 whitespace-nowrap">{viatgerCirc?.machinistFinal || '--'}</span></div><div className="text-[10px] font-bold text-gray-400 dark:text-gray-600 min-w-[70px] whitespace-nowrap">{torn.inici_torn} - {torn.final_torn}</div></div></div>
+    <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center sm:gap-6"><div className="flex-1 min-w-0"><div className="flex items-center gap-2"><p className="text-sm font-black text-fgc-grey dark:text-gray-200 truncate">{torn.driver?.cognoms}, {torn.driver?.nom}</p>{label}</div><p className="text-[8px] font-black text-gray-300 dark:text-gray-600 uppercase tracking-widest whitespace-nowrap">Nom. {torn.driver?.nomina} {torn.driver?.tipus_torn ? `(${torn.driver.tipus_torn})` : ''}</p></div><div className="flex items-center gap-3 text-blue-500 shrink-0"><div className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-950/20 px-3 py-1 rounded-lg border border-blue-100/50 dark:border-blue-900/30 transition-colors"><span className="text-[10px] font-black uppercase text-blue-600 dark:text-blue-400 whitespace-nowrap">{viatgerCirc?.machinistInici || '--'}</span><ArrowRight size={10} className="text-blue-300" /><span className="text-[10px] font-black uppercase text-blue-600 dark:text-blue-400 whitespace-nowrap">{viatgerCirc?.machinistFinal || '--'}</span></div><div className="text-[10px] font-bold text-gray-400 dark:text-gray-600 min-w-[70px] whitespace-nowrap">{torn.inici_torn} - {torn.final_torn}</div></div></div>
     <div className="flex gap-1 shrink-0">{torn.driver?.phones?.map((p: string, i: number) => (<a key={i} href={`tel:${p}`} className="w-8 h-8 bg-blue-500 text-white rounded-lg flex items-center justify-center hover:bg-blue-600 transition-all shadow-sm"><Phone size={12} /></a>))}</div>
   </div>
 );
@@ -740,7 +783,7 @@ const CompareInputSlot = ({ label, value, onChange, data, onClear, nowMin, getSe
     <div className="bg-white dark:bg-gray-900 rounded-[32px] p-8 border border-gray-100 dark:border-white/5 shadow-sm flex flex-col min-h-[400px] transition-all relative" ref={containerRef}>
       <div className="flex items-center justify-between mb-6"><h3 className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">{label}</h3>{data && (<button onClick={onClear} className="p-2.5 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-500 rounded-full transition-colors bg-red-50/10"><X size={18} /></button>)}</div>
       {data ? (<div className="flex-1 animate-in fade-in zoom-in-95 duration-300">
-          <div className="flex items-center gap-5 mb-6"><div className="h-16 min-w-[4rem] px-4 bg-fgc-grey dark:bg-black text-white rounded-2xl flex items-center justify-center font-black text-2xl shadow-xl whitespace-nowrap">{data.id}</div><div className="min-w-0"><p className="text-2xl font-black text-fgc-grey dark:text-white leading-tight truncate">{data.driver?.cognoms}, {data.driver?.nom}</p><div className="flex items-center gap-2 mt-1"><div className="w-2 h-2 bg-fgc-green rounded-full animate-pulse" /><p className="text-[10px] font-black text-fgc-green uppercase tracking-widest">Actiu ara</p></div></div></div>
+          <div className="flex items-center gap-5 mb-6"><div className="h-16 min-w-[4rem] px-4 bg-fgc-grey dark:bg-black text-white rounded-2xl flex items-center justify-center font-black text-2xl shadow-xl whitespace-nowrap">{data.id}</div><div className="min-w-0"><p className="text-2xl font-black text-fgc-grey dark:text-white leading-tight truncate">{data.driver?.cognoms}, {data.driver?.nom}</p><div className="flex items-center gap-2 mt-1"><div className="w-2 h-2 bg-fgc-green rounded-full animate-pulse" /><p className="text-[10px] font-black text-fgc-green uppercase tracking-widest">Actiu ara {data.driver?.tipus_torn ? `(${data.driver.tipus_torn})` : ''}</p></div></div></div>
           <div className="mb-6 bg-gray-50/50 dark:bg-black/20 p-6 rounded-[28px] border border-gray-100 dark:border-white/5 relative overflow-hidden group transition-colors">
             <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity"><Clock size={64} /></div>
             {currentActivity ? (<div className="space-y-3 relative z-10"><div className="flex items-center justify-between"><span className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Activitat Actual</span><span className="text-[9px] font-black text-red-500 animate-pulse uppercase">EN VINCLE</span></div><div className="flex items-center gap-4"><div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm ${currentActivity.type === 'circ' ? 'bg-fgc-grey dark:bg-black text-white' : 'bg-fgc-green text-fgc-grey'}`}>{currentActivity.type === 'circ' ? <Train size={24} /> : <Coffee size={24} />}</div><div><p className="text-xl font-black text-fgc-grey dark:text-white">{currentActivity.codi}</p>{currentActivity.train && (<div className="flex items-center gap-1.5 text-xs font-bold text-fgc-green"><Hash size={12} /> Unitat: {currentActivity.train}</div>)}</div></div></div>) : (<div className="text-center py-2"><p className="text-sm font-bold text-gray-300 dark:text-gray-700 italic">Fora d'horari</p></div>)}
