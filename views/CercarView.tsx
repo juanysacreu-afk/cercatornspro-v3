@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { SearchType, Shift, Circulation, DailyAssignment, PhonebookEntry, Assignment } from '../types.ts';
-import { Search, User, Train, MapPin, Hash, ArrowRight, Loader2, Info, Phone, Clock, FileText, ChevronDown, ChevronUp, Map as MapIcon, Navigation, Coffee, Footprints, Circle, LayoutGrid, Timer, X, BookOpen, CalendarDays, Filter, AlertTriangle, Wrench, Users } from 'lucide-react';
+import { Search, User, Train, MapPin, Hash, ArrowRight, Loader2, Info, Phone, Clock, FileText, ChevronDown, ChevronUp, Map as MapIcon, Navigation, Coffee, Footprints, Circle, LayoutGrid, Timer, X, BookOpen, CalendarDays, Filter, AlertTriangle, Wrench, Users, UserCheck } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
 
 // Funció auxiliar per recuperar tots els registres d'una taula (superant el límit de 1000 de Supabase)
@@ -102,7 +102,10 @@ export const CercarView: React.FC = () => {
           });
         }
         
-        setAvailableCycles(Array.from(cyclesSet).sort());
+        setAvailableCycles(Array.from(cyclesSet).sort((a, b) => {
+          // Ordenació natural per cicles (C1, C2, C10...)
+          return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+        }));
         setLoading(false);
       }
       
@@ -183,7 +186,7 @@ export const CercarView: React.FC = () => {
     if (c === 'NA') return 'bg-orange-500';
     if (c === 'PN') return 'bg-[#00B140]';
     if (c === 'TB') return 'bg-[#a67c52]'; 
-    if (c === 'Viatger') return 'bg-blue-500';
+    if (c === 'Viatger') return 'bg-sky-500';
     return 'bg-gray-200 dark:bg-gray-700';
   };
 
@@ -244,6 +247,23 @@ export const CercarView: React.FC = () => {
     }
     
     return { label: 'En servei', color: 'bg-fgc-green text-fgc-grey shadow-sm', targetId: null };
+  };
+
+  const isDriverWorkingNow = (obs: string) => {
+    if (!obs) return false;
+    // Busquem patrons d'horari tipus "HH:MM - HH:MM" o "HH:MM a HH:MM"
+    const timeMatch = obs.match(/(\d{2}:\d{2})\s*[-–—a]\s*(\d{2}:\d{2})/i);
+    if (timeMatch) {
+      const start = getFgcMinutes(timeMatch[1]);
+      const end = getFgcMinutes(timeMatch[2]);
+      
+      // Cas de torn que creua la mitjanit
+      if (start > end) {
+        return nowMin >= start || nowMin < end;
+      }
+      return nowMin >= start && nowMin < end;
+    }
+    return false;
   };
 
   const scrollToElement = (id: string | null) => {
@@ -417,16 +437,43 @@ export const CercarView: React.FC = () => {
     const { data: phones } = await supabase.from('phonebook').select('*').in('nomina', employeeIds as string[]);
     
     const allCircIds = new Set<string>();
+    const viatgerRealIds = new Set<string>();
+    
     shifts.forEach(s => { 
       (s.circulations as any[])?.forEach(c => { 
         const codi = typeof c === 'string' ? c : c.codi; 
-        if (codi === 'Viatger' && c.observacions) allCircIds.add(c.observacions.split('-')[0]); 
+        if (codi === 'Viatger' && c.observacions) {
+          const rCodi = c.observacions.split('-')[0];
+          allCircIds.add(rCodi);
+          viatgerRealIds.add(rCodi);
+        }
         if (codi && codi !== 'Viatger') allCircIds.add(codi as string); 
       }); 
     });
 
     const circDetails = await fetchAllFromSupabase('circulations', supabase.from('circulations').select('*').in('id', Array.from(allCircIds)));
     const { data: trainAssig } = await supabase.from('assignments').select('*');
+    
+    // Lògica per trobar cicles de viatgers (busquem quins torns condueixen aquestes circulacions)
+    let viatgerCycleMap: Record<string, {cicle: string, train: string}> = {};
+    if (viatgerRealIds.size > 0) {
+      // Carreguem tots els torns del servei seleccionat per mapejar circulacions reals -> cicles
+      const { data: helperShifts } = await supabase.from('shifts').select('circulations').eq('servei', selectedServei);
+      helperShifts?.forEach(hs => {
+        (hs.circulations as any[])?.forEach(hc => {
+          const hCodi = typeof hc === 'object' ? hc.codi : hc;
+          if (hCodi && hCodi !== 'Viatger' && viatgerRealIds.has(hCodi)) {
+            if (hc.cicle) {
+              const tAssig = trainAssig?.find(ta => ta.cycle_id === hc.cicle);
+              viatgerCycleMap[hCodi] = { 
+                cicle: hc.cicle, 
+                train: tAssig?.train_number || '' 
+              };
+            }
+          }
+        });
+      });
+    }
     
     return shifts.map(shift => {
       const shortId = getShortTornId(shift.id as string);
@@ -459,7 +506,10 @@ export const CercarView: React.FC = () => {
           machinistFinal = obsParts[2];
         }
         
-        let cCicle = typeof cRef === 'object' ? cRef.cicle : null;
+        // Per als viatgers, si no tenen cicle, mirem el mapa que hem construït
+        let cCicle = (typeof cRef === 'object' ? cRef.cicle : null) || (isViatger ? viatgerCycleMap[realCodiId]?.cicle : null);
+        let cTrain = isViatger ? viatgerCycleMap[realCodiId]?.train : null;
+        
         const cycleInfo = cCicle ? trainAssig?.find(ta => ta.cycle_id === cCicle) : null;
         
         return { 
@@ -471,7 +521,7 @@ export const CercarView: React.FC = () => {
           machinistInici, 
           machinistFinal, 
           cicle: cCicle, 
-          train: cycleInfo?.train_number, 
+          train: cTrain || cycleInfo?.train_number, 
           linia: detail?.linia || cRef.linia 
         };
       }).sort((a: any, b: any) => getFgcMinutes(a.sortida || '00:00') - getFgcMinutes(b.sortida || '00:00'));
@@ -617,16 +667,20 @@ export const CercarView: React.FC = () => {
     const trainPhone = getTrainPhone(circ.train);
     const isActive = checkIfActive(circ.sortida, circ.arribada);
     const isBroken = circ.train && brokenTrains.has(circ.train);
+    const isViatger = circ.codi === 'Viatger';
+
     return (
       <div id={`circ-row-${itemKey}`} className={`p-2 sm:p-4 grid grid-cols-[auto_1fr_1fr_auto] md:grid-cols-[1fr_1.2fr_1.8fr_1.8fr_1.2fr] items-center gap-2 sm:gap-4 w-full relative transition-all scroll-mt-24 ${isActive ? 'bg-red-50/30 dark:bg-red-950/20' : isBroken ? 'bg-red-50/20 dark:bg-red-950/10 shadow-inner' : ''}`}>
         <div className="flex items-center gap-2 overflow-visible px-1">
-            <div className={`px-2.5 py-1.5 ${getLiniaColor(circ.linia)} text-white rounded-lg font-black text-xs sm:text-sm shadow-sm flex items-center justify-center min-w-[58px]`}>
-              {circ.codi === 'Viatger' ? (
-                <div className="flex flex-col items-center justify-center leading-tight">
-                  <span className="text-[7px] font-black opacity-70 tracking-tighter uppercase">Viatger</span>
-                  <span className="text-[11px] font-black">{circ.realCodi || '---'}</span>
+            <div className={`px-2.5 py-1.5 ${isViatger ? 'bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800' : getLiniaColor(circ.linia)} rounded-lg font-black text-xs sm:text-sm shadow-sm flex items-center justify-center min-w-[62px]`}>
+              {isViatger ? (
+                <div className="flex flex-col items-center justify-center leading-none py-0.5">
+                  <span className="text-[7.5px] font-black text-sky-600 dark:text-sky-400 tracking-tighter uppercase mb-0.5">VIATGER</span>
+                  <span className="text-[11px] font-black text-sky-800 dark:text-sky-100">{circ.realCodi || '---'}</span>
                 </div>
-              ) : circ.codi}
+              ) : (
+                <span className="text-white">{circ.codi}</span>
+              )}
             </div>
             <span className={`hidden md:flex px-2 py-1 ${getLiniaColor(circ.linia)} text-white rounded-md font-black text-[9px] sm:text-[11px] shadow-sm flex-shrink-0`}>{circ.linia || '??'}</span>
             {circ.train && trainPhone && (
@@ -637,11 +691,14 @@ export const CercarView: React.FC = () => {
         </div>
         <div className="hidden md:flex justify-center">
             {circ.cicle ? (
-              <div className={`text-[10px] sm:text-sm font-black px-3 py-1.5 rounded-lg border shadow-sm flex items-center justify-center gap-2 transition-all w-full max-w-[150px] ${isBroken ? 'bg-red-600 text-white border-red-700 animate-pulse' : 'text-black dark:text-gray-200 bg-fgc-green/20 dark:bg-fgc-green/10 border-fgc-green/30 dark:border-fgc-green/20'}`}>
-                <span className="shrink-0">{circ.cicle}</span>
+              <div className={`text-[10px] sm:text-sm font-black px-3 py-1.5 rounded-lg border shadow-sm flex items-center justify-center gap-2 transition-all w-full max-w-[150px] ${isBroken ? 'bg-red-600 text-white border-red-700 animate-pulse' : isViatger ? 'text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-900/20 border-sky-200 dark:border-sky-800' : 'text-black dark:text-gray-200 bg-fgc-green/20 dark:bg-fgc-green/10 border-fgc-green/30 dark:border-fgc-green/20'}`}>
+                <div className="flex flex-col items-center">
+                  {isViatger && <span className="text-[7px] opacity-60 leading-none mb-0.5 uppercase">Cicle Viatger</span>}
+                  <span className="shrink-0">{circ.cicle}</span>
+                </div>
                 {circ.train && (
-                  <div className={`flex items-center gap-1.5 pl-2 border-l ${isBroken ? 'border-white/30' : 'border-fgc-green/40 dark:border-fgc-green/20'}`}>
-                    <a href={trainPhone ? `tel:${trainPhone}` : '#'} className={`${isBroken ? 'text-white' : 'text-fgc-grey dark:text-gray-300'} hover:text-blue-700 transition-colors flex items-center gap-1 ${!trainPhone && 'pointer-events-none'}`}>
+                  <div className={`flex items-center gap-1.5 pl-2 border-l ${isBroken ? 'border-white/30' : isViatger ? 'border-sky-200 dark:border-sky-800' : 'border-fgc-green/40 dark:border-fgc-green/20'}`}>
+                    <a href={trainPhone ? `tel:${trainPhone}` : '#'} className={`${isBroken ? 'text-white' : isViatger ? 'text-sky-600 dark:text-sky-400' : 'text-fgc-grey dark:text-gray-300'} hover:text-blue-700 transition-colors flex items-center gap-1 ${!trainPhone && 'pointer-events-none'}`}>
                       <Phone size={10} className="opacity-50" />
                       <span className="text-[10px] sm:text-xs">{circ.train}</span>
                     </a>
@@ -676,16 +733,20 @@ export const CercarView: React.FC = () => {
     const isActive = checkIfActive(circ.sortida, circ.arribada);
     const isBroken = circ.train && brokenTrains.has(circ.train);
     const shiftStatus = circ.fullTurn ? getShiftCurrentStatus(circ.fullTurn, 0) : null;
+    const isViatger = circ.id === 'Viatger';
+
     return (
       <div id={`station-row-${itemKey}`} className={`p-2 sm:p-4 grid grid-cols-[auto_1fr_auto_auto] md:grid-cols-[1fr_1.2fr_1.8fr_1fr_1.2fr] items-center gap-2 sm:gap-4 w-full relative transition-all scroll-mt-24 ${isActive ? 'bg-red-50/40 dark:bg-red-950/20 shadow-inner' : isBroken ? 'bg-red-50/20 dark:bg-red-950/10' : ''}`}>
         <div className="flex justify-start items-center gap-2 shrink-0 px-1">
-          <div className={`px-2.5 py-1.5 ${getLiniaColor(circ.linia)} text-white rounded-lg font-black text-xs sm:text-sm shadow-sm flex items-center justify-center min-w-[58px]`}>
-            {circ.id === 'Viatger' ? (
-              <div className="flex flex-col items-center justify-center leading-tight">
-                <span className="text-[7px] font-black opacity-70 tracking-tighter uppercase">Viatger</span>
-                <span className="text-[11px] font-black">{circ.realCodi || '---'}</span>
+          <div className={`px-2.5 py-1.5 ${isViatger ? 'bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800' : getLiniaColor(circ.linia)} rounded-lg font-black text-xs sm:text-sm shadow-sm flex items-center justify-center min-w-[62px]`}>
+            {isViatger ? (
+              <div className="flex flex-col items-center justify-center leading-none py-0.5">
+                <span className="text-[7.5px] font-black text-sky-600 dark:text-sky-400 tracking-tighter uppercase mb-0.5">VIATGER</span>
+                <span className="text-[11px] font-black text-sky-800 dark:text-sky-100">{circ.realCodi || '---'}</span>
               </div>
-            ) : circ.id}
+            ) : (
+              <span className="text-white">{circ.id}</span>
+            )}
           </div>
           <span className={`hidden md:flex px-2 py-1 ${getLiniaColor(circ.linia)} text-white rounded-md font-black text-[9px] sm:text-[11px] shadow-sm`}>{circ.linia || '??'}</span>
           {circ.train && trainPhone && (
@@ -696,11 +757,14 @@ export const CercarView: React.FC = () => {
         </div>
         <div className="hidden md:flex justify-center shrink-0">
           {circ.cicle ? (
-            <div className={`text-[10px] sm:text-sm font-black px-3 py-1.5 rounded-lg border shadow-sm flex items-center gap-2 w-full max-w-[140px] ${isBroken ? 'bg-red-600 text-white border-red-700 animate-pulse' : 'text-black dark:text-gray-200 bg-fgc-green/20 dark:bg-fgc-green/10 border-fgc-green/30 dark:border-fgc-green/20'}`}>
-              <span>{circ.cicle}</span>
+            <div className={`text-[10px] sm:text-sm font-black px-3 py-1.5 rounded-lg border shadow-sm flex items-center gap-2 w-full max-w-[140px] ${isBroken ? 'bg-red-600 text-white border-red-700 animate-pulse' : isViatger ? 'text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-900/20 border-sky-200 dark:border-sky-800' : 'text-black dark:text-gray-200 bg-fgc-green/20 dark:bg-fgc-green/10 border-fgc-green/30 dark:border-fgc-green/20'}`}>
+              <div className="flex flex-col items-center">
+                {isViatger && <span className="text-[7px] opacity-60 leading-none mb-0.5 uppercase">Cicle Viatger</span>}
+                <span>{circ.cicle}</span>
+              </div>
               {circ.train && (
-                <div className={`flex items-center gap-1.5 ml-1 pl-1.5 border-l ${isBroken ? 'border-white/30' : 'border-fgc-green/40 dark:border-fgc-green/20'}`}>
-                  <a href={trainPhone ? `tel:${trainPhone}` : '#'} className={`${isBroken ? 'text-white' : 'text-fgc-grey dark:text-gray-300'} hover:text-blue-700 transition-colors flex items-center`}>
+                <div className={`flex items-center gap-1.5 ml-1 pl-1.5 border-l ${isBroken ? 'border-white/30' : isViatger ? 'border-sky-200 dark:border-sky-800' : 'border-fgc-green/40 dark:border-fgc-green/20'}`}>
+                  <a href={trainPhone ? `tel:${trainPhone}` : '#'} className={`${isBroken ? 'text-white' : isViatger ? 'text-sky-600 dark:text-sky-400' : 'text-fgc-grey dark:text-gray-300'} hover:text-blue-700 transition-colors flex items-center`}>
                     <Phone size={8} className="opacity-50" />
                     <span className="text-[10px] ml-0.5">{circ.train}</span>
                   </a>
@@ -745,6 +809,7 @@ export const CercarView: React.FC = () => {
     );
   };
 
+  // Fix: Explicitly type as React.FC to allow 'key' prop in map iterations
   const ItineraryPoint: React.FC<{ point: any; isFirst?: boolean; isLast?: boolean; nextPoint?: any }> = ({ point, isFirst, isLast, nextPoint }) => {
     const pTime = point.hora || point.sortida || point.arribada;
     const pMin = getFgcMinutes(pTime);
@@ -789,6 +854,44 @@ export const CercarView: React.FC = () => {
               </div>
               <button onClick={() => executeSearch()} className="bg-fgc-green text-fgc-grey h-[60px] sm:h-[76px] px-8 sm:px-10 rounded-[24px] sm:rounded-[32px] text-lg sm:text-xl font-black shadow-xl shadow-fgc-green/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3"><Search size={22} />CERCAR</button>
             </div>
+
+            {/* Quick Cycle Selection Tab */}
+            {searchType === SearchType.Cicle && (
+              <div className="animate-in fade-in slide-in-from-top-2 duration-500">
+                <div className="flex items-center gap-2 mb-4 px-2">
+                  <LayoutGrid size={16} className="text-fgc-green" />
+                  <h3 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Selecció ràpida de Cicle (S-{selectedServei})</h3>
+                </div>
+                <div className="bg-gray-50/50 dark:bg-black/20 p-4 sm:p-6 rounded-[28px] border border-gray-100 dark:border-white/5">
+                  {loading ? (
+                    <div className="py-10 flex flex-col items-center justify-center gap-3 opacity-30">
+                      <Loader2 size={32} className="animate-spin" />
+                      <p className="text-[10px] font-black uppercase tracking-widest">Carregant cicles...</p>
+                    </div>
+                  ) : availableCycles.length > 0 ? (
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 max-h-[320px] overflow-y-auto pr-2 custom-scrollbar p-1">
+                      {availableCycles.map((c) => (
+                        <button
+                          key={c}
+                          onClick={() => { setQuery(c); executeSearch(c); }}
+                          className={`py-3 px-2 rounded-xl text-sm font-black border transition-all ${
+                            query === c 
+                            ? 'bg-fgc-green text-fgc-grey border-fgc-green shadow-lg scale-105' 
+                            : 'bg-white dark:bg-gray-800 text-fgc-grey dark:text-gray-200 border-gray-100 dark:border-white/5 hover:border-fgc-green hover:shadow-md hover:scale-105 active:scale-95'
+                          }`}
+                        >
+                          {c}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="py-10 text-center opacity-30">
+                      <p className="text-xs font-bold italic">No hi ha cicles disponibles per aquest servei.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -868,29 +971,43 @@ export const CercarView: React.FC = () => {
                   </div>
                 </div>
                 <div className="bg-fgc-green divide-y divide-white/20 border-x border-fgc-green/20 shadow-sm overflow-hidden">
-                  {group.drivers.map((driver: any, dIdx: number) => (
-                    <div key={dIdx} className="p-6 sm:p-10 transition-colors hover:bg-white/5">
-                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 sm:gap-10">
-                        <div className="flex items-center gap-6 sm:gap-8 w-full md:w-auto">
-                          <div className="w-14 h-14 sm:w-16 sm:h-16 bg-white/40 dark:bg-black/20 rounded-full flex items-center justify-center text-fgc-grey border-2 border-white/60 shrink-0">{group.drivers.length > 1 ? <span className="font-black text-lg">{dIdx + 1}</span> : <User size={28} strokeWidth={2.5} />}</div>
-                          <div className="space-y-1 min-w-0 flex-1 md:flex-none">
-                            <h3 className="text-xl sm:text-2xl font-black text-fgc-grey tracking-tight leading-tight uppercase truncate">{driver.cognoms}, {driver.nom}</h3>
-                            <div className="flex flex-wrap gap-2 items-center"><div className="inline-flex items-center bg-fgc-grey text-white px-2.5 py-0.5 rounded-lg font-black text-[9px] sm:text-[10px] tracking-widest uppercase">Nómina: {driver.nomina}</div>{driver.abs_parc_c === 'S' && <span className="bg-red-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded">ABS</span>}{driver.dta === 'S' && <span className="bg-blue-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded">DTA</span>}{driver.dpa === 'S' && <span className="bg-purple-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded">DPA</span>}</div>
-                            {driver.observacions && (<div className="flex items-start gap-2 bg-black/10 dark:bg-black/20 px-3 py-2 rounded-xl border border-black/5 max-w-lg mt-2"><Info size={14} className="text-fgc-grey dark:text-gray-300 mt-0.5 shrink-0" /><p className="text-[11px] sm:text-xs font-bold text-fgc-grey dark:text-gray-200 leading-snug italic">{driver.observacions}</p></div>)}
+                  {group.drivers.map((driver: any, dIdx: number) => {
+                    const isWorking = group.drivers.length > 1 && isDriverWorkingNow(driver.observacions);
+                    return (
+                      <div key={dIdx} className="p-6 sm:p-10 transition-colors hover:bg-white/5 relative">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 sm:gap-10">
+                          <div className="flex items-center gap-6 sm:gap-8 w-full md:w-auto">
+                            <div className="w-14 h-14 sm:w-16 sm:h-16 bg-white/40 dark:bg-black/20 rounded-full flex items-center justify-center text-fgc-grey border-2 border-white/60 shrink-0">
+                              {group.drivers.length > 1 ? <span className="font-black text-lg">{dIdx + 1}</span> : <User size={28} strokeWidth={2.5} />}
+                            </div>
+                            <div className="space-y-1 min-w-0 flex-1 md:flex-none">
+                              <div className="flex items-center gap-3">
+                                <h3 className="text-xl sm:text-2xl font-black text-fgc-grey tracking-tight leading-tight uppercase truncate">{driver.cognoms}, {driver.nom}</h3>
+                                {isWorking && (
+                                  <div className="bg-fgc-grey text-white px-3 py-1 rounded-full text-[9px] font-black uppercase flex items-center gap-1.5 shadow-sm animate-bounce">
+                                    <div className="w-1.5 h-1.5 bg-fgc-green rounded-full animate-pulse" />
+                                    TREBALLANT
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex flex-wrap gap-2 items-center"><div className="inline-flex items-center bg-fgc-grey text-white px-2.5 py-0.5 rounded-lg font-black text-[9px] sm:text-[10px] tracking-widest uppercase">Nómina: {driver.nomina}</div>{driver.abs_parc_c === 'S' && <span className="bg-red-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded">ABS</span>}{driver.dta === 'S' && <span className="bg-blue-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded">DTA</span>}{driver.dpa === 'S' && <span className="bg-purple-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded">DPA</span>}</div>
+                              {driver.observacions && (<div className="flex items-start gap-2 bg-black/10 dark:bg-black/20 px-3 py-2 rounded-xl border border-black/5 max-w-lg mt-2"><Info size={14} className="text-fgc-grey dark:text-gray-300 mt-0.5 shrink-0" /><p className="text-[11px] sm:text-xs font-bold text-fgc-grey dark:text-gray-200 leading-snug italic">{driver.observacions}</p></div>)}
+                            </div>
                           </div>
+                          <div className="flex flex-wrap gap-2 sm:gap-3 w-full md:w-auto">{driver.phones?.map((p: string, i: number) => (
+                            <a key={i} href={`tel:${p}`} className="flex-1 md:flex-none flex items-center justify-center gap-2.5 bg-fgc-grey text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-black hover:bg-fgc-dark transition-all active:scale-95"><Phone size={14} />{p}</a>
+                          ))}</div>
                         </div>
-                        <div className="flex flex-wrap gap-2 sm:gap-3 w-full md:w-auto">{driver.phones?.map((p: string, i: number) => (
-                          <a key={i} href={`tel:${p}`} className="flex-1 md:flex-none flex items-center justify-center gap-2.5 bg-fgc-grey text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-black hover:bg-fgc-dark transition-all active:scale-95"><Phone size={14} />{p}</a>
-                        ))}</div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 <div className="bg-white dark:bg-gray-900 p-4 sm:p-10 rounded-b-[32px] sm:rounded-b-[48px] border-x border-b border-gray-100 dark:border-white/5 shadow-sm overflow-hidden">
                   <ShiftTimeline turn={group} />
                   <div className="border border-gray-100 dark:border-white/5 rounded-[32px] overflow-hidden bg-white dark:bg-black/20 shadow-sm mb-4">
                     <CirculationHeader />
                     <div className="flex flex-col divide-y divide-gray-100 dark:divide-white/5">
+                      {/* Espai abans de la primera circulació */}
                       {group.fullCirculations?.[0] && (
                         <TimeGapRow 
                           from={group.inici_torn} 
