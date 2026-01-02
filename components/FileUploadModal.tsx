@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { X, Upload, FileText, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { X, Download, FileText, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
 import * as pdfjsLib from 'pdfjs-dist';
 
@@ -42,9 +42,9 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
 
     const dateRegex = /Data:\s*(\d{2}\.\d{2}\.\d{2})/;
     
-    // Regex flexible per capturar torns operatius: 
-    // Torn (Q/QR), Hora Inici, Hora Fi, ID Empleat, Cognoms, Nom i Flags
-    const operativeShiftRegex = /\b([QR][A-Z0-9]{2,5})\s+(\d{2}:\d{2})\s+(\d{2}:\d{2})\s+(\d{5,6})\s+([^,]+),\s+(.*)$/;
+    // Regex millorada per torns operatius: 
+    // Captura Torn (comença per Q, QR o número), Variant, Inici, Fi, ID Empleat (5-6 dígits), Cognoms, Nom i resta
+    const operativeShiftRegex = /\b([QR0-9][A-Z0-9]{2,5})\s+(\d+)\s+(\d{2}:\d{2})\s+(\d{2}:\d{2})\s+(\d{5,6})\s+([^,]+),\s+(.*)$/;
     
     // Regex per estats (VAC, DIS, etc.)
     const statusRowRegex = /\b(VAC|DIS|DES|FOR|DAG|FORA|DISPONIBLE)\s+(?:MQ\s+)?(?:BA\s+)?(\d{5,6})\s+([^,]+),\s+(.*)$/;
@@ -94,19 +94,19 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
           let restOfLine = "";
 
           if (isOperative) {
-            horaInici = match[2];
-            horaFi = match[3];
-            empId = match[4];
-            cognoms = match[5].trim();
-            restOfLine = match[6].trim();
+            horaInici = match[3];
+            horaFi = match[4];
+            empId = match[5];
+            cognoms = match[6].trim();
+            restOfLine = match[7].trim();
           } else {
             empId = match[2];
             cognoms = match[3].trim();
             restOfLine = match[4].trim();
           }
           
-          // Processar "restOfLine" per trobar indicadors N/S
-          // Busquem 3 lletres S/N separades per espais
+          // Processar "restOfLine" per trobar indicadors S/N (Flags)
+          // Busquem 3 lletres S/N separades per espais que solen anar després del nom
           const flagsMatch = restOfLine.match(/^(.*?)\s+([SN])\s+([SN])\s+([SN])(?:\s+[SN])?(?:\s+(.*))?$/);
           
           let nom = restOfLine;
@@ -119,7 +119,7 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
             f3 = flagsMatch[4];
             obs = flagsMatch[5] ? flagsMatch[5].trim() : "";
           } else {
-            // Heurística: si no hi ha flags, busquem si hi ha espais grans que separin observacions
+            // Si no hi ha flags explícits, intentem separar per espais dobles per les observacions
             const parts = restOfLine.split(/\s{2,}/);
             nom = parts[0].trim();
             if (parts.length > 1) {
@@ -152,13 +152,13 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
     setStatus('processing');
     try {
       const extractedData = await parsePDF(file);
-      if (extractedData.length === 0) throw new Error("No s'han pogut extreure dades del PDF. Revisa el format.");
+      if (extractedData.length === 0) throw new Error("No s'han pogut extreure dades del PDF. Revisa que el format sigui el llistat oficial de torns.");
 
-      // Netejem dades prèvies
+      // Netejem dades prèvies de la taula daily_assignments
       const { error: deleteError } = await supabase.from('daily_assignments').delete().neq('id', -1);
       if (deleteError) throw deleteError;
 
-      // Inserim per blocs
+      // Inserim per blocs de 50 per evitar saturar la API
       const chunkSize = 50;
       for (let i = 0; i < extractedData.length; i += chunkSize) {
         const { error } = await supabase.from('daily_assignments').insert(extractedData.slice(i, i + chunkSize));
@@ -166,6 +166,7 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
       }
       setStatus('success');
     } catch (error: any) {
+      console.error("Error Upload:", error);
       setErrorMessage(error.message || "Error processant el PDF.");
       setStatus('error');
     }
@@ -177,7 +178,7 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
       <div className="relative bg-white w-full max-w-lg rounded-[32px] overflow-hidden shadow-2xl">
         <div className="p-6 border-b border-gray-100 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-fgc-green/10 rounded-lg text-fgc-green"><FileText size={20} /></div>
+            <div className="p-2 bg-fgc-green/10 rounded-lg text-fgc-green"><Download size={20} /></div>
             <h2 className="text-xl font-bold text-fgc-grey">Carregar PDF Diari</h2>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full"><X size={20} /></button>
@@ -189,11 +190,12 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
                 {status === 'processing' ? (
                   <div className="space-y-4 flex flex-col items-center">
                     <Loader2 className="text-fgc-green animate-spin" size={48} />
-                    <p className="font-bold text-fgc-grey text-lg">Analitzant PDF...</p>
+                    <p className="font-bold text-fgc-grey text-lg">Analitzant document...</p>
+                    <p className="text-xs text-gray-400">Extreient torns operatius i incidències</p>
                   </div>
                 ) : (
                   <>
-                    <Upload className="text-gray-300 mb-4" size={48} />
+                    <Download className="text-gray-300 mb-4" size={48} />
                     {file ? (
                       <div>
                         <p className="font-bold text-fgc-grey">{file.name}</p>
@@ -217,7 +219,7 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
               <div className="w-20 h-20 bg-green-50 text-green-600 rounded-full flex items-center justify-center mx-auto"><CheckCircle2 size={48} /></div>
               <div className="space-y-2">
                 <h3 className="text-2xl font-black text-fgc-grey">Dades Carregades</h3>
-                <p className="text-sm font-medium text-gray-500">S'ha actualitzat tota la informació de maquinistes.</p>
+                <p className="text-sm font-medium text-gray-500">S'han importat correctament tots els torns operatius i estats de personal.</p>
               </div>
               <button onClick={onClose} className="w-full bg-fgc-grey text-white py-4 rounded-xl font-bold">TANCAR</button>
             </div>

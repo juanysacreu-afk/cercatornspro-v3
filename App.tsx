@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, RefreshCcw, Train, Menu, X, Upload, BookOpen, Settings, Moon, Sun } from 'lucide-react';
+import { Search, RefreshCcw, Train, Menu, X, Download, BookOpen, Settings, Moon, Sun } from 'lucide-react';
 import { AppTab } from './types.ts';
 import CercarView from './views/CercarView.tsx';
 import OrganitzaView from './views/OrganitzaView.tsx';
@@ -104,7 +104,7 @@ const App: React.FC = () => {
                   title="Carregar PDF Diari"
                   className="flex items-center justify-center w-12 h-12 bg-white/10 hover:bg-fgc-green hover:text-fgc-grey rounded-xl transition-all group"
                 >
-                  <Upload size={22} className="group-hover:scale-110 transition-transform" />
+                  <Download size={22} className="group-hover:scale-110 transition-transform" />
                 </button>
                 
                 {/* Settings Menu Trigger */}
@@ -193,7 +193,7 @@ const App: React.FC = () => {
               }}
               className="w-full flex items-center gap-4 px-4 py-4 text-fgc-green font-bold text-lg border-t border-white/5 mt-2"
             >
-              <Upload size={20} />
+              <Download size={20} />
               Carregar PDF Diari
             </button>
           </div>
