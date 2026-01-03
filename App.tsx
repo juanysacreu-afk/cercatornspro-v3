@@ -1,11 +1,12 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, RefreshCcw, Train, Menu, X, Download, BookOpen, Settings, Moon, Sun } from 'lucide-react';
+import { Search, RefreshCcw, Train, Menu, X, Download, BookOpen, Settings, Moon, Sun, ShieldAlert } from 'lucide-react';
 import { AppTab } from './types.ts';
 import CercarView from './views/CercarView.tsx';
 import OrganitzaView from './views/OrganitzaView.tsx';
 import CiclesView from './views/CiclesView.tsx';
 import AgendaView from './views/AgendaView.tsx';
+import IncidenciaView from './views/IncidenciaView.tsx';
 import FileUploadModal from './components/FileUploadModal.tsx';
 
 const App: React.FC = () => {
@@ -48,6 +49,7 @@ const App: React.FC = () => {
   const navItems = [
     { id: AppTab.Cercar, label: 'Cercar', icon: <Search size={18} /> },
     { id: AppTab.Organitza, label: 'Organitza', icon: <RefreshCcw size={18} /> },
+    { id: AppTab.Incidencia, label: 'Incidència', icon: <ShieldAlert size={18} /> },
     { id: AppTab.Cicles, label: 'Cicles', icon: <Train size={18} /> }
   ];
 
@@ -207,6 +209,9 @@ const App: React.FC = () => {
         </div>
         <div className={activeTab === AppTab.Organitza ? 'block' : 'hidden'}>
           <OrganitzaView />
+        </div>
+        <div className={activeTab === AppTab.Incidencia ? 'block' : 'hidden'}>
+          <IncidenciaView />
         </div>
         <div className={activeTab === AppTab.Cicles ? 'block' : 'hidden'}>
           <CiclesView />

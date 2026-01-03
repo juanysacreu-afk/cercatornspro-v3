@@ -16,6 +16,8 @@ export interface CirculationRef {
   final: string;
   sortida: string;
   arribada: string;
+  cicle?: string;
+  observacions?: string;
 }
 
 export interface Circulation {
@@ -35,6 +37,7 @@ export interface StationStop {
   arribada: string;
   sortida: string;
   via: string;
+  hora?: string;
 }
 
 export interface DailyAssignment {
@@ -72,6 +75,7 @@ export interface Assignment {
 export enum AppTab {
   Cercar = 'cercar',
   Organitza = 'organitza',
+  Incidencia = 'incidencia',
   Cicles = 'cicles',
   Agenda = 'agenda'
 }
