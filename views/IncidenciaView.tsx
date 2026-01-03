@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, ShieldAlert, Loader2, UserCheck, Clock, MapPin, AlertCircle, Phone, Info, Users, Zap, User, Train, Map as MapIcon, ChevronRight, LayoutGrid, X, Timer, Scissors, ArrowDownToLine, ArrowUpToLine, ArrowLeftToLine, ArrowRightToLine, Coffee, Layers, Trash2 } from 'lucide-react';
+import { Search, ShieldAlert, Loader2, UserCheck, Clock, MapPin, AlertCircle, Phone, Info, Users, Zap, User, Train, Map as MapIcon, ChevronRight, LayoutGrid, X, Timer, Scissors, ArrowDownToLine, ArrowUpToLine, ArrowLeftToLine, ArrowRightToLine, Coffee, Layers, Trash2, LucideIcon } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
 import { DailyAssignment, Shift, Circulation } from '../types.ts';
 
@@ -65,7 +65,6 @@ export const IncidenciaView: React.FC = () => {
   const [selectedCircId, setSelectedCircId] = useState<string>('');
   const [selectedStation, setSelectedStation] = useState<string>('');
   
-  // Canvi a multiselecció per talls
   const [selectedCutStations, setSelectedCutStations] = useState<Set<string>>(new Set());
   const [selectedCutSegments, setSelectedCutSegments] = useState<Set<string>>(new Set());
   
@@ -253,22 +252,18 @@ export const IncidenciaView: React.FC = () => {
     return [{ start: startMin, end: endMin, type: 'gap', codi: turn.dependencia || 'DESCANS' }];
   };
 
-  // Algorisme de connectivitat BFS per talls múltiples
   const getConnectivityIslands = () => {
     const graph: Record<string, string[]> = {};
     MAP_STATIONS.forEach(s => graph[s.id] = []);
     MAP_SEGMENTS.forEach(seg => {
-      // Un segment està bloquejat si ell mateix està seleccionat o una de les seves estacions ho està
       const isSegmentBlocked = selectedCutSegments.has(`${seg.from}-${seg.to}`) || selectedCutSegments.has(`${seg.to}-${seg.from}`);
       const isFromBlocked = selectedCutStations.has(seg.from);
       const isToBlocked = selectedCutStations.has(seg.to);
-      
       if (!isSegmentBlocked && !isFromBlocked && !isToBlocked) {
         graph[seg.from].push(seg.to);
         graph[seg.to].push(seg.from);
       }
     });
-
     const getReachable = (startNode: string) => {
       if (selectedCutStations.has(startNode)) return new Set<string>();
       const visited = new Set<string>();
@@ -284,49 +279,30 @@ export const IncidenciaView: React.FC = () => {
       }
       return visited;
     };
-
-    return {
-      BCN: getReachable('PC'),
-      S1: getReachable('NA'),
-      S2: getReachable('PN'),
-      L6: getReachable('RE'),
-      L7: getReachable('TB'),
-    };
+    return { BCN: getReachable('PC'), S1: getReachable('NA'), S2: getReachable('PN'), L6: getReachable('RE'), L7: getReachable('TB') };
   };
 
   const dividedPersonnel = useMemo(() => {
     if (selectedCutStations.size === 0 && selectedCutSegments.size === 0) return null;
-    
     const islands = getConnectivityIslands();
     const result: Record<string, LivePersonnel[]> = { AFFECTED: [], BCN: [], S1: [], S2: [], L6: [], L7: [], ISOLATED: [] };
-    
     liveData.forEach(p => {
       const st = p.stationId.toUpperCase();
-      if (selectedCutStations.has(st)) {
-        result.AFFECTED.push(p);
-      } else if (islands.BCN.has(st)) {
-        result.BCN.push(p);
-      } else if (islands.S1.has(st)) {
-        result.S1.push(p);
-      } else if (islands.S2.has(st)) {
-        result.S2.push(p);
-      } else if (islands.L6.has(st)) {
-        result.L6.push(p);
-      } else if (islands.L7.has(st)) {
-        result.L7.push(p);
-      } else {
-        result.ISOLATED.push(p);
-      }
+      if (selectedCutStations.has(st)) result.AFFECTED.push(p);
+      else if (islands.BCN.has(st)) result.BCN.push(p);
+      else if (islands.S1.has(st)) result.S1.push(p);
+      else if (islands.S2.has(st)) result.S2.push(p);
+      else if (islands.L6.has(st)) result.L6.push(p);
+      else if (islands.L7.has(st)) result.L7.push(p);
+      else result.ISOLATED.push(p);
     });
-    
     return result;
   }, [liveData, selectedCutStations, selectedCutSegments]);
 
   const toggleStationCut = (id: string) => {
     setSelectedCutStations(prev => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   };
@@ -335,156 +311,135 @@ export const IncidenciaView: React.FC = () => {
     const id = `${from}-${to}`;
     setSelectedCutSegments(prev => {
       const next = new Set(prev);
-      if (next.has(id) || next.has(`${to}-${from}`)) {
-        next.delete(id);
-        next.delete(`${to}-${from}`);
-      } else {
-        next.add(id);
-      }
+      if (next.has(id) || next.has(`${to}-${from}`)) { next.delete(id); next.delete(`${to}-${from}`); } else { next.add(id); }
       return next;
     });
   };
 
-  const clearAllCuts = () => {
-    setSelectedCutStations(new Set());
-    setSelectedCutSegments(new Set());
-  };
+  const clearAllCuts = () => { setSelectedCutStations(new Set()); setSelectedCutSegments(new Set()); };
 
-  const InteractiveMap = () => {
-    return (
-      <div className="bg-white dark:bg-black/40 rounded-[40px] p-6 sm:p-10 border border-gray-100 dark:border-white/5 relative overflow-hidden flex flex-col transition-colors shadow-sm">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
-          <div className="flex flex-col gap-2">
-             <div className="flex items-center gap-3">
-                <h3 className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest leading-none">Esquema Interactiu BV</h3>
-                <div className={`flex items-center gap-2 px-2 py-0.5 rounded-lg border transition-all ${isRealTime ? 'bg-fgc-green/10 border-fgc-green/20 animate-pulse text-fgc-green' : 'bg-gray-100 dark:bg-white/5 border-gray-200 dark:border-white/10 text-gray-400'}`}>
-                    <div className={`w-1.5 h-1.5 rounded-full ${isRealTime ? 'bg-fgc-green' : 'bg-gray-400'}`}></div>
-                    <span className="text-[8px] font-black uppercase tracking-widest">{isRealTime ? 'Live Map' : 'Tall Manual'}</span>
-                </div>
-             </div>
-             <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 flex items-center gap-1">
-                <Clock size={10} /> Estat malla: <span className="text-fgc-grey dark:text-white font-black">{customTime || '--:--'}</span>
-             </p>
-          </div>
-          <div className="flex items-center gap-3 bg-gray-50 dark:bg-black/20 p-2 rounded-[20px] border border-gray-100 dark:border-white/5">
-              <button onClick={() => setIsRealTime(true)} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${isRealTime ? 'bg-fgc-grey dark:bg-fgc-green text-white dark:text-fgc-grey shadow-md' : 'text-gray-400 hover:text-fgc-grey'}`}>Temps Real</button>
-              <div className="w-px h-6 bg-gray-200 dark:bg-white/10" />
-              <input type="time" value={customTime} onChange={(e) => { setCustomTime(e.target.value); setIsRealTime(false); }} className="bg-white dark:bg-gray-800 border-none rounded-lg px-3 py-1.5 text-xs font-black text-fgc-grey dark:text-white focus:ring-2 focus:ring-fgc-green/30 outline-none" />
-          </div>
-          {(selectedCutStations.size > 0 || selectedCutSegments.size > 0) && (
-            <button onClick={clearAllCuts} className="text-[10px] font-black text-red-500 uppercase flex items-center gap-2 bg-red-50 dark:bg-red-950/30 px-4 py-2.5 rounded-xl hover:scale-105 transition-all shadow-sm border border-red-100 dark:border-red-900/40 animate-in fade-in zoom-in-95">
-              <Trash2 size={14} /> Anul·lar Talls ({selectedCutStations.size + selectedCutSegments.size})
-            </button>
-          )}
+  const InteractiveMap = () => (
+    <div className="bg-white dark:bg-black/40 rounded-[40px] p-6 sm:p-10 border border-gray-100 dark:border-white/5 relative overflow-hidden flex flex-col transition-colors shadow-sm">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+        <div className="flex flex-col gap-2">
+           <div className="flex items-center gap-3">
+              <h3 className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest leading-none">Esquema Interactiu BV</h3>
+              <div className={`flex items-center gap-2 px-2 py-0.5 rounded-lg border transition-all ${isRealTime ? 'bg-fgc-green/10 border-fgc-green/20 animate-pulse text-fgc-green' : 'bg-gray-100 dark:bg-white/5 border-gray-200 dark:border-white/10 text-gray-400'}`}>
+                  <div className={`w-1.5 h-1.5 rounded-full ${isRealTime ? 'bg-fgc-green' : 'bg-gray-400'}`}></div>
+                  <span className="text-[8px] font-black uppercase tracking-widest">{isRealTime ? 'Live Map' : 'Tall Manual'}</span>
+              </div>
+           </div>
+           <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 flex items-center gap-1">
+              <Clock size={10} /> Estat malla: <span className="text-fgc-grey dark:text-white font-black">{customTime || '--:--'}</span>
+           </p>
         </div>
-        
-        <div className="overflow-x-auto custom-scrollbar pb-10 -mx-4 px-4 select-none">
-          <svg viewBox="0 0 750 220" className="min-w-[800px] h-auto overflow-visible">
-            {/* Segments del gràfic */}
-            {MAP_SEGMENTS.map((seg, i) => {
-              const s1 = MAP_STATIONS.find(s => s.id === seg.from)!;
-              const s2 = MAP_STATIONS.find(s => s.id === seg.to)!;
-              const isBlocked = selectedCutSegments.has(`${seg.from}-${seg.to}`) || selectedCutSegments.has(`${seg.to}-${seg.from}`);
-              
-              return (
-                <g key={`seg-${i}`} className="cursor-pointer group" onClick={() => toggleSegmentCut(seg.from, seg.to)}>
-                  {/* Àrea interactiva invisible més ampla */}
-                  <line x1={s1.x} y1={s1.y} x2={s2.x} y2={s2.y} stroke="transparent" strokeWidth="16" />
-                  {/* Línia visible */}
-                  <line x1={s1.x} y1={s1.y} x2={s2.x} y2={s2.y} stroke={isBlocked ? "#ef4444" : "#A4A7AB"} strokeWidth={isBlocked ? "8" : "6"} strokeLinecap="round" className={`transition-all duration-300 ${isBlocked ? 'opacity-100' : 'opacity-40 group-hover:opacity-60'}`} />
-                  {isBlocked && (
-                    <g transform={`translate(${(s1.x + s2.x)/2 - 5}, ${(s1.y + s2.y)/2 - 5})`}>
-                       <circle r="8" cx="5" cy="5" fill="white" stroke="#ef4444" strokeWidth="2" />
-                       <line x1="2" y1="2" x2="8" y2="8" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" />
-                       <line x1="8" y1="2" x2="2" y2="8" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" />
-                    </g>
-                  )}
-                </g>
-              );
-            })}
-            
-            {/* Estacions */}
-            {MAP_STATIONS.map(st => {
-              const isCut = selectedCutStations.has(st.id);
-              const trainsHere = liveData.filter(t => t.stationId === st.id && t.type === 'TRAIN');
-              const restHere = liveData.filter(t => t.stationId === st.id && t.type === 'REST');
-              
-              return (
-                <g key={st.id} className="cursor-pointer group" onClick={() => toggleStationCut(st.id)}>
-                  <circle cx={st.x} cy={st.y} r={isCut ? "12" : "9"} fill="white" stroke={isCut ? "#ef4444" : "#53565A"} strokeWidth={isCut ? "3" : "2.5"} className="transition-all duration-300 group-hover:stroke-red-500" />
-                  {isCut && (
-                    <g transform={`translate(${st.x-6}, ${st.y-6})`}>
-                      <line x1="0" y1="0" x2="12" y2="12" stroke="#ef4444" strokeWidth="3" strokeLinecap="round" />
-                      <line x1="12" y1="0" x2="0" y2="12" stroke="#ef4444" strokeWidth="3" strokeLinecap="round" />
-                    </g>
-                  )}
-                  {trainsHere.map((train, tIdx) => (
-                    <circle key={`${train.id}-${tIdx}`} cx={st.x} cy={st.y} r="5" fill={train.color} className={isRealTime ? "animate-pulse" : ""} style={{ transform: `translate(${tIdx * 4}px, ${tIdx * -4}px)`, filter: 'drop-shadow(0 0 2px rgba(0,0,0,0.5))' }}>
-                      <title>{train.linia} - {train.id}</title>
-                    </circle>
-                  ))}
-                  {restHere.length > 0 && !isCut && (
-                    <circle cx={st.x} cy={st.y + 12} r="3" fill="#8EDE00" className="opacity-80" />
-                  )}
-                  <text x={st.x} y={st.y + (st.y < 100 ? -16 : 24)} textAnchor="middle" className={`text-[9px] font-black select-none transition-colors duration-300 ${isCut ? 'fill-red-500 scale-110' : 'fill-gray-400 dark:fill-gray-500 group-hover:fill-red-400'}`}>{st.label}</text>
-                </g>
-              );
-            })}
-          </svg>
+        <div className="flex items-center gap-3 bg-gray-50 dark:bg-black/20 p-2 rounded-[20px] border border-gray-100 dark:border-white/5">
+            <button onClick={() => setIsRealTime(true)} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${isRealTime ? 'bg-fgc-grey dark:bg-fgc-green text-white dark:text-fgc-grey shadow-md' : 'text-gray-400 hover:text-fgc-grey'}`}>Temps Real</button>
+            <div className="w-px h-6 bg-gray-200 dark:bg-white/10" />
+            <input type="time" value={customTime} onChange={(e) => { setCustomTime(e.target.value); setIsRealTime(false); }} className="bg-white dark:bg-gray-800 border-none rounded-lg px-3 py-1.5 text-xs font-black text-fgc-grey dark:text-white focus:ring-2 focus:ring-fgc-green/30 outline-none" />
         </div>
-
-        {(selectedCutStations.size > 0 || selectedCutSegments.size > 0) && dividedPersonnel && (
-          <div className="mt-6 space-y-8 animate-in fade-in slide-in-from-top-4">
-             <div className="flex items-center gap-4 border-b-4 border-red-500/20 pb-4">
-                <div className="p-3 bg-red-500 rounded-2xl text-white shadow-lg shadow-red-500/20"><Scissors size={24} /></div>
-                <div>
-                  <h4 className="text-[12px] font-black text-red-500 uppercase tracking-[0.2em] leading-none">ANÀLISI DE TALL OPERATIU</h4>
-                  <p className="text-xl font-black text-fgc-grey dark:text-white uppercase mt-1">Multi-talls actius: {selectedCutStations.size} estacions, {selectedCutSegments.size} trams</p>
-                </div>
-             </div>
-
-             <div className="flex flex-col gap-6">
-                {[
-                  { id: 'AFFECTED', label: 'Zona de Tall / Atrapats', icon: <AlertCircle className="text-red-500" />, color: 'red' },
-                  { id: 'BCN', label: 'Costat Barcelona', icon: <ArrowDownToLine className="text-blue-500" />, color: 'blue' },
-                  { id: 'S1', label: 'Costat Terrassa', icon: <ArrowUpToLine className="text-orange-500" />, color: 'orange' },
-                  { id: 'S2', label: 'Costat Sabadell', icon: <ArrowRightToLine className="text-green-500" />, color: 'green' },
-                  { id: 'L6', label: 'Costat Elisenda', icon: <ArrowUpToLine className="text-purple-500" />, color: 'purple' },
-                  { id: 'L7', label: 'Costat Tibidabo', icon: <ArrowLeftToLine className="text-amber-700" />, color: 'amber' },
-                  { id: 'ISOLATED', label: 'Zones Aïllades', icon: <Layers className="text-gray-500" />, color: 'gray' },
-                ].map((col) => {
-                  const items = dividedPersonnel[col.id] || [];
-                  if (items.length === 0 && col.id !== 'AFFECTED') return null;
-                  const trains = items.filter(i => i.type === 'TRAIN');
-                  const isRed = col.color === 'red';
-                  
-                  return (
-                    <div key={col.id} className={`${isRed ? 'bg-red-50/50 dark:bg-red-950/20 border-2 border-red-500/30' : 'bg-gray-50/30 dark:bg-white/5 border border-gray-100 dark:border-white/10'} rounded-[32px] p-6 transition-all`}>
-                      <div className="flex items-center gap-2 mb-4">
-                        {React.cloneElement(col.icon as React.ReactElement, { size: 18 })}
-                        <h5 className={`font-black uppercase text-xs sm:text-sm tracking-widest ${isRed ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}`}>{col.label}</h5>
-                        <div className="ml-auto flex items-center gap-1.5 sm:gap-3">
-                           <div className="flex items-center gap-1.5 bg-fgc-grey dark:bg-black text-white px-3 py-1 rounded-xl text-[10px] sm:text-xs font-black" title="Trens Actius">
-                              <Train size={10} /> {trains.length} <span className="hidden sm:inline opacity-60">TRENS</span>
-                           </div>
-                           <div className="flex items-center gap-1.5 bg-fgc-green text-fgc-grey px-3 py-1 rounded-xl text-[10px] sm:text-xs font-black" title="Maquinistes a la zona">
-                              <User size={10} /> {items.length} <span className="hidden sm:inline opacity-60">MAQUINISTES</span>
-                           </div>
-                        </div>
-                      </div>
-                      <div className={`bg-white dark:bg-black/20 rounded-2xl border ${isRed ? 'border-red-200 dark:border-red-900/50' : 'border-gray-100 dark:border-white/10'} overflow-hidden divide-y ${isRed ? 'divide-red-100 dark:divide-red-900/30' : 'divide-gray-50 dark:divide-white/5'}`}>
-                        {items.sort((a,b) => (a.type === 'TRAIN' ? 0 : 1) - (b.type === 'TRAIN' ? 0 : 1)).map(t => <ListPersonnelRow key={`${t.torn}-${t.id}`} item={t} variant={isRed ? 'affected' : 'normal'} />)}
-                        {items.length === 0 && <p className="text-center py-10 text-[10px] font-bold text-gray-300 dark:text-gray-700 uppercase tracking-widest italic">Cap presència en aquesta banda</p>}
-                      </div>
-                    </div>
-                  );
-                })}
-             </div>
-          </div>
+        {(selectedCutStations.size > 0 || selectedCutSegments.size > 0) && (
+          <button onClick={clearAllCuts} className="text-[10px] font-black text-red-500 uppercase flex items-center gap-2 bg-red-50 dark:bg-red-950/30 px-4 py-2.5 rounded-xl hover:scale-105 transition-all shadow-sm border border-red-100 dark:border-red-900/40 animate-in fade-in zoom-in-95">
+            <Trash2 size={14} /> Anul·lar Talls ({selectedCutStations.size + selectedCutSegments.size})
+          </button>
         )}
       </div>
-    );
-  };
+      <div className="overflow-x-auto custom-scrollbar pb-10 -mx-4 px-4 select-none">
+        <svg viewBox="0 0 750 220" className="min-w-[800px] h-auto overflow-visible">
+          {MAP_SEGMENTS.map((seg, i) => {
+            const s1 = MAP_STATIONS.find(s => s.id === seg.from)!;
+            const s2 = MAP_STATIONS.find(s => s.id === seg.to)!;
+            const isBlocked = selectedCutSegments.has(`${seg.from}-${seg.to}`) || selectedCutSegments.has(`${seg.to}-${seg.from}`);
+            return (
+              <g key={`seg-${i}`} className="cursor-pointer group" onClick={() => toggleSegmentCut(seg.from, seg.to)}>
+                <line x1={s1.x} y1={s1.y} x2={s2.x} y2={s2.y} stroke="transparent" strokeWidth="16" />
+                <line x1={s1.x} y1={s1.y} x2={s2.x} y2={s2.y} stroke={isBlocked ? "#ef4444" : "#A4A7AB"} strokeWidth={isBlocked ? "8" : "6"} strokeLinecap="round" className={`transition-all duration-300 ${isBlocked ? 'opacity-100' : 'opacity-40 group-hover:opacity-60'}`} />
+                {isBlocked && (
+                  <g transform={`translate(${(s1.x + s2.x)/2 - 5}, ${(s1.y + s2.y)/2 - 5})`}>
+                     <circle r="8" cx="5" cy="5" fill="white" stroke="#ef4444" strokeWidth="2" />
+                     <line x1="2" y1="2" x2="8" y2="8" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" />
+                     <line x1="8" y1="2" x2="2" y2="8" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" />
+                  </g>
+                )}
+              </g>
+            );
+          })}
+          {MAP_STATIONS.map(st => {
+            const isCut = selectedCutStations.has(st.id);
+            const trainsHere = liveData.filter(t => t.stationId === st.id && t.type === 'TRAIN');
+            const restHere = liveData.filter(t => t.stationId === st.id && t.type === 'REST');
+            return (
+              <g key={st.id} className="cursor-pointer group" onClick={() => toggleStationCut(st.id)}>
+                <circle cx={st.x} cy={st.y} r={isCut ? "12" : "9"} fill="white" stroke={isCut ? "#ef4444" : "#53565A"} strokeWidth={isCut ? "3" : "2.5"} className="transition-all duration-300 group-hover:stroke-red-500" />
+                {isCut && (
+                  <g transform={`translate(${st.x-6}, ${st.y-6})`}>
+                    <line x1="0" y1="0" x2="12" y2="12" stroke="#ef4444" strokeWidth="3" strokeLinecap="round" />
+                    <line x1="12" y1="0" x2="0" y2="12" stroke="#ef4444" strokeWidth="3" strokeLinecap="round" />
+                  </g>
+                )}
+                {trainsHere.map((train, tIdx) => (
+                  <circle key={`${train.id}-${tIdx}`} cx={st.x} cy={st.y} r="5" fill={train.color} className={isRealTime ? "animate-pulse" : ""} style={{ transform: `translate(${tIdx * 4}px, ${tIdx * -4}px)`, filter: 'drop-shadow(0 0 2px rgba(0,0,0,0.5))' }}>
+                    <title>{train.linia} - {train.id}</title>
+                  </circle>
+                ))}
+                {restHere.length > 0 && !isCut && (
+                  <circle cx={st.x} cy={st.y + 12} r="3" fill="#8EDE00" className="opacity-80" />
+                )}
+                <text x={st.x} y={st.y + (st.y < 100 ? -16 : 24)} textAnchor="middle" className={`text-[9px] font-black select-none transition-colors duration-300 ${isCut ? 'fill-red-500 scale-110' : 'fill-gray-400 dark:fill-gray-500 group-hover:fill-red-400'}`}>{st.label}</text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+      {(selectedCutStations.size > 0 || selectedCutSegments.size > 0) && dividedPersonnel && (
+        <div className="mt-6 space-y-8 animate-in fade-in slide-in-from-top-4">
+           <div className="flex items-center gap-4 border-b-4 border-red-500/20 pb-4">
+              <div className="p-3 bg-red-500 rounded-2xl text-white shadow-lg shadow-red-500/20"><Scissors size={24} /></div>
+              <div>
+                <h4 className="text-[12px] font-black text-red-500 uppercase tracking-[0.2em] leading-none">ANÀLISI DE TALL OPERATIU</h4>
+                <p className="text-xl font-black text-fgc-grey dark:text-white uppercase mt-1">Multi-talls actius: {selectedCutStations.size} estacions, {selectedCutSegments.size} trams</p>
+              </div>
+           </div>
+           <div className="flex flex-col gap-6">
+              {[
+                { id: 'AFFECTED', label: 'Zona de Tall / Atrapats', Icon: AlertCircle, color: 'red', iconClass: "text-red-500" },
+                { id: 'BCN', label: 'Costat Barcelona', Icon: ArrowDownToLine, color: 'blue', iconClass: "text-blue-500" },
+                { id: 'S1', label: 'Costat Terrassa', Icon: ArrowUpToLine, color: 'orange', iconClass: "text-orange-500" },
+                { id: 'S2', label: 'Costat Sabadell', Icon: ArrowRightToLine, color: 'green', iconClass: "text-green-500" },
+                { id: 'L6', label: 'Costat Elisenda', Icon: ArrowUpToLine, color: 'purple', iconClass: "text-purple-500" },
+                { id: 'L7', label: 'Costat Tibidabo', Icon: ArrowLeftToLine, color: 'amber', iconClass: "text-amber-700" },
+                { id: 'ISOLATED', label: 'Zones Aïllades', Icon: Layers, color: 'gray', iconClass: "text-gray-500" },
+              ].map((col) => {
+                const items = dividedPersonnel[col.id] || [];
+                if (items.length === 0 && col.id !== 'AFFECTED') return null;
+                const trains = items.filter(i => i.type === 'TRAIN');
+                const isRed = col.color === 'red';
+                return (
+                  <div key={col.id} className={`${isRed ? 'bg-red-50/50 dark:bg-red-950/20 border-2 border-red-500/30' : 'bg-gray-50/30 dark:bg-white/5 border border-gray-100 dark:border-white/10'} rounded-[32px] p-6 transition-all`}>
+                    <div className="flex items-center gap-2 mb-4">
+                      <col.Icon size={18} className={col.iconClass} />
+                      <h5 className={`font-black uppercase text-xs sm:text-sm tracking-widest ${isRed ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}`}>{col.label}</h5>
+                      <div className="ml-auto flex items-center gap-1.5 sm:gap-3">
+                         <div className="flex items-center gap-1.5 bg-fgc-grey dark:bg-black text-white px-3 py-1 rounded-xl text-[10px] sm:text-xs font-black" title="Trens Actius">
+                            <Train size={10} /> {trains.length} <span className="hidden sm:inline opacity-60">TRENS</span>
+                         </div>
+                         <div className="flex items-center gap-1.5 bg-fgc-green text-fgc-grey px-3 py-1 rounded-xl text-[10px] sm:text-xs font-black" title="Maquinistes a la zona">
+                            <User size={10} /> {items.length} <span className="hidden sm:inline opacity-60">MAQUINISTES</span>
+                         </div>
+                      </div>
+                    </div>
+                    <div className={`bg-white dark:bg-black/20 rounded-2xl border ${isRed ? 'border-red-200 dark:border-red-900/50' : 'border-gray-100 dark:border-white/10'} overflow-hidden divide-y ${isRed ? 'divide-red-100 dark:divide-red-900/30' : 'divide-gray-50 dark:divide-white/5'}`}>
+                      {items.sort((a,b) => (a.type === 'TRAIN' ? 0 : 1) - (b.type === 'TRAIN' ? 0 : 1)).map(t => <ListPersonnelRow key={`${t.torn}-${t.id}`} item={t} variant={isRed ? 'affected' : 'normal'} />)}
+                      {items.length === 0 && <p className="text-center py-10 text-[10px] font-bold text-gray-300 dark:text-gray-700 uppercase tracking-widest italic">Cap presència en aquesta banda</p>}
+                    </div>
+                  </div>
+                );
+              })}
+           </div>
+        </div>
+      )}
+    </div>
+  );
 
   const ListPersonnelRow: React.FC<{ item: LivePersonnel; variant: 'normal' | 'affected' }> = ({ item, variant }) => {
     const isRest = item.type === 'REST';
@@ -534,7 +489,6 @@ export const IncidenciaView: React.FC = () => {
           </div>
         )}
       </header>
-
       {mode === 'INIT' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-12 max-w-4xl mx-auto">
           <button onClick={() => setMode('MAQUINISTA')} className="group bg-white dark:bg-gray-900 p-10 rounded-[48px] border border-gray-100 dark:border-white/5 shadow-xl hover:shadow-2xl transition-all flex flex-col items-center gap-6"><div className="w-24 h-24 bg-red-50 dark:bg-red-950/20 rounded-full flex items-center justify-center text-red-500 group-hover:scale-110 transition-transform"><User size={48} /></div><div className="text-center"><h3 className="text-2xl font-black text-fgc-grey dark:text-white uppercase tracking-tight">Per Maquinista</h3><p className="text-sm font-medium text-gray-400 mt-2">Identifica el tren a partir del número de circulació i el torn titular.</p></div></button>
