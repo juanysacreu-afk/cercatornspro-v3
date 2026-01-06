@@ -1,10 +1,19 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Search, Loader2, Clock, Phone, Info, Users, RotateCcw, ArrowRight, MapPin, Coffee, CheckCircle2, AlertTriangle, TrainFront, Footprints, ShieldAlert, Sparkles } from 'lucide-react';
+import { Search, Loader2, Clock, Phone, Info, Users, RotateCcw, ArrowRight, MapPin, Coffee, CheckCircle2, AlertTriangle, TrainFront, Footprints, ShieldAlert, Sparkles, UserX, UserCheck } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
 
 interface Props {
   selectedServei: string;
 }
+
+// Llista de torns de reserva estàndard per gestionar disponibilitat
+const RESERVE_SHIFTS_LIST = [
+  'QRS1', 'QRS2', 'QRS0', 
+  'QRP0', 
+  'QRN0', 
+  'QRF0', 
+  'QRR1', 'QRR2', 'QRR0', 'QRR4'
+];
 
 // Matriu simplificada de temps de viatge entre nodes clau (en minuts)
 const TRAVEL_TIMES: Record<string, number> = {
@@ -44,6 +53,7 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei }) => {
   const [coveragePlan, setCoveragePlan] = useState<any[]>([]);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [disabledReserves, setDisabledReserves] = useState<Set<string>>(new Set());
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -86,6 +96,15 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei }) => {
     }
   };
 
+  const toggleReserveAvailability = (id: string) => {
+    setDisabledReserves(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   const getShortTornId = (id: string) => {
     const trimmed = id.trim();
     if (trimmed.startsWith('Q') && !trimmed.startsWith('QR') && trimmed.length === 5) return trimmed[0] + trimmed.slice(2);
@@ -121,8 +140,11 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei }) => {
       const { data: otherShiftsRaw } = await supabase.from('shifts').select('*').eq('servei', selectedServei).neq('id', uncoveredShiftId);
       if (!otherShiftsRaw) return;
 
+      // Filtrar torns de reserva que l'usuari ha marcat com a no disponibles
+      const filteredShifts = otherShiftsRaw.filter(s => !disabledReserves.has(s.id));
+
       const allOtherCircIds = new Set<string>();
-      otherShiftsRaw.forEach(s => {
+      filteredShifts.forEach(s => {
         (s.circulations as any[]).forEach(c => {
           const codi = typeof c === 'string' ? c : c.codi;
           if (codi && codi !== 'Viatger') allOtherCircIds.add(codi);
@@ -130,7 +152,7 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei }) => {
       });
       const { data: allCircDetails } = await supabase.from('circulations').select('*').in('id', Array.from(allOtherCircIds));
 
-      const otherShortIds = otherShiftsRaw.map(s => getShortTornId(s.id));
+      const otherShortIds = filteredShifts.map(s => getShortTornId(s.id));
       const { data: allDaily } = await supabase.from('daily_assignments').select('*').in('torn', otherShortIds);
       const { data: allPhones } = await supabase.from('phonebook').select('nomina, phones');
 
@@ -144,7 +166,7 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei }) => {
         
         const candidates: any[] = [];
 
-        for (const s of otherShiftsRaw) {
+        for (const s of filteredShifts) {
           const sIniciTorn = getFgcMinutes(s.inici_torn);
           const sFinalTorn = getFgcMinutes(s.final_torn);
           
@@ -240,41 +262,74 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei }) => {
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="bg-white dark:bg-gray-900 rounded-[32px] p-8 shadow-sm border border-gray-100 dark:border-white/5 transition-colors">
-        <div className="max-w-2xl mx-auto space-y-6 text-center">
-          <div className="flex flex-col items-center gap-3">
-             <div className="p-3 bg-blue-500/10 rounded-2xl text-blue-500"><RotateCcw size={32} /></div>
-             <h3 className="text-xl font-black text-fgc-grey dark:text-white uppercase tracking-tight">Anàlisi Logística per Torn</h3>
-             <p className="text-xs font-bold text-gray-400 dark:text-gray-500 max-w-sm">Calcula la cobertura optimitzada tenint en compte els temps de viatge entre estacions.</p>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Search Section */}
+        <div className="lg:col-span-8 bg-white dark:bg-gray-900 rounded-[32px] p-8 shadow-sm border border-gray-100 dark:border-white/5 transition-colors h-full flex flex-col justify-center">
+          <div className="max-w-2xl mx-auto space-y-6 text-center w-full">
+            <div className="flex flex-col items-center gap-3">
+               <div className="p-3 bg-blue-500/10 rounded-2xl text-blue-500"><RotateCcw size={32} /></div>
+               <h3 className="text-xl font-black text-fgc-grey dark:text-white uppercase tracking-tight">Anàlisi Logística per Torn</h3>
+               <p className="text-xs font-bold text-gray-400 dark:text-gray-500 max-w-sm">Cerca un pla de cobertura optimitzat excloent reserves no disponibles.</p>
+            </div>
+            <div className="relative" ref={containerRef}>
+              <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={24} />
+              <input 
+                type="text" 
+                placeholder="Codi del torn (Ex: Q031)..." 
+                value={uncoveredShiftId} 
+                onChange={(e) => handleInputChange(e.target.value)} 
+                onKeyDown={(e) => e.key === 'Enter' && calculatePlan()}
+                className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[28px] py-6 pl-16 pr-8 focus:ring-4 focus:ring-blue-500/20 outline-none text-xl font-bold transition-all dark:text-white shadow-inner" 
+              />
+              {showSuggestions && suggestions.length > 0 && (
+                <div className="absolute top-full left-2 right-2 mt-2 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 z-[50] overflow-hidden animate-in slide-in-from-top-2">
+                  {suggestions.map(s => (
+                    <button key={s} onClick={() => { setUncoveredShiftId(s); setShowSuggestions(false); }} className="w-full text-left px-6 py-4 hover:bg-blue-50 dark:hover:bg-blue-900/20 font-bold transition-colors flex items-center justify-between border-b border-gray-50 dark:border-white/5 last:border-0 dark:text-white">
+                      <span>{s}</span>
+                      <ArrowRight size={16} className="text-blue-500" />
+                    </button>
+                  ))}
+                </div>
+              )}
+              <button 
+                onClick={calculatePlan} 
+                disabled={analyzing || !uncoveredShiftId} 
+                className="absolute right-3 top-1/2 -translate-y-1/2 bg-blue-600 text-white px-8 py-3 rounded-2xl font-black text-sm hover:scale-105 active:scale-95 transition-all shadow-lg disabled:opacity-50"
+              >
+                {analyzing ? <Loader2 className="animate-spin" size={20} /> : 'ANALITZAR'}
+              </button>
+            </div>
           </div>
-          <div className="relative" ref={containerRef}>
-            <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={24} />
-            <input 
-              type="text" 
-              placeholder="Codi del torn (Ex: Q031)..." 
-              value={uncoveredShiftId} 
-              onChange={(e) => handleInputChange(e.target.value)} 
-              onKeyDown={(e) => e.key === 'Enter' && calculatePlan()}
-              className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[28px] py-6 pl-16 pr-8 focus:ring-4 focus:ring-blue-500/20 outline-none text-xl font-bold transition-all dark:text-white shadow-inner" 
-            />
-            {showSuggestions && suggestions.length > 0 && (
-              <div className="absolute top-full left-2 right-2 mt-2 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 z-[50] overflow-hidden animate-in slide-in-from-top-2">
-                {suggestions.map(s => (
-                  <button key={s} onClick={() => { setUncoveredShiftId(s); setShowSuggestions(false); }} className="w-full text-left px-6 py-4 hover:bg-blue-50 dark:hover:bg-blue-900/20 font-bold transition-colors flex items-center justify-between border-b border-gray-50 dark:border-white/5 last:border-0 dark:text-white">
-                    <span>{s}</span>
-                    <ArrowRight size={16} className="text-blue-500" />
+        </div>
+
+        {/* Reserve Availability Section */}
+        <div className="lg:col-span-4 bg-white dark:bg-gray-900 rounded-[32px] p-6 shadow-sm border border-gray-100 dark:border-white/5 transition-colors h-full">
+           <div className="flex items-center gap-2 mb-4 px-2">
+              <ShieldAlert size={16} className="text-orange-500" />
+              <h4 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Disponibilitat de Reserves</h4>
+           </div>
+           <div className="grid grid-cols-2 sm:grid-cols-5 lg:grid-cols-2 gap-2 max-h-[220px] overflow-y-auto pr-1 custom-scrollbar">
+              {RESERVE_SHIFTS_LIST.map(id => {
+                const isUnavailable = disabledReserves.has(id);
+                return (
+                  <button 
+                    key={id} 
+                    onClick={() => toggleReserveAvailability(id)}
+                    className={`flex items-center justify-between p-3 rounded-xl border font-black text-[11px] transition-all ${
+                      isUnavailable 
+                        ? 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900 text-red-500 opacity-60' 
+                        : 'bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900 text-green-600'
+                    }`}
+                  >
+                    <span>{id}</span>
+                    {isUnavailable ? <UserX size={12} /> : <UserCheck size={12} />}
                   </button>
-                ))}
-              </div>
-            )}
-            <button 
-              onClick={calculatePlan} 
-              disabled={analyzing || !uncoveredShiftId} 
-              className="absolute right-3 top-1/2 -translate-y-1/2 bg-blue-600 text-white px-8 py-3 rounded-2xl font-black text-sm hover:scale-105 active:scale-95 transition-all shadow-lg disabled:opacity-50"
-            >
-              {analyzing ? <Loader2 className="animate-spin" size={20} /> : 'ANALITZAR'}
-            </button>
-          </div>
+                );
+              })}
+           </div>
+           <p className="mt-4 text-[9px] font-bold text-gray-400 dark:text-gray-500 italic px-2">
+             * Els torns en vermell s'exclouran del càlcul de buits de cobertura.
+           </p>
         </div>
       </div>
 
