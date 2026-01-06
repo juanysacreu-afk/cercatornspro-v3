@@ -35,6 +35,10 @@ interface LivePersonnel {
   visualOffset?: number;
 }
 
+interface IncidenciaViewProps {
+  showSecretMenu: boolean;
+}
+
 const PATHS = {
   TRUNK: ['PC', 'PR', 'GR', 'SG', 'MN', 'BN', 'TT', 'SR', 'PF', 'VL', 'LP', 'LF', 'VD', 'SC'],
   L7: ['GR', 'PM', 'PD', 'EP', 'TB'],
@@ -101,7 +105,7 @@ const MAP_SEGMENTS = [
   { from: 'PC', to: 'PR' }, { from: 'PR', to: 'GR' }, { from: 'GR', to: 'SG' }, { from: 'SG', to: 'MN' }, { from: 'MN', to: 'BN' }, { from: 'BN', to: 'TT' }, { from: 'TT', to: 'SR' }, { from: 'SR', to: 'PF' }, { from: 'PF', to: 'VL' }, { from: 'VL', to: 'LP' }, { from: 'LP', to: 'LF' }, { from: 'LF', to: 'VD' }, { from: 'VD', to: 'SC' }, { from: 'GR', to: 'PM' }, { from: 'PM', to: 'PD' }, { from: 'PD', to: 'EP' }, { from: 'EP', to: 'TB' }, { from: 'SR', to: 'RE' }, { from: 'SC', to: 'MS' }, { from: 'MS', to: 'HG' }, { from: 'HG', to: 'RB' }, { from: 'RB', to: 'FN' }, { from: 'FN', to: 'TR' }, { from: 'TR', to: 'VP' }, { from: 'VP', to: 'EN' }, { from: 'EN', to: 'NA' }, { from: 'SC', to: 'VO' }, { from: 'VO', to: 'SJ' }, { from: 'SJ', to: 'BT' }, { from: 'BT', to: 'UN' }, { from: 'UN', to: 'SQ' }, { from: 'SQ', to: 'CF' }, { from: 'CF', to: 'PJ' }, { from: 'PJ', to: 'CT' }, { from: 'CT', to: 'NO' }, { from: 'NO', to: 'PN' },
 ];
 
-export const IncidenciaView: React.FC = () => {
+export const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
   const [mode, setMode] = useState<IncidenciaMode>('INIT');
   const [selectedServei, setSelectedServei] = useState<string>('0');
   const [query, setQuery] = useState('');
@@ -397,7 +401,7 @@ export const IncidenciaView: React.FC = () => {
 
     try {
       const { data: allShifts } = await supabase.from('shifts').select('id, circulations, inici_torn, final_torn, duracio, dependencia').eq('servei', selectedServei);
-      const { data: tcDetail } = await supabase.from('circulations').select('*').eq('id', selectedCircId).single();
+      const { data: tcDetail = null } = await supabase.from('circulations').select('*').eq('id', selectedCircId).single();
       if (!allShifts || !tcDetail) return;
 
       const reliefTimeStr = tcDetail.inici === selectedStation ? tcDetail.sortida : (tcDetail.estacions?.find((s: any) => s.nom === selectedStation)?.hora || tcDetail.arribada);
@@ -864,7 +868,7 @@ export const IncidenciaView: React.FC = () => {
           )}
 
           {mode === 'PER_TORN' && (
-            <IncidenciaPerTorn selectedServei={selectedServei} />
+            <IncidenciaPerTorn selectedServei={selectedServei} showSecretMenu={showSecretMenu} />
           )}
 
           {mode === 'MAQUINISTA' && originalShift && (

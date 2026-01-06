@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, RefreshCcw, Train, Menu, X, Download, BookOpen, Settings, Moon, Sun, ShieldAlert } from 'lucide-react';
 import { AppTab } from './types.ts';
@@ -211,7 +210,7 @@ const App: React.FC = () => {
           <OrganitzaView />
         </div>
         <div className={activeTab === AppTab.Incidencia ? 'block' : 'hidden'}>
-          <IncidenciaView />
+          <IncidenciaView showSecretMenu={showSecretMenu} />
         </div>
         <div className={activeTab === AppTab.Cicles ? 'block' : 'hidden'}>
           <CiclesView />
