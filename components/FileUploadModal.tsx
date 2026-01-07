@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { X, Download, FileText, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
@@ -42,12 +41,16 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
 
     const dateRegex = /Data:\s*(\d{2}\.\d{2}\.\d{2})/;
     
-    // Regex millorada per torns operatius: 
-    // Captura Torn (comença per Q, QR o número), Variant, Inici, Fi, ID Empleat (5-6 dígits), Cognoms, Nom i resta
-    const operativeShiftRegex = /\b([QR0-9][A-Z0-9]{2,5})\s+(\d+)\s+(\d{2}:\d{2})\s+(\d{2}:\d{2})\s+(\d{5,6})\s+([^,]+),\s+(.*)$/;
+    // Regex per Torns Operatius (Q301, 107R, etc.)
+    // Captura: Torn, (Variant opcional), Inici, Fi, ID Empleat, Cognoms, Nom i resta
+    const operativeShiftRegex = /\b([QR0-9][A-Z0-9]{2,5})\s+(?:\d+\s+)?(\d{2}:\d{2})\s+(\d{2}:\d{2})\s+(\d{5,6})\s+([^,]+),\s+(.*)$/;
     
-    // Regex per estats (VAC, DIS, etc.)
-    const statusRowRegex = /\b(VAC|DIS|DES|FOR|DAG|FORA|DISPONIBLE)\s+(?:MQ\s+)?(?:BA\s+)?(\d{5,6})\s+([^,]+),\s+(.*)$/;
+    // Regex per Estats de personal (VAC, DIS, DES, FOR, DAG, etc.)
+    const statusRowRegex = /\b(VAC|DIS|DES|FOR|DAG|FORA|AJN|FESTES|DISPONIBLE)\s+(?:MQ\s+)?(?:BA\s+)?(?:[A-Z]{2}\s+)?(\d{5,6})\s+([^,]+),\s+(.*)$/;
+
+    // Regex per Alteracions (Darrera pàgina del PDF)
+    // Captura: ID, Cognoms, Nom, Nou Torn, Flags
+    const alterationRowRegex = /\b(\d{5,8})\s+([^,]+),\s+([^\s]+)\s+([QR0-9][A-Z0-9]{2,5})\s+([SN])\s+([SN])\s+([SN])/;
 
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
@@ -75,68 +78,83 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
 
         let match: any = null;
         let isOperative = false;
+        let isAlteration = false;
 
-        // Intentem primer amb el format de torn operatiu
+        // 1. Provar Torn Operatiu
         match = textLine.match(operativeShiftRegex);
         if (match) {
           isOperative = true;
         } else {
-          // Si no, provem amb el format d'estat
-          match = textLine.match(statusRowRegex);
+          // 2. Provar Alteració
+          match = textLine.match(alterationRowRegex);
+          if (match) {
+            isAlteration = true;
+          } else {
+            // 3. Provar Estat (DIS, VAC, etc.)
+            match = textLine.match(statusRowRegex);
+          }
         }
 
         if (match) {
-          const rawTorn = match[1];
-          let cleanedTorn = rawTorn;
+          let cleanedTorn = "";
           let tipusTorn = null;
-          
           let horaInici = "00:00";
-          let horaFi = "00:00";
+          let horaFi = "23:59";
           let empId = "";
           let cognoms = "";
           let restOfLine = "";
+          let nom = "";
+          let f1 = 'N', f2 = 'N', f3 = 'N', obs = "";
 
           if (isOperative) {
-            // Lògica de normalització de torns: treure sufix R o T (ex: 032R, 107T)
+            cleanedTorn = match[1];
+            horaInici = match[2];
+            horaFi = match[3];
+            empId = match[4];
+            cognoms = match[5].trim();
+            restOfLine = match[6].trim();
+          } else if (isAlteration) {
+            empId = match[1];
+            cognoms = match[2].trim();
+            nom = match[3].trim();
+            cleanedTorn = match[4];
+            f1 = match[5];
+            f2 = match[6];
+            f3 = match[7];
+            tipusTorn = "Alteració";
+          } else {
+            // Status row (VAC, DIS, etc.)
+            cleanedTorn = match[1];
+            empId = match[2];
+            cognoms = match[3].trim();
+            restOfLine = match[4].trim();
+          }
+
+          // Normalització de codi de torn (ex: 107R -> Q107 amb tipus Reducció)
+          if (!isAlteration) {
             const rtMatch = cleanedTorn.match(/^(Q?\d+)([RT])$/);
             if (rtMatch) {
               cleanedTorn = rtMatch[1];
               tipusTorn = rtMatch[2] === 'R' ? 'Reducció' : 'Torn';
             }
-            
-            // Si el resultat és purament numèric, afegim prefix 'Q' per quadrar amb el sistema
             if (/^\d+$/.test(cleanedTorn)) {
               cleanedTorn = 'Q' + cleanedTorn;
             }
 
-            horaInici = match[3];
-            horaFi = match[4];
-            empId = match[5];
-            cognoms = match[6].trim();
-            restOfLine = match[7].trim();
-          } else {
-            empId = match[2];
-            cognoms = match[3].trim();
-            restOfLine = match[4].trim();
-          }
-          
-          // Processar "restOfLine" per trobar indicadors S/N (Flags)
-          const flagsMatch = restOfLine.match(/^(.*?)\s+([SN])\s+([SN])\s+([SN])(?:\s+[SN])?(?:\s+(.*))?$/);
-          
-          let nom = restOfLine;
-          let f1 = 'N', f2 = 'N', f3 = 'N', obs = "";
-
-          if (flagsMatch) {
-            nom = flagsMatch[1].trim();
-            f1 = flagsMatch[2];
-            f2 = flagsMatch[3];
-            f3 = flagsMatch[4];
-            obs = flagsMatch[5] ? flagsMatch[5].trim() : "";
-          } else {
-            const parts = restOfLine.split(/\s{2,}/);
-            nom = parts[0].trim();
-            if (parts.length > 1) {
-              obs = parts.slice(1).join(" ").trim();
+            // Extreure Flags i Nom de la resta de la línia
+            const flagsMatch = restOfLine.match(/^(.*?)\s+([SN])\s+([SN])\s+([SN])(?:\s+[SN])?(?:\s+(.*))?$/);
+            if (flagsMatch) {
+              nom = flagsMatch[1].trim();
+              f1 = flagsMatch[2];
+              f2 = flagsMatch[3];
+              f3 = flagsMatch[4];
+              obs = flagsMatch[5] ? flagsMatch[5].trim() : "";
+            } else {
+              const parts = restOfLine.split(/\s{2,}/);
+              nom = parts[0].trim();
+              if (parts.length > 1) {
+                obs = parts.slice(1).join(" ").trim();
+              }
             }
           }
 
@@ -166,13 +184,13 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
     setStatus('processing');
     try {
       const extractedData = await parsePDF(file);
-      if (extractedData.length === 0) throw new Error("No s'han pogut extreure dades del PDF. Revisa que el format sigui el llistat oficial de torns.");
+      if (extractedData.length === 0) throw new Error("No s'han pogut extreure dades del PDF. Comprova que el format sigui correcte.");
 
-      // Netejem dades prèvies de la taula daily_assignments
+      // Netejem dades prèvies
       const { error: deleteError } = await supabase.from('daily_assignments').delete().neq('id', -1);
       if (deleteError) throw deleteError;
 
-      // Inserim per blocs de 50 per evitar saturar la API
+      // Inserim per blocs
       const chunkSize = 50;
       for (let i = 0; i < extractedData.length; i += chunkSize) {
         const { error } = await supabase.from('daily_assignments').insert(extractedData.slice(i, i + chunkSize));
@@ -205,11 +223,11 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
                   <div className="space-y-4 flex flex-col items-center">
                     <Loader2 className="text-fgc-green animate-spin" size={48} />
                     <p className="font-bold text-fgc-grey text-lg">Analitzant document...</p>
-                    <p className="text-xs text-gray-400">Extreient torns operatius i incidències</p>
+                    <p className="text-xs text-gray-400">Extreient dades de servei i alteracions</p>
                   </div>
                 ) : (
                   <>
-                    <Download className="text-gray-300 mb-4" size={48} />
+                    <FileText className="text-gray-300 mb-4" size={48} />
                     {file ? (
                       <div>
                         <p className="font-bold text-fgc-grey">{file.name}</p>
@@ -233,7 +251,7 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
               <div className="w-20 h-20 bg-green-50 text-green-600 rounded-full flex items-center justify-center mx-auto"><CheckCircle2 size={48} /></div>
               <div className="space-y-2">
                 <h3 className="text-2xl font-black text-fgc-grey">Dades Carregades</h3>
-                <p className="text-sm font-medium text-gray-500">S'han importat correctament tots els torns operatius i estats de personal.</p>
+                <p className="text-sm font-medium text-gray-500">S'han importat correctament els torns operatius, estats de personal i alteracions.</p>
               </div>
               <button onClick={onClose} className="w-full bg-fgc-grey text-white py-4 rounded-xl font-bold">TANCAR</button>
             </div>
