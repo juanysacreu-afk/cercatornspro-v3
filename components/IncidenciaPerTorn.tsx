@@ -73,14 +73,11 @@ const getTravelTime = (from: string, to: string): number => {
   if (!f || !t || f === t) return 0;
   if (TRAVEL_TIMES[`${f}-${t}`]) return TRAVEL_TIMES[`${f}-${t}`];
   if (TRAVEL_TIMES[`${t}-${f}`]) return TRAVEL_TIMES[`${t}-${f}`];
-  
-  // Rutes comunes per defecte si no estan al mapa
   if ((f === 'PC' && t === 'RB') || (f === 'RB' && t === 'PC')) return 35;
   if ((f === 'PC' && t === 'PN') || (f === 'PN' && t === 'PC')) return 40;
   if ((f === 'PC' && t === 'NA') || (f === 'NA' && t === 'PC')) return 45;
   if ((f === 'SR' && t === 'RB') || (f === 'RB' && t === 'SR')) return 25;
   if ((f === 'SR' && t === 'PN') || (f === 'PN' && t === 'SR')) return 30;
-  
   return 15; 
 };
 
@@ -182,10 +179,7 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
       }
       setUncoveredShift(target);
 
-      // CORRECCIÓ: Filtrar pel mateix servei que el torn objectiu per trobar companys rellevants
       let shiftsQuery = supabase.from('shifts').select('*').neq('id', uncoveredShiftId);
-      
-      // Si el selector de la UI no està en "Tots", el respectem, si no, usem el servei del torn objectiu
       const targetService = selectedServei === 'Tots' ? target.servei : selectedServei;
       if (targetService) {
         shiftsQuery = shiftsQuery.eq('servei', targetService);
@@ -198,8 +192,6 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
       }
       
       const filteredShifts = otherShiftsRaw.filter(s => !disabledReserves.has(s.id));
-      
-      // Carreguem detalls de totes les circulacions dels altres torns per calcular gaps
       const allOtherCircIds = new Set<string>();
       filteredShifts.forEach(s => {
         (s.circulations as any[])?.forEach(c => {
@@ -209,7 +201,6 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
       });
       
       const { data: allCircDetails } = await supabase.from('circulations').select('*').in('id', Array.from(allOtherCircIds));
-      
       const otherShortIds = filteredShifts.map(s => getShortTornId(s.id));
       const { data: allDaily } = await supabase.from('daily_assignments').select('*').in('torn', otherShortIds);
       const { data: allPhones } = await supabase.from('phonebook').select('nomina, phones');
@@ -224,11 +215,8 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
         for (const s of filteredShifts) {
           const sIniciTorn = getFgcMinutes(s.inici_torn);
           const sFinalTorn = getFgcMinutes(s.final_torn);
-          
-          // El torn ha d'estar actiu durant tota la circulació
           if (sIniciTorn > cStart || sFinalTorn < cEnd) continue;
 
-          // Calculem els buits (gaps) del torn s
           const sCircsEnriched = (s.circulations as any[]).map((ref: any) => {
             const codi = typeof ref === 'string' ? ref : ref.codi;
             const det = allCircDetails?.find(d => d.id === codi);
@@ -253,13 +241,10 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
               gaps.push({ start: currentPos, end: sFinalTorn, fromLoc: currentLoc, toLoc: s.dependencia || currentLoc });
           }
 
-          // Busquem si algun buit coincideix amb la circulació objectiu
           const matchingGap = gaps.find(g => g.start <= cStart && g.end >= cEnd);
           if (matchingGap) {
             const timeToReachOrigin = getTravelTime(matchingGap.fromLoc, cInici);
             const arrivalAtOrigin = matchingGap.start + timeToReachOrigin;
-            
-            // MARGE ULTRA RELAXAT: 1 minut de buffer o 0 si ja hi és
             const canReachOnTime = arrivalAtOrigin <= (cStart - (timeToReachOrigin > 0 ? 1 : 0));
 
             const timeToReturn = getTravelTime(cFinal, matchingGap.toLoc);
@@ -305,10 +290,8 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
     setShowAiModal(true);
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      
       const targetService = uncoveredShift?.servei || selectedServei;
       const { data: allShiftsRaw } = await supabase.from('shifts').select('id, inici_torn, final_torn, duracio, dependencia').eq('servei', targetService);
-      
       const filteredForAi = allShiftsRaw?.filter(s => s.id !== uncoveredShiftId && !disabledReserves.has(s.id)) || [];
       const otherShortIds = filteredForAi.map(s => getShortTornId(s.id));
       const { data: allDaily } = await supabase.from('daily_assignments').select('torn, nom, cognoms').in('torn', otherShortIds);
@@ -324,12 +307,8 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
 
       const prompt = `Ets un expert en logística ferroviària d'FGC. El torn ${uncoveredShiftId} és descobert. 
       LLEI CRÍTICA: Un torn NO pot superar les 08:45h (525 minuts) de durada total.
-      
-      RECURSOS DISPONIBLES:
-      ${JSON.stringify(availableResources)}
-      
+      RECURSOS DISPONIBLES: ${JSON.stringify(availableResources)}
       OBJECTIU: Trobar solucions de canvis i salts entre els RECURSOS DISPONIBLES per cobrir els trens en risc del torn ${uncoveredShiftId}.
-      
       Respon exclusivament en JSON amb camps: summary, impact, steps (array amb driver, type, description, location, color), proposedFixes (array amb circCodi, assignedTorn, driverName, notes).`;
 
       const response = await ai.models.generateContent({
@@ -562,7 +541,7 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
                        <Scale className="text-blue-600 dark:text-blue-400 shrink-0 mt-1" size={24} />
                        <div>
                           <p className="text-xs font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-1">Càlcul de Temps Legals</p>
-                          <p className="text-xs font-medium text-blue-800 dark:text-blue-200 leading-relaxed italic">Aquest pla assegura que cap torn supera els 525 minuts. S'han proposat salts entre circulacions (ex: F138 -> F136) per optimitzar la xarxa.</p>
+                          <p className="text-xs font-medium text-blue-800 dark:text-blue-200 leading-relaxed italic">Aquest pla assegura que cap torn supera els 525 minuts. S'han proposat salts entre circulacions (ex: F138 → F136) per optimitzar la xarxa.</p>
                        </div>
                     </div>
                   </div>

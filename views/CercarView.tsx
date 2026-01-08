@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { SearchType, Shift, Circulation, DailyAssignment, PhonebookEntry, Assignment } from '../types.ts';
 import { Search, User, Train, MapPin, Hash, ArrowRight, Loader2, Info, Phone, Clock, FileText, ChevronDown, ChevronUp, Map as MapIcon, Navigation, Coffee, Footprints, Circle, LayoutGrid, Timer, X, BookOpen, CalendarDays, Filter, AlertTriangle, Wrench, Users, UserCheck } from 'lucide-react';
@@ -24,6 +23,64 @@ async function fetchAllFromSupabase(table: string, queryBuilder: any) {
   }
   return allData;
 }
+
+function getFgcMinutes(timeStr: string) {
+  if (!timeStr || !timeStr.includes(':')) return 0;
+  const [h, m] = timeStr.split(':').map(Number);
+  let total = h * 60 + m;
+  if (h < 4) total += 24 * 60;
+  return total;
+}
+
+function formatFgcTime(totalMinutes: number) {
+  let mins = totalMinutes;
+  if (mins >= 24 * 60) mins -= 24 * 60;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+}
+
+const ItineraryPoint: React.FC<{ point: any; isFirst?: boolean; isLast?: boolean; nextPoint?: any; nowMin: number }> = ({ point, isFirst, isLast, nextPoint, nowMin }) => {
+  const pTime = point.hora || point.sortida || point.arribada;
+  const pMin = getFgcMinutes(pTime);
+  const isNow = pTime && nowMin === pMin;
+  
+  let isTransit = false;
+  if (nextPoint && pTime && nextPoint.hora) {
+    const nextMin = getFgcMinutes(nextPoint.hora);
+    // Verificació de trànsit evitant tokens conflictius en una sola línia
+    if (nowMin > pMin) {
+      if (nowMin < nextMin) {
+        isTransit = true;
+      }
+    }
+  }
+
+  return (
+    <React.Fragment>
+      <div className="relative flex items-center gap-4 sm:gap-8 py-4 group/point">
+        <div className={`absolute left-[-30px] sm:left-[-50px] top-1/2 -translate-y-1/2 flex items-center justify-center w-6 h-6 sm:w-8 h-8 bg-white dark:bg-gray-800 border-4 ${isFirst ? 'border-fgc-green' : isLast ? 'border-red-50 dark:border-red-900/30' : 'border-gray-300 dark:border-gray-700'} rounded-full z-10`}>
+          {isNow && <div className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.8)]" />}
+        </div>
+        <div className="w-16 sm:w-24 flex-shrink-0">
+          <p className={`text-base sm:text-xl font-black ${isNow ? 'text-red-500' : 'text-fgc-grey dark:text-gray-200'}`}>{pTime || '--:--'}</p>
+          {isNow && <p className="text-[10px] font-black text-red-500">ARA</p>}
+        </div>
+        <div className={`flex-1 p-2 sm:p-3 rounded-xl border transition-all ${isFirst ? 'bg-fgc-green/5 dark:bg-fgc-green/10 border-fgc-green/20 dark:border-fgc-green/20' : isLast ? 'bg-red-50/50 dark:bg-red-950/20 border-red-100 dark:border-red-900/30' : 'border-transparent group-hover/point:bg-gray-50 dark:group-hover/point:bg-white/5'}`}>
+          <h5 className={`text-sm sm:text-lg ${isNow ? 'font-black text-red-600' : 'font-bold text-fgc-grey dark:text-gray-300'}`}>{point.nom} {point.via && <span className="opacity-40 dark:opacity-50 ml-1">(V{point.via})</span>}</h5>
+        </div>
+      </div>
+      {isTransit && (
+        <div className="relative h-12 flex items-center">
+          <div className="absolute left-[-30px] sm:left-[-50px] top-0 bottom-0 flex flex-col items-center justify-center w-6 h-6 sm:w-8 h-8 z-20">
+            <div className="w-3 h-3 bg-red-500 rounded-full animate-bounce shadow-[0_0_12px_rgba(239,68,68,1)] border-2 border-white dark:border-gray-800" />
+          </div>
+          <div className="pl-16 sm:pl-24 text-[10px] font-black text-red-500 uppercase tracking-widest animate-pulse">EN TRAJECTE...</div>
+        </div>
+      )}
+    </React.Fragment>
+  );
+};
 
 export const CercarView: React.FC = () => {
   const [searchType, setSearchType] = useState<SearchType>(SearchType.Torn);
@@ -103,7 +160,6 @@ export const CercarView: React.FC = () => {
         }
         
         setAvailableCycles(Array.from(cyclesSet).sort((a, b) => {
-          // Ordenació natural per cicles (C1, C2, C10...)
           return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
         }));
         setLoading(false);
@@ -146,22 +202,6 @@ export const CercarView: React.FC = () => {
   ];
 
   const serveiTypes = ['0', '100', '400', '500'];
-
-  function getFgcMinutes(timeStr: string) {
-    if (!timeStr || !timeStr.includes(':')) return 0;
-    const [h, m] = timeStr.split(':').map(Number);
-    let total = h * 60 + m;
-    if (h < 4) total += 24 * 60;
-    return total;
-  }
-
-  function formatFgcTime(totalMinutes: number) {
-    let mins = totalMinutes;
-    if (mins >= 24 * 60) mins -= 24 * 60;
-    const h = Math.floor(mins / 60);
-    const m = mins % 60;
-    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-  }
 
   function calculateGap(from: string, to: string) {
     if (!from || !to) return 0;
@@ -251,13 +291,10 @@ export const CercarView: React.FC = () => {
 
   const isDriverWorkingNow = (obs: string) => {
     if (!obs) return false;
-    // Busquem patrons d'horari tipus "HH:MM - HH:MM" o "HH:MM a HH:MM"
     const timeMatch = obs.match(/(\d{2}:\d{2})\s*[-–—a]\s*(\d{2}:\d{2})/i);
     if (timeMatch) {
       const start = getFgcMinutes(timeMatch[1]);
       const end = getFgcMinutes(timeMatch[2]);
-      
-      // Cas de torn que creua la mitjanit
       if (start > end) {
         return nowMin >= start || nowMin < end;
       }
@@ -454,10 +491,8 @@ export const CercarView: React.FC = () => {
     const circDetails = await fetchAllFromSupabase('circulations', supabase.from('circulations').select('*').in('id', Array.from(allCircIds)));
     const { data: trainAssig } = await supabase.from('assignments').select('*');
     
-    // Lògica per trobar cicles de viatgers (busquem quins torns condueixen aquestes circulacions)
     let viatgerCycleMap: Record<string, {cicle: string, train: string}> = {};
     if (viatgerRealIds.size > 0) {
-      // Carreguem tots els torns del servei seleccionat per mapejar circulacions reals -> cicles
       const { data: helperShifts } = await supabase.from('shifts').select('circulations').eq('servei', selectedServei);
       helperShifts?.forEach(hs => {
         (hs.circulations as any[])?.forEach(hc => {
@@ -507,7 +542,6 @@ export const CercarView: React.FC = () => {
           machinistFinal = obsParts[2];
         }
         
-        // Per als viatgers, si no tenen cicle, mirem el mapa que hem construït
         let cCicle = (typeof cRef === 'object' ? cRef.cicle : null) || (isViatger ? viatgerCycleMap[realCodiId]?.cicle : null);
         let cTrain = isViatger ? viatgerCycleMap[realCodiId]?.train : null;
         
@@ -821,20 +855,6 @@ export const CercarView: React.FC = () => {
     );
   };
 
-  // Fix: Explicitly type as React.FC to allow 'key' prop in map iterations
-  const ItineraryPoint: React.FC<{ point: any; isFirst?: boolean; isLast?: boolean; nextPoint?: any }> = ({ point, isFirst, isLast, nextPoint }) => {
-    const pTime = point.hora || point.sortida || point.arribada;
-    const pMin = getFgcMinutes(pTime);
-    const isNow = pTime && nowMin === pMin;
-    let isTransit = false; if (nextPoint && pTime && nextPoint.hora) { const nextMin = getFgcMinutes(nextPoint.hora); if (nowMin > pMin && nowMin < nextMin) { isTransit = true; } }
-    return (
-      <React.Fragment>
-        <div className="relative flex items-center gap-4 sm:gap-8 py-4 group/point"><div className={`absolute left-[-30px] sm:left-[-50px] top-1/2 -translate-y-1/2 flex items-center justify-center w-6 h-6 sm:w-8 h-8 bg-white dark:bg-gray-800 border-4 ${isFirst ? 'border-fgc-green' : isLast ? 'border-red-50 dark:border-red-900/30' : 'border-gray-300 dark:border-gray-700'} rounded-full z-10`}>{isNow && <div className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.8)]" />}</div><div className="w-16 sm:w-24 flex-shrink-0"><p className={`text-base sm:text-xl font-black ${isNow ? 'text-red-500' : 'text-fgc-grey dark:text-gray-200'}`}>{pTime || '--:--'}</p>{isNow && <p className="text-[10px] font-black text-red-500">ARA</p>}</div><div className={`flex-1 p-2 sm:p-3 rounded-xl border transition-all ${isFirst ? 'bg-fgc-green/5 dark:bg-fgc-green/10 border-fgc-green/20 dark:border-fgc-green/20' : isLast ? 'bg-red-50/50 dark:bg-red-950/20 border-red-100 dark:border-red-900/30' : 'border-transparent group-hover/point:bg-gray-50 dark:group-hover/point:bg-white/5'}`}><h5 className={`text-sm sm:text-lg ${isNow ? 'font-black text-red-600' : 'font-bold text-fgc-grey dark:text-gray-300'}`}>{point.nom} {point.via && <span className="opacity-40 dark:opacity-50 ml-1">(V{point.via})</span>}</h5></div></div>
-        {isTransit && (<div className="relative h-12 flex items-center"><div className="absolute left-[-30px] sm:left-[-50px] top-0 bottom-0 flex flex-col items-center justify-center w-6 h-6 sm:w-8 h-8 z-20"><div className="w-3 h-3 bg-red-500 rounded-full animate-bounce shadow-[0_0_12px_rgba(239,68,68,1)] border-2 border-white dark:border-gray-800" /></div><div className="pl-16 sm:pl-24 text-[10px] font-black text-red-500 uppercase tracking-widest animate-pulse">EN TRAJECTE...</div></div>)}
-      </React.Fragment>
-    );
-  };
-
   return (
     <div className="space-y-6">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -867,7 +887,6 @@ export const CercarView: React.FC = () => {
               <button onClick={() => executeSearch()} className="bg-fgc-green text-fgc-grey h-[60px] sm:h-[76px] px-8 sm:px-10 rounded-[24px] sm:rounded-[32px] text-lg sm:text-xl font-black shadow-xl shadow-fgc-green/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3"><Search size={22} />CERCAR</button>
             </div>
 
-            {/* Quick Cycle Selection Tab */}
             {searchType === SearchType.Cicle && (
               <div className="animate-in fade-in slide-in-from-top-2 duration-500">
                 <div className="flex items-center gap-2 mb-4 px-2">
@@ -939,7 +958,7 @@ export const CercarView: React.FC = () => {
                                 <div className="p-4 sm:p-10 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-white/5 animate-in slide-in-from-top-4 duration-500 overflow-hidden">
                                   <div className="relative flex flex-col pl-8 sm:pl-16 pr-2 sm:pr-6 py-4 space-y-0">
                                     <div className="absolute left-[15px] sm:left-[29px] top-10 bottom-10 w-0.5 sm:w-1 bg-gray-100 dark:bg-gray-800 rounded-full" />
-                                    {itineraryPoints.map((point, pIdx) => (<ItineraryPoint key={pIdx} point={point} isFirst={pIdx === 0} isLast={pIdx === itineraryPoints.length - 1} nextPoint={itineraryPoints[pIdx + 1]}/>))}
+                                    {itineraryPoints.map((point, pIdx) => (<ItineraryPoint key={pIdx} point={point} isFirst={pIdx === 0} isLast={pIdx === itineraryPoints.length - 1} nextPoint={itineraryPoints[pIdx + 1]} nowMin={nowMin}/>))}
                                   </div>
                                 </div>
                               )}
@@ -1028,7 +1047,6 @@ export const CercarView: React.FC = () => {
                   <div className="border border-gray-100 dark:border-white/5 rounded-[32px] overflow-hidden bg-white dark:bg-black/20 shadow-sm mb-4">
                     <CirculationHeader />
                     <div className="flex flex-col divide-y divide-gray-100 dark:divide-white/5">
-                      {/* Espai abans de la primera circulació */}
                       {group.fullCirculations?.[0] && (
                         <TimeGapRow 
                           from={group.inici_torn} 
@@ -1051,7 +1069,7 @@ export const CercarView: React.FC = () => {
                                 <div className="p-4 sm:p-10 bg-white dark:bg-gray-900 border-t border-gray-100 animate-in slide-in-from-top-4 duration-500 overflow-hidden">
                                   <div className="relative flex flex-col pl-8 sm:pl-16 pr-2 sm:pr-6 py-4 space-y-0">
                                     <div className="absolute left-[15px] sm:left-[29px] top-10 bottom-10 w-0.5 sm:w-1 bg-gray-100 dark:bg-gray-800 rounded-full" />
-                                    {itineraryPoints.map((point, pIdx) => (<ItineraryPoint key={pIdx} point={point} isFirst={pIdx === 0} isLast={pIdx === itineraryPoints.length - 1} nextPoint={itineraryPoints[pIdx + 1]}/>))}
+                                    {itineraryPoints.map((point, pIdx) => (<ItineraryPoint key={pIdx} point={point} isFirst={pIdx === 0} isLast={pIdx === itineraryPoints.length - 1} nextPoint={itineraryPoints[pIdx + 1]} nowMin={nowMin}/>))}
                                   </div>
                                 </div>
                               )}
