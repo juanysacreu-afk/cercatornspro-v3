@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, ShieldAlert, Loader2, UserCheck, Clock, MapPin, AlertCircle, Phone, Info, Users, Zap, User, Train, Map as MapIcon, X, Timer, Scissors, ArrowDownToLine, ArrowUpToLine, ArrowLeftToLine, ArrowRightToLine, Coffee, Layers, Trash2, Repeat, Rewind, FastForward, RotateCcw, Wifi, WifiOff, RefreshCw, Layers as LayersIcon } from 'lucide-react';
+import { Search, ShieldAlert, Loader2, UserCheck, Clock, MapPin, AlertCircle, Phone, Info, Users, Zap, User, Train, Map as MapIcon, X, Timer, Scissors, ArrowDownToLine, ArrowUpToLine, ArrowLeftToLine, ArrowRightToLine, Coffee, Layers, Trash2, Repeat, Rewind, FastForward, RotateCcw, Wifi, RefreshCw, Layers as LayersIcon } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
 import IncidenciaPerTorn from '../components/IncidenciaPerTorn.tsx';
 
@@ -40,14 +40,6 @@ interface LivePersonnel {
 interface IncidenciaViewProps {
   showSecretMenu: boolean;
 }
-
-const PATHS = {
-  TRUNK: ['PC', 'PR', 'GR', 'SG', 'MN', 'BN', 'TT', 'SR', 'PF', 'VL', 'LP', 'LF', 'VD', 'SC'],
-  L7: ['GR', 'PM', 'PD', 'EP', 'TB'],
-  L6: ['SR', 'RE'],
-  S1: ['SC', 'MS', 'HG', 'RB', 'FN', 'TR', 'VP', 'EN', 'NA'],
-  S2: ['SC', 'VO', 'SJ', 'BT', 'UN', 'SQ', 'CF', 'PJ', 'CT', 'NO', 'PN']
-};
 
 const resolveStationId = (name: string, linia: string = '') => {
     // Normalització: Majúscules, sense accents i trim
@@ -142,7 +134,7 @@ const getFullPath = (start: string, end: string): string[] => {
 
 const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
   const [mode, setMode] = useState<IncidenciaMode>('INIT');
-  const [selectedServei, setSelectedServei] = useState<string>('Tots');
+  const [selectedServei, setSelectedServei] = useState<string>('0');
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [calculating, setCalculating] = useState(false);
@@ -339,11 +331,12 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
         if (selectedServei === 'Tots') {
             isShiftVisible = true;
         } else {
-            if (shiftService.includes(selectedServei)) isShiftVisible = true;
-            if (selectedServei === '400' && (shiftService.includes('S1') || shiftService.includes('400'))) isShiftVisible = true;
-            if (selectedServei === '500' && (shiftService.includes('S2') || shiftService.includes('500'))) isShiftVisible = true;
-            if (selectedServei === '100' && (shiftService.includes('L6') || shiftService.includes('100'))) isShiftVisible = true;
-            if (selectedServei === '0' && (shiftService.includes('L12') || shiftService.includes('0'))) isShiftVisible = true;
+            // Filtratge estricte per evitar que '0' coincideixi amb '100'
+            if (selectedServei === '400') isShiftVisible = shiftService === '400' || shiftService === 'S1';
+            else if (selectedServei === '500') isShiftVisible = shiftService === '500' || shiftService === 'S2';
+            else if (selectedServei === '100') isShiftVisible = shiftService === '100' || shiftService === 'L6';
+            else if (selectedServei === '0') isShiftVisible = shiftService === '0' || shiftService === 'L12';
+            else isShiftVisible = (shiftService === selectedServei);
         }
 
         if (!isShiftVisible) return;
@@ -566,7 +559,20 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
       if (mapDataSource === 'THEORETICAL') {
         allShifts.forEach(shift => {
           const shiftService = (shift.servei || '').toString();
-          if (selectedServei !== 'Tots' && !shiftService.includes(selectedServei)) return;
+          
+          let isShiftVisible = false;
+          if (selectedServei === 'Tots') {
+              isShiftVisible = true;
+          } else {
+              // Filtratge estricte per personal en descans
+              if (selectedServei === '400') isShiftVisible = shiftService === '400' || shiftService === 'S1';
+              else if (selectedServei === '500') isShiftVisible = shiftService === '500' || shiftService === 'S2';
+              else if (selectedServei === '100') isShiftVisible = shiftService === '100' || shiftService === 'L6';
+              else if (selectedServei === '0') isShiftVisible = shiftService === '0' || shiftService === 'L12';
+              else isShiftVisible = (shiftService === selectedServei);
+          }
+
+          if (!isShiftVisible) return;
 
           const startMin = getFgcMinutes(shift.inici_torn);
           const endMin = getFgcMinutes(shift.final_torn);
@@ -687,11 +693,11 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
     setCalculating(true);
     setPassengerResults([]); setAdjacentResults({anterior:[], posterior:[]}); setRestingResults([]); setExtensibleResults([]); setReserveInterceptResults([]);
     try {
-      const currentServiceStr = selectedServei === 'Tots' ? (originalShift.servei || '') : selectedServei;
       let shiftsQuery = supabase.from('shifts').select('id, servei, circulations, inici_torn, final_torn, duracio, dependencia');
       
-      if (selectedServei !== 'Tots' && currentServiceStr) {
-        shiftsQuery = shiftsQuery.ilike('servei', `%${currentServiceStr}%`);
+      // Filtratge de servei exacte per evitar que '0' coincideixi amb '100'
+      if (selectedServei !== 'Tots') {
+        shiftsQuery = shiftsQuery.eq('servei', selectedServei);
       }
 
       const { data: allShiftsRaw = [] } = await shiftsQuery;
@@ -1083,7 +1089,6 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
                  <div className="relative">
                    <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={24} />
                    <input type="text" placeholder="Ex: 1104, 2351..." value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSearch()} className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[28px] py-6 pl-16 pr-8 focus:ring-4 focus:ring-red-500/20 outline-none text-xl font-bold transition-all dark:text-white shadow-inner" />
-                   {/* Corrected onClick prop below */}
                    <button onClick={handleSearch} disabled={loading || !query} className="absolute right-3 top-1/2 -translate-y-1/2 bg-fgc-grey dark:bg-fgc-green text-white dark:text-fgc-grey px-8 py-3 rounded-2xl font-black text-sm hover:scale-105 active:scale-95 transition-all shadow-lg disabled:opacity-50">{loading ? <Loader2 className="animate-spin" size={20} /> : 'BUSCAR'}</button>
                  </div>
                </div>

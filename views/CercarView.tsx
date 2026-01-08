@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { SearchType, Shift, Circulation, DailyAssignment, PhonebookEntry, Assignment } from '../types.ts';
-import { Search, User, Train, MapPin, Hash, ArrowRight, Loader2, Info, Phone, Clock, FileText, ChevronDown, ChevronUp, Map as MapIcon, Navigation, Coffee, Footprints, Circle, LayoutGrid, Timer, X, BookOpen, CalendarDays, Filter, AlertTriangle, Wrench, Users, UserCheck } from 'lucide-react';
+import { Search, User, Train, MapPin, Hash, ArrowRight, Loader2, Info, Phone, Clock, FileText, ChevronDown, ChevronUp, Map as MapIcon, Navigation, Coffee, Footprints, Circle, LayoutGrid, Timer, X, BookOpen, CalendarDays, Filter, AlertTriangle, Wrench, Users, UserCheck, Camera, Brush } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
 
 // Funció auxiliar per recuperar tots els registres d'una taula (superant el límit de 1000 de Supabase)
@@ -95,7 +95,7 @@ export const CercarView: React.FC = () => {
   const [availableCycles, setAvailableCycles] = useState<string[]>([]);
   const [allStations, setAllStations] = useState<string[]>([]);
   const [selectedStation, setSelectedStation] = useState<string>('');
-  const [brokenTrains, setBrokenTrains] = useState<Set<string>>(new Set());
+  const [trainStatuses, setTrainStatuses] = useState<Record<string, any>>({});
   
   const getCurrentTimeStr = () => {
     const now = new Date();
@@ -119,19 +119,23 @@ export const CercarView: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const fetchBrokenTrains = async () => {
+  const fetchTrainStatuses = async () => {
     const { data } = await supabase
       .from('train_status')
-      .select('train_number')
-      .eq('is_broken', true);
+      .select('*')
+      .or('is_broken.eq.true,needs_images.eq.true,needs_records.eq.true,needs_cleaning.eq.true');
     
     if (data) {
-      setBrokenTrains(new Set(data.map(s => s.train_number)));
+      const statusMap: Record<string, any> = {};
+      data.forEach(s => {
+        statusMap[s.train_number] = s;
+      });
+      setTrainStatuses(statusMap);
     }
   };
 
   useEffect(() => {
-    fetchBrokenTrains();
+    fetchTrainStatuses();
   }, [results]);
 
   useEffect(() => {
@@ -374,7 +378,8 @@ export const CercarView: React.FC = () => {
               const isCurrent = nowMin >= seg.start && nowMin < seg.end;
               const isGap = seg.type === 'gap';
               const segmentLabel = `${seg.codi} (${formatFgcTime(seg.start)} - ${formatFgcTime(seg.end)})`;
-              const isBroken = seg.type === 'circ' && seg.train && brokenTrains.has(seg.train);
+              const status = seg.train ? trainStatuses[seg.train] : null;
+              const isBroken = status?.is_broken;
               
               return (
                 <button 
@@ -396,7 +401,7 @@ export const CercarView: React.FC = () => {
         </div>
 
         {selectedSeg && (
-          <div className={`mt-4 p-5 rounded-2xl border animate-in fade-in slide-in-from-top-2 duration-300 flex items-center justify-between shadow-xl ${selectedSeg.type === 'circ' && selectedSeg.train && brokenTrains.has(selectedSeg.train) ? 'bg-red-600 text-white' : (selectedSeg.color + ' ' + (selectedSeg.type === 'circ' ? 'text-black dark:text-gray-200 border-gray-300 dark:border-gray-700 shadow-gray-200 dark:shadow-black' : 'text-white border-white/20'))}`}>
+          <div className={`mt-4 p-5 rounded-2xl border animate-in fade-in slide-in-from-top-2 duration-300 flex items-center justify-between shadow-xl ${selectedSeg.type === 'circ' && selectedSeg.train && trainStatuses[selectedSeg.train]?.is_broken ? 'bg-red-600 text-white' : (selectedSeg.color + ' ' + (selectedSeg.type === 'circ' ? 'text-black dark:text-gray-200 border-gray-300 dark:border-gray-700 shadow-gray-200 dark:shadow-black' : 'text-white border-white/20'))}`}>
             <div className="flex items-center gap-4">
               <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-inner border ${selectedSeg.type === 'circ' ? `${getLiniaColor(selectedSeg.linia)} border-white/20` : 'bg-white/20 border-white/20 backdrop-blur-sm'}`}>
                 {selectedSeg.type === 'circ' ? (
@@ -406,10 +411,10 @@ export const CercarView: React.FC = () => {
                 )}
               </div>
               <div>
-                <p className={`text-[10px] font-black uppercase tracking-widest ${selectedSeg.type === 'circ' ? (selectedSeg.train && brokenTrains.has(selectedSeg.train) ? 'text-white/60' : 'text-gray-500 dark:text-gray-400') : 'text-white/60'}`}>{selectedSeg.type === 'circ' ? 'CIRCULACIÓ' : 'DESCANS / ESTADA'}</p>
+                <p className={`text-[10px] font-black uppercase tracking-widest ${selectedSeg.type === 'circ' ? (selectedSeg.train && trainStatuses[selectedSeg.train]?.is_broken ? 'text-white/60' : 'text-gray-500 dark:text-gray-400') : 'text-white/60'}`}>{selectedSeg.type === 'circ' ? 'CIRCULACIÓ' : 'DESCANS / ESTADA'}</p>
                 <p className="text-xl font-black flex items-center gap-2">
                   {selectedSeg.codi === 'Viatger' ? `Viatger (${selectedSeg.realCodi})` : selectedSeg.codi}
-                  {selectedSeg.type === 'circ' && selectedSeg.train && brokenTrains.has(selectedSeg.train) && (
+                  {selectedSeg.type === 'circ' && selectedSeg.train && trainStatuses[selectedSeg.train]?.is_broken && (
                     <span className="bg-white text-red-600 px-2 py-0.5 rounded-lg text-[10px] flex items-center gap-1 border border-red-100 shadow-sm animate-pulse">
                       <Wrench size={10} /> AVARIA
                     </span>
@@ -418,11 +423,11 @@ export const CercarView: React.FC = () => {
               </div>
             </div>
             <div className="text-right flex flex-col items-end">
-              <p className={`text-[10px] font-black uppercase tracking-widest ${selectedSeg.type === 'circ' ? (selectedSeg.train && brokenTrains.has(selectedSeg.train) ? 'text-white/60' : 'text-gray-500 dark:text-gray-400') : 'text-white/60'}`}>DURADA I HORARI</p>
+              <p className={`text-[10px] font-black uppercase tracking-widest ${selectedSeg.type === 'circ' ? (selectedSeg.train && trainStatuses[selectedSeg.train]?.is_broken ? 'text-white/60' : 'text-gray-500 dark:text-gray-400') : 'text-white/60'}`}>DURADA I HORARI</p>
               <p className="text-xl font-black">{selectedSeg.end - selectedSeg.start} min</p>
-              <p className={`text-[10px] font-bold ${selectedSeg.type === 'circ' ? (selectedSeg.train && brokenTrains.has(selectedSeg.train) ? 'text-white/80' : 'text-gray-400 dark:text-gray-500') : 'text-white/80'}`}>{formatFgcTime(selectedSeg.start)} — {formatFgcTime(selectedSeg.end)}</p>
+              <p className={`text-[10px] font-bold ${selectedSeg.type === 'circ' ? (selectedSeg.train && trainStatuses[selectedSeg.train]?.is_broken ? 'text-white/80' : 'text-gray-400 dark:text-gray-500') : 'text-white/80'}`}>{formatFgcTime(selectedSeg.start)} — {formatFgcTime(selectedSeg.end)}</p>
             </div>
-            <button onClick={() => setSelectedSeg(null)} className={`ml-4 p-2 rounded-full transition-colors ${selectedSeg.type === 'circ' && !(selectedSeg.train && brokenTrains.has(selectedSeg.train)) ? 'hover:bg-gray-200 dark:hover:bg-white/10 text-gray-400 dark:text-gray-500' : 'hover:bg-white/10 text-white/80'}`}>
+            <button onClick={() => setSelectedSeg(null)} className={`ml-4 p-2 rounded-full transition-colors ${selectedSeg.type === 'circ' && !(selectedSeg.train && trainStatuses[selectedSeg.train]?.is_broken) ? 'hover:bg-gray-200 dark:hover:bg-white/10 text-gray-400 dark:text-gray-500' : 'hover:bg-white/10 text-white/80'}`}>
               <X size={18} />
             </button>
           </div>
@@ -701,7 +706,11 @@ export const CercarView: React.FC = () => {
   const CirculationRow = ({ circ, itemKey }: { circ: any; itemKey: string }) => {
     const trainPhone = getTrainPhone(circ.train);
     const isActive = checkIfActive(circ.sortida, circ.arribada);
-    const isBroken = circ.train && brokenTrains.has(circ.train);
+    const status = circ.train ? trainStatuses[circ.train] : null;
+    const isBroken = status?.is_broken;
+    const needsImages = status?.needs_images;
+    const needsRecords = status?.needs_records;
+    const needsCleaning = status?.needs_cleaning;
     const isViatger = circ.codi === 'Viatger';
 
     return (
@@ -753,10 +762,13 @@ export const CercarView: React.FC = () => {
             <div className={`text-base sm:text-2xl font-black tabular-nums w-14 sm:w-16 text-center ${isActive || isBroken ? 'text-red-600' : 'text-fgc-grey dark:text-gray-200'}`}>{circ.arribada || '--:--'}</div>
         </div>
         <div className="flex justify-end items-center gap-2 sm:gap-3 px-1 sm:px-4">
-          {isBroken && <span className="hidden lg:flex text-[9px] font-black text-white bg-red-600 px-2 py-1 rounded-full border border-red-700 animate-pulse items-center gap-1 shadow-md"><AlertTriangle size={10} /> AVARIA</span>}
+          {needsImages && <Camera size={16} className="text-blue-500 animate-pulse drop-shadow-sm" />}
+          {needsRecords && <FileText size={16} className="text-yellow-500 animate-pulse drop-shadow-sm" />}
+          {needsCleaning && <Brush size={16} className="text-orange-500 animate-pulse drop-shadow-sm" />}
+          {isBroken && <AlertTriangle size={16} className="text-red-600 animate-pulse drop-shadow-sm" />}
           {isActive && <span className="hidden xl:inline text-[9px] font-black text-red-500 animate-pulse bg-red-50 dark:bg-red-950/40 px-2.5 py-1 rounded-full border border-red-100 dark:border-red-900 shadow-sm">ACTIU</span>}
           <button onClick={() => toggleItinerari(itemKey)} className={`p-2 sm:p-3 rounded-xl shadow-md hover:shadow-xl transition-all active:scale-95 border-b-2 border-black/5 flex items-center gap-2 shrink-0 ${isActive ? 'bg-red-600 text-white border-red-700' : isBroken ? 'bg-red-600 text-white border-red-700' : 'bg-fgc-green text-fgc-grey border-fgc-green'}`}>
-            <BookOpen size={16} /><span className="hidden lg:inline text-[10px] font-black uppercase tracking-tighter">Itinerari</span>
+            < BookOpen size={16} /><span className="hidden lg:inline text-[10px] font-black uppercase tracking-tighter">Itinerari</span>
           </button>
         </div>
       </div>
@@ -766,7 +778,11 @@ export const CercarView: React.FC = () => {
   const StationRow = ({ circ, itemKey }: { circ: any; itemKey: string }) => {
     const trainPhone = getTrainPhone(circ.train);
     const isActive = checkIfActive(circ.sortida, circ.arribada);
-    const isBroken = circ.train && brokenTrains.has(circ.train);
+    const status = circ.train ? trainStatuses[circ.train] : null;
+    const isBroken = status?.is_broken;
+    const needsImages = status?.needs_images;
+    const needsRecords = status?.needs_records;
+    const needsCleaning = status?.needs_cleaning;
     const shiftStatus = circ.fullTurn ? getShiftCurrentStatus(circ.fullTurn, 0) : null;
     const isViatger = circ.id === 'Viatger';
 
@@ -810,8 +826,7 @@ export const CercarView: React.FC = () => {
         </div>
         <div className="flex flex-col items-start px-2 min-w-0 gap-2">
           {circ.drivers.map((driver: any, dIdx: number) => (
-            <div key={dIdx} className="flex flex-col items-start w-full">
-              <div className="flex items-center gap-2">
+            <div key={dIdx} className="flex items-center gap-2">
                 <span className={`text-sm sm:text-lg font-black leading-tight truncate w-full ${isActive ? 'text-red-700 dark:text-red-400' : isBroken ? 'text-red-600' : 'text-fgc-grey dark:text-gray-200'}`}>
                   {driver.cognoms || ''}, {driver.nom || ''}
                 </span>
@@ -825,20 +840,6 @@ export const CercarView: React.FC = () => {
                   </span>
                 )}
               </div>
-              <div className="flex flex-wrap items-center gap-2 mt-0.5">
-                <span className="text-[9px] font-black text-fgc-green uppercase tracking-widest whitespace-nowrap">Torn {circ.shift_id}</span>
-                {shiftStatus && (
-                  <span className={`px-2 py-0.5 rounded-full text-[8px] font-black border border-black/5 ${shiftStatus.color}`}>
-                    {shiftStatus.label}
-                  </span>
-                )}
-                <div className="flex gap-1.5">
-                  {driver.phones?.map((p: string, i: number) => (
-                    <a key={i} href={`tel:${p}`} className="text-blue-500 hover:text-blue-700 flex items-center p-1 bg-blue-50 dark:bg-blue-900/20 rounded-md transition-colors"><Phone size={10} /></a>
-                  ))}
-                </div>
-              </div>
-            </div>
           ))}
         </div>
         <div className="flex justify-center shrink-0">
@@ -847,6 +848,10 @@ export const CercarView: React.FC = () => {
           </div>
         </div>
         <div className="flex justify-end pr-1 sm:pr-4 items-center gap-2 shrink-0">
+          {needsImages && <Camera size={14} className="text-blue-500 animate-pulse" />}
+          {needsRecords && <FileText size={14} className="text-yellow-500 animate-pulse" />}
+          {needsCleaning && <Brush size={14} className="text-orange-500 animate-pulse" />}
+          {isBroken && <AlertTriangle size={14} className="text-red-600 animate-pulse" />}
           <button onClick={() => toggleItinerari(itemKey)} className={`p-2 sm:p-3 rounded-xl shadow-md hover:shadow-xl transition-all active:scale-95 border-b-2 border-black/5 flex items-center gap-2 ${isActive || isBroken ? 'bg-red-600 text-white border-red-700' : 'bg-fgc-green text-fgc-grey'}`}>
             <BookOpen size={16} /><span className="hidden lg:inline text-[10px] font-black uppercase tracking-tighter">Itinerari</span>
           </button>

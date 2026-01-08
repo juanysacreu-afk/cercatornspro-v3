@@ -455,7 +455,7 @@ const CiclesView: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <Brush size={14} className="text-orange-500" />
-                  <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Limpieza</span>
+                  <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Neteja</span>
                 </div>
               </div>
 
@@ -536,7 +536,7 @@ const CiclesView: React.FC = () => {
                           className={`pointer-events-auto absolute -bottom-1.5 -right-1.5 w-7 h-7 rounded-full flex items-center justify-center shadow-lg border-2 transition-all ${
                             needsCleaning ? 'bg-orange-500 text-white border-white dark:border-gray-800' : 'bg-white dark:bg-gray-700 text-gray-300 hover:text-orange-500 hover:border-orange-500 border-gray-100 dark:border-white/10'
                           }`}
-                          title="Limpieza"
+                          title="Neteja"
                         >
                           <Brush size={12} />
                         </button>

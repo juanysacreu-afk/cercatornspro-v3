@@ -96,7 +96,6 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
   const [appliedAiFixes, setAppliedAiFixes] = useState<Record<string, any>>({});
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const searchRef = containerRef;
 
   function getFgcMinutes(timeStr: string) {
     if (!timeStr || !timeStr.includes(':')) return 0;
@@ -178,12 +177,12 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
       }
       setUncoveredShift(target);
 
-      // Usar ilike per trobar el servei independentment de si posa "400" o "S-400" o "BV 400"
+      // Usar coincidència exacta per al servei segons requeriment
       const currentServiceStr = selectedServei === 'Tots' ? (target.servei || '') : selectedServei;
       
       let shiftsQuery = supabase.from('shifts').select('*').neq('id', uncoveredShiftId);
       if (currentServiceStr && currentServiceStr !== 'Tots') {
-        shiftsQuery = shiftsQuery.ilike('servei', `%${currentServiceStr}%`);
+        shiftsQuery = shiftsQuery.eq('servei', currentServiceStr);
       }
 
       const { data: otherShiftsRaw } = await shiftsQuery;
@@ -292,7 +291,9 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const targetService = uncoveredShift?.servei || selectedServei;
-      const { data: allShiftsRaw } = await supabase.from('shifts').select('id, inici_torn, final_torn, duracio, dependencia').ilike('servei', `%${targetService}%`);
+      
+      // Filtratge exacte pel prompt de la IA
+      const { data: allShiftsRaw } = await supabase.from('shifts').select('id, inici_torn, final_torn, duracio, dependencia').eq('servei', targetService);
       const filteredForAi = allShiftsRaw?.filter(s => s.id !== uncoveredShiftId && !disabledReserves.has(s.id)) || [];
       const otherShortIds = filteredForAi.map(s => getShortTornId(s.id));
       const { data: allDaily } = await supabase.from('daily_assignments').select('torn, nom, cognoms').in('torn', otherShortIds);
@@ -450,7 +451,7 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
                     <div key={idx} className="space-y-6">
                       <div className="flex flex-col sm:flex-row sm:items-center gap-3 bg-gray-100 dark:bg-white/5 p-4 rounded-3xl border border-gray-200 dark:border-white/10 relative overflow-hidden">
                          <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none"><TrainFront size={80} /></div>
-                         <div className={`px-4 py-2 ${item.circ.isViatgerOriginal ? 'bg-sky-500' : 'bg-fgc-grey'} text-white rounded-2xl font-black text-lg shadow-sm flex items-center justify-center min-w-[80px]`}>{item.circ.codi}</div>
+                         <div className={`px-4 py-2 ${item.circ.isViatgerOriginal ? 'bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800' : 'bg-fgc-grey'} text-white rounded-2xl font-black text-lg shadow-sm flex items-center justify-center min-w-[80px]`}>{item.circ.codi}</div>
                          <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1"><p className="text-base font-black text-fgc-grey dark:text-gray-200 uppercase tracking-tight">{item.circ.inici} → {item.circ.final}</p><span className="bg-fgc-green/20 text-fgc-green px-2 py-0.5 rounded text-[9px] font-black uppercase border border-fgc-green/20">S-{item.circ.linia}</span></div>
                             <div className="flex flex-wrap items-center gap-x-4 gap-y-1"><div className="flex items-center gap-1.5 text-xs font-bold text-gray-500"><Clock size={14} className="text-blue-500" /> {item.circ.sortida} — {item.circ.arribada}</div><div className="flex items-center gap-1.5 text-xs font-bold text-fgc-green"><MapPin size={14} /> Vies: {item.circ.via_inici} / {item.circ.via_final}</div></div>
@@ -510,7 +511,7 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
 
       {showAiModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-fgc-grey/60 backdrop-blur-md" onClick={() => setShowAiModal(false)} />
+          <div className="absolute inset-0 bg-fgc-grey/60 backdrop-blur-sm" onClick={() => setShowAiModal(false)} />
           <div className="relative bg-white dark:bg-gray-900 w-full max-w-4xl rounded-[40px] overflow-hidden shadow-2xl border border-white/10 animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
             <div className="p-8 border-b border-gray-100 dark:border-white/5 bg-fgc-grey dark:bg-black text-white flex items-center justify-between">
               <div className="flex items-center gap-4">
@@ -524,7 +525,6 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
                 <div className="py-24 flex flex-col items-center justify-center gap-8">
                   <div className="relative">
                     <Loader2 className="text-fgc-green animate-spin" size={64} />
-                    <ParallelSparkles />
                   </div>
                   <div className="text-center space-y-2">
                     <p className="text-lg font-black text-fgc-grey dark:text-white uppercase tracking-widest">Calculant cadenes d'intercanvi...</p>
@@ -625,9 +625,5 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
     </div>
   );
 };
-
-const ParallelSparkles = () => (
-  <Sparkles className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-blue-500 animate-pulse" size={24} />
-);
 
 export default IncidenciaPerTorn;
