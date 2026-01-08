@@ -72,12 +72,16 @@ const getTravelTime = (from: string, to: string): number => {
   const t = resolveStationId(to);
   if (!f || !t || f === t) return 0;
   if (TRAVEL_TIMES[`${f}-${t}`]) return TRAVEL_TIMES[`${f}-${t}`];
+  if (TRAVEL_TIMES[`${t}-${f}`]) return TRAVEL_TIMES[`${t}-${f}`];
+  
+  // Rutes comunes per defecte si no estan al mapa
   if ((f === 'PC' && t === 'RB') || (f === 'RB' && t === 'PC')) return 35;
   if ((f === 'PC' && t === 'PN') || (f === 'PN' && t === 'PC')) return 40;
   if ((f === 'PC' && t === 'NA') || (f === 'NA' && t === 'PC')) return 45;
   if ((f === 'SR' && t === 'RB') || (f === 'RB' && t === 'SR')) return 25;
   if ((f === 'SR' && t === 'PN') || (f === 'PN' && t === 'SR')) return 30;
-  return 15; // Marge genèric reduït
+  
+  return 15; 
 };
 
 const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) => {
@@ -95,16 +99,6 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
   const [appliedAiFixes, setAppliedAiFixes] = useState<Record<string, any>>({});
 
   const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
-        setShowSuggestions(false);
-      }
-    };
-    // Fix Ref error: containerRef was used but it was not initialized as searchRef in some parts
-  }, []);
-
   const searchRef = containerRef;
 
   function getFgcMinutes(timeStr: string) {
@@ -188,12 +182,21 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
       }
       setUncoveredShift(target);
 
-      // Carreguem altres torns del mateix servei
-      const { data: otherShiftsRaw } = await supabase.from('shifts').select('*').eq('servei', selectedServei).neq('id', uncoveredShiftId);
+      // CORRECCIÓ: Filtrar pel mateix servei que el torn objectiu per trobar companys rellevants
+      let shiftsQuery = supabase.from('shifts').select('*').neq('id', uncoveredShiftId);
+      
+      // Si el selector de la UI no està en "Tots", el respectem, si no, usem el servei del torn objectiu
+      const targetService = selectedServei === 'Tots' ? target.servei : selectedServei;
+      if (targetService) {
+        shiftsQuery = shiftsQuery.eq('servei', targetService);
+      }
+
+      const { data: otherShiftsRaw } = await shiftsQuery;
       if (!otherShiftsRaw) {
           setAnalyzing(false);
           return;
       }
+      
       const filteredShifts = otherShiftsRaw.filter(s => !disabledReserves.has(s.id));
       
       // Carreguem detalls de totes les circulacions dels altres torns per calcular gaps
@@ -204,6 +207,7 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
           if (codi && codi !== 'Viatger') allOtherCircIds.add(codi);
         });
       });
+      
       const { data: allCircDetails } = await supabase.from('circulations').select('*').in('id', Array.from(allOtherCircIds));
       
       const otherShortIds = filteredShifts.map(s => getShortTornId(s.id));
@@ -221,8 +225,8 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
           const sIniciTorn = getFgcMinutes(s.inici_torn);
           const sFinalTorn = getFgcMinutes(s.final_torn);
           
-          // El torn ha d'estar actiu durant la circulació (marge d'1 minut)
-          if (sIniciTorn > (cStart - 1) || sFinalTorn < (cEnd + 1)) continue;
+          // El torn ha d'estar actiu durant tota la circulació
+          if (sIniciTorn > cStart || sFinalTorn < cEnd) continue;
 
           // Calculem els buits (gaps) del torn s
           const sCircsEnriched = (s.circulations as any[]).map((ref: any) => {
@@ -244,20 +248,23 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
             currentPos = Math.max(currentPos, scEnd);
             currentLoc = sc.final || currentLoc;
           });
+          
           if (sFinalTorn > currentPos) {
               gaps.push({ start: currentPos, end: sFinalTorn, fromLoc: currentLoc, toLoc: s.dependencia || currentLoc });
           }
 
           // Busquem si algun buit coincideix amb la circulació objectiu
-          const matchingGap = gaps.find(g => g.start <= (cStart - 1) && g.end >= (cEnd + 1));
+          const matchingGap = gaps.find(g => g.start <= cStart && g.end >= cEnd);
           if (matchingGap) {
             const timeToReachOrigin = getTravelTime(matchingGap.fromLoc, cInici);
             const arrivalAtOrigin = matchingGap.start + timeToReachOrigin;
-            const canReachOnTime = arrivalAtOrigin <= (cStart - 2); // Marge de 2 mins
+            
+            // MARGE ULTRA RELAXAT: 1 minut de buffer o 0 si ja hi és
+            const canReachOnTime = arrivalAtOrigin <= (cStart - (timeToReachOrigin > 0 ? 1 : 0));
 
             const timeToReturn = getTravelTime(cFinal, matchingGap.toLoc);
             const arrivalAtNextTask = cEnd + timeToReturn;
-            const canReturnOnTime = arrivalAtNextTask <= (matchingGap.end - 2); // Marge de 2 mins
+            const canReturnOnTime = arrivalAtNextTask <= (matchingGap.end - (timeToReturn > 0 ? 1 : 0));
 
             if (canReachOnTime && canReturnOnTime) {
               const assignment = allDaily?.find(d => d.torn === getShortTornId(s.id));
@@ -268,7 +275,14 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
                   driver: `${assignment.cognoms}, ${assignment.nom}`,
                   phones,
                   gap: matchingGap,
-                  logistics: { from: matchingGap.fromLoc, to: matchingGap.toLoc, travelToOrigin: timeToReachOrigin, travelFromEnd: timeToReturn, needsTravelTo: resolveStationId(matchingGap.fromLoc) !== resolveStationId(cInici), needsTravelBack: resolveStationId(cFinal) !== resolveStationId(matchingGap.toLoc) },
+                  logistics: { 
+                    from: matchingGap.fromLoc, 
+                    to: matchingGap.toLoc, 
+                    travelToOrigin: timeToReachOrigin, 
+                    travelFromEnd: timeToReturn, 
+                    needsTravelTo: resolveStationId(matchingGap.fromLoc) !== resolveStationId(cInici), 
+                    needsTravelBack: resolveStationId(cFinal) !== resolveStationId(matchingGap.toLoc) 
+                  },
                   marginBefore: cStart - arrivalAtOrigin,
                   marginAfter: matchingGap.end - arrivalAtNextTask
                 });
@@ -292,7 +306,9 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       
-      const { data: allShiftsRaw } = await supabase.from('shifts').select('id, inici_torn, final_torn, duracio, dependencia').eq('servei', selectedServei);
+      const targetService = uncoveredShift?.servei || selectedServei;
+      const { data: allShiftsRaw } = await supabase.from('shifts').select('id, inici_torn, final_torn, duracio, dependencia').eq('servei', targetService);
+      
       const filteredForAi = allShiftsRaw?.filter(s => s.id !== uncoveredShiftId && !disabledReserves.has(s.id)) || [];
       const otherShortIds = filteredForAi.map(s => getShortTornId(s.id));
       const { data: allDaily } = await supabase.from('daily_assignments').select('torn, nom, cognoms').in('torn', otherShortIds);
@@ -393,9 +409,9 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
             <div className="flex flex-col items-center gap-3">
                <div className="p-3 bg-blue-500/10 rounded-2xl text-blue-500"><RotateCcw size={32} /></div>
                <h3 className="text-xl font-black text-fgc-grey dark:text-white uppercase tracking-tight">Anàlisi Logística Avançada</h3>
-               <p className="text-xs font-bold text-gray-400 dark:text-gray-500 max-w-sm">Normalitzat per estacions i marges optimitzats de 2 minuts.</p>
+               <p className="text-xs font-bold text-gray-400 dark:text-gray-500 max-w-sm">Detecció automàtica de servei i marges de relleu al segon.</p>
             </div>
-            <div className="relative" ref={containerRef}>
+            <div className="relative">
               <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={24} />
               <input type="text" placeholder="Torn descobert (Ex: Q031)..." value={uncoveredShiftId} onChange={(e) => handleInputChange(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && calculatePlan()} className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[28px] py-6 pl-16 pr-8 focus:ring-4 focus:ring-blue-500/20 outline-none text-xl font-bold transition-all dark:text-white shadow-inner" />
               {showSuggestions && suggestions.length > 0 && (
@@ -421,7 +437,7 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
       </div>
 
       {analyzing ? (
-        <div className="py-32 flex flex-col items-center justify-center gap-6 opacity-30"><Loader2 size={64} className="animate-spin text-blue-500" /><div className="text-center space-y-1"><p className="text-lg font-black uppercase tracking-[0.2em] text-fgc-grey dark:text-white">Escanejant xarxa ferroviària</p><p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Calculant salts per marges de 2 min...</p></div></div>
+        <div className="py-32 flex flex-col items-center justify-center gap-6 opacity-30"><Loader2 size={64} className="animate-spin text-blue-500" /><div className="text-center space-y-1"><p className="text-lg font-black uppercase tracking-[0.2em] text-fgc-grey dark:text-white">Escanejant xarxa ferroviària</p><p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Calculant relleus optimitzats per marges de 1 min...</p></div></div>
       ) : coveragePlan.length > 0 ? (
         <div className="space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -445,7 +461,7 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
           <div className="bg-white dark:bg-gray-900 rounded-[32px] p-6 sm:p-8 border border-gray-100 dark:border-white/5 shadow-sm">
              <div className="flex items-center gap-4 border-b border-gray-100 dark:border-white/5 pb-4 mb-8">
                 <div className="h-10 min-w-[3rem] bg-blue-600 text-white rounded-xl flex items-center justify-center font-black text-lg shadow-md">{uncoveredShiftId}</div>
-                <div><h4 className="text-sm font-black text-fgc-grey dark:text-white uppercase tracking-tight">Pla de Cobertura Logística</h4><p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Normalitzat per estacions | Marges de 2 min</p></div>
+                <div><h4 className="text-sm font-black text-fgc-grey dark:text-white uppercase tracking-tight">Pla de Cobertura Logística</h4><p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Marges optimitzats (1 min) | Sincronitzat amb Reserves</p></div>
              </div>
              <div className="space-y-16">
                 {coveragePlan.map((item, idx) => {
@@ -479,10 +495,11 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
                          ) : item.candidates.length > 0 ? (
                            item.candidates.map((cand: any, cIdx: number) => {
                              const isBestOption = cIdx === 0;
+                             const isReserve = cand.shiftId.startsWith('QR');
                              return (
                                <div key={cIdx} className={`p-5 rounded-[32px] border transition-all group flex flex-col h-full relative overflow-hidden ${isBestOption ? 'bg-white dark:bg-gray-800 border-blue-400 ring-2 ring-blue-500/20 shadow-xl scale-[1.02] z-10' : 'bg-gray-50/50 dark:bg-gray-800/40 border-gray-100 dark:border-white/5 shadow-sm opacity-80 hover:opacity-100'}`}>
                                   {isBestOption && <div className="absolute top-0 right-0 bg-blue-600 text-white px-4 py-1.5 rounded-bl-2xl text-[9px] font-black uppercase flex items-center gap-1.5 shadow-md"><Sparkles size={10} /> Millor Candidat</div>}
-                                  <div className="flex items-center justify-between mb-4"><div className="flex items-center gap-2"><span className="bg-fgc-grey dark:bg-black text-white text-[10px] font-black px-2.5 py-1 rounded-xl shadow-sm">{cand.shiftId}</span>{cand.marginBefore + cand.marginAfter > 30 && <span className="bg-fgc-green/10 text-fgc-green text-[9px] font-black px-2 py-1 rounded-lg border border-fgc-green/20">OPTIM</span>}</div><div className="text-right"><p className="text-[10px] font-black text-blue-500 uppercase leading-none mb-1">Marge</p><p className="text-lg font-black text-fgc-grey dark:text-gray-200 leading-none">{cand.marginBefore + cand.marginAfter}m</p></div></div>
+                                  <div className="flex items-center justify-between mb-4"><div className="flex items-center gap-2"><span className={`${isReserve ? 'bg-fgc-green text-fgc-grey' : 'bg-fgc-grey dark:bg-black text-white'} text-[10px] font-black px-2.5 py-1 rounded-xl shadow-sm`}>{cand.shiftId}</span>{isReserve && <span className="bg-fgc-green/10 text-fgc-green text-[9px] font-black px-2 py-1 rounded-lg border border-fgc-green/20">RESERVA</span>}</div><div className="text-right"><p className="text-[10px] font-black text-blue-500 uppercase leading-none mb-1">Marge</p><p className="text-lg font-black text-fgc-grey dark:text-gray-200 leading-none">{cand.marginBefore + cand.marginAfter}m</p></div></div>
                                   <p className="text-base font-black text-fgc-grey dark:text-gray-200 uppercase truncate leading-tight mb-4">{cand.driver}</p>
                                   <div className="flex-1 space-y-3 mb-6">
                                      <div className={`p-3 rounded-2xl border transition-colors flex items-start gap-3 ${cand.logistics.needsTravelTo ? 'bg-orange-50/50 dark:bg-orange-900/10 border-orange-100 dark:border-orange-900/30' : 'bg-gray-50/50 dark:bg-black/20 border-gray-100 dark:border-white/5'}`}><div className={`p-1.5 rounded-lg shrink-0 ${cand.logistics.needsTravelTo ? 'bg-orange-500 text-white' : 'bg-fgc-green text-fgc-grey'}`}>{cand.logistics.needsTravelTo ? <Footprints size={14} /> : <CheckCircle2 size={14} />}</div><div className="min-w-0"><p className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-tighter">Accés al tren</p><p className="text-xs font-bold text-fgc-grey dark:text-gray-300 truncate">{cand.logistics.needsTravelTo ? `Viatger: ${cand.logistics.from} → ${item.circ.inici} (${cand.logistics.travelToOrigin} min)` : `Ja a ${item.circ.inici}`}</p></div></div>
