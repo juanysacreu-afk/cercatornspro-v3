@@ -220,67 +220,78 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
   }, [customTime, isRealTime, mode]);
 
   const fetchGeotrenData = async () => {
-    // Generem un timestamp per evitar cache del navegador i del proxy
     const t = Date.now();
     const targetUrl = `https://geotren.fgc.cat/geotren/trens.json?t=${t}`;
     
-    // Llista de proxies ordenada per fiabilitat (RAW mode preferit per evitar errors de parsing)
-    const proxies = [
-      `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
-      `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`,
-      `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
-      `https://api.cors.lol/?url=${encodeURIComponent(targetUrl)}`
+    // Llista de proxies millorada i prioritzada
+    const proxyConfigs = [
+      { 
+        url: `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`, 
+        type: 'direct' 
+      },
+      { 
+        url: `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}&t=${t}`, 
+        type: 'allorigins' 
+      },
+      { 
+        url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`, 
+        type: 'direct' 
+      },
+      { 
+        url: `https://thingproxy.freeboard.io/fetch/${targetUrl}`, 
+        type: 'direct' 
+      }
     ];
 
-    for (const url of proxies) {
+    for (const config of proxyConfigs) {
       try {
         const controller = new AbortController();
-        // Donem 10 segons de marge, alguns proxies són lents en la primera petició
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 segons de timeout
 
-        const response = await fetch(url, {
+        const response = await fetch(config.url, {
           signal: controller.signal,
           headers: {
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0'
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache'
           }
         });
 
         clearTimeout(timeoutId);
 
-        if (!response.ok) continue;
-
-        const text = await response.text();
-        let data;
-        try {
-          data = JSON.parse(text);
-        } catch (e) {
-          // Si no és JSON vàlid (ex: error HTML del proxy), passem al següent
+        if (!response.ok) {
+          console.warn(`Proxy ${config.type} va respondre amb status ${response.status}`);
           continue;
         }
 
-        // Cas especial: AllOrigins sense RAW retorna dins de 'contents'
-        if (data.contents) {
-            try {
-                const inner = typeof data.contents === 'string' ? JSON.parse(data.contents) : data.contents;
-                if (inner && Array.isArray(inner.trens)) return inner;
-            } catch (e) { /* ignore */ }
+        const rawData = await response.json();
+        let finalData = rawData;
+
+        // AllOrigins encapsula la resposta en un camp 'contents'
+        if (config.type === 'allorigins') {
+          if (!rawData.contents) continue;
+          try {
+            finalData = typeof rawData.contents === 'string' ? JSON.parse(rawData.contents) : rawData.contents;
+          } catch (e) {
+            console.warn("Error parsejant contingut AllOrigins");
+            continue;
+          }
         }
 
-        // Validació estructura GeoTren
-        if (data && Array.isArray(data.trens)) {
-          return data;
+        // Validació estricta de l'estructura de GeoTren
+        if (finalData && Array.isArray(finalData.trens)) {
+          return finalData;
+        } else {
+          console.warn(`Proxy ${config.type} va retornar dades sense el camp 'trens'`);
         }
       } catch (error) {
-        console.warn(`Proxy failed: ${url}`, error);
+        console.warn(`Proxy ${config.type} ha fallat:`, error);
       }
       
-      // Petita pausa abans del següent intent per no saturar xarxa
-      await new Promise(r => setTimeout(r, 500));
+      // Petita pausa per no saturar
+      await new Promise(r => setTimeout(r, 300));
     }
 
-    throw new Error("No s'ha pogut connectar amb GeoTren. Tots els proxies han fallat.");
+    throw new Error("No s'ha pogut establir connexió amb el servidor GeoTren d'FGC després de provar diversos nodes. Reintenta-ho en uns segons.");
   };
 
   const fetchLiveMapData = async () => {
@@ -308,11 +319,10 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
           }
         } catch (e: any) {
           console.error("GeoTren fetch failed:", e);
-          setGeotrenError(`Error de connexió: ${e.message || 'Desconegut'}. S'usen dades teòriques.`);
+          setGeotrenError(`Connexió fallida: ${e.message}. S'utilitzen dades teòriques.`);
         }
       }
 
-      // Canvi important: recuperem TOTES les circulacions sense filtrar per ID per evitar errors 414 URI Too Long de Supabase
       const { data: circDetails } = await supabase.from('circulations').select('*');
       
       if (!circDetails) {
@@ -320,10 +330,8 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
           return;
       }
 
-      // Optimització: Map per accés ràpid
       const circDetailsMap = new Map<string, any>(circDetails.map((c: any) => [c.id, c]));
 
-      // Recorrem els torns per trobar les circulacions actives
       allShifts.forEach(shift => {
         (shift.circulations as any[]).forEach(cRef => {
            const codi = typeof cRef === 'string' ? cRef : cRef.codi;
@@ -359,7 +367,6 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
                   x, y, isRealTime: true
                 });
            } else {
-               // Theoretical Calculation
                const startMin = getFgcMinutes(circ.sortida);
                const endMin = getFgcMinutes(circ.arribada);
                
