@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Train, ArrowRight, Save, Loader2, Trash2, X, Hash, Filter, Link as LinkIcon, CheckCircle2, List, LayoutGrid, Info, Wrench, AlertTriangle } from 'lucide-react';
+import { Train, ArrowRight, Save, Loader2, Trash2, X, Hash, Filter, Link as LinkIcon, CheckCircle2, List, LayoutGrid, Info, Wrench, AlertTriangle, Camera, FileText, Brush } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
 import { Assignment } from '../types.ts';
 
@@ -16,7 +15,13 @@ const CiclesView: React.FC = () => {
   const [newCycleId, setNewCycleId] = useState('');
   const [newTrainId, setNewTrainId] = useState('');
   const [assignments, setAssignments] = useState<Assignment[]>([]);
+  
+  // Estats de manteniment de la flota
   const [brokenTrains, setBrokenTrains] = useState<Set<string>>(new Set());
+  const [imageTrains, setImageTrains] = useState<Set<string>>(new Set());
+  const [recordTrains, setRecordTrains] = useState<Set<string>>(new Set());
+  const [cleaningTrains, setCleaningTrains] = useState<Set<string>>(new Set());
+  
   const [availableShiftsCycles, setAvailableShiftsCycles] = useState<string[]>([]);
   const [showCycleSuggestions, setShowCycleSuggestions] = useState(false);
   const [showTrainSuggestions, setShowTrainSuggestions] = useState(false);
@@ -49,12 +54,27 @@ const CiclesView: React.FC = () => {
     try {
       const [assigData, statusData] = await Promise.all([
         supabase.from('assignments').select('*').order('created_at', { ascending: false }),
-        supabase.from('train_status').select('train_number').eq('is_broken', true)
+        supabase.from('train_status').select('*')
       ]);
       
       if (assigData.data) setAssignments(assigData.data);
       if (statusData.data) {
-        setBrokenTrains(new Set(statusData.data.map(s => s.train_number)));
+        const broken = new Set<string>();
+        const images = new Set<string>();
+        const records = new Set<string>();
+        const cleaning = new Set<string>();
+
+        statusData.data.forEach((s: any) => {
+          if (s.is_broken) broken.add(s.train_number);
+          if (s.needs_images) images.add(s.train_number);
+          if (s.needs_records) records.add(s.train_number);
+          if (s.needs_cleaning) cleaning.add(s.train_number);
+        });
+
+        setBrokenTrains(broken);
+        setImageTrains(images);
+        setRecordTrains(records);
+        setCleaningTrains(cleaning);
       }
     } catch (e) {
       console.error("Error carregant dades de flota:", e);
@@ -117,27 +137,49 @@ const CiclesView: React.FC = () => {
     if (!error) await fetchAllData();
   };
 
-  const handleToggleBroken = async (trainNum: string, currentStatus: boolean) => {
+  const handleToggleStatus = async (trainNum: string, field: 'is_broken' | 'needs_images' | 'needs_records' | 'needs_cleaning', currentStatus: boolean) => {
     const newStatus = !currentStatus;
     
-    const newBroken = new Set(brokenTrains);
-    if (newStatus) newBroken.add(trainNum);
-    else newBroken.delete(trainNum);
-    setBrokenTrains(newBroken);
+    // Actualització optimista de la UI per mantenir la fluïdesa
+    if (field === 'is_broken') {
+      const next = new Set(brokenTrains);
+      if (newStatus) next.add(trainNum); else next.delete(trainNum);
+      setBrokenTrains(next);
+    } else if (field === 'needs_images') {
+      const next = new Set(imageTrains);
+      if (newStatus) next.add(trainNum); else next.delete(trainNum);
+      setImageTrains(next);
+    } else if (field === 'needs_records') {
+      const next = new Set(recordTrains);
+      if (newStatus) next.add(trainNum); else next.delete(trainNum);
+      setRecordTrains(next);
+    } else if (field === 'needs_cleaning') {
+      const next = new Set(cleaningTrains);
+      if (newStatus) next.add(trainNum); else next.delete(trainNum);
+      setCleaningTrains(next);
+    }
 
     try {
       const { error } = await supabase
         .from('train_status')
         .upsert({ 
           train_number: trainNum, 
-          is_broken: newStatus,
+          [field]: newStatus,
           updated_at: new Date().toISOString()
-        });
+        }, { onConflict: 'train_number' });
       
-      if (error) throw error;
-    } catch (e) {
-      console.error("Error actualitzant estat d'avaria:", e);
-      fetchAllData();
+      if (error) {
+        // Detectem si l'error és per columna inexistent (codi Postgres 42703)
+        if (error.code === '42703') {
+          alert(`ERROR DE BASE DE DADES:\nLa columna '${field}' no existeix a la taula 'train_status'.\n\nSi us plau, executa el SQL d'actualització al panell de Supabase.`);
+        } else {
+          alert(`Error al guardar: ${error.message || 'Error desconegut'}`);
+        }
+        throw error;
+      }
+    } catch (e: any) {
+      console.error(`Error detallat actualitzant ${field}:`, e.message || e);
+      fetchAllData(); // Re-sincronitzem per revertir el canvi optimista si ha fallat
     }
   };
 
@@ -165,7 +207,7 @@ const CiclesView: React.FC = () => {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-3xl font-black text-fgc-grey dark:text-white tracking-tight">Gestió de Cicles</h1>
+        <h1 className="text-3xl font-black text-fgc-grey dark:text-white tracking-tight uppercase">Gestió de Cicles</h1>
         <p className="text-gray-500 dark:text-gray-400 font-medium">Assignació d'unitats de tren i control d'estat de la flota.</p>
       </header>
 
@@ -394,69 +436,111 @@ const CiclesView: React.FC = () => {
             </div>
 
             <div className="p-8">
-              <div className="flex flex-wrap items-center gap-6 mb-8 px-2">
+              <div className="flex flex-wrap items-center gap-4 sm:gap-6 mb-8 px-2">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 bg-fgc-green rounded-full shadow-sm shadow-fgc-green/40" />
                   <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Disponible</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-gray-300 dark:bg-gray-700 rounded-full" />
-                  <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">En Servei</span>
-                </div>
-                <div className="flex items-center gap-2">
                   <div className="w-3 h-3 bg-red-500 rounded-full shadow-sm shadow-red-500/40" />
                   <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Avariat</span>
                 </div>
-                <div className="ml-auto flex items-center gap-1.5 text-blue-500 dark:text-blue-400">
-                  <Info size={14} />
-                  <span className="text-[10px] font-black uppercase tracking-tighter">Clica la clau per marcar avaria</span>
+                <div className="flex items-center gap-2">
+                  <Camera size={14} className="text-blue-500" />
+                  <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Imatges</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <FileText size={14} className="text-yellow-500" />
+                  <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Registres</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Brush size={14} className="text-orange-500" />
+                  <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Limpieza</span>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4">
                 {getTrainsBySerie(
                   activeFleetSerie, 
                   FLEET_CONFIG.find(c => c.serie === activeFleetSerie)?.count || 0
                 ).map(trainNum => {
                   const isOccupied = assignedTrainNumbers.has(trainNum);
                   const isBroken = brokenTrains.has(trainNum);
+                  const needsImages = imageTrains.has(trainNum);
+                  const needsRecords = recordTrains.has(trainNum);
+                  const needsCleaning = cleaningTrains.has(trainNum);
                   
                   return (
                     <div key={trainNum} className="relative group">
-                      <button
-                        disabled={isOccupied || isBroken}
-                        onClick={() => {
-                          setNewTrainId(trainNum);
-                          setShowTrainSuggestions(false);
-                        }}
-                        className={`w-full p-4 rounded-2xl border transition-all text-center flex flex-col items-center gap-1.5 ${
+                      <div
+                        className={`w-full p-4 pb-6 rounded-[24px] border transition-all text-center flex flex-col items-center gap-1.5 relative overflow-hidden ${
                           isBroken
                             ? 'bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900 ring-1 ring-red-100 dark:ring-red-900/50'
                             : isOccupied 
-                              ? 'bg-gray-50 dark:bg-black/20 text-gray-300 dark:text-gray-700 border-gray-100 dark:border-white/5 opacity-60 cursor-not-allowed' 
-                              : 'bg-white dark:bg-gray-800 text-fgc-grey dark:text-gray-300 border-gray-100 dark:border-white/5 hover:border-fgc-green hover:shadow-xl hover:scale-105 active:scale-95'
+                              ? 'bg-gray-50 dark:bg-black/20 text-gray-400 dark:text-gray-500 border-gray-100 dark:border-white/5 opacity-80' 
+                              : 'bg-white dark:bg-gray-800 text-fgc-grey dark:text-gray-300 border-gray-100 dark:border-white/5 hover:border-fgc-green hover:shadow-xl hover:scale-105 transition-transform'
                         }`}
                       >
-                        {isBroken ? <AlertTriangle size={20} className="text-red-500" /> : <Train size={20} className={isOccupied ? 'text-gray-200 dark:text-gray-700' : 'text-fgc-green'} />}
+                        {isBroken ? <AlertTriangle size={20} className="text-red-500" /> : <Train size={20} className={isOccupied ? 'text-gray-300 dark:text-gray-600' : 'text-fgc-green'} />}
                         <span className="text-base font-black tracking-tight">{trainNum}</span>
-                        {!isOccupied && !isBroken && <div className="h-1.5 w-8 bg-fgc-green rounded-full mt-1" />}
-                        {isOccupied && <span className="text-[8px] font-black uppercase opacity-60 dark:opacity-40">{assignments.find(a => a.train_number === trainNum)?.cycle_id}</span>}
-                        {isBroken && <span className="text-[8px] font-black uppercase text-red-400">FORA DE SERVEI</span>}
-                      </button>
+                        
+                        {/* Indicadors actius */}
+                        <div className="flex gap-1.5 mt-1">
+                           {needsImages && <Camera size={12} className="text-blue-500 fill-blue-500/10" />}
+                           {needsRecords && <FileText size={12} className="text-yellow-500 fill-yellow-500/10" />}
+                           {needsCleaning && <Brush size={12} className="text-orange-500 fill-orange-500/10" />}
+                        </div>
 
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleToggleBroken(trainNum, isBroken);
-                        }}
-                        className={`absolute -top-2 -right-2 w-8 h-8 rounded-full flex items-center justify-center shadow-lg border-2 transition-all z-20 ${
-                          isBroken 
-                            ? 'bg-red-600 text-white border-white dark:border-gray-800 scale-110' 
-                            : 'bg-white dark:bg-gray-700 text-gray-400 dark:text-gray-400 border-gray-100 dark:border-white/10 opacity-0 group-hover:opacity-100 hover:text-red-500 hover:border-red-500 hover:scale-110'
-                        }`}
-                      >
-                        <Wrench size={14} />
-                      </button>
+                        {isOccupied && <span className="text-[8px] font-black uppercase opacity-40 dark:opacity-30 mt-1">{assignments.find(a => a.train_number === trainNum)?.cycle_id}</span>}
+                        {isBroken && <span className="text-[8px] font-black uppercase text-red-400 mt-1">FORA DE SERVEI</span>}
+                      </div>
+
+                      {/* Controls de manteniment (flotants en hover) */}
+                      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-all pointer-events-none z-30 group-hover:pointer-events-auto">
+                        {/* Avaria (Red) - Top Right */}
+                        <button
+                          onClick={() => handleToggleStatus(trainNum, 'is_broken', isBroken)}
+                          className={`pointer-events-auto absolute -top-1.5 -right-1.5 w-7 h-7 rounded-full flex items-center justify-center shadow-lg border-2 transition-all ${
+                            isBroken ? 'bg-red-600 text-white border-white dark:border-gray-800' : 'bg-white dark:bg-gray-700 text-gray-300 hover:text-red-500 hover:border-red-500 border-gray-100 dark:border-white/10'
+                          }`}
+                          title="Marcar Avaria"
+                        >
+                          <Wrench size={12} />
+                        </button>
+
+                        {/* Imatges (Blue) - Top Left */}
+                        <button
+                          onClick={() => handleToggleStatus(trainNum, 'needs_images', needsImages)}
+                          className={`pointer-events-auto absolute -top-1.5 -left-1.5 w-7 h-7 rounded-full flex items-center justify-center shadow-lg border-2 transition-all ${
+                            needsImages ? 'bg-blue-600 text-white border-white dark:border-gray-800' : 'bg-white dark:bg-gray-700 text-gray-300 hover:text-blue-500 hover:border-blue-500 border-gray-100 dark:border-white/10'
+                          }`}
+                          title="Extraure Imatges"
+                        >
+                          <Camera size={12} />
+                        </button>
+
+                        {/* Registres (Yellow) - Bottom Left */}
+                        <button
+                          onClick={() => handleToggleStatus(trainNum, 'needs_records', needsRecords)}
+                          className={`pointer-events-auto absolute -bottom-1.5 -left-1.5 w-7 h-7 rounded-full flex items-center justify-center shadow-lg border-2 transition-all ${
+                            needsRecords ? 'bg-yellow-500 text-white border-white dark:border-gray-800' : 'bg-white dark:bg-gray-700 text-gray-300 hover:text-yellow-500 hover:border-yellow-500 border-gray-100 dark:border-white/10'
+                          }`}
+                          title="Extraure Registres"
+                        >
+                          <FileText size={12} />
+                        </button>
+
+                        {/* Limpieza (Orange) - Bottom Right */}
+                        <button
+                          onClick={() => handleToggleStatus(trainNum, 'needs_cleaning', needsCleaning)}
+                          className={`pointer-events-auto absolute -bottom-1.5 -right-1.5 w-7 h-7 rounded-full flex items-center justify-center shadow-lg border-2 transition-all ${
+                            needsCleaning ? 'bg-orange-500 text-white border-white dark:border-gray-800' : 'bg-white dark:bg-gray-700 text-gray-300 hover:text-orange-500 hover:border-orange-500 border-gray-100 dark:border-white/10'
+                          }`}
+                          title="Limpieza"
+                        >
+                          <Brush size={12} />
+                        </button>
+                      </div>
                     </div>
                   );
                 })}

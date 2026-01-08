@@ -118,7 +118,6 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
     setUncoveredShiftId(val.toUpperCase());
     if (val.length >= 1) {
       let q = supabase.from('shifts').select('id').ilike('id', `%${val}%`);
-      if (selectedServei !== 'Tots') q = q.eq('servei', selectedServei);
       const { data } = await q.limit(5);
       if (data) setSuggestions(data.map(x => x.id as string));
       setShowSuggestions(true);
@@ -179,10 +178,12 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
       }
       setUncoveredShift(target);
 
+      // Usar ilike per trobar el servei independentment de si posa "400" o "S-400" o "BV 400"
+      const currentServiceStr = selectedServei === 'Tots' ? (target.servei || '') : selectedServei;
+      
       let shiftsQuery = supabase.from('shifts').select('*').neq('id', uncoveredShiftId);
-      const targetService = selectedServei === 'Tots' ? target.servei : selectedServei;
-      if (targetService) {
-        shiftsQuery = shiftsQuery.eq('servei', targetService);
+      if (currentServiceStr && currentServiceStr !== 'Tots') {
+        shiftsQuery = shiftsQuery.ilike('servei', `%${currentServiceStr}%`);
       }
 
       const { data: otherShiftsRaw } = await shiftsQuery;
@@ -217,7 +218,7 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
           const sFinalTorn = getFgcMinutes(s.final_torn);
           if (sIniciTorn > cStart || sFinalTorn < cEnd) continue;
 
-          const sCircsEnriched = (s.circulations as any[]).map((ref: any) => {
+          const sCircsEnriched = (s.circulations as any[] || []).map((ref: any) => {
             const codi = typeof ref === 'string' ? ref : ref.codi;
             const det = allCircDetails?.find(d => d.id === codi);
             return { ...det, ...ref, codi };
@@ -241,7 +242,7 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
               gaps.push({ start: currentPos, end: sFinalTorn, fromLoc: currentLoc, toLoc: s.dependencia || currentLoc });
           }
 
-          const matchingGap = gaps.find(g => g.start <= cStart && g.end >= cEnd);
+          const matchingGap = gaps.find(g => g.start <= (cStart + 1) && g.end >= (cEnd - 1));
           if (matchingGap) {
             const timeToReachOrigin = getTravelTime(matchingGap.fromLoc, cInici);
             const arrivalAtOrigin = matchingGap.start + timeToReachOrigin;
@@ -291,7 +292,7 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const targetService = uncoveredShift?.servei || selectedServei;
-      const { data: allShiftsRaw } = await supabase.from('shifts').select('id, inici_torn, final_torn, duracio, dependencia').eq('servei', targetService);
+      const { data: allShiftsRaw } = await supabase.from('shifts').select('id, inici_torn, final_torn, duracio, dependencia').ilike('servei', `%${targetService}%`);
       const filteredForAi = allShiftsRaw?.filter(s => s.id !== uncoveredShiftId && !disabledReserves.has(s.id)) || [];
       const otherShortIds = filteredForAi.map(s => getShortTornId(s.id));
       const { data: allDaily } = await supabase.from('daily_assignments').select('torn, nom, cognoms').in('torn', otherShortIds);
@@ -523,7 +524,7 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
                 <div className="py-24 flex flex-col items-center justify-center gap-8">
                   <div className="relative">
                     <Loader2 className="text-fgc-green animate-spin" size={64} />
-                    <Sparkles className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-blue-500 animate-pulse" size={24} />
+                    <ParallelSparkles />
                   </div>
                   <div className="text-center space-y-2">
                     <p className="text-lg font-black text-fgc-grey dark:text-white uppercase tracking-widest">Calculant cadenes d'intercanvi...</p>
@@ -624,5 +625,9 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
     </div>
   );
 };
+
+const ParallelSparkles = () => (
+  <Sparkles className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-blue-500 animate-pulse" size={24} />
+);
 
 export default IncidenciaPerTorn;

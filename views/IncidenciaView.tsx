@@ -50,85 +50,57 @@ const PATHS = {
 };
 
 const resolveStationId = (name: string, linia: string = '') => {
-    const n = (name || '').toUpperCase().trim();
-    const l = (linia || '').toUpperCase().trim();
+    // Normalització: Majúscules, sense accents i trim
+    const n = (name || '').toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
     
+    // Mapeig específic i variants comunes
     if (n.includes('CATALUNYA') || n === 'PC') return 'PC';
     if (n.includes('PROVEN') || n === 'PR') return 'PR';
-    if (n.includes('GRACIA') || n.includes('GRÀCIA') || n === 'GR') return 'GR';
+    if (n.includes('GRACIA') || n === 'GR') return 'GR';
     if (n.includes('GERVASI') || n === 'SG') return 'SG';
     if (n.includes('MUNTANER') || n === 'MN') return 'MN';
     if (n.includes('BONANOVA') || n === 'BN') return 'BN';
     if (n.includes('TRES TORRES') || n === 'TT') return 'TT';
-    if (n.includes('SARRIA') || n.includes('SARRIÀ') || n === 'SR') return 'SR';
+    if (n.includes('SARRIA') || n === 'SR') return 'SR';
     if (n.includes('ELISENDA') || n === 'RE') return 'RE';
-    if (n.includes('AV. TIBIDABO') || n.includes('TIBIDABO') || n === 'TB') return 'TB';
-    if (n.includes('ST. CUGAT') || n.includes('SANT CUGAT') || n === 'SC') return 'SC';
-    if (n.includes('RUBI') || n.includes('RUBÍ') || n === 'RB') return 'RB';
-    if (n.includes('TERRASSA RAMBLA') || n.includes('T.RAMBLA') || n === 'TR') return 'TR';
-    if (n.includes('NACIÓ') || n.includes('NACIONS') || n.includes('UNIDES') || n.includes('T.NACIONS') || n === 'NA') return 'NA';
-    if (n.includes('SABADELL NORD') || n === 'NO') return 'NO';
-    if (n.includes('PARC DEL NORD') || n === 'PN') return 'PN';
-    if (n.includes('LES FONTS') || n === 'FN') return 'FN';
-    if (n.includes('LA FLORESTA') || n === 'LF') return 'LF';
-    if (n.includes('VALLDOREIX') || n === 'VD') return 'VD';
-    if (n.includes('PLANES') || n === 'LP') return 'LP';
-    if (n.includes('PEU DEL FUN') || n === 'PF') return 'PF';
-    if (n.includes('BAIXADOR') || n === 'VL') return 'VL';
-    if (n.includes('SANT JOAN') || n === 'SJ') return 'SJ';
-    if (n.includes('BELLATERRA') || n === 'BT') return 'BT';
-    if (n.includes('AUTÒNOMA') || n === 'UN') return 'UN';
-    if (n.includes('SANT QUIRZE') || n === 'SQ') return 'SQ';
-    if (n.includes('MIRA-SOL') || n === 'MS') return 'MS';
-    if (n.includes('HOSP. GENERAL') || n === 'HG') return 'HG';
-    if (n.includes('VALLPARADÍS') || n === 'VP') return 'VP';
-    if (n.includes('ESTACIÓ DEL NORD') || n === 'EN') return 'EN';
+    if (n.includes('TIBIDABO') || n === 'TB') return 'TB';
+    if (n.includes('CUGAT') || n === 'SC') return 'SC'; // Sant Cugat
+    
+    // Branca S1 (Terrassa) i HUB Mercaderies
+    if (n.includes('RUBI') || n.includes('TALLER') || n.includes('COTXERA') || n.includes('MERCADERIES') || n.includes('RAMAL') || n.includes('APARTADOR') || n === 'RB') return 'RB'; 
+    if (n.includes('RAMBLA') || n === 'TR') return 'TR'; 
+    if (n.includes('NACIO') || n.includes('UNIDES') || n === 'NA') return 'NA'; 
+    if (n.includes('FONTS') || n === 'FN') return 'FN';
+    if (n.includes('HOSP') || n.includes('GENERAL') || n === 'HG') return 'HG';
+    if (n.includes('MIRA') || n === 'MS') return 'MS';
+    if (n.includes('VALLPARADIS') || n === 'VP') return 'VP';
+    if (n.includes('NORD') && n.includes('ESTACIO') || n === 'EN') return 'EN';
+
+    // Branca S2 (Sabadell)
     if (n.includes('VOLPALLERES') || n === 'VO') return 'VO';
-    if (n.includes('CAN FEU') || n === 'CF') return 'CF';
-    if (n.includes('PL. MAJOR') || n === 'PJ') return 'PJ';
-    if (n.includes('LA CREU ALTA') || n === 'CT') return 'CT';
-    if (n.includes('PL. MOLINA') || n === 'PM') return 'PM';
-    if (n.includes('PÀDUA') || n === 'PD') return 'PD';
+    if (n.includes('JOAN') || n === 'SJ') return 'SJ'; 
+    if (n.includes('BELLATERRA') || n === 'BT') return 'BT';
+    if (n.includes('AUTONOMA') || n.includes('UAB') || n.includes('UNIVERSITAT') || n === 'UN') return 'UN';
+    if (n.includes('QUIRZE') || n === 'SQ') return 'SQ';
+    if (n.includes('FEU') || n === 'CF') return 'CF'; 
+    if (n.includes('MAJOR') || n === 'PJ') return 'PJ'; 
+    if (n.includes('CREU') || n === 'CT') return 'CT'; 
+    if (n.includes('SABADELL NORD') || n === 'NO') return 'NO';
+    if (n.includes('PARC') || n === 'PN') return 'PN'; 
+
+    // Branca Tibidabo/Elisenda
+    if (n.includes('MOLINA') || n === 'PM') return 'PM';
+    if (n.includes('PADUA') || n === 'PD') return 'PD';
     if (n.includes('PUTXET') || n === 'EP') return 'EP';
     
-    return n.length > 2 ? n.substring(0, 2) : n;
-};
+    // Altres/Tronc
+    if (n.includes('FLORESTA') || n === 'LF') return 'LF';
+    if (n.includes('VALLDOREIX') || n === 'VD') return 'VD';
+    if (n.includes('PLANES') || n === 'LP') return 'LP';
+    if (n.includes('PEU') || n === 'PF') return 'PF';
+    if (n.includes('BAIXADOR') || n === 'VL') return 'VL';
 
-const getFullPath = (start: string, end: string): string[] => {
-  if (start === end) return [start];
-  const findPathInfo = (node: string, preferredKey?: string) => {
-    if (preferredKey && PATHS[preferredKey as keyof typeof PATHS].includes(node)) {
-      const p = PATHS[preferredKey as keyof typeof PATHS];
-      return { key: preferredKey, idx: p.indexOf(node), path: p };
-    }
-    for (const [key, p] of Object.entries(PATHS)) {
-      const idx = p.indexOf(node);
-      if (idx !== -1) return { key, idx, path: p };
-    }
-    return null;
-  };
-  const p1raw = findPathInfo(start);
-  const p2raw = findPathInfo(end);
-  if (!p1raw || !p2raw) return [start, end];
-  const p1 = findPathInfo(start, p2raw.key) || p1raw;
-  const p2 = findPathInfo(end, p1.key) || p2raw;
-  if (p1.key === p2.key) {
-    const isForward = p1.idx < p2.idx;
-    const slice = p1.path.slice(Math.min(p1.idx, p2.idx), Math.max(p1.idx, p2.idx) + 1);
-    return isForward ? slice : [...slice].reverse();
-  }
-  const junctions: Record<string, string> = { L7: 'GR', L6: 'SR', S1: 'SC', S2: 'SC', TRUNK: '' };
-  if (p1.key === 'TRUNK') {
-    const junction = junctions[p2.key];
-    return [...getFullPath(start, junction), ...getFullPath(junction, end).slice(1)];
-  }
-  if (p2.key === 'TRUNK') {
-    const junction = junctions[p1.key];
-    return [...getFullPath(start, junction), ...getFullPath(junction, end).slice(1)];
-  }
-  const junction1 = junctions[p1.key];
-  const junction2 = junctions[p2.key];
-  return [...getFullPath(start, junction1), ...getFullPath(junction1, junction2).slice(1), ...getFullPath(junction2, end).slice(1)];
+    return n.length > 2 ? n.substring(0, 2) : n;
 };
 
 const MAP_STATIONS = [
@@ -136,8 +108,37 @@ const MAP_STATIONS = [
 ];
 
 const MAP_SEGMENTS = [
-  { from: 'PC', to: 'PR' }, { from: 'PR', to: 'GR' }, { from: 'GR', to: 'SG' }, { from: 'SG', to: 'MN' }, { from: 'MN', to: 'BN' }, { from: 'BN', to: 'TT' }, { from: 'TT', to: 'SR' }, { from: 'SR', to: 'PF' }, { from: 'PF', to: 'VL' }, { from: 'VL', to: 'LP' }, { from: 'LP', to: 'LF' }, { from: 'LF', to: 'VD' }, { from: 'VD', to: 'SC' }, { from: 'GR', to: 'PM' }, { from: 'PM', to: 'PD' }, { from: 'PD', to: 'EP' }, { from: 'EP', to: 'TB' }, { from: 'SR', to: 'RE' }, { from: 'SC', to: 'MS' }, { from: 'MS', to: 'HG' }, { from: 'HG', to: 'RB' }, { from: 'RB', to: 'FN' }, { from: 'FN', to: 'TR' }, { from: 'TR', to: 'VP' }, { from: 'VP', to: 'EN' }, { from: 'EN', to: 'NA' }, { from: 'SC', to: 'VO' }, { from: 'VO', to: 'SJ' }, { from: 'SJ', to: 'BT' }, { from: 'BT', to: 'UN' }, { from: 'UN', to: 'SQ' }, { from: 'SQ', to: 'CF' }, { from: 'CF', to: 'PJ' }, { from: 'PJ', to: 'CT' }, { from: 'CT', to: 'NO' }, { from: 'NO', to: 'PN' },
+  { from: 'PC', to: 'PR' }, { from: 'PR', to: 'GR' }, { from: 'GR', to: 'SG' }, { from: 'SG', to: 'MN' }, { from: 'MN', to: 'BN' }, { from: 'BN', to: 'TT' }, { from: 'TT', to: 'SR' }, { from: 'SR', to: 'PF' }, { from: 'PF', to: 'VL' }, { from: 'VL', to: 'LP' }, { from: 'LP', to: 'LF' }, { from: 'LF', to: 'VD' }, { from: 'VD', to: 'SC' }, { from: 'GR', to: 'PM' }, { from: 'PM', to: 'PD' }, { from: 'PM', to: 'PD' }, { from: 'PD', to: 'EP' }, { from: 'EP', to: 'TB' }, { from: 'SR', to: 'RE' }, { from: 'SC', to: 'MS' }, { from: 'MS', to: 'HG' }, { from: 'HG', to: 'RB' }, { from: 'RB', to: 'FN' }, { from: 'FN', to: 'TR' }, { from: 'TR', to: 'VP' }, { from: 'VP', to: 'EN' }, { from: 'EN', to: 'NA' }, { from: 'SC', to: 'VO' }, { from: 'VO', to: 'SJ' }, { from: 'SJ', to: 'BT' }, { from: 'BT', to: 'UN' }, { from: 'UN', to: 'SQ' }, { from: 'SQ', to: 'CF' }, { from: 'CF', to: 'PJ' }, { from: 'PJ', to: 'CT' }, { from: 'CT', to: 'NO' }, { from: 'NO', to: 'PN' },
 ];
+
+const getFullPath = (start: string, end: string): string[] => {
+  if (start === end) return [start];
+  
+  const graph: Record<string, string[]> = {};
+  MAP_SEGMENTS.forEach(seg => {
+    if (!graph[seg.from]) graph[seg.from] = [];
+    if (!graph[seg.to]) graph[seg.to] = [];
+    if (!graph[seg.from].includes(seg.to)) graph[seg.from].push(seg.to);
+    if (!graph[seg.to].includes(seg.from)) graph[seg.to].push(seg.from);
+  });
+
+  const queue: { node: string, path: string[] }[] = [{ node: start, path: [start] }];
+  const visited = new Set<string>([start]);
+
+  while (queue.length > 0) {
+    const { node, path } = queue.shift()!;
+    if (node === end) return path;
+
+    const neighbors = graph[node] || [];
+    for (const neighbor of neighbors) {
+      if (!visited.has(neighbor)) {
+        visited.add(neighbor);
+        queue.push({ node: neighbor, path: [...path, neighbor] });
+      }
+    }
+  }
+  return [start];
+};
 
 const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
   const [mode, setMode] = useState<IncidenciaMode>('INIT');
@@ -169,9 +170,12 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
 
   const serveiTypes = ['0', '100', '400', '500'];
 
-  function getFgcMinutes(timeStr: string) {
-    if (!timeStr || !timeStr.includes(':')) return 0;
-    const [h, m] = timeStr.split(':').map(Number);
+  function getFgcMinutes(timeStr: string | undefined): number | null {
+    if (!timeStr || typeof timeStr !== 'string' || !timeStr.includes(':')) return null;
+    const parts = timeStr.split(':');
+    const h = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10);
+    if (isNaN(h) || isNaN(m)) return null;
     let total = h * 60 + m;
     if (h < 4) total += 24 * 60;
     return total;
@@ -187,6 +191,8 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
 
   const getLiniaColorHex = (linia: string) => {
     const l = linia?.toUpperCase().trim() || '';
+    // Les circulacions F es consideren de Sabadell (Verd) segons requeriment
+    if (l.startsWith('F')) return '#22c55e'; 
     if (l === 'L7' || l === '300') return '#8B4513';
     if (l === 'L6' || l === '100') return '#9333ea';
     if (l === 'L12') return '#d8b4fe';
@@ -201,7 +207,8 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
         const now = new Date();
         const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
         setCustomTime(timeStr);
-        setDisplayMin(getFgcMinutes(timeStr));
+        const m = getFgcMinutes(timeStr);
+        if (m !== null) setDisplayMin(m);
       };
       updateTime();
       const interval = setInterval(updateTime, 30000); 
@@ -211,87 +218,63 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
 
   useEffect(() => {
     if (customTime) {
-      setDisplayMin(getFgcMinutes(customTime));
+      const m = getFgcMinutes(customTime);
+      if (m !== null) setDisplayMin(m);
     } else if (isRealTime) {
       const now = new Date();
       const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-      setDisplayMin(getFgcMinutes(timeStr));
+      const m = getFgcMinutes(timeStr);
+      if (m !== null) setDisplayMin(m);
     }
   }, [customTime, isRealTime, mode]);
 
-  const fetchGeotrenData = async () => {
+  const fetchGeotrenData = async (retries = 3): Promise<any> => {
     const t = Date.now();
     const targetUrl = `https://geotren.fgc.cat/geotren/trens.json?t=${t}`;
     
-    // Llista de proxies millorada i prioritzada
-    const proxyConfigs = [
-      { 
-        url: `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`, 
-        type: 'direct' 
-      },
-      { 
-        url: `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}&t=${t}`, 
-        type: 'allorigins' 
-      },
-      { 
-        url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`, 
-        type: 'direct' 
-      },
-      { 
-        url: `https://thingproxy.freeboard.io/fetch/${targetUrl}`, 
-        type: 'direct' 
-      }
+    const proxies = [
+      `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`,
+      `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
+      `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`
     ];
 
-    for (const config of proxyConfigs) {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 segons de timeout
-
-        const response = await fetch(config.url, {
-          signal: controller.signal,
-          headers: {
-            'Accept': 'application/json',
-            'Cache-Control': 'no-cache'
+    for (let attempt = 0; attempt < retries; attempt++) {
+      for (const proxyUrl of proxies) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 8000);
+          
+          const response = await fetch(proxyUrl, { 
+            signal: controller.signal, 
+            cache: 'no-store',
+            headers: { 'Accept': 'application/json' } 
+          });
+          
+          clearTimeout(timeoutId);
+          
+          if (!response.ok) continue;
+          
+          let data = await response.json();
+          
+          if (data && data.contents) {
+             if (typeof data.contents === 'string') {
+               try {
+                 data = JSON.parse(data.contents);
+               } catch (e) {
+                 // ignore
+               }
+             }
           }
-        });
-
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-          console.warn(`Proxy ${config.type} va respondre amb status ${response.status}`);
-          continue;
+          
+          if (data && Array.isArray(data.trens)) return data;
+          
+        } catch (e) {
+          console.warn(`Intent fallit amb proxy ${proxyUrl}:`, e);
         }
-
-        const rawData = await response.json();
-        let finalData = rawData;
-
-        // AllOrigins encapsula la resposta en un camp 'contents'
-        if (config.type === 'allorigins') {
-          if (!rawData.contents) continue;
-          try {
-            finalData = typeof rawData.contents === 'string' ? JSON.parse(rawData.contents) : rawData.contents;
-          } catch (e) {
-            console.warn("Error parsejant contingut AllOrigins");
-            continue;
-          }
-        }
-
-        // Validació estricta de l'estructura de GeoTren
-        if (finalData && Array.isArray(finalData.trens)) {
-          return finalData;
-        } else {
-          console.warn(`Proxy ${config.type} va retornar dades sense el camp 'trens'`);
-        }
-      } catch (error) {
-        console.warn(`Proxy ${config.type} ha fallat:`, error);
       }
-      
-      // Petita pausa per no saturar
-      await new Promise(r => setTimeout(r, 300));
+      await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
     }
-
-    throw new Error("No s'ha pogut establir connexió amb el servidor GeoTren d'FGC després de provar diversos nodes. Reintenta-ho en uns segons.");
+    throw new Error("No s'ha pogut establir connexió amb el servidor GeoTren d'FGC.");
   };
 
   const fetchLiveMapData = async () => {
@@ -300,6 +283,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
     try {
       const { data: allShifts } = await supabase.from('shifts').select('*');
       if (!allShifts) return;
+      
       const { data: allDaily } = await supabase.from('daily_assignments').select('*');
       const { data: allPhones } = await supabase.from('phonebook').select('nomina, phones');
 
@@ -308,8 +292,11 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
         return acc;
       }, {} as Record<string, { x: number, y: number }>);
 
+      const VALID_STATION_IDS = new Set(MAP_STATIONS.map(s => s.id));
+
       const currentPersonnel: LivePersonnel[] = [];
       let geotrenTrains: any[] = [];
+      const processedKeys = new Set<string>();
 
       if (mapDataSource === 'GEOTREN') {
         try {
@@ -319,36 +306,81 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
           }
         } catch (e: any) {
           console.error("GeoTren fetch failed:", e);
-          setGeotrenError(`Connexió fallida: ${e.message}. S'utilitzen dades teòriques.`);
+          setGeotrenError(`S'utilitzen dades teòriques: ${e.message}`);
+          setMapDataSource('THEORETICAL');
         }
       }
 
-      const { data: circDetails } = await supabase.from('circulations').select('*');
-      
-      if (!circDetails) {
+      // Millora: Carregar TOTES les circulacions (paginació > 1000)
+      let circDetailsData: any[] = [];
+      const { count } = await supabase.from('circulations').select('*', { count: 'exact', head: true });
+      const totalCount = count || 0;
+      if (totalCount > 1000) {
+        for (let i = 0; i < totalCount; i += 1000) {
+          const { data } = await supabase.from('circulations').select('*').range(i, i + 999);
+          if (data) circDetailsData = [...circDetailsData, ...data];
+        }
+      } else {
+        const { data } = await supabase.from('circulations').select('*');
+        if (data) circDetailsData = data;
+      }
+
+      if (circDetailsData.length === 0) {
           setLoading(false);
           return;
       }
 
-      const circDetailsMap = new Map<string, any>(circDetails.map((c: any) => [c.id, c]));
+      const circDetailsMap = new Map<string, any>(circDetailsData.map((c: any) => [c.id.trim().toUpperCase(), c]));
 
       allShifts.forEach(shift => {
-        (shift.circulations as any[]).forEach(cRef => {
-           const codi = typeof cRef === 'string' ? cRef : cRef.codi;
-           if (!codi || codi === 'Viatger') return;
-           
-           const circ = circDetailsMap.get(codi);
-           if (!circ) return;
+        const shiftService = (shift.servei || '').toString();
+        
+        let isShiftVisible = false;
+        if (selectedServei === 'Tots') {
+            isShiftVisible = true;
+        } else {
+            if (shiftService.includes(selectedServei)) isShiftVisible = true;
+            if (selectedServei === '400' && (shiftService.includes('S1') || shiftService.includes('400'))) isShiftVisible = true;
+            if (selectedServei === '500' && (shiftService.includes('S2') || shiftService.includes('500'))) isShiftVisible = true;
+            if (selectedServei === '100' && (shiftService.includes('L6') || shiftService.includes('100'))) isShiftVisible = true;
+            if (selectedServei === '0' && (shiftService.includes('L12') || shiftService.includes('0'))) isShiftVisible = true;
+        }
 
-           const isTargetServei = selectedServei === 'Tots' || circ.linia.includes(selectedServei) || circ.linia === selectedServei;
-           if (!isTargetServei) return;
+        if (!isShiftVisible) return;
+
+        (shift.circulations as any[]).forEach(cRef => {
+           const rawCodi = (typeof cRef === 'string' ? cRef : cRef.codi);
+           const codi = rawCodi?.trim().toUpperCase() || '';
+           
+           if (!codi || codi === 'VIATGER') return;
+           if (processedKeys.has(codi)) return;
+
+           let circ = circDetailsMap.get(codi);
+
+           if (!circ && typeof cRef === 'object' && cRef.sortida && cRef.arribada) {
+              circ = {
+                  id: codi,
+                  linia: codi.startsWith('F') ? 'F' : (cRef.linia || 'S/L'),
+                  inici: cRef.inici || '?',
+                  final: cRef.final || '?',
+                  sortida: cRef.sortida,
+                  arribada: cRef.arribada,
+                  estacions: []
+              };
+           }
+
+           if (!circ) return;
 
            const gtTrain = geotrenTrains.find(gt => gt.id_circulacio === circ.id);
            const isRealTimeDataAvailable = !!gtTrain;
 
            if (isRealTimeDataAvailable) {
-                const stAnt = resolveStationId(gtTrain.estacio_anterior || '', circ.linia);
-                const stProx = resolveStationId(gtTrain.estacio_proxima || '', circ.linia);
+                let stAnt = resolveStationId(gtTrain.estacio_anterior || '', circ.linia);
+                let stProx = resolveStationId(gtTrain.estacio_proxima || '', circ.linia);
+                
+                if (!stationCoords[stAnt] && codi.startsWith('F')) stAnt = 'RB';
+                if (!stationCoords[stProx] && codi.startsWith('F')) stProx = 'RB';
+
                 const p1 = stationCoords[stAnt] || stationCoords['PC'];
                 const p2 = stationCoords[stProx] || stationCoords['PC'];
                 
@@ -361,25 +393,135 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
                 const driverPhones = allPhones?.find(p => p.nomina === assignment?.empleat_id)?.phones || [];
 
                 currentPersonnel.push({
-                  type: 'TRAIN', id: circ.id, linia: circ.linia, stationId: stAnt, color: getLiniaColorHex(circ.linia),
+                  type: 'TRAIN', id: circ.id, linia: circ.linia, stationId: stAnt, 
+                  color: getLiniaColorHex(codi.startsWith('F') ? 'F' : circ.linia),
                   driver: assignment ? `${assignment.cognoms}, ${assignment.nom}` : 'Sense assignar',
                   torn: shift?.id || '---', phones: driverPhones, inici: circ.inici, final: circ.final, horaPas: formatFgcTime(displayMin),
                   x, y, isRealTime: true
                 });
+                processedKeys.add(codi);
            } else {
-               const startMin = getFgcMinutes(circ.sortida);
-               const endMin = getFgcMinutes(circ.arribada);
-               
-               if (displayMin >= startMin && displayMin <= endMin) {
-                  const stopsWithTimes: { nom: string, min: number }[] = [
-                    { nom: resolveStationId(circ.inici, circ.linia), min: startMin },
-                    ...((circ.estacions as any[]) || []).map((st: any) => ({
-                      nom: resolveStationId(st.nom, circ.linia),
-                      min: getFgcMinutes(st.hora || st.arribada || st.sortida)
-                    })),
-                    { nom: resolveStationId(circ.final, circ.linia), min: endMin }
-                  ].sort((a, b) => a.min - b.min);
+               let startMin = getFgcMinutes(circ.sortida);
+               let endMin = getFgcMinutes(circ.arribada);
+               const estacions = (circ.estacions as any[]) || [];
 
+               if (startMin === null && estacions.length > 0) startMin = getFgcMinutes(estacions[0].hora || estacions[0].arribada || estacions[0].sortida);
+               if (endMin === null && estacions.length > 0) endMin = getFgcMinutes(estacions[estacions.length - 1].hora || estacions[estacions.length - 1].arribada || estacions[estacions.length - 1].sortida);
+               
+               if (startMin !== null && endMin !== null && displayMin >= startMin && displayMin <= endMin) {
+                  const validStops = estacions
+                    .map((st: any) => ({
+                      nom: resolveStationId(st.nom || st.id, circ.linia),
+                      min: getFgcMinutes(st.hora || st.arribada || st.sortida)
+                    }))
+                    .filter((s: any) => s.min !== null && s.nom !== null && VALID_STATION_IDS.has(s.nom));
+
+                  const startID = resolveStationId(circ.inici || (estacions[0]?.nom), circ.linia);
+                  const endID = resolveStationId(circ.final || (estacions[estacions.length-1]?.nom), circ.linia);
+
+                  const stopsWithTimes = [
+                    { nom: startID, min: startMin },
+                    ...validStops,
+                    { nom: endID, min: endMin }
+                  ]
+                  .filter(s => VALID_STATION_IDS.has(s.nom)) 
+                  .sort((a: any, b: any) => a.min - b.min);
+
+                  if (stopsWithTimes.length < 1) return;
+
+                  let x = 0, y = 0, currentStationId = stopsWithTimes[0].nom;
+
+                  if (stopsWithTimes.length === 1) {
+                     const p = stationCoords[currentStationId] || stationCoords['PC'];
+                     x = p.x; y = p.y;
+                  } else {
+                      const expandedStops: { nom: string, min: number }[] = [];
+                      for (let i = 0; i < stopsWithTimes.length - 1; i++) {
+                        const current = stopsWithTimes[i];
+                        const next = stopsWithTimes[i+1];
+                        const path = getFullPath(current.nom, next.nom);
+                        if (path.length > 1) {
+                          for (let j = 0; j < path.length - 1; j++) {
+                            const ratio = j / (path.length - 1);
+                            expandedStops.push({ nom: path[j], min: current.min + (next.min - current.min) * ratio });
+                          }
+                        } else expandedStops.push(current);
+                      }
+                      expandedStops.push(stopsWithTimes[stopsWithTimes.length - 1]);
+
+                      for (let i = 0; i < expandedStops.length - 1; i++) {
+                        const s1 = expandedStops[i];
+                        const s2 = expandedStops[i+1];
+                        if (displayMin >= s1.min && displayMin <= s2.min) {
+                          currentStationId = s1.nom;
+                          const p1 = stationCoords[s1.nom] || stationCoords['PC'];
+                          const p2 = stationCoords[s2.nom] || stationCoords['PC'];
+                          if (s1.min === s2.min) { x = p1.x; y = p1.y; } else {
+                            const progress = (displayMin - s1.min) / (s2.min - s1.min);
+                            x = p1.x + (p2.x - p1.x) * progress;
+                            y = p1.y + (p2.y - p1.y) * progress;
+                          }
+                          break;
+                        }
+                      }
+                  }
+
+                  const shortTorn = getShortTornId(shift.id);
+                  const assignment = allDaily?.find(d => d.torn === shortTorn);
+                  const driverPhones = allPhones?.find(p => p.nomina === assignment?.empleat_id)?.phones || [];
+
+                  currentPersonnel.push({
+                    type: 'TRAIN', id: circ.id, linia: circ.linia, stationId: currentStationId, 
+                    color: getLiniaColorHex(codi.startsWith('F') ? 'F' : circ.linia),
+                    driver: assignment ? `${assignment.cognoms}, ${assignment.nom}` : 'Sense assignar',
+                    torn: shift?.id || '---', phones: driverPhones, inici: circ.inici, final: circ.final, horaPas: formatFgcTime(displayMin),
+                    x, y, isRealTime: false
+                  });
+                  processedKeys.add(codi);
+               }
+           }
+        });
+      });
+
+      // BLOC EXTRA: Processar circulacions 'F' de la taula circulations (independentment de shifts)
+      circDetailsMap.forEach((circ) => {
+        const codi = circ.id.toUpperCase().trim();
+        if (!codi.startsWith('F') || processedKeys.has(codi)) return;
+
+        let startMin = getFgcMinutes(circ.sortida);
+        let endMin = getFgcMinutes(circ.arribada);
+        const estacions = (circ.estacions as any[]) || [];
+
+        if (startMin === null && estacions.length > 0) startMin = getFgcMinutes(estacions[0].hora || estacions[0].arribada || estacions[0].sortida);
+        if (endMin === null && estacions.length > 0) endMin = getFgcMinutes(estacions[estacions.length - 1].hora || estacions[estacions.length - 1].arribada || estacions[estacions.length - 1].sortida);
+
+        if (startMin !== null && endMin !== null && displayMin >= startMin && displayMin <= endMin) {
+             const validStops = estacions
+                .map((st: any) => ({
+                  nom: resolveStationId(st.nom || st.id, 'F'),
+                  min: getFgcMinutes(st.hora || st.arribada || st.sortida)
+                }))
+                .filter((s: any) => s.min !== null && s.nom !== null && VALID_STATION_IDS.has(s.nom));
+
+             const startID = resolveStationId(circ.inici || (estacions[0]?.nom), 'F');
+             const endID = resolveStationId(circ.final || (estacions[estacions.length-1]?.nom), 'F');
+
+             const stopsWithTimes = [
+                { nom: startID, min: startMin },
+                ...validStops,
+                { nom: endID, min: endMin }
+             ]
+             .filter(s => VALID_STATION_IDS.has(s.nom))
+             .sort((a: any, b: any) => a.min - b.min);
+
+             if (stopsWithTimes.length < 1) return;
+
+             let x = 0, y = 0, currentStationId = stopsWithTimes[0].nom;
+
+             if (stopsWithTimes.length === 1) {
+                 const p = stationCoords[currentStationId] || stationCoords['PC'];
+                 x = p.x; y = p.y;
+             } else {
                   const expandedStops: { nom: string, min: number }[] = [];
                   for (let i = 0; i < stopsWithTimes.length - 1; i++) {
                     const current = stopsWithTimes[i];
@@ -394,7 +536,6 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
                   }
                   expandedStops.push(stopsWithTimes[stopsWithTimes.length - 1]);
 
-                  let x = 0, y = 0, currentStationId = resolveStationId(circ.inici, circ.linia);
                   for (let i = 0; i < expandedStops.length - 1; i++) {
                     const s1 = expandedStops[i];
                     const s2 = expandedStops[i+1];
@@ -410,33 +551,33 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
                       break;
                     }
                   }
+             }
 
-                  const shortTorn = getShortTornId(shift.id);
-                  const assignment = allDaily?.find(d => d.torn === shortTorn);
-                  const driverPhones = allPhones?.find(p => p.nomina === assignment?.empleat_id)?.phones || [];
-
-                  currentPersonnel.push({
-                    type: 'TRAIN', id: circ.id, linia: circ.linia, stationId: currentStationId, color: getLiniaColorHex(circ.linia),
-                    driver: assignment ? `${assignment.cognoms}, ${assignment.nom}` : 'Sense assignar',
-                    torn: shift?.id || '---', phones: driverPhones, inici: circ.inici, final: circ.final, horaPas: formatFgcTime(displayMin),
-                    x, y, isRealTime: false
-                  });
-               }
-           }
-        });
+             currentPersonnel.push({
+                type: 'TRAIN', id: circ.id, linia: 'F', stationId: currentStationId, 
+                color: '#22c55e', 
+                driver: 'Mercaderies', torn: 'FGC', phones: [], inici: circ.inici, final: circ.final, horaPas: formatFgcTime(displayMin),
+                x, y, isRealTime: false
+             });
+             processedKeys.add(codi);
+        }
       });
 
       if (mapDataSource === 'THEORETICAL') {
         allShifts.forEach(shift => {
+          const shiftService = (shift.servei || '').toString();
+          if (selectedServei !== 'Tots' && !shiftService.includes(selectedServei)) return;
+
           const startMin = getFgcMinutes(shift.inici_torn);
           const endMin = getFgcMinutes(shift.final_torn);
-          if (displayMin >= startMin && displayMin < endMin) {
+          
+          if (startMin !== null && endMin !== null && displayMin >= startMin && displayMin < endMin) {
             const isWorking = currentPersonnel.some(p => p.torn === shift.id);
             if (!isWorking) {
               const shortTorn = getShortTornId(shift.id);
               const assignment = allDaily?.find(d => d.torn === shortTorn);
               const rawLoc = (shift.dependencia || '').trim().toUpperCase();
-              const loc = resolveStationId(rawLoc, shift.servei);
+              const loc = resolveStationId(rawLoc, shiftService);
               if (loc && stationCoords[loc] && assignment) {
                 const driverPhones = allPhones?.find(p => p.nomina === assignment.empleat_id)?.phones || [];
                 const coords = stationCoords[loc] || { x: 0, y: 0 };
@@ -489,11 +630,11 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
       const realCodiId = isViatger && obsParts.length > 0 ? obsParts[0] : codi;
       const d = details?.find(det => det.id === realCodiId);
       let mInici = c.inici || d?.inici;
-      let mFinal = c.final || d?.final;
+      let mFinal = d?.final || c.final;
       if (isViatger && obsParts.length >= 3) { mInici = obsParts[1]; mFinal = obsParts[2]; }
       const cycleInfo = c.cicle ? trainAssig?.find(ta => ta.cycle_id === c.cicle) : null;
       return { ...d, ...c, codi, machinistInici: mInici, machinistFinal: mFinal, train: cycleInfo?.train_number, realCodi: isViatger ? realCodiId : null };
-    }).sort((a: any, b: any) => getFgcMinutes(a.sortida || '00:00') - getFgcMinutes(b.sortida || '00:00'));
+    }).sort((a: any, b: any) => (getFgcMinutes(a.sortida || '00:00') || 0) - (getFgcMinutes(b.sortida || '00:00') || 0));
     return { ...shift, driver: { nom: primary?.nom || 'No assignat', cognoms: primary?.cognoms || '', nomina: primary?.empleat_id || '---', phones: phones?.phones || [], tipus_torn: primary?.tipus_torn }, fullCirculations: fullCircs };
   };
 
@@ -501,18 +642,22 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
     if (!turn) return [];
     const startMin = getFgcMinutes(turn.inici_torn);
     const endMin = getFgcMinutes(turn.final_torn);
+    if (startMin === null || endMin === null) return [];
+    
     const segments: any[] = [];
     let currentPos = startMin;
     const circs = turn.fullCirculations || [];
     circs.forEach((circ: any, index: number) => {
       const cStart = getFgcMinutes(circ.sortida);
       const cEnd = getFgcMinutes(circ.arribada);
-      if (cStart > currentPos) {
-        let locationCode = index === 0 ? (circ.machinistInici || turn.dependencia || '') : (circs[index - 1].machinistFinal || '');
-        segments.push({ start: currentPos, end: cStart, type: 'gap', codi: (locationCode || '').trim().toUpperCase() || 'DESCANS' });
+      if (cStart !== null && cEnd !== null) {
+        if (cStart > currentPos) {
+          let locationCode = index === 0 ? (circ.machinistInici || turn.dependencia || '') : (circs[index - 1].machinistFinal || '');
+          segments.push({ start: currentPos, end: cStart, type: 'gap', codi: (locationCode || '').trim().toUpperCase() || 'DESCANS' });
+        }
+        segments.push({ start: cStart, end: cEnd, type: 'circ', codi: circ.codi, train: circ.train });
+        currentPos = Math.max(currentPos, cEnd);
       }
-      segments.push({ start: cStart, end: cEnd, type: 'circ', codi: circ.codi, train: circ.train });
-      currentPos = Math.max(currentPos, cEnd);
     });
     if (currentPos < endMin) {
       const lastLoc = circs.length > 0 ? circs[circs.length - 1].machinistFinal : turn.dependencia;
@@ -542,68 +687,120 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
     setCalculating(true);
     setPassengerResults([]); setAdjacentResults({anterior:[], posterior:[]}); setRestingResults([]); setExtensibleResults([]); setReserveInterceptResults([]);
     try {
-      const { data: allShifts } = await supabase.from('shifts').select('id, circulations, inici_torn, final_torn, duracio, dependencia').eq('servei', selectedServei);
-      const { data: tcDetail = null } = await supabase.from('circulations').select('*').eq('id', selectedCircId).single();
-      if (!allShifts || !tcDetail) {
-          setCalculating(false);
-          return;
+      const currentServiceStr = selectedServei === 'Tots' ? (originalShift.servei || '') : selectedServei;
+      let shiftsQuery = supabase.from('shifts').select('id, servei, circulations, inici_torn, final_torn, duracio, dependencia');
+      
+      if (selectedServei !== 'Tots' && currentServiceStr) {
+        shiftsQuery = shiftsQuery.ilike('servei', `%${currentServiceStr}%`);
       }
+
+      const { data: allShiftsRaw = [] } = await shiftsQuery;
+      const { data: tcDetail = null } = await supabase.from('circulations').select('*').eq('id', selectedCircId).single();
+      
+      if (!allShiftsRaw || !tcDetail) { setCalculating(false); return; }
+
       const reliefTimeStr = tcDetail.inici === selectedStation ? tcDetail.sortida : (tcDetail.estacions?.find((s: any) => s.nom === selectedStation)?.hora || tcDetail.arribada);
       const reliefMin = getFgcMinutes(reliefTimeStr);
       const arribadaMin = getFgcMinutes(tcDetail.arribada);
-      const passIds: string[] = []; const antIds: string[] = []; const postIds: string[] = [];
+      
+      if (reliefMin === null || arribadaMin === null) { setCalculating(false); return; }
+
+      const passIds: string[] = []; 
+      const antIds: string[] = []; 
+      const postIds: string[] = [];
+
       const { data: sameLine } = await supabase.from('circulations').select('id, sortida').eq('linia', tcDetail.linia).eq('final', tcDetail.final);
-      const sorted = sameLine?.sort((a,b) => getFgcMinutes(a.sortida) - getFgcMinutes(b.sortida)) || [];
+      const sorted = sameLine?.sort((a,b) => (getFgcMinutes(a.sortida) || 0) - (getFgcMinutes(b.sortida) || 0)) || [];
       const idx = sorted.findIndex(c => c.id === tcDetail.id);
       const antId = idx > 0 ? sorted[idx-1].id : null;
       const postId = idx < sorted.length - 1 ? sorted[idx+1].id : null;
-      allShifts.forEach(s => {
+
+      allShiftsRaw.forEach(s => {
         (s.circulations as any[]).forEach(c => {
           if (c.codi === 'Viatger' && c.observacions) {
             const obs = c.observacions.split('-')[0].toUpperCase();
             if (obs === selectedCircId) passIds.push(s.id);
             if (antId && obs === antId) antIds.push(s.id);
-            if (postId && obs === postIds) postIds.push(s.id);
+            if (postId && obs === postId) postIds.push(s.id);
           }
         });
       });
+
       const [resPass, resAnt, resPost] = await Promise.all([
         Promise.all(passIds.map(id => fetchFullTurnData(id))),
         Promise.all(antIds.map(id => fetchFullTurnData(id))),
         Promise.all(postIds.map(id => fetchFullTurnData(id)))
       ]);
+
       setPassengerResults(resPass.filter(Boolean));
-      setAdjacentResults({ anterior: resAnt.filter(Boolean).map(t => ({...t, adjCode: antId})), posterior: resPost.filter(Boolean).map(t => ({...t, adjCode: postId})) });
-      const resting: any[] = []; const extensible: any[] = []; const reserves: any[] = [];
-      const enrichedAll = await Promise.all(allShifts.map(s => fetchFullTurnData(s.id)));
+      setAdjacentResults({ 
+        anterior: resAnt.filter(Boolean).map(t => ({...t, adjCode: antId})), 
+        posterior: resPost.filter(Boolean).map(t => ({...t, adjCode: postId})) 
+      });
+
+      const resting: any[] = []; 
+      const extensible: any[] = []; 
+      const reserves: any[] = [];
+      const enrichedAll = await Promise.all(allShiftsRaw.map(s => fetchFullTurnData(s.id)));
+      
+      const normalizedStation = resolveStationId(selectedStation);
+
       enrichedAll.forEach(tData => {
         if (!tData || tData.id === originalShift.id) return;
         const segs = getSegments(tData);
         const [h, m] = (tData.duracio || "00:00").split(':').map(Number);
         const dur = h * 60 + m;
-        const isRestHere = segs.find(seg => seg.type === 'gap' && seg.codi.toUpperCase().includes(selectedStation.toUpperCase()) && seg.start <= reliefMin && seg.end > reliefMin);
+        
+        const isRestHere = segs.find(seg => 
+          seg.type === 'gap' && 
+          resolveStationId(seg.codi) === normalizedStation && 
+          seg.start <= (reliefMin + 1) && 
+          seg.end >= (reliefMin - 1)
+        );
+
         if (isRestHere) resting.push({...tData, restSeg: isRestHere});
+        
         if (dur < 525 && isRestHere) {
-          const conflict = segs.some(seg => seg.type === 'circ' && seg.start >= reliefMin && seg.start < (arribadaMin + 20));
+          const conflict = segs.some(seg => seg.type === 'circ' && seg.start >= reliefMin && seg.start < (arribadaMin + 15));
           if (!conflict) {
-            const extra = Math.max(0, (arribadaMin + 20) - getFgcMinutes(tData.final_torn));
-            if (dur + extra <= 525) extensible.push({...tData, extData: { estimatedReturn: arribadaMin + 20, extra }});
+            const tFinal = getFgcMinutes(tData.final_torn);
+            if (tFinal !== null) {
+                const extra = Math.max(0, (arribadaMin + 15) - tFinal);
+                if (dur + extra <= 525) extensible.push({...tData, extData: { estimatedReturn: arribadaMin + 15, extra }});
+            }
           }
         }
-        const st = selectedStation.toUpperCase();
-        const isS1Zone = ['MS','HG','RB','FN','TR','VP','EN','NA','LES FONTS','RUBI CENTRE'].some(x => st.includes(x));
-        const isS2Zone = ['VO','SJ','BT','UN','SQ','CF','PJ','CT','NO','PN','SABADELL','SANT QUIRZE','BELLATERRA'].some(x => st.includes(x));
+
+        const isS1Zone = ['MS','HG','RB','FN','TR','VP','EN','NA'].includes(normalizedStation);
+        const isS2Zone = ['VO','SJ','BT','UN','SQ','CF','PJ','CT','NO','PN'].includes(normalizedStation);
+        
         const resPoint = RESERVAS_CONFIG.find(r => {
-          const timeOk = reliefMin >= getFgcMinutes(r.start) || reliefMin < getFgcMinutes(r.end);
+          const timeOk = isReserveActive(r, reliefMin);
           if (!timeOk) return false;
           if (isS1Zone) return r.loc === 'RB';
           if (isS2Zone) return r.loc === 'SR' || r.loc === 'PN';
-          return st.includes(r.loc);
+          return normalizedStation === r.loc;
         });
-        if (resPoint && tData.id.includes(resPoint.id)) { reserves.push({...tData, resData: { resId: resPoint.id, loc: resPoint.loc, time: reliefTimeStr }}); }
+
+        if (resPoint && tData.id.includes(resPoint.id)) { 
+          reserves.push({...tData, resData: { resId: resPoint.id, loc: resPoint.loc, time: reliefTimeStr }}); 
+        }
       });
-      setRestingResults(resting); setExtensibleResults(extensible); setReserveInterceptResults(reserves);
+
+      setRestingResults(resting); 
+      setExtensibleResults(extensible); 
+      setReserveInterceptResults(reserves);
     } catch (e) { console.error(e); } finally { setCalculating(false); }
+  };
+
+  const isReserveActive = (res: any, timeMin: number) => {
+    const start = getFgcMinutes(res.start);
+    const end = getFgcMinutes(res.end);
+    if (start === null || end === null) return false;
+    if (start > end) {
+      return timeMin >= start || timeMin < end;
+    }
+    return timeMin >= start && timeMin < end;
   };
 
   const resetAllModeData = () => {
@@ -754,7 +951,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
           </div>
           {(selectedCutStations.size > 0 || selectedCutSegments.size > 0) && (<button onClick={clearAllCuts} className="text-[10px] font-black text-red-500 uppercase flex items-center gap-2 bg-red-50 dark:bg-red-950/30 px-4 py-2.5 rounded-xl hover:scale-105 transition-all shadow-sm border border-red-100 dark:border-red-900/40 animate-in fade-in zoom-in-95"><Trash2 size={14} /> Anul·lar Talls ({selectedCutStations.size + selectedCutSegments.size})</button>)}
         </div>
-        {geotrenError && (<div className="mb-6 px-4 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/40 rounded-xl flex items-center gap-3 animate-in fade-in duration-300"><Info size={16} className="text-blue-500" /><p className="text-[10px] font-bold text-blue-700 dark:text-blue-300">{geotrenError}</p></div>)}
+        {geotrenError && (<div className="mb-6 px-4 py-2 bg-orange-50 dark:bg-orange-900/20 border border-orange-100 dark:border-orange-900/40 rounded-xl flex items-center gap-3 animate-in fade-in duration-300"><Info size={16} className="text-orange-500" /><p className="text-[10px] font-bold text-orange-700 dark:text-orange-300">{geotrenError}</p></div>)}
         <div className="overflow-x-auto custom-scrollbar pb-10 -mx-4 px-4 select-none">
           <svg viewBox="0 0 750 220" className="min-w-[800px] h-auto overflow-visible">
             {MAP_SEGMENTS.map((seg, i) => {
@@ -797,6 +994,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
                      <circle cx={p.x} cy={p.y} r={8.5} fill="none" stroke="white" strokeWidth="1.5" strokeOpacity="0.5" style={{ transform: `translate(${offset * 4}px, 0px)` }} />
                    )}
                    <circle cx={p.x} cy={p.y} r={5.5} fill={p.color} className={`${isAffected ? "stroke-red-500 stroke-2" : isRealTimeData ? "stroke-white stroke-[2]" : "stroke-white dark:stroke-black stroke-[1.5]"}`} style={{ transform: `translate(${offset * 4}px, 0px)`, filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.3))' }}><title>{isRealTimeData ? '[RT] ' : ''}{p.id} - Torn {p.torn}</title></circle>
+                   <text x={p.x} y={p.y - 9} textAnchor="middle" className="text-[7px] font-black fill-fgc-grey dark:fill-white pointer-events-none drop-shadow-md" style={{ transform: `translate(${offset * 4}px, 0px)` }}>{p.id}</text>
                    {isRealTimeData && (
                      <text x={p.x + 8} y={p.y - 8} className="fill-blue-500 text-[6px] font-black pointer-events-none" style={{ transform: `translate(${offset * 4}px, 0px)` }}>RT</text>
                    )}
@@ -865,7 +1063,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
           <div><h1 className="text-3xl font-black text-fgc-grey dark:text-white tracking-tight uppercase">Gestió d'Incidències</h1><p className="text-gray-500 dark:text-gray-400 font-medium">Cerca cobertures avançades i gestiona talls operatius.</p></div>
         </div>
         {mode !== 'INIT' && (
-          <div className="flex flex-col gap-2"><span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Filtre de Servei</span><div className="inline-flex bg-white dark:bg-gray-900 p-1 rounded-2xl shadow-sm border border-gray-100 dark:border-white/5">{['Tots', ...serveiTypes].map(s => (<button key={s} onClick={() => setSelectedServei(s)} className={`px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-black transition-all ${selectedServei === s ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5'}`}>{s === 'Tots' ? 'Tots' : `S-${s}`}</button>))}</div></div>
+          <div className="flex flex-col gap-2"><span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Filtre de Servei (Torn)</span><div className="inline-flex bg-white dark:bg-gray-900 p-1 rounded-2xl shadow-sm border border-gray-100 dark:border-white/5">{['Tots', ...serveiTypes].map(s => (<button key={s} onClick={() => setSelectedServei(s)} className={`px-3 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-black transition-all ${selectedServei === s ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5'}`}>{s === 'Tots' ? 'Tots' : `S-${s}`}</button>))}</div></div>
         )}
       </header>
 
@@ -880,11 +1078,12 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
           <div className="flex justify-start"><button onClick={resetAllModeData} className="text-[10px] font-black text-fgc-green hover:underline uppercase tracking-[0.2em] flex items-center gap-2">← Tornar al selector</button></div>
           {mode === 'MAQUINISTA' && (
              <div className="bg-white dark:bg-gray-900 rounded-[32px] p-8 shadow-sm border border-gray-100 dark:border-white/5 transition-colors">
-               <div className="max-w-2xl mx-auto space-y-6 text-center">
+               <div className="max-w-2xl mx-auto space-y-6 text-center w-full">
                  <h3 className="text-sm font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Identifica el Tren afectat</h3>
                  <div className="relative">
                    <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={24} />
                    <input type="text" placeholder="Ex: 1104, 2351..." value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSearch()} className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[28px] py-6 pl-16 pr-8 focus:ring-4 focus:ring-red-500/20 outline-none text-xl font-bold transition-all dark:text-white shadow-inner" />
+                   {/* Corrected onClick prop below */}
                    <button onClick={handleSearch} disabled={loading || !query} className="absolute right-3 top-1/2 -translate-y-1/2 bg-fgc-grey dark:bg-fgc-green text-white dark:text-fgc-grey px-8 py-3 rounded-2xl font-black text-sm hover:scale-105 active:scale-95 transition-all shadow-lg disabled:opacity-50">{loading ? <Loader2 className="animate-spin" size={20} /> : 'BUSCAR'}</button>
                  </div>
                </div>
@@ -926,7 +1125,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
                         </div>
                       </div>
                     )}
-                    <button onClick={calculateRelief} disabled={calculating || !selectedStation} className="w-full bg-fgc-grey dark:bg-white text-white dark:text-fgc-grey py-5 rounded-2xl font-black text-lg flex items-center justify-center gap-3 shadow-xl hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50">ANALITZAR COBERTURA</button>
+                    <button onClick={calculateRelief} disabled={calculating || !selectedStation} className="w-full bg-fgc-grey dark:bg-white text-white dark:text-fgc-grey py-5 rounded-2xl font-black text-lg flex items-center justify-center gap-3 shadow-xl hover:scale-[1.02] active:scale-95 disabled:opacity-50">ANALITZAR COBERTURA</button>
                   </div>
                 </div>
               </div>
@@ -940,7 +1139,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
                       {restingResults.length > 0 && (<div className="space-y-3"><h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-2 flex items-center gap-2"><Coffee size={14} className="text-fgc-green" /> En descans a {selectedStation}</h3><div className="flex flex-col gap-2">{restingResults.map((t, i) => <CompactRow key={i} torn={t} color="border-l-fgc-green" sub={`Lliure fins les ${formatFgcTime(t.restSeg.end)}`} />)}</div></div>)}
                       {extensibleResults.length > 0 && (<div className="space-y-3"><h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-2 flex items-center gap-2"><Timer size={14} className="text-orange-500" /> Perllongaments de Jornada</h3><div className="flex flex-col gap-2">{extensibleResults.map((t, i) => <CompactRow key={i} torn={t} color="border-l-orange-500" sub={`Retorn estimat: ${formatFgcTime(t.extData.estimatedReturn)}`} />)}</div></div>)}
                     </div>
-                  ) : selectedStation ? (<div className="py-20 text-center space-y-4 opacity-40"><Info size={40} className="mx-auto text-gray-300" /><p className="text-sm font-bold text-gray-500 max-w-[280px] mx-auto">Cap maquinista detectat en disposició de cobrir el relleu a {selectedStation}.</p></div>) : (<div className="py-20 text-center space-y-4 opacity-40"><User size={40} className="mx-auto text-gray-200" /><p className="text-sm font-bold text-gray-400 uppercase tracking-widest italic">Selecciona un punt de relleu</p></div>)}
+                  ) : selectedStation ? (<div className="py-20 text-center space-y-4 opacity-40"><div className="w-16 h-16 bg-gray-100 dark:bg-black/20 rounded-full flex items-center justify-center mx-auto text-gray-300 dark:text-gray-700"><Info size={28} /></div><p className="text-sm font-bold text-gray-500 max-w-[280px] mx-auto">Cap maquinista detectat en disposició de cobrir el relleu a {selectedStation}.</p></div>) : (<div className="py-20 text-center space-y-4 opacity-40"><div className="w-20 h-20 bg-gray-50 dark:bg-black/20 rounded-full flex items-center justify-center mx-auto text-gray-200 dark:text-gray-800"><User size={40} /></div><p className="text-sm font-bold text-gray-400 uppercase tracking-widest italic">Selecciona un punt de relleu</p></div>)}
                 </div>
               </div>
             </div>
