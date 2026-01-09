@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { SearchType, Shift, Circulation, DailyAssignment, PhonebookEntry, Assignment } from '../types.ts';
-import { Search, User, Train, MapPin, Hash, ArrowRight, Loader2, Info, Phone, Clock, FileText, ChevronDown, ChevronUp, Map as MapIcon, Navigation, Coffee, Footprints, Circle, LayoutGrid, Timer, X, BookOpen, CalendarDays, Filter, AlertTriangle, Wrench, Users, UserCheck, Camera, Brush } from 'lucide-react';
+// Added Settings to imports
+import { Search, User, Train, MapPin, Hash, ArrowRight, Loader2, Info, Phone, Clock, FileText, ChevronDown, ChevronUp, Map as MapIcon, Navigation, Coffee, Footprints, Circle, LayoutGrid, Timer, X, BookOpen, CalendarDays, Filter, AlertTriangle, Wrench, Users, UserCheck, Camera, Brush, Save, Check, RotateCw, Settings } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
 
 // Funció auxiliar per recuperar tots els registres d'una taula (superant el límit de 1000 de Supabase)
@@ -48,11 +49,8 @@ const ItineraryPoint: React.FC<{ point: any; isFirst?: boolean; isLast?: boolean
   let isTransit = false;
   if (nextPoint && pTime && nextPoint.hora) {
     const nextMin = getFgcMinutes(nextPoint.hora);
-    // Verificació de trànsit evitant tokens conflictius en una sola línia
-    if (nowMin > pMin) {
-      if (nowMin < nextMin) {
+    if (nowMin > pMin && nowMin < nextMin) {
         isTransit = true;
-      }
     }
   }
 
@@ -97,6 +95,12 @@ export const CercarView: React.FC = () => {
   const [selectedStation, setSelectedStation] = useState<string>('');
   const [trainStatuses, setTrainStatuses] = useState<Record<string, any>>({});
   
+  // Estat per al nou menú de gestió d'unitat
+  const [editingCirc, setEditingCirc] = useState<{ circ: any, cycleId: string } | null>(null);
+  const [editUnitNumber, setEditUnitNumber] = useState('');
+  const [isSavingUnit, setIsSavingUnit] = useState(false);
+  const [tempStatus, setTempStatus] = useState({ is_broken: false, needs_images: false, needs_records: false, needs_cleaning: false });
+
   const getCurrentTimeStr = () => {
     const now = new Date();
     return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
@@ -122,8 +126,7 @@ export const CercarView: React.FC = () => {
   const fetchTrainStatuses = async () => {
     const { data } = await supabase
       .from('train_status')
-      .select('*')
-      .or('is_broken.eq.true,needs_images.eq.true,needs_records.eq.true,needs_cleaning.eq.true');
+      .select('*');
     
     if (data) {
       const statusMap: Record<string, any> = {};
@@ -196,6 +199,53 @@ export const CercarView: React.FC = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const openUnitMenu = (circ: any, cycleId: string) => {
+    if (!cycleId) return; // No podem gestionar unitat sense cicle
+    const currentTrain = circ.train || '';
+    setEditUnitNumber(currentTrain);
+    const status = trainStatuses[currentTrain] || { is_broken: false, needs_images: false, needs_records: false, needs_cleaning: false };
+    setTempStatus({
+        is_broken: status.is_broken || false,
+        needs_images: status.needs_images || false,
+        needs_records: status.needs_records || false,
+        needs_cleaning: status.needs_cleaning || false
+    });
+    setEditingCirc({ circ, cycleId });
+  };
+
+  const saveUnitChanges = async () => {
+    if (!editingCirc) return;
+    setIsSavingUnit(true);
+    try {
+        const trainNum = editUnitNumber.trim();
+        
+        // 1. Actualitzar assignació de cicle si el número ha canviat
+        if (trainNum) {
+            await supabase.from('assignments').upsert({
+                cycle_id: editingCirc.cycleId,
+                train_number: trainNum
+            });
+
+            // 2. Actualitzar estats del tren
+            await supabase.from('train_status').upsert({
+                train_number: trainNum,
+                ...tempStatus,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'train_number' });
+        }
+
+        // Refrescar dades locals
+        await fetchTrainStatuses();
+        // Tornar a executar la cerca actual per refrescar la UI
+        executeSearch();
+        setEditingCirc(null);
+    } catch (e) {
+        console.error("Error desant canvis d'unitat:", e);
+    } finally {
+        setIsSavingUnit(false);
+    }
+  };
 
   const filterButtons = [
     { id: SearchType.Torn, label: 'Torn', icon: <Hash size={16} /> },
@@ -352,7 +402,7 @@ export const CercarView: React.FC = () => {
         const locationCode = index === 0 ? (circ.machinistInici || turn.dependencia || '') : (circulations[index - 1].machinistFinal || '');
         segments.push({ start: currentPos, end: circStart, type: 'gap', codi: locationCode || 'DESCANS', color: getStatusColor(locationCode) });
       }
-      segments.push({ start: circStart, end: circEnd, type: 'circ', codi: circ.codi, realCodi: circ.realCodi, color: 'bg-gray-300 dark:bg-gray-700', linia: circ.linia, train: circ.train });
+      segments.push({ start: circStart, end: circEnd, type: 'circ', codi: circ.codi, realCodi: circ.realCodi, color: 'bg-gray-300 dark:bg-gray-700', linia: circ.linia, train: circ.train, cicle: circ.cicle });
       currentPos = Math.max(currentPos, circEnd);
     });
     
@@ -412,14 +462,25 @@ export const CercarView: React.FC = () => {
               </div>
               <div>
                 <p className={`text-[10px] font-black uppercase tracking-widest ${selectedSeg.type === 'circ' ? (selectedSeg.train && trainStatuses[selectedSeg.train]?.is_broken ? 'text-white/60' : 'text-gray-500 dark:text-gray-400') : 'text-white/60'}`}>{selectedSeg.type === 'circ' ? 'CIRCULACIÓ' : 'DESCANS / ESTADA'}</p>
-                <p className="text-xl font-black flex items-center gap-2">
-                  {selectedSeg.codi === 'Viatger' ? `Viatger (${selectedSeg.realCodi})` : selectedSeg.codi}
-                  {selectedSeg.type === 'circ' && selectedSeg.train && trainStatuses[selectedSeg.train]?.is_broken && (
-                    <span className="bg-white text-red-600 px-2 py-0.5 rounded-lg text-[10px] flex items-center gap-1 border border-red-100 shadow-sm animate-pulse">
+                <div className="flex items-center gap-2">
+                    <p className="text-xl font-black flex items-center gap-2">
+                        {selectedSeg.codi === 'Viatger' ? `Viatger (${selectedSeg.realCodi})` : selectedSeg.codi}
+                    </p>
+                    {selectedSeg.type === 'circ' && selectedSeg.cicle && (
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); openUnitMenu(selectedSeg, selectedSeg.cicle); }}
+                            className="bg-white/10 hover:bg-white/20 p-1.5 rounded-lg transition-colors"
+                            title="Gestionar Unitat"
+                        >
+                            <Settings size={14} className="text-white" />
+                        </button>
+                    )}
+                </div>
+                {selectedSeg.type === 'circ' && selectedSeg.train && trainStatuses[selectedSeg.train]?.is_broken && (
+                    <span className="bg-white text-red-600 px-2 py-0.5 rounded-lg text-[10px] flex items-center gap-1 border border-red-100 shadow-sm animate-pulse mt-1">
                       <Wrench size={10} /> AVARIA
                     </span>
                   )}
-                </p>
               </div>
             </div>
             <div className="text-right flex flex-col items-end">
@@ -716,7 +777,11 @@ export const CercarView: React.FC = () => {
     return (
       <div id={`circ-row-${itemKey}`} className={`p-2 sm:p-4 grid grid-cols-[auto_1fr_1fr_auto] md:grid-cols-[1fr_1.2fr_1.8fr_1.8fr_1.2fr] items-center gap-2 sm:gap-4 w-full relative transition-all scroll-mt-24 ${isActive ? 'bg-red-50/30 dark:bg-red-950/20' : isBroken ? 'bg-red-50/20 dark:bg-red-950/10 shadow-inner' : ''}`}>
         <div className="flex items-center gap-2 overflow-visible px-1">
-            <div className={`px-2.5 py-1.5 ${isViatger ? 'bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800' : getLiniaColor(circ.linia)} rounded-lg font-black text-xs sm:text-sm shadow-sm flex items-center justify-center min-w-[62px]`}>
+            <button 
+                onClick={() => circ.cicle && openUnitMenu(circ, circ.cicle)}
+                className={`px-2.5 py-1.5 ${isViatger ? 'bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800' : getLiniaColor(circ.linia)} rounded-lg font-black text-xs sm:text-sm shadow-sm flex items-center justify-center min-w-[62px] hover:scale-105 active:scale-95 transition-transform group relative`}
+                title="Gestionar Unitat"
+            >
               {isViatger ? (
                 <div className="flex flex-col items-center justify-center leading-none py-0.5">
                   <span className="text-[7.5px] font-black text-sky-600 dark:text-sky-400 tracking-tighter uppercase mb-0.5">VIATGER</span>
@@ -725,7 +790,8 @@ export const CercarView: React.FC = () => {
               ) : (
                 <span className="text-white">{circ.codi}</span>
               )}
-            </div>
+              {circ.cicle && <div className="absolute -top-1 -right-1 bg-white dark:bg-black rounded-full p-0.5 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"><Settings size={8} className="text-fgc-grey dark:text-gray-400" /></div>}
+            </button>
             <span className={`hidden md:flex px-2 py-1 ${getLiniaColor(circ.linia)} text-white rounded-md font-black text-[9px] sm:text-[11px] shadow-sm flex-shrink-0`}>{circ.linia || '??'}</span>
             {circ.train && trainPhone && (
               <a href={`tel:${trainPhone}`} onClick={(e) => e.stopPropagation()} className={`md:hidden p-2 rounded-lg border shadow-sm transition-all active:scale-90 ${isBroken ? 'bg-red-600 text-white border-red-700' : 'bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-grey dark:text-fgc-green border-fgc-green/30 dark:border-fgc-green/20'}`}>
@@ -789,7 +855,11 @@ export const CercarView: React.FC = () => {
     return (
       <div id={`station-row-${itemKey}`} className={`p-2 sm:p-4 grid grid-cols-[auto_1fr_auto_auto] md:grid-cols-[1fr_1.2fr_1.8fr_1fr_1.2fr] items-center gap-2 sm:gap-4 w-full relative transition-all scroll-mt-24 ${isActive ? 'bg-red-50/40 dark:bg-red-950/20 shadow-inner' : isBroken ? 'bg-red-50/20 dark:bg-red-950/10' : ''}`}>
         <div className="flex justify-start items-center gap-2 shrink-0 px-1">
-          <div className={`px-2.5 py-1.5 ${isViatger ? 'bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800' : getLiniaColor(circ.linia)} rounded-lg font-black text-xs sm:text-sm shadow-sm flex items-center justify-center min-w-[62px]`}>
+          <button 
+            onClick={() => circ.cicle && openUnitMenu(circ, circ.cicle)}
+            className={`px-2.5 py-1.5 ${isViatger ? 'bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800' : getLiniaColor(circ.linia)} rounded-lg font-black text-xs sm:text-sm shadow-sm flex items-center justify-center min-w-[62px] hover:scale-105 active:scale-95 transition-transform group relative`}
+            title="Gestionar Unitat"
+          >
             {isViatger ? (
               <div className="flex flex-col items-center justify-center leading-none py-0.5">
                 <span className="text-[7.5px] font-black text-sky-600 dark:text-sky-400 tracking-tighter uppercase mb-0.5">VIATGER</span>
@@ -798,7 +868,8 @@ export const CercarView: React.FC = () => {
             ) : (
               <span className="text-white">{circ.id}</span>
             )}
-          </div>
+            {circ.cicle && <div className="absolute -top-1 -right-1 bg-white dark:bg-black rounded-full p-0.5 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"><Settings size={8} className="text-fgc-grey dark:text-gray-400" /></div>}
+          </button>
           <span className={`hidden md:flex px-2 py-1 ${getLiniaColor(circ.linia)} text-white rounded-md font-black text-[9px] sm:text-[11px] shadow-sm`}>{circ.linia || '??'}</span>
           {circ.train && trainPhone && (
             <a href={`tel:${trainPhone}`} onClick={(e) => e.stopPropagation()} className={`md:hidden p-2 rounded-lg border shadow-sm transition-all active:scale-90 ${isBroken ? 'bg-red-600 text-white border-red-700' : 'bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-grey dark:text-fgc-green border-fgc-green/30 dark:border-fgc-green/20'}`}>
@@ -1100,6 +1171,81 @@ export const CercarView: React.FC = () => {
           <div className="text-center py-24 opacity-10 flex flex-col items-center"><Train size={80} className="text-fgc-grey mb-8" /><p className="text-lg font-black uppercase tracking-[0.4em] text-fgc-grey">Consulta de Torns Activa</p></div>
         )}
       </div>
+
+      {/* Menú de Gestió d'Unitat */}
+      {editingCirc && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-fgc-grey/60 backdrop-blur-md animate-in fade-in duration-300">
+            <div className="bg-white dark:bg-gray-900 w-full max-w-md rounded-[48px] shadow-2xl border border-white/20 overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
+                <div className="p-8 border-b border-gray-100 dark:border-white/5 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 bg-fgc-green rounded-2xl text-fgc-grey shadow-lg"><Train size={24} /></div>
+                        <div>
+                            <h3 className="text-xl font-black text-fgc-grey dark:text-white uppercase tracking-tight">Gestió d'Unitat</h3>
+                            <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
+                                Circulació {editingCirc.circ.codi} • Cicle {editingCirc.cycleId}
+                            </p>
+                        </div>
+                    </div>
+                    <button onClick={() => setEditingCirc(null)} className="p-2 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-500 rounded-full transition-colors"><X size={24} /></button>
+                </div>
+
+                <div className="p-8 space-y-8">
+                    {/* Input de Unitat */}
+                    <div className="space-y-2">
+                        <label className="block text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Assignar Unitat de Tren</label>
+                        <div className="relative">
+                            <Hash className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={18} />
+                            <input 
+                                type="text" 
+                                value={editUnitNumber}
+                                onChange={(e) => setEditUnitNumber(e.target.value)}
+                                placeholder="Ex: 112.01, 113.12..."
+                                className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-2xl py-4 pl-12 pr-4 focus:ring-4 focus:ring-fgc-green/20 outline-none font-black text-lg transition-all dark:text-white"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Toggles d'Estat */}
+                    <div className="space-y-4">
+                        <label className="block text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Estat de la Flota</label>
+                        <div className="grid grid-cols-2 gap-3">
+                            {[
+                                { id: 'is_broken', label: 'AVARIAT', icon: <AlertTriangle size={16} />, color: 'red' },
+                                { id: 'needs_images', label: 'IMATGES', icon: <Camera size={16} />, color: 'blue' },
+                                { id: 'needs_records', label: 'REGISTRES', icon: <FileText size={16} />, color: 'yellow' },
+                                { id: 'needs_cleaning', label: 'NETEJA', icon: <Brush size={16} />, color: 'orange' },
+                            ].map((st) => (
+                                <button
+                                    key={st.id}
+                                    onClick={() => setTempStatus(prev => ({ ...prev, [st.id]: !prev[st.id as keyof typeof prev] }))}
+                                    className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all font-black text-[11px] ${
+                                        tempStatus[st.id as keyof typeof tempStatus]
+                                            ? `bg-${st.color}-50 dark:bg-${st.color}-900/20 border-${st.color}-500 text-${st.color}-600 dark:text-${st.color}-400 shadow-sm`
+                                            : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-white/5 text-gray-400 dark:text-gray-500 grayscale'
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        {st.icon}
+                                        {st.label}
+                                    </div>
+                                    {tempStatus[st.id as keyof typeof tempStatus] && <Check size={14} />}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <button 
+                        onClick={saveUnitChanges}
+                        disabled={isSavingUnit}
+                        className="w-full bg-fgc-green text-fgc-grey py-5 rounded-2xl font-black text-lg flex items-center justify-center gap-3 shadow-xl shadow-fgc-green/20 hover:scale-[1.02] active:scale-95 disabled:opacity-50 transition-all"
+                    >
+                        {isSavingUnit ? <Loader2 size={24} className="animate-spin" /> : <Save size={24} />}
+                        DESAR CANVIS
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
     </div>
   );
 };
