@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, ShieldAlert, Loader2, UserCheck, Clock, MapPin, AlertCircle, Phone, Info, Users, Zap, User, Train, Map as MapIcon, X, Timer, Scissors, ArrowDownToLine, ArrowUpToLine, ArrowLeftToLine, ArrowRightToLine, Coffee, Layers, Trash2, Repeat, Rewind, FastForward, RotateCcw, Wifi, RefreshCw, Layers as LayersIcon } from 'lucide-react';
+import { Search, ShieldAlert, Loader2, UserCheck, Clock, MapPin, AlertCircle, Phone, Info, Users, Zap, User, Train, Map as MapIcon, X, Timer, Scissors, ArrowDownToLine, ArrowUpToLine, ArrowLeftToLine, ArrowRightToLine, Coffee, Layers, Trash2, Repeat, Rewind, FastForward, RotateCcw, RefreshCw, Layers as LayersIcon } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
 import IncidenciaPerTorn from '../components/IncidenciaPerTorn.tsx';
 
@@ -17,7 +17,6 @@ const RESERVAS_CONFIG = [
 ];
 
 type IncidenciaMode = 'INIT' | 'MAQUINISTA' | 'LINIA' | 'PER_TORN';
-type MapSource = 'THEORETICAL' | 'GEOTREN';
 
 interface LivePersonnel {
   type: 'TRAIN' | 'REST';
@@ -34,7 +33,6 @@ interface LivePersonnel {
   x: number;
   y: number;
   visualOffset?: number;
-  isRealTime?: boolean;
 }
 
 interface IncidenciaViewProps {
@@ -42,10 +40,8 @@ interface IncidenciaViewProps {
 }
 
 const resolveStationId = (name: string, linia: string = '') => {
-    // Normalització: Majúscules, sense accents i trim
     const n = (name || '').toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
     
-    // Mapeig específic i variants comunes
     if (n.includes('CATALUNYA') || n === 'PC') return 'PC';
     if (n.includes('PROVEN') || n === 'PR') return 'PR';
     if (n.includes('GRACIA') || n === 'GR') return 'GR';
@@ -56,9 +52,8 @@ const resolveStationId = (name: string, linia: string = '') => {
     if (n.includes('SARRIA') || n === 'SR') return 'SR';
     if (n.includes('ELISENDA') || n === 'RE') return 'RE';
     if (n.includes('TIBIDABO') || n === 'TB') return 'TB';
-    if (n.includes('CUGAT') || n === 'SC') return 'SC'; // Sant Cugat
+    if (n.includes('CUGAT') || n === 'SC') return 'SC'; 
     
-    // Branca S1 (Terrassa) i HUB Mercaderies
     if (n.includes('RUBI') || n.includes('TALLER') || n.includes('COTXERA') || n.includes('MERCADERIES') || n.includes('RAMAL') || n.includes('APARTADOR') || n === 'RB') return 'RB'; 
     if (n.includes('RAMBLA') || n === 'TR') return 'TR'; 
     if (n.includes('NACIO') || n.includes('UNIDES') || n === 'NA') return 'NA'; 
@@ -68,7 +63,6 @@ const resolveStationId = (name: string, linia: string = '') => {
     if (n.includes('VALLPARADIS') || n === 'VP') return 'VP';
     if (n.includes('NORD') && n.includes('ESTACIO') || n === 'EN') return 'EN';
 
-    // Branca S2 (Sabadell)
     if (n.includes('VOLPALLERES') || n === 'VO') return 'VO';
     if (n.includes('JOAN') || n === 'SJ') return 'SJ'; 
     if (n.includes('BELLATERRA') || n === 'BT') return 'BT';
@@ -80,12 +74,10 @@ const resolveStationId = (name: string, linia: string = '') => {
     if (n.includes('SABADELL NORD') || n === 'NO') return 'NO';
     if (n.includes('PARC') || n === 'PN') return 'PN'; 
 
-    // Branca Tibidabo/Elisenda
     if (n.includes('MOLINA') || n === 'PM') return 'PM';
     if (n.includes('PADUA') || n === 'PD') return 'PD';
     if (n.includes('PUTXET') || n === 'EP') return 'EP';
     
-    // Altres/Tronc
     if (n.includes('FLORESTA') || n === 'LF') return 'LF';
     if (n.includes('VALLDOREIX') || n === 'VD') return 'VD';
     if (n.includes('PLANES') || n === 'LP') return 'LP';
@@ -94,18 +86,6 @@ const resolveStationId = (name: string, linia: string = '') => {
 
     return n.length > 2 ? n.substring(0, 2) : n;
 };
-
-// Fix: Implement missing fetchGeotrenData function to retrieve real-time train data
-async function fetchGeotrenData() {
-  try {
-    const response = await fetch('https://api.fgc.cat/geotren/v1/trens');
-    if (!response.ok) throw new Error('Error al recuperar dades de GeoTren');
-    return await response.json();
-  } catch (error) {
-    console.error("GeoTren fetch error:", error);
-    throw error;
-  }
-}
 
 const MAP_STATIONS = [
   { id: 'PC', label: 'Pl. Catalunya', x: 20, y: 100 }, { id: 'PR', label: 'Provença', x: 50, y: 100 }, { id: 'GR', label: 'Gràcia', x: 80, y: 100 }, { id: 'SG', label: 'Sant Gervasi', x: 110, y: 100 }, { id: 'MN', label: 'Muntaner', x: 140, y: 100 }, { id: 'BN', label: 'La Bonanova', x: 170, y: 100 }, { id: 'TT', label: 'Les Tres Torres', x: 200, y: 100 }, { id: 'SR', label: 'Sarrià', x: 230, y: 100 }, { id: 'PF', label: 'Peu del Funicular', x: 260, y: 100 }, { id: 'VL', label: 'B. Vallvidrera', x: 290, y: 100 }, { id: 'LP', label: 'Les Planes', x: 320, y: 100 }, { id: 'LF', label: 'La Floresta', x: 350, y: 100 }, { id: 'VD', label: 'Valldoreix', x: 380, y: 100 }, { id: 'SC', label: 'Sant Cugat', x: 410, y: 100 }, { id: 'PM', label: 'Pl. Molina', x: 100, y: 160 }, { id: 'PD', label: 'Pàdua', x: 130, y: 160 }, { id: 'EP', label: 'El Putxet', x: 160, y: 160 }, { id: 'TB', label: 'Av. Tibidabo', x: 190, y: 160 }, { id: 'RE', label: 'R. Elisenda', x: 260, y: 40 }, { id: 'MS', label: 'Mira-Sol', x: 440, y: 40 }, { id: 'HG', label: 'Hosp. General', x: 470, y: 40 }, { id: 'RB', label: 'Rubí Centre', x: 500, y: 40 }, { id: 'FN', label: 'Les Fonts', x: 530, y: 40 }, { id: 'TR', label: 'Terrassa Rambla', x: 560, y: 40 }, { id: 'VP', label: 'Vallparadís', x: 590, y: 40 }, { id: 'EN', label: 'Estació del Nord', x: 620, y: 40 }, { id: 'NA', label: 'Nacions Unides', x: 650, y: 40 }, { id: 'VO', label: 'Volpalleres', x: 440, y: 160 }, { id: 'SJ', label: 'Sant Joan', x: 470, y: 160 }, { id: 'BT', label: 'Bellaterra', x: 500, y: 160 }, { id: 'UN', label: 'U. Autònoma', x: 530, y: 160 }, { id: 'SQ', label: 'Sant Quirze', x: 560, y: 160 }, { id: 'CF', label: 'Can Feu', x: 590, y: 160 }, { id: 'PJ', label: 'Pl. Major', x: 620, y: 160 }, { id: 'CT', label: 'La Creu Alta', x: 650, y: 160 }, { id: 'NO', label: 'Sabadell Nord', x: 680, y: 160 }, { id: 'PN', label: 'Parc del Nord', x: 710, y: 160 },
@@ -155,8 +135,6 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
   const [customTime, setCustomTime] = useState('');
   const [displayMin, setDisplayMin] = useState<number>(0);
   const [liveData, setLiveData] = useState<LivePersonnel[]>([]);
-  const [mapDataSource, setMapDataSource] = useState<MapSource>('THEORETICAL');
-  const [geotrenError, setGeotrenError] = useState<string | null>(null);
   
   const [originalShift, setOriginalShift] = useState<any>(null);
   const [selectedCircId, setSelectedCircId] = useState<string>('');
@@ -233,7 +211,6 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
 
   const fetchLiveMapData = async () => {
     setLoading(true);
-    setGeotrenError(null);
     try {
       const { data: allShifts } = await supabase.from('shifts').select('*');
       if (!allShifts) return;
@@ -249,21 +226,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
       const VALID_STATION_IDS = new Set(MAP_STATIONS.map(s => s.id));
 
       const currentPersonnel: LivePersonnel[] = [];
-      let geotrenTrains: any[] = [];
       const processedKeys = new Set<string>();
-
-      if (mapDataSource === 'GEOTREN') {
-        try {
-          const parsed = await fetchGeotrenData();
-          if (parsed && Array.isArray(parsed.trens)) {
-            geotrenTrains = parsed.trens;
-          }
-        } catch (e: any) {
-          console.error("GeoTren fetch failed:", e);
-          setGeotrenError(`S'utilitzen dades teòriques: ${e.message}`);
-          setMapDataSource('THEORETICAL');
-        }
-      }
 
       let circDetailsData: any[] = [];
       const { count } = await supabase.from('circulations').select('*', { count: 'exact', head: true });
@@ -324,159 +287,126 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
 
            if (!circ) return;
 
-           const gtTrain = geotrenTrains.find(gt => gt.id_circulacio === circ.id);
-           const isRealTimeDataAvailable = !!gtTrain;
+           let startMin = getFgcMinutes(circ.sortida);
+           let endMin = getFgcMinutes(circ.arribada);
+           const estacions = (circ.estacions as any[]) || [];
 
-           if (isRealTimeDataAvailable) {
-                let stAnt = resolveStationId(gtTrain.estacio_anterior || '', circ.linia);
-                let stProx = resolveStationId(gtTrain.estacio_proxima || '', circ.linia);
-                
-                if (!stationCoords[stAnt] && codi.startsWith('F')) stAnt = 'RB';
-                if (!stationCoords[stProx] && codi.startsWith('F')) stProx = 'RB';
+           if (startMin === null && estacions.length > 0) startMin = getFgcMinutes(estacions[0].hora || estacions[0].arribada || estacions[0].sortida);
+           if (endMin === null && estacions.length > 0) endMin = getFgcMinutes(estacions[estacions.length - 1].hora || estacions[estacions.length - 1].arribada || estacions[estacions.length - 1].sortida);
+           
+           if (startMin !== null && endMin !== null && displayMin >= startMin && displayMin <= endMin) {
+              const validStops = estacions
+                .map((st: any) => ({
+                  nom: resolveStationId(st.nom || st.id, circ.linia),
+                  min: getFgcMinutes(st.hora || st.arribada || st.sortida)
+                }))
+                .filter((s: any) => s.min !== null && s.nom !== null && VALID_STATION_IDS.has(s.nom));
 
-                const p1 = stationCoords[stAnt] || stationCoords['PC'];
-                const p2 = stationCoords[stProx] || stationCoords['PC'];
-                
-                const progress = (gtTrain.percentatge || 50) / 100;
-                const x = p1.x + (p2.x - p1.x) * progress;
-                const y = p1.y + (p2.y - p1.y) * progress;
+              const startID = resolveStationId(circ.inici || (estacions[0]?.nom), circ.linia);
+              const endID = resolveStationId(circ.final || (estacions[estacions.length-1]?.nom), circ.linia);
 
-                const shortTorn = getShortTornId(shift.id);
-                const assignment = allDaily?.find(d => d.torn === shortTorn);
-                const driverPhones = allPhones?.find(p => p.nomina === assignment?.empleat_id)?.phones || [];
+              const stopsWithTimes = [
+                { nom: startID, min: startMin },
+                ...validStops,
+                { nom: endID, min: endMin }
+              ]
+              .filter(s => VALID_STATION_IDS.has(s.nom)) 
+              .sort((a: any, b: any) => a.min - b.min);
 
-                currentPersonnel.push({
-                  type: 'TRAIN', id: circ.id, linia: circ.linia, stationId: stAnt, 
-                  color: getLiniaColorHex(codi.startsWith('F') ? 'F' : circ.linia),
-                  driver: assignment ? `${assignment.cognoms}, ${assignment.nom}` : 'Sense assignar',
-                  torn: shift?.id || '---', phones: driverPhones, inici: circ.inici, final: circ.final, horaPas: formatFgcTime(displayMin),
-                  x, y, isRealTime: true
-                });
-                processedKeys.add(codi);
-           } else {
-               let startMin = getFgcMinutes(circ.sortida);
-               let endMin = getFgcMinutes(circ.arribada);
-               const estacions = (circ.estacions as any[]) || [];
+              if (stopsWithTimes.length < 1) return;
 
-               if (startMin === null && estacions.length > 0) startMin = getFgcMinutes(estacions[0].hora || estacions[0].arribada || estacions[0].sortida);
-               if (endMin === null && estacions.length > 0) endMin = getFgcMinutes(estacions[estacions.length - 1].hora || estacions[estacions.length - 1].arribada || estacions[estacions.length - 1].sortida);
-               
-               if (startMin !== null && endMin !== null && displayMin >= startMin && displayMin <= endMin) {
-                  const validStops = estacions
-                    .map((st: any) => ({
-                      nom: resolveStationId(st.nom || st.id, circ.linia),
-                      min: getFgcMinutes(st.hora || st.arribada || st.sortida)
-                    }))
-                    .filter((s: any) => s.min !== null && s.nom !== null && VALID_STATION_IDS.has(s.nom));
+              let x = 0, y = 0, currentStationId = stopsWithTimes[0].nom;
 
-                  const startID = resolveStationId(circ.inici || (estacions[0]?.nom), circ.linia);
-                  const endID = resolveStationId(circ.final || (estacions[estacions.length-1]?.nom), circ.linia);
-
-                  const stopsWithTimes = [
-                    { nom: startID, min: startMin },
-                    ...validStops,
-                    { nom: endID, min: endMin }
-                  ]
-                  .filter(s => VALID_STATION_IDS.has(s.nom)) 
-                  .sort((a: any, b: any) => a.min - b.min);
-
-                  if (stopsWithTimes.length < 1) return;
-
-                  let x = 0, y = 0, currentStationId = stopsWithTimes[0].nom;
-
-                  if (stopsWithTimes.length === 1) {
-                     const p = stationCoords[currentStationId] || stationCoords['PC'];
-                     x = p.x; y = p.y;
-                  } else {
-                      const expandedStops: { nom: string, min: number }[] = [];
-                      for (let i = 0; i < stopsWithTimes.length - 1; i++) {
-                        const current = stopsWithTimes[i];
-                        const next = stopsWithTimes[i+1];
-                        const path = getFullPath(current.nom, next.nom);
-                        if (path.length > 1) {
-                          for (let j = 0; j < path.length - 1; j++) {
-                            const ratio = j / (path.length - 1);
-                            expandedStops.push({ nom: path[j], min: current.min + (next.min - current.min) * ratio });
-                          }
-                        } else expandedStops.push(current);
+              if (stopsWithTimes.length === 1) {
+                 const p = stationCoords[currentStationId] || stationCoords['PC'];
+                 x = p.x; y = p.y;
+              } else {
+                  const expandedStops: { nom: string, min: number }[] = [];
+                  for (let i = 0; i < stopsWithTimes.length - 1; i++) {
+                    const current = stopsWithTimes[i];
+                    const next = stopsWithTimes[i+1];
+                    const path = getFullPath(current.nom, next.nom);
+                    if (path.length > 1) {
+                      for (let j = 0; j < path.length - 1; j++) {
+                        const ratio = j / (path.length - 1);
+                        expandedStops.push({ nom: path[j], min: current.min + (next.min - current.min) * ratio });
                       }
-                      expandedStops.push(stopsWithTimes[stopsWithTimes.length - 1]);
-
-                      for (let i = 0; i < expandedStops.length - 1; i++) {
-                        const s1 = expandedStops[i];
-                        const s2 = expandedStops[i+1];
-                        if (displayMin >= s1.min && displayMin <= s2.min) {
-                          currentStationId = s1.nom;
-                          const p1 = stationCoords[s1.nom] || stationCoords['PC'];
-                          const p2 = stationCoords[s2.nom] || stationCoords['PC'];
-                          if (s1.min === s2.min) { x = p1.x; y = p1.y; } else {
-                            const progress = (displayMin - s1.min) / (s2.min - s1.min);
-                            x = p1.x + (p2.x - p1.x) * progress;
-                            y = p1.y + (p2.y - p1.y) * progress;
-                          }
-                          break;
-                        }
-                      }
+                    } else expandedStops.push(current);
                   }
+                  expandedStops.push(stopsWithTimes[stopsWithTimes.length - 1]);
 
-                  const shortTorn = getShortTornId(shift.id);
-                  const assignment = allDaily?.find(d => d.torn === shortTorn);
-                  const driverPhones = allPhones?.find(p => p.nomina === assignment?.empleat_id)?.phones || [];
+                  for (let i = 0; i < expandedStops.length - 1; i++) {
+                    const s1 = expandedStops[i];
+                    const s2 = expandedStops[i+1];
+                    if (displayMin >= s1.min && displayMin <= s2.min) {
+                      currentStationId = s1.nom;
+                      const p1 = stationCoords[s1.nom] || stationCoords['PC'];
+                      const p2 = stationCoords[s2.nom] || stationCoords['PC'];
+                      if (s1.min === s2.min) { x = p1.x; y = p1.y; } else {
+                        const progress = (displayMin - s1.min) / (s2.min - s1.min);
+                        x = p1.x + (p2.x - p1.x) * progress;
+                        y = p1.y + (p2.y - p1.y) * progress;
+                      }
+                      break;
+                    }
+                  }
+              }
 
-                  currentPersonnel.push({
-                    type: 'TRAIN', id: circ.id, linia: circ.linia, stationId: currentStationId, 
-                    color: getLiniaColorHex(codi.startsWith('F') ? 'F' : circ.linia),
-                    driver: assignment ? `${assignment.cognoms}, ${assignment.nom}` : 'Sense assignar',
-                    torn: shift?.id || '---', phones: driverPhones, inici: circ.inici, final: circ.final, horaPas: formatFgcTime(displayMin),
-                    x, y, isRealTime: false
-                  });
-                  processedKeys.add(codi);
-               }
+              const shortTorn = getShortTornId(shift.id);
+              const assignment = allDaily?.find(d => d.torn === shortTorn);
+              const driverPhones = allPhones?.find(p => p.nomina === assignment?.empleat_id)?.phones || [];
+
+              currentPersonnel.push({
+                type: 'TRAIN', id: circ.id, linia: circ.linia, stationId: currentStationId, 
+                color: getLiniaColorHex(codi.startsWith('F') ? 'F' : circ.linia),
+                driver: assignment ? `${assignment.cognoms}, ${assignment.nom}` : 'Sense assignar',
+                torn: shift?.id || '---', phones: driverPhones, inici: circ.inici, final: circ.final, horaPas: formatFgcTime(displayMin),
+                x, y
+              });
+              processedKeys.add(codi);
            }
         });
       });
 
-      if (mapDataSource === 'THEORETICAL') {
-        allShifts.forEach(shift => {
-          const shiftService = (shift.servei || '').toString();
-          
-          let isShiftVisible = false;
-          if (selectedServei === 'Tots') {
-              isShiftVisible = true;
-          } else {
-              if (selectedServei === '400') isShiftVisible = shiftService === '400' || shiftService === 'S1';
-              else if (selectedServei === '500') isShiftVisible = shiftService === '500' || shiftService === 'S2';
-              else if (selectedServei === '100') isShiftVisible = shiftService === '100' || shiftService === 'L6';
-              else if (selectedServei === '0') isShiftVisible = shiftService === '0' || shiftService === 'L12';
-              else isShiftVisible = (shiftService === selectedServei);
-          }
+      allShifts.forEach(shift => {
+        const shiftService = (shift.servei || '').toString();
+        
+        let isShiftVisible = false;
+        if (selectedServei === 'Tots') {
+            isShiftVisible = true;
+        } else {
+            if (selectedServei === '400') isShiftVisible = shiftService === '400' || shiftService === 'S1';
+            else if (selectedServei === '500') isShiftVisible = shiftService === '500' || shiftService === 'S2';
+            else if (selectedServei === '100') isShiftVisible = shiftService === '100' || shiftService === 'L6';
+            else if (selectedServei === '0') isShiftVisible = shiftService === '0' || shiftService === 'L12';
+            else isShiftVisible = (shiftService === selectedServei);
+        }
 
-          if (!isShiftVisible) return;
+        if (!isShiftVisible) return;
 
-          const startMin = getFgcMinutes(shift.inici_torn);
-          const endMin = getFgcMinutes(shift.final_torn);
-          
-          if (startMin !== null && endMin !== null && displayMin >= startMin && displayMin < endMin) {
-            const isWorking = currentPersonnel.some(p => p.torn === shift.id);
-            if (!isWorking) {
-              const shortTorn = getShortTornId(shift.id);
-              const assignment = allDaily?.find(d => d.torn === shortTorn);
-              const rawLoc = (shift.dependencia || '').trim().toUpperCase();
-              const loc = resolveStationId(rawLoc, shiftService);
-              if (loc && stationCoords[loc] && assignment) {
-                const driverPhones = allPhones?.find(p => p.nomina === assignment.empleat_id)?.phones || [];
-                const coords = stationCoords[loc] || { x: 0, y: 0 };
-                currentPersonnel.push({ 
-                  type: 'REST', id: 'DESCANS', linia: 'S/L', stationId: loc, color: '#53565A', 
-                  driver: `${assignment.cognoms}, ${assignment.nom}`, torn: shift.id, phones: driverPhones, 
-                  inici: loc, final: loc, horaPas: formatFgcTime(displayMin),
-                  x: coords.x, y: coords.y, isRealTime: false
-                });
-              }
+        const startMin = getFgcMinutes(shift.inici_torn);
+        const endMin = getFgcMinutes(shift.final_torn);
+        
+        if (startMin !== null && endMin !== null && displayMin >= startMin && displayMin < endMin) {
+          const isWorking = currentPersonnel.some(p => p.torn === shift.id);
+          if (!isWorking) {
+            const shortTorn = getShortTornId(shift.id);
+            const assignment = allDaily?.find(d => d.torn === shortTorn);
+            const rawLoc = (shift.dependencia || '').trim().toUpperCase();
+            const loc = resolveStationId(rawLoc, shiftService);
+            if (loc && stationCoords[loc] && assignment) {
+              const driverPhones = allPhones?.find(p => p.nomina === assignment.empleat_id)?.phones || [];
+              const coords = stationCoords[loc] || { x: 0, y: 0 };
+              currentPersonnel.push({ 
+                type: 'REST', id: 'DESCANS', linia: 'S/L', stationId: loc, color: '#53565A', 
+                driver: `${assignment.cognoms}, ${assignment.nom}`, torn: shift.id, phones: driverPhones, 
+                inici: loc, final: loc, horaPas: formatFgcTime(displayMin),
+                x: coords.x, y: coords.y
+              });
             }
           }
-        });
-      }
+        }
+      });
 
       const collisionMap: Record<string, number> = {};
       const offsetData = currentPersonnel.map(p => {
@@ -489,7 +419,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
     } catch (e) { console.error("Error live map:", e); } finally { setLoading(false); }
   };
 
-  useEffect(() => { if (mode === 'LINIA') fetchLiveMapData(); }, [mode, displayMin, selectedServei, mapDataSource]);
+  useEffect(() => { if (mode === 'LINIA') fetchLiveMapData(); }, [mode, displayMin, selectedServei]);
 
   const getShortTornId = (id: string) => {
     const trimmed = id.trim();
@@ -816,17 +746,12 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
                 <h3 className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest leading-none">Esquema Interactiu BV</h3>
                 <div className={`flex items-center gap-2 px-2 py-0.5 rounded-lg border transition-all ${isRealTime ? 'bg-fgc-green/10 border-fgc-green/20 text-fgc-green' : 'bg-gray-100 dark:bg-white/5 border-gray-200 dark:border-white/10 text-gray-400'}`}>
                     <div className={`w-1.5 h-1.5 rounded-full ${isRealTime ? 'bg-fgc-green' : 'bg-gray-400'}`}></div>
-                    <span className="text-[8px] font-black uppercase tracking-widest">{isRealTime ? 'Live Map' : 'Tall Manual'}</span>
+                    <span className="text-[8px] font-black uppercase tracking-widest">{isRealTime ? 'En Temps Real' : 'Tall Manual'}</span>
                 </div>
              </div>
              <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 flex items-center gap-1"><Clock size={10} /> Estat malla: <span className="text-fgc-grey dark:text-white font-black">{customTime || '--:--'}</span></p>
           </div>
           <div className="flex flex-wrap items-center gap-3 bg-gray-50 dark:bg-black/20 p-2 rounded-[24px] border border-gray-100 dark:border-white/5">
-              <div className="flex items-center bg-white dark:bg-gray-800 p-1 rounded-xl shadow-sm">
-                <button onClick={() => setMapDataSource('THEORETICAL')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${mapDataSource === 'THEORETICAL' ? 'bg-fgc-grey dark:bg-fgc-green text-white dark:text-fgc-grey shadow-md' : 'text-gray-400 hover:text-fgc-grey'}`}><LayersIcon size={14} /> Teòric</button>
-                <button onClick={() => setMapDataSource('GEOTREN')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${mapDataSource === 'GEOTREN' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-blue-500'}`}><Wifi size={14} /> GeoTren Real</button>
-              </div>
-              <div className="w-px h-6 bg-gray-200 dark:bg-white/10 hidden sm:block" />
               <div className="flex items-center gap-2">
                 <button onClick={() => setIsRealTime(true)} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${isRealTime ? 'bg-fgc-grey dark:bg-fgc-green text-white dark:text-fgc-grey shadow-md' : 'text-gray-400 hover:text-fgc-grey'}`}>Live</button>
                 <input type="time" value={customTime} onChange={(e) => { setCustomTime(e.target.value); setIsRealTime(false); }} className="bg-white dark:bg-gray-800 border-none rounded-lg px-3 py-1.5 text-xs font-black text-fgc-grey dark:text-white focus:ring-2 focus:ring-fgc-green/30 outline-none" />
@@ -835,7 +760,6 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
           </div>
           {(selectedCutStations.size > 0 || selectedCutSegments.size > 0) && (<button onClick={clearAllCuts} className="text-[10px] font-black text-red-500 uppercase flex items-center gap-2 bg-red-50 dark:bg-red-950/30 px-4 py-2.5 rounded-xl hover:scale-105 transition-all shadow-sm border border-red-100 dark:border-red-900/40 animate-in fade-in zoom-in-95"><Trash2 size={14} /> Anul·lar Talls ({selectedCutStations.size + selectedCutSegments.size})</button>)}
         </div>
-        {geotrenError && (<div className="mb-6 px-4 py-2 bg-orange-50 dark:bg-orange-900/20 border border-orange-100 dark:border-orange-900/40 rounded-xl flex items-center gap-3 animate-in fade-in duration-300"><Info size={16} className="text-orange-500" /><p className="text-[10px] font-bold text-orange-700 dark:text-orange-300">{geotrenError}</p></div>)}
         <div className="overflow-x-auto custom-scrollbar pb-10 -mx-4 px-4 select-none">
           <svg viewBox="0 0 750 220" className="min-w-[800px] h-auto overflow-visible">
             {MAP_SEGMENTS.map((seg, i) => {
@@ -860,6 +784,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
                   <circle cx={st.x} cy={st.y} r="9" fill="white" stroke={isCut ? "#ef4444" : "#53565A"} strokeWidth="2.5" onClick={() => toggleStationCut(st.id)} className="cursor-pointer transition-all duration-300 group-hover:stroke-red-500" />
                   {count > 0 && !isCut && (
                     <g onClick={() => setSelectedRestLocation(selectedRestLocation === st.id ? null : st.id)} className="cursor-pointer transition-colors">
+                      {/* Fixed typo in circle radius calculation: removed incorrectly nested curly braces */}
                       <circle cx={st.x} cy={st.y + (isUpper ? -32 : 44)} r={count > 1 ? 7 : 4} fill={count > 1 ? "#3b82f6" : "#8EDE00"} className="shadow-md" stroke="white" strokeWidth="1.5" />
                       {count > 1 && (<text x={st.x} y={st.y + (isUpper ? -29.5 : 46.5)} textAnchor="middle" fill="white" className="text-[7px] font-black pointer-events-none">{count}</text>)}
                     </g>
@@ -871,17 +796,10 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
             {trains.map((p, idx) => {
                const offset = (p as any).visualOffset || 0;
                const isAffected = selectedCutStations.has(p.stationId.toUpperCase());
-               const isRealTimeData = p.isRealTime;
                return (
                  <g key={`${p.id}-${p.torn}-${idx}`} className="transition-all duration-1000 ease-linear">
-                   {isRealTimeData && (
-                     <circle cx={p.x} cy={p.y} r={8.5} fill="none" stroke="white" strokeWidth="1.5" strokeOpacity="0.5" style={{ transform: `translate(${offset * 4}px, 0px)` }} />
-                   )}
-                   <circle cx={p.x} cy={p.y} r={5.5} fill={p.color} className={`${isAffected ? "stroke-red-500 stroke-2" : isRealTimeData ? "stroke-white stroke-[2]" : "stroke-white dark:stroke-black stroke-[1.5]"}`} style={{ transform: `translate(${offset * 4}px, 0px)`, filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.3))' }}><title>{isRealTimeData ? '[RT] ' : ''}{p.id} - Torn {p.torn}</title></circle>
+                   <circle cx={p.x} cy={p.y} r={5.5} fill={p.color} className={`${isAffected ? "stroke-red-500 stroke-2" : "stroke-white dark:stroke-black stroke-[1.5]"}`} style={{ transform: `translate(${offset * 4}px, 0px)`, filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.3))' }}><title>{p.id} - Torn {p.torn}</title></circle>
                    <text x={p.x} y={p.y - 9} textAnchor="middle" className="text-[7px] font-black fill-fgc-grey dark:fill-white pointer-events-none drop-shadow-md" style={{ transform: `translate(${offset * 4}px, 0px)` }}>{p.id}</text>
-                   {isRealTimeData && (
-                     <text x={p.x + 8} y={p.y - 8} className="fill-blue-500 text-[6px] font-black pointer-events-none" style={{ transform: `translate(${offset * 4}px, 0px)` }}>RT</text>
-                   )}
                  </g>
                );
             })}
