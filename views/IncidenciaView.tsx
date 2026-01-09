@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, ShieldAlert, Loader2, UserCheck, Clock, MapPin, AlertCircle, Phone, Info, Users, Zap, User, Train, Map as MapIcon, X, Timer, Scissors, ArrowDownToLine, ArrowUpToLine, ArrowLeftToLine, ArrowRightToLine, Coffee, Layers, Trash2, Repeat, Rewind, FastForward, RotateCcw, RefreshCw, Layers as LayersIcon } from 'lucide-react';
+import { Search, ShieldAlert, Loader2, UserCheck, Clock, MapPin, AlertCircle, Phone, Info, Users, Zap, User, Train, Map as MapIcon, X, Timer, Scissors, ArrowDownToLine, ArrowUpToLine, ArrowLeftToLine, ArrowRightToLine, Coffee, Layers, Trash2, Repeat, Rewind, FastForward, RotateCcw, RefreshCw, LayoutGrid, CheckCircle2, Activity } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
 import IncidenciaPerTorn from '../components/IncidenciaPerTorn.tsx';
 
@@ -25,6 +25,8 @@ interface LivePersonnel {
   stationId: string;
   color: string;
   driver?: string;
+  driverName?: string;
+  driverSurname?: string;
   torn?: string;
   phones?: string[];
   inici?: string;
@@ -68,7 +70,7 @@ const resolveStationId = (name: string, linia: string = '') => {
     if (n.includes('BELLATERRA') || n === 'BT') return 'BT';
     if (n.includes('AUTONOMA') || n.includes('UAB') || n.includes('UNIVERSITAT') || n === 'UN') return 'UN';
     if (n.includes('QUIRZE') || n === 'SQ') return 'SQ';
-    if (n.includes('FEU') || n === 'CF') return 'CF'; 
+    if (n.includes('FEU') || n.includes('CF') || n === 'CF') return 'CF'; 
     if (n.includes('MAJOR') || n === 'PJ') return 'PJ'; 
     if (n.includes('CREU') || n === 'CT') return 'CT'; 
     if (n.includes('SABADELL NORD') || n === 'NO') return 'NO';
@@ -94,6 +96,12 @@ const MAP_STATIONS = [
 const MAP_SEGMENTS = [
   { from: 'PC', to: 'PR' }, { from: 'PR', to: 'GR' }, { from: 'GR', to: 'SG' }, { from: 'SG', to: 'MN' }, { from: 'MN', to: 'BN' }, { from: 'BN', to: 'TT' }, { from: 'TT', to: 'SR' }, { from: 'SR', to: 'PF' }, { from: 'PF', to: 'VL' }, { from: 'VL', to: 'LP' }, { from: 'LP', to: 'LF' }, { from: 'LF', to: 'VD' }, { from: 'VD', to: 'SC' }, { from: 'GR', to: 'PM' }, { from: 'PM', to: 'PD' }, { from: 'PM', to: 'PD' }, { from: 'PD', to: 'EP' }, { from: 'EP', to: 'TB' }, { from: 'SR', to: 'RE' }, { from: 'SC', to: 'MS' }, { from: 'MS', to: 'HG' }, { from: 'HG', to: 'RB' }, { from: 'RB', to: 'FN' }, { from: 'FN', to: 'TR' }, { from: 'TR', to: 'VP' }, { from: 'VP', to: 'EN' }, { from: 'EN', to: 'NA' }, { from: 'SC', to: 'VO' }, { from: 'VO', to: 'SJ' }, { from: 'SJ', to: 'BT' }, { from: 'BT', to: 'UN' }, { from: 'UN', to: 'SQ' }, { from: 'SQ', to: 'CF' }, { from: 'CF', to: 'PJ' }, { from: 'PJ', to: 'CT' }, { from: 'CT', to: 'NO' }, { from: 'NO', to: 'PN' },
 ];
+
+const S1_STATIONS = ['PC', 'PR', 'GR', 'SG', 'MN', 'BN', 'TT', 'SR', 'PF', 'VL', 'LP', 'LF', 'VD', 'SC', 'MS', 'HG', 'RB', 'FN', 'TR', 'VP', 'EN', 'NA'];
+const S2_STATIONS = ['PC', 'PR', 'GR', 'SG', 'MN', 'BN', 'TT', 'SR', 'PF', 'VL', 'LP', 'LF', 'VD', 'SC', 'VO', 'SJ', 'BT', 'UN', 'SQ', 'CF', 'PJ', 'CT', 'NO', 'PN'];
+const L6_STATIONS = ['PC', 'PR', 'GR', 'SG', 'MN', 'BN', 'TT', 'SR'];
+const L7_STATIONS = ['PC', 'PR', 'GR', 'PM', 'PD', 'EP', 'TB'];
+const L12_STATIONS = ['SR', 'RE'];
 
 const getFullPath = (start: string, end: string): string[] => {
   if (start === end) return [start];
@@ -143,6 +151,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
   const [selectedCutStations, setSelectedCutStations] = useState<Set<string>>(new Set());
   const [selectedCutSegments, setSelectedCutSegments] = useState<Set<string>>(new Set());
   const [selectedRestLocation, setSelectedRestLocation] = useState<string | null>(null);
+  const [altServiceIsland, setAltServiceIsland] = useState<string | null>(null);
   
   const [passengerResults, setPassengerResults] = useState<any[]>([]);
   const [adjacentResults, setAdjacentResults] = useState<{anterior: any[], posterior: any[]}>({anterior: [], posterior: []});
@@ -360,6 +369,8 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
                 type: 'TRAIN', id: circ.id, linia: circ.linia, stationId: currentStationId, 
                 color: getLiniaColorHex(codi.startsWith('F') ? 'F' : circ.linia),
                 driver: assignment ? `${assignment.cognoms}, ${assignment.nom}` : 'Sense assignar',
+                driverName: assignment?.nom,
+                driverSurname: assignment?.cognoms,
                 torn: shift?.id || '---', phones: driverPhones, inici: circ.inici, final: circ.final, horaPas: formatFgcTime(displayMin),
                 x, y
               });
@@ -399,7 +410,10 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
               const coords = stationCoords[loc] || { x: 0, y: 0 };
               currentPersonnel.push({ 
                 type: 'REST', id: 'DESCANS', linia: 'S/L', stationId: loc, color: '#53565A', 
-                driver: `${assignment.cognoms}, ${assignment.nom}`, torn: shift.id, phones: driverPhones, 
+                driver: `${assignment.cognoms}, ${assignment.nom}`, 
+                driverName: assignment.nom,
+                driverSurname: assignment.cognoms,
+                torn: shift.id, phones: driverPhones, 
                 inici: loc, final: loc, horaPas: formatFgcTime(displayMin),
                 x: coords.x, y: coords.y
               });
@@ -508,14 +522,14 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
         shiftsQuery = shiftsQuery.eq('servei', selectedServei);
       }
 
-      const { data: allShiftsRaw = [] } = await shiftsQuery;
-      const { data: tcDetail = null } = await supabase.from('circulations').select('*').eq('id', selectedCircId).single();
+      const { data: allShiftsRaw = [] } = await (shiftsQuery as any);
+      const { data: tcDetail = null } = await (supabase.from('circulations').select('*').eq('id', selectedCircId).single() as any);
       
       if (!allShiftsRaw || !tcDetail) { setCalculating(false); return; }
 
-      const reliefTimeStr = tcDetail.inici === selectedStation ? tcDetail.sortida : (tcDetail.estacions?.find((s: any) => s.nom === selectedStation)?.hora || tcDetail.arribada);
+      const reliefTimeStr = (tcDetail.inici === selectedStation ? tcDetail.sortida : (tcDetail.estacions?.find((s: any) => s.nom === selectedStation)?.hora || tcDetail.arribada)) as string | undefined;
       const reliefMin = getFgcMinutes(reliefTimeStr);
-      const arribadaMin = getFgcMinutes(tcDetail.arribada);
+      const arribadaMin = getFgcMinutes(tcDetail.arribada as string | undefined);
       
       if (reliefMin === null || arribadaMin === null) { setCalculating(false); return; }
 
@@ -523,13 +537,13 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
       const antIds: string[] = []; 
       const postIds: string[] = [];
 
-      const { data: sameLine } = await supabase.from('circulations').select('id, sortida').eq('linia', tcDetail.linia).eq('final', tcDetail.final);
-      const sorted = sameLine?.sort((a,b) => (getFgcMinutes(a.sortida) || 0) - (getFgcMinutes(b.sortida) || 0)) || [];
-      const idx = sorted.findIndex(c => c.id === tcDetail.id);
-      const antId = idx > 0 ? sorted[idx-1].id : null;
-      const postId = idx < sorted.length - 1 ? sorted[idx+1].id : null;
+      const { data: sameLine } = await supabase.from('circulations').select('id, sortida').eq('linia', (tcDetail as any).linia).eq('final', (tcDetail as any).final);
+      const sorted = (sameLine as any[])?.sort((a: any, b: any) => (getFgcMinutes(a.sortida as string) || 0) - (getFgcMinutes(b.sortida as string) || 0)) || [];
+      const idx = sorted.findIndex((c: any) => c.id === (tcDetail as any).id);
+      const antId = idx > 0 ? (sorted[idx-1] as any).id : null;
+      const postId = idx < sorted.length - 1 ? (sorted[idx+1] as any).id : null;
 
-      allShiftsRaw.forEach(s => {
+      allShiftsRaw.forEach((s: any) => {
         (s.circulations as any[]).forEach(c => {
           if (c.codi === 'Viatger' && c.observacions) {
             const obs = c.observacions.split('-')[0].toUpperCase();
@@ -555,7 +569,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
       const resting: any[] = []; 
       const extensible: any[] = []; 
       const reserves: any[] = [];
-      const enrichedAll = await Promise.all(allShiftsRaw.map(s => fetchFullTurnData(s.id)));
+      const enrichedAll = await Promise.all(allShiftsRaw.map((s: any) => fetchFullTurnData(s.id)));
       
       const normalizedStation = resolveStationId(selectedStation);
 
@@ -567,7 +581,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
         
         const isRestHere = segs.find(seg => 
           seg.type === 'gap' && 
-          resolveStationId(seg.codi) === normalizedStation && 
+          resolveStationId(seg.codi as string) === normalizedStation && 
           seg.start <= (reliefMin + 1) && 
           seg.end >= (reliefMin - 1)
         );
@@ -608,8 +622,8 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
   };
 
   const isReserveActive = (res: any, timeMin: number) => {
-    const start = getFgcMinutes(res.start);
-    const end = getFgcMinutes(res.end);
+    const start = getFgcMinutes(res.start as string | undefined);
+    const end = getFgcMinutes(res.end as string | undefined);
     if (start === null || end === null) return false;
     if (start > end) {
       return timeMin >= start || timeMin < end;
@@ -620,7 +634,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
   const resetAllModeData = () => {
     setMode('INIT'); setQuery(''); setOriginalShift(null); setSelectedCircId(''); setSelectedStation('');
     setPassengerResults([]); setAdjacentResults({anterior:[], posterior:[]}); setRestingResults([]); setExtensibleResults([]); setReserveInterceptResults([]);
-    setSelectedCutStations(new Set()); setSelectedCutSegments(new Set());
+    setSelectedCutStations(new Set()); setSelectedCutSegments(new Set()); setAltServiceIsland(null);
   };
 
   const toggleStationCut = (id: string) => {
@@ -640,7 +654,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
     });
   };
 
-  const clearAllCuts = () => { setSelectedCutStations(new Set()); setSelectedCutSegments(new Set()); };
+  const clearAllCuts = () => { setSelectedCutStations(new Set()); setSelectedCutSegments(new Set()); setAltServiceIsland(null); };
 
   const getConnectivityIslands = () => {
     const graph: Record<string, string[]> = {};
@@ -676,8 +690,15 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
     if (selectedCutStations.size === 0 && selectedCutSegments.size === 0) return null;
     const islands = getConnectivityIslands();
     const vallesUnified = islands.S1.has('PN') || islands.S2.has('NA');
-    const result: Record<string, { list: LivePersonnel[], isUnified: boolean }> = { 
-      AFFECTED: { list: [], isUnified: false }, BCN: { list: [], isUnified: false }, S1: { list: [], isUnified: false }, S2: { list: [], isUnified: false }, VALLES: { list: [], isUnified: vallesUnified }, L6: { list: [], isUnified: false }, L7: { list: [], isUnified: false }, ISOLATED: { list: [], isUnified: false } 
+    const result: Record<string, { list: LivePersonnel[], stations: Set<string>, isUnified: boolean, label: string }> = { 
+      AFFECTED: { list: [], stations: new Set(), isUnified: false, label: 'Zona de Tall / Atrapats' }, 
+      BCN: { list: [], stations: islands.BCN, isUnified: false, label: 'Illa Barcelona' }, 
+      S1: { list: [], stations: islands.S1, isUnified: false, label: 'Illa S1 (Terrassa)' }, 
+      S2: { list: [], stations: islands.S2, isUnified: false, label: 'Illa S2 (Sabadell)' }, 
+      VALLES: { list: [], stations: new Set([...Array.from(islands.S1), ...Array.from(islands.S2)]), isUnified: vallesUnified, label: 'Illa Vallès (S1+S2)' }, 
+      L6: { list: [], stations: islands.L6, isUnified: false, label: 'Illa L6' }, 
+      L7: { list: [], stations: islands.L7, isUnified: false, label: 'Illa L7' }, 
+      ISOLATED: { list: [], stations: new Set(), isUnified: false, label: 'Zones Aïllades' } 
     };
     liveData.forEach(p => {
       const st = p.stationId.toUpperCase();
@@ -736,6 +757,171 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
     );
   };
 
+  const AlternativeServiceOverlay = ({ islandId }: { islandId: string }) => {
+    if (!dividedPersonnel || !dividedPersonnel[islandId]) return null;
+    const personnel = dividedPersonnel[islandId].list;
+    const islandStations = dividedPersonnel[islandId].stations;
+    const physicalTrains = personnel.filter(p => p.type === 'TRAIN');
+    const allDrivers = [...personnel];
+    
+    // Geographic Branch Detection refined by station sets
+    const canSupportS1 = Array.from(islandStations).some(s => S1_STATIONS.includes(s));
+    const canSupportS2 = Array.from(islandStations).some(s => S2_STATIONS.includes(s));
+    const canSupportL6 = Array.from(islandStations).some(s => L6_STATIONS.includes(s));
+    const canSupportL7Full = islandStations.has('PC') && islandStations.has('TB');
+    const canSupportL7Local = islandStations.has('GR') && islandStations.has('TB') && !canSupportL7Full;
+    const canSupportL12 = islandStations.has('SR') && islandStations.has('RE');
+
+    const shuttlePlan = useMemo(() => {
+        const availableTrains = [...physicalTrains];
+        const availableDrivers = [...allDrivers];
+        const formedServices: any[] = [];
+        
+        const tryAssign = (route: string, priority: string) => {
+          if (availableTrains.length > 0 && availableDrivers.length > 0) {
+            const train = availableTrains.shift();
+            const driver = availableDrivers.shift();
+            formedServices.push({ train, driver, route, priority });
+            return true;
+          }
+          return false;
+        };
+
+        // 1. L12: Strictly 1 unit is enough
+        if (canSupportL12) {
+          tryAssign("L12 (Shuttle SR-RE)", "MITJA");
+        }
+
+        // 2. L7: Target 3 units, minimum 2
+        let l7Count = 0;
+        const l7Route = canSupportL7Full ? "L7 (Shuttle PC-TB)" : "L7 (Shuttle GR-TB)";
+        if (canSupportL7Full || canSupportL7Local) {
+          if (tryAssign(l7Route, "MITJA")) l7Count++;
+          if (tryAssign(l7Route, "MITJA")) l7Count++;
+        }
+
+        // 3. S1 / S2 / L6 Rotation Loop
+        // Sequence: [S1, S2, L6] repeated to ensure 10-min staggered frequency and L6 inclusion
+        let cycleCount = 0;
+        while (availableTrains.length > 0 && availableDrivers.length > 0) {
+          if (l7Count === 2 && (canSupportL7Full || canSupportL7Local)) {
+             if (tryAssign(l7Route, "BÀSICA")) l7Count++;
+             if (availableTrains.length === 0 || availableDrivers.length === 0) break;
+          }
+
+          if (canSupportS1) {
+            if (!tryAssign("S1 (Llançadora Terrassa)", "ALTA")) break;
+          }
+          if (canSupportS2) {
+            if (!tryAssign("S2 (Llançadora Sabadell)", "ALTA")) break;
+          }
+
+          cycleCount++;
+          if (canSupportL6) {
+            if (!tryAssign("L6 (Reforç Urbà)", "MITJA")) break;
+          }
+          
+          if (!canSupportS1 && !canSupportS2 && !canSupportL6 && !canSupportL7Full && !canSupportL7Local && !canSupportL12) {
+             tryAssign("Llançadora Local d'Illa", "BÀSICA");
+             break;
+          }
+          if (cycleCount > 20) break;
+        }
+
+        return formedServices;
+    }, [physicalTrains, allDrivers, canSupportS1, canSupportS2, canSupportL6, canSupportL12, canSupportL7Full, canSupportL7Local]);
+
+    return (
+      <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-fgc-grey/60 backdrop-blur-md animate-in fade-in duration-300">
+        <div className="bg-white dark:bg-gray-900 w-full max-w-4xl rounded-[48px] shadow-2xl border border-white/20 overflow-hidden flex flex-col max-h-[90vh]">
+           <div className="p-8 border-b border-gray-100 dark:border-white/5 flex items-center justify-between bg-gray-50/50 dark:bg-black/20">
+              <div className="flex items-center gap-4">
+                 <div className="p-3 bg-fgc-green rounded-2xl text-fgc-grey shadow-lg"><Activity size={24} /></div>
+                 <div>
+                    <h3 className="text-xl font-black text-fgc-grey dark:text-white uppercase tracking-tight">Pla de Servei Alternatiu (Geogràfic)</h3>
+                    <p className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
+                      {dividedPersonnel[islandId].label} • {shuttlePlan.length} Serveis Assignats
+                    </p>
+                 </div>
+              </div>
+              <button onClick={() => setAltServiceIsland(null)} className="p-3 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-500 rounded-full transition-colors"><X size={28} /></button>
+           </div>
+           
+           <div className="flex-1 overflow-y-auto p-8 custom-scrollbar space-y-8">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                 <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-[28px] border border-blue-100 dark:border-blue-900/50 flex flex-col items-center gap-1">
+                    <Train size={24} className="text-blue-500 mb-1" />
+                    <p className="text-xl font-black text-blue-700 dark:text-blue-300">{physicalTrains.length}</p>
+                    <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest text-center leading-tight">Trens a la zona</p>
+                 </div>
+                 <div className="bg-fgc-green/10 dark:bg-fgc-green/5 p-4 rounded-[28px] border border-fgc-green/20 dark:border-fgc-green/10 flex flex-col items-center gap-1">
+                    <User size={24} className="text-fgc-green mb-1" />
+                    <p className="text-xl font-black text-fgc-grey dark:text-gray-200">{allDrivers.length}</p>
+                    <p className="text-[8px] font-black text-fgc-green uppercase tracking-widest text-center leading-tight">Personal Disponible</p>
+                 </div>
+                 <div className={`p-4 rounded-[28px] border flex flex-col items-center gap-1 ${canSupportS1 || canSupportS2 ? 'bg-orange-50 dark:bg-orange-950/20 border-orange-200' : 'bg-gray-50 opacity-40 border-gray-100'}`}>
+                    <LayoutGrid size={24} className={canSupportS1 || canSupportS2 ? "text-orange-500" : "text-gray-400"} />
+                    <p className="text-xl font-black uppercase text-fgc-grey dark:text-white">{(canSupportS1 && canSupportS2) ? "S1+S2" : canSupportS1 ? "S1" : canSupportS2 ? "S2" : "Tall"}</p>
+                    <p className="text-[8px] font-black uppercase tracking-widest text-center leading-tight">Prioritat Alta</p>
+                 </div>
+                 <div className={`p-4 rounded-[28px] border flex flex-col items-center gap-1 ${canSupportL6 || canSupportL7Full || canSupportL7Local ? 'bg-purple-50 dark:bg-purple-950/20 border-purple-200' : 'bg-gray-50 opacity-40 border-gray-100'}`}>
+                    <Layers size={24} className={canSupportL6 || canSupportL7Full || canSupportL7Local ? "text-purple-500" : "text-gray-400"} />
+                    <p className="text-xl font-black uppercase text-fgc-grey dark:text-white">
+                        {canSupportL6 ? "L6" : ""} {canSupportL7Full || canSupportL7Local ? "L7" : ""} {canSupportL12 ? "L12" : ""}
+                    </p>
+                    <p className="text-[8px] font-black uppercase tracking-widest text-center leading-tight">Serveis de Ramal</p>
+                 </div>
+              </div>
+
+              <div className="space-y-4">
+                 <div className="flex items-center gap-2 px-2"><ShieldAlert size={16} className="text-red-500" /><h4 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Escaleta de Llançadores Proposada</h4></div>
+                 <div className="grid grid-cols-1 gap-3">
+                    {shuttlePlan.map((s, idx) => (
+                       <div key={idx} className="bg-white dark:bg-gray-800 rounded-[28px] p-5 border border-gray-100 dark:border-white/5 shadow-sm flex items-center justify-between gap-6 hover:shadow-md transition-all group">
+                          <div className="flex items-center gap-5 flex-1 min-w-0">
+                             <div className={`h-12 w-12 rounded-xl flex items-center justify-center font-black text-white shadow-lg shrink-0 ${s.priority === 'ALTA' ? 'bg-red-500' : 'bg-purple-500'}`}>{idx + 1}</div>
+                             <div className="min-w-0">
+                                <div className="flex items-center gap-3 mb-1">
+                                   <p className="text-lg font-black text-fgc-grey dark:text-white uppercase truncate">{s.route}</p>
+                                   <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border ${s.priority === 'ALTA' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-purple-50 text-purple-600 border-purple-100'}`}>Prioritat {s.priority}</span>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                   <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 dark:text-gray-400"><Train size={12} className="text-blue-500" /> Tren: <span className="text-fgc-grey dark:text-gray-200 font-black">{s.train.id}</span></div>
+                                   <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 dark:text-gray-400"><UserCheck size={12} className="text-fgc-green" /> Maquinista: <span className="text-fgc-grey dark:text-gray-200 font-black truncate">{s.driver.driver}</span></div>
+                                </div>
+                             </div>
+                          </div>
+                          <div className="flex gap-2">
+                             {s.driver.phones?.map((p: string, i: number) => (
+                                <a key={i} href={`tel:${p}`} className="w-10 h-10 bg-gray-50 dark:bg-black text-fgc-grey dark:text-gray-400 rounded-xl flex items-center justify-center hover:bg-fgc-green hover:text-white transition-all shadow-sm border border-gray-100 dark:border-white/5"><Phone size={16} /></a>
+                             ))}
+                          </div>
+                       </div>
+                    ))}
+                    {shuttlePlan.length === 0 && (
+                        <div className="py-20 text-center opacity-30 italic">No hi ha prou recursos per generar un pla.</div>
+                    )}
+                 </div>
+              </div>
+           </div>
+           <div className="p-8 border-t border-gray-100 dark:border-white/5 bg-gray-50/30 dark:bg-black/40">
+              <div className="flex items-start gap-4 p-4 bg-blue-50/50 dark:bg-blue-900/10 rounded-2xl border border-blue-100 dark:border-blue-900/20">
+                 <Info size={20} className="text-blue-500 mt-1 shrink-0" />
+                 <div className="text-xs font-bold text-blue-700 dark:text-blue-300 leading-relaxed">
+                   <p className="uppercase tracking-widest mb-1 underline">Regles Operatives Aplicades:</p>
+                   <ul className="list-disc pl-4 space-y-1">
+                       <li><b>Prioritat S1/S2:</b> S'assignen preferentment a qualsevol illa que contingui tronc comú o ramals Vallès.</li>
+                       <li><b>Freqüència 10m:</b> Rotació optimitzada S1 - S2 - L6 per maximitzar passatge.</li>
+                       <li><b>Quotes:</b> L12 limitada a 1 unitat; L7 objectiu 3 unitats (mínim 2).</li>
+                   </ul>
+                 </div>
+              </div>
+           </div>
+        </div>
+      </div>
+    );
+  };
+
   const InteractiveMap = () => {
     const trains = liveData.filter(p => p.type === 'TRAIN');
     return (
@@ -784,7 +970,6 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
                   <circle cx={st.x} cy={st.y} r="9" fill="white" stroke={isCut ? "#ef4444" : "#53565A"} strokeWidth="2.5" onClick={() => toggleStationCut(st.id)} className="cursor-pointer transition-all duration-300 group-hover:stroke-red-500" />
                   {count > 0 && !isCut && (
                     <g onClick={() => setSelectedRestLocation(selectedRestLocation === st.id ? null : st.id)} className="cursor-pointer transition-colors">
-                      {/* Fixed typo in circle radius calculation: removed incorrectly nested curly braces */}
                       <circle cx={st.x} cy={st.y + (isUpper ? -32 : 44)} r={count > 1 ? 7 : 4} fill={count > 1 ? "#3b82f6" : "#8EDE00"} className="shadow-md" stroke="white" strokeWidth="1.5" />
                       {count > 1 && (<text x={st.x} y={st.y + (isUpper ? -29.5 : 46.5)} textAnchor="middle" fill="white" className="text-[7px] font-black pointer-events-none">{count}</text>)}
                     </g>
@@ -835,12 +1020,22 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
                   const isRed = col.color === 'red';
                   return (
                     <div key={col.id} className={`${isRed ? 'bg-red-50/50 dark:bg-red-950/20 border-2 border-red-500/30' : 'bg-gray-50/30 dark:bg-white/5 border border-gray-100 dark:border-white/10'} rounded-[32px] p-6 transition-all`}>
-                      <div className="flex items-center gap-2 mb-4">
-                        <col.Icon size={18} className={col.iconClass} />
-                        <h5 className={`font-black uppercase text-xs sm:text-sm tracking-widest ${isRed ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}`}>{col.label}</h5>
-                        <div className="ml-auto flex items-center gap-1.5 sm:gap-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
+                        <div className="flex items-center gap-2">
+                           <col.Icon size={18} className={col.iconClass} />
+                           <h5 className={`font-black uppercase text-xs sm:text-sm tracking-widest ${isRed ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}`}>{col.label}</h5>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-3 sm:ml-auto">
                            <div className="flex items-center gap-1.5 bg-fgc-grey dark:bg-black text-white px-3 py-1 rounded-xl text-[10px] sm:text-xs font-black" title="Trens Actius"><Train size={10} /> {trainsCount} <span className="hidden sm:inline opacity-60">TRENS</span></div>
                            <div className="flex items-center gap-1.5 bg-fgc-green text-fgc-grey px-3 py-1 rounded-xl text-[10px] sm:text-xs font-black" title="Maquinistes a la zona"><User size={10} /> {items.length} <span className="hidden sm:inline opacity-60">MAQUINISTES</span></div>
+                           {col.id !== 'AFFECTED' && items.length > 0 && (
+                             <button 
+                               onClick={() => setAltServiceIsland(col.id)}
+                               className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-1 rounded-xl text-[10px] sm:text-xs font-black shadow-md hover:scale-105 active:scale-95 transition-all"
+                             >
+                               <Zap size={10} /> SERVEI ALTERNATIU
+                             </button>
+                           )}
                         </div>
                       </div>
                       <div className={`bg-white dark:bg-black/20 rounded-2xl border ${isRed ? 'border-red-200 dark:border-red-900/50' : 'border-gray-100 dark:border-white/10'} overflow-hidden divide-y ${isRed ? 'divide-red-100 dark:divide-red-900/30' : 'divide-gray-50 dark:divide-white/5'}`}>
@@ -998,6 +1193,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
           )}
         </div>
       )}
+      {altServiceIsland && <AlternativeServiceOverlay islandId={altServiceIsland} />}
       {mode === 'INIT' && !loading && (<div className="py-32 text-center opacity-10 flex flex-col items-center"><ShieldAlert size={100} className="text-fgc-grey mb-8" /><p className="text-xl font-black uppercase tracking-[0.4em] text-fgc-grey">Centre de Gestió Operativa</p></div>)}
     </div>
   );

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Train, ArrowRight, Save, Loader2, Trash2, X, Hash, Filter, Link as LinkIcon, CheckCircle2, List, LayoutGrid, Info, Wrench, AlertTriangle, Camera, FileText, Brush } from 'lucide-react';
+import { Train, ArrowRight, Save, Loader2, Trash2, X, Hash, Filter, Link as LinkIcon, CheckCircle2, List, LayoutGrid, Info, Wrench, AlertTriangle, Camera, FileText, Brush, MapPin, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
 import { Assignment } from '../types.ts';
 
@@ -10,6 +10,9 @@ const FLEET_CONFIG = [
   { serie: '114', count: 5 },
   { serie: '115', count: 15 },
 ];
+
+type OriginStation = 'ALL' | 'PC' | 'RE' | 'RB' | 'NA' | 'PN';
+type FilterMode = 'SORTIDA' | 'RETIR';
 
 const CiclesView: React.FC = () => {
   const [newCycleId, setNewCycleId] = useState('');
@@ -29,6 +32,10 @@ const CiclesView: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [filterPending, setFilterPending] = useState(true);
   const [activeFleetSerie, setActiveFleetSerie] = useState('112');
+  
+  // Estats de filtre
+  const [filterMode, setFilterMode] = useState<FilterMode>('SORTIDA');
+  const [selectedOrigin, setSelectedOrigin] = useState<OriginStation>('ALL');
   
   const cycleSuggestionsRef = useRef<HTMLDivElement>(null);
   const trainSuggestionsRef = useRef<HTMLDivElement>(null);
@@ -97,6 +104,40 @@ const CiclesView: React.FC = () => {
     }
   };
 
+  /**
+   * Lògica de Sortida: analitza les lletres a partir del 3r caràcter (índex 2).
+   */
+  const getCycleOrigin = (cycleId: string): OriginStation | null => {
+    const code = (cycleId || '').toUpperCase();
+    if (code.length < 3) return null;
+    
+    // Agafem el suffix a partir de la 3a posició
+    const suffix = code.substring(2);
+    
+    if (suffix.startsWith('PC')) return 'PC';
+    if (suffix.startsWith('RB')) return 'RB';
+    if (suffix.startsWith('RE') || suffix.startsWith('VR')) return 'RE';
+    if (suffix.startsWith('N')) return 'NA';
+    if (suffix.startsWith('P')) return 'PN';
+    
+    return null;
+  };
+
+  /**
+   * Lògica de Retir: analitza les lletres a l'inici de l'ID del cicle.
+   */
+  const getCycleRetir = (cycleId: string): OriginStation | null => {
+    const code = (cycleId || '').toUpperCase();
+    
+    if (code.startsWith('PC')) return 'PC';
+    if (code.startsWith('RB')) return 'RB';
+    if (code.startsWith('RE') || code.startsWith('VR')) return 'RE';
+    if (code.startsWith('N')) return 'NA';
+    if (code.startsWith('P')) return 'PN';
+    
+    return null;
+  };
+
   const allFleetTrains = useMemo(() => {
     const trains: string[] = [];
     FLEET_CONFIG.forEach(config => {
@@ -140,7 +181,6 @@ const CiclesView: React.FC = () => {
   const handleToggleStatus = async (trainNum: string, field: 'is_broken' | 'needs_images' | 'needs_records' | 'needs_cleaning', currentStatus: boolean) => {
     const newStatus = !currentStatus;
     
-    // Actualització optimista de la UI per mantenir la fluïdesa
     if (field === 'is_broken') {
       const next = new Set(brokenTrains);
       if (newStatus) next.add(trainNum); else next.delete(trainNum);
@@ -169,9 +209,8 @@ const CiclesView: React.FC = () => {
         }, { onConflict: 'train_number' });
       
       if (error) {
-        // Detectem si l'error és per columna inexistent (codi Postgres 42703)
         if (error.code === '42703') {
-          alert(`ERROR DE BASE DE DADES:\nLa columna '${field}' no existeix a la taula 'train_status'.\n\nSi us plau, executa el SQL d'actualització al panell de Supabase.`);
+          alert(`ERROR DE BASE DE DADES:\nLa columna '${field}' no existeix a la taula 'train_status'.`);
         } else {
           alert(`Error al guardar: ${error.message || 'Error desconegut'}`);
         }
@@ -179,7 +218,7 @@ const CiclesView: React.FC = () => {
       }
     } catch (e: any) {
       console.error(`Error detallat actualitzant ${field}:`, e.message || e);
-      fetchAllData(); // Re-sincronitzem per revertir el canvi optimista si ha fallat
+      fetchAllData();
     }
   };
 
@@ -203,6 +242,18 @@ const CiclesView: React.FC = () => {
       t.toLowerCase().includes(newTrainId.toLowerCase())
     ).slice(0, 10);
   }, [newTrainId, allFleetTrains, assignedTrainNumbers, brokenTrains]);
+
+  const availableCyclesByOrigin = useMemo(() => {
+    return availableShiftsCycles.filter(c => {
+      const isPending = !filterPending || !assignedCycleIds.has(c);
+      if (!isPending) return false;
+      
+      if (selectedOrigin === 'ALL') return true;
+      
+      const targetStation = filterMode === 'SORTIDA' ? getCycleOrigin(c) : getCycleRetir(c);
+      return targetStation === selectedOrigin;
+    });
+  }, [availableShiftsCycles, assignedCycleIds, filterPending, selectedOrigin, filterMode]);
 
   return (
     <div className="space-y-6">
@@ -318,8 +369,8 @@ const CiclesView: React.FC = () => {
               </div>
             </div>
 
-            <div className="pt-8 border-t border-gray-100 dark:border-white/10">
-              <div className="flex items-center justify-between mb-4 px-1">
+            <div className="pt-8 border-t border-gray-100 dark:border-white/10 space-y-6">
+              <div className="flex items-center justify-between px-1">
                 <div className="flex items-center gap-2">
                   <Filter size={14} className="text-fgc-green" />
                   <h3 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Cicles Disponibles</h3>
@@ -333,26 +384,73 @@ const CiclesView: React.FC = () => {
                   {filterPending ? 'Pendents' : 'Tots'}
                 </button>
               </div>
-              <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar p-1">
-                {availableShiftsCycles.filter(c => !filterPending || !assignedCycleIds.has(c)).map(c => {
+
+              {/* Selector de Mode de Filtre */}
+              <div className="bg-gray-50 dark:bg-black/40 p-1 rounded-2xl border border-gray-100 dark:border-white/5 flex gap-1 shadow-inner">
+                <button
+                  onClick={() => { setFilterMode('SORTIDA'); setSelectedOrigin('ALL'); }}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-black transition-all ${
+                    filterMode === 'SORTIDA' 
+                    ? 'bg-white dark:bg-gray-800 text-fgc-grey dark:text-white shadow-md' 
+                    : 'text-gray-400 dark:text-gray-500 hover:bg-white/50 dark:hover:bg-white/5'
+                  }`}
+                >
+                  <ArrowUpRight size={14} className={filterMode === 'SORTIDA' ? 'text-fgc-green' : ''} />
+                  PER SORTIDA
+                </button>
+                <button
+                  onClick={() => { setFilterMode('RETIR'); setSelectedOrigin('ALL'); }}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-black transition-all ${
+                    filterMode === 'RETIR' 
+                    ? 'bg-white dark:bg-gray-800 text-fgc-grey dark:text-white shadow-md' 
+                    : 'text-gray-400 dark:text-gray-500 hover:bg-white/50 dark:hover:bg-white/5'
+                  }`}
+                >
+                  <ArrowDownLeft size={14} className={filterMode === 'RETIR' ? 'text-blue-500' : ''} />
+                  PER RETIR
+                </button>
+              </div>
+
+              {/* Selector d'Estació */}
+              <div className="bg-gray-50 dark:bg-black/40 p-1 rounded-xl border border-gray-100 dark:border-white/5 grid grid-cols-6 gap-1">
+                {(['ALL', 'PC', 'RE', 'RB', 'NA', 'PN'] as OriginStation[]).map((origin) => (
+                  <button
+                    key={origin}
+                    onClick={() => setSelectedOrigin(origin)}
+                    className={`py-2 rounded-lg text-[9px] font-black transition-all ${
+                      selectedOrigin === origin 
+                      ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-md' 
+                      : 'text-gray-400 dark:text-gray-500 hover:bg-white dark:hover:bg-white/5'
+                    }`}
+                  >
+                    {origin === 'ALL' ? 'TOTS' : origin}
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 max-h-56 overflow-y-auto pr-2 custom-scrollbar p-1">
+                {availableCyclesByOrigin.map(c => {
                   const isAssigned = assignedCycleIds.has(c);
                   return (
                     <button
                       key={c}
                       onClick={() => { setNewCycleId(c); setShowCycleSuggestions(false); }}
-                      className={`py-3 px-2 rounded-xl text-sm font-black border transition-all relative ${
+                      className={`py-4 px-2 rounded-xl text-sm font-black border transition-all relative flex flex-col items-center justify-center gap-1 ${
                         newCycleId === c 
-                        ? 'bg-fgc-green text-fgc-grey border-fgc-green shadow-sm' 
+                        ? 'bg-fgc-green text-fgc-grey border-fgc-green shadow-sm scale-[1.03]' 
                         : isAssigned 
                           ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-300 border-blue-100 dark:border-blue-900/40 opacity-80' 
                           : 'bg-white dark:bg-gray-800 text-fgc-grey dark:text-gray-200 border-gray-100 dark:border-white/5 hover:border-fgc-green hover:shadow-md'
                       }`}
                     >
-                      {c}
+                      <span>{c}</span>
                       {isAssigned && <CheckCircle2 size={10} className="absolute -top-1.5 -right-1.5 text-blue-500 bg-white dark:bg-gray-900 rounded-full shadow-sm" />}
                     </button>
                   );
                 })}
+                {availableCyclesByOrigin.length === 0 && (
+                  <div className="col-span-3 py-10 text-center opacity-30 italic text-[10px] font-bold uppercase tracking-widest">Cap cicle pendent</div>
+                )}
               </div>
             </div>
           </div>
@@ -384,7 +482,7 @@ const CiclesView: React.FC = () => {
                         className={`group p-4 rounded-2xl border transition-all flex items-center justify-between gap-4 ${isBroken ? 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900 shadow-lg' : 'bg-gray-50/50 dark:bg-black/20 border-gray-100 dark:border-white/5 hover:bg-white dark:hover:bg-white/5 hover:shadow-lg'}`}
                       >
                         <div className="flex items-center gap-4 min-w-0">
-                          <div className={`h-12 w-fit min-w-[3.5rem] px-3 rounded-xl flex items-center justify-center font-black text-sm shadow-md whitespace-nowrap ${isBroken ? 'bg-red-600 text-white' : 'bg-fgc-grey dark:bg-black text-white'}`}>
+                          <div className={`h-12 w-fit min-w-[3.5rem] px-3 rounded-xl flex items-center justify-center font-black text-sm shadow-md whitespace-nowrap flex-col gap-0.5 ${isBroken ? 'bg-red-600 text-white' : 'bg-fgc-grey dark:bg-black text-white'}`}>
                             {cycle.cycle_id}
                           </div>
                           <div className="min-w-0">
@@ -469,6 +567,7 @@ const CiclesView: React.FC = () => {
                   const needsImages = imageTrains.has(trainNum);
                   const needsRecords = recordTrains.has(trainNum);
                   const needsCleaning = cleaningTrains.has(trainNum);
+                  const currentCycle = assignments.find(a => a.train_number === trainNum)?.cycle_id;
                   
                   return (
                     <div key={trainNum} className="relative group">
@@ -491,13 +590,16 @@ const CiclesView: React.FC = () => {
                            {needsCleaning && <Brush size={12} className="text-orange-500 fill-orange-500/10" />}
                         </div>
 
-                        {isOccupied && <span className="text-[8px] font-black uppercase opacity-40 dark:opacity-30 mt-1">{assignments.find(a => a.train_number === trainNum)?.cycle_id}</span>}
+                        {isOccupied && (
+                          <div className="flex items-center gap-1 mt-1 opacity-40 dark:opacity-30">
+                            <span className="text-[10px] font-black uppercase">{currentCycle}</span>
+                          </div>
+                        )}
                         {isBroken && <span className="text-[8px] font-black uppercase text-red-400 mt-1">FORA DE SERVEI</span>}
                       </div>
 
                       {/* Controls de manteniment (flotants en hover) */}
                       <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-all pointer-events-none z-30 group-hover:pointer-events-auto">
-                        {/* Avaria (Red) - Top Right */}
                         <button
                           onClick={() => handleToggleStatus(trainNum, 'is_broken', isBroken)}
                           className={`pointer-events-auto absolute -top-1.5 -right-1.5 w-7 h-7 rounded-full flex items-center justify-center shadow-lg border-2 transition-all ${
@@ -508,7 +610,6 @@ const CiclesView: React.FC = () => {
                           <Wrench size={12} />
                         </button>
 
-                        {/* Imatges (Blue) - Top Left */}
                         <button
                           onClick={() => handleToggleStatus(trainNum, 'needs_images', needsImages)}
                           className={`pointer-events-auto absolute -top-1.5 -left-1.5 w-7 h-7 rounded-full flex items-center justify-center shadow-lg border-2 transition-all ${
@@ -519,7 +620,6 @@ const CiclesView: React.FC = () => {
                           <Camera size={12} />
                         </button>
 
-                        {/* Registres (Yellow) - Bottom Left */}
                         <button
                           onClick={() => handleToggleStatus(trainNum, 'needs_records', needsRecords)}
                           className={`pointer-events-auto absolute -bottom-1.5 -left-1.5 w-7 h-7 rounded-full flex items-center justify-center shadow-lg border-2 transition-all ${
@@ -530,7 +630,6 @@ const CiclesView: React.FC = () => {
                           <FileText size={12} />
                         </button>
 
-                        {/* Limpieza (Orange) - Bottom Right */}
                         <button
                           onClick={() => handleToggleStatus(trainNum, 'needs_cleaning', needsCleaning)}
                           className={`pointer-events-auto absolute -bottom-1.5 -right-1.5 w-7 h-7 rounded-full flex items-center justify-center shadow-lg border-2 transition-all ${
