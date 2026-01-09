@@ -519,7 +519,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
       let shiftsQuery = supabase.from('shifts').select('id, servei, circulations, inici_torn, final_torn, duracio, dependencia');
       
       if (selectedServei !== 'Tots') {
-        shiftsQuery = shiftsQuery.eq('servei', selectedServei);
+        shiftsQuery = (shiftsQuery as any).eq('servei', selectedServei);
       }
 
       const { data: allShiftsRaw = [] } = await (shiftsQuery as any);
@@ -537,13 +537,13 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
       const antIds: string[] = []; 
       const postIds: string[] = [];
 
-      const { data: sameLine } = await supabase.from('circulations').select('id, sortida').eq('linia', (tcDetail as any).linia).eq('final', (tcDetail as any).final);
+      const { data: sameLine } = await (supabase.from('circulations').select('id, sortida').eq('linia', (tcDetail as any).linia).eq('final', (tcDetail as any).final) as any);
       const sorted = (sameLine as any[])?.sort((a: any, b: any) => (getFgcMinutes(a.sortida as string) || 0) - (getFgcMinutes(b.sortida as string) || 0)) || [];
-      const idx = sorted.findIndex((c: any) => c.id === (tcDetail as any).id);
+      const idx = sorted.findIndex((c: any) => (c as any).id === (tcDetail as any).id);
       const antId = idx > 0 ? (sorted[idx-1] as any).id : null;
       const postId = idx < sorted.length - 1 ? (sorted[idx+1] as any).id : null;
 
-      allShiftsRaw.forEach((s: any) => {
+      (allShiftsRaw as any[]).forEach((s: any) => {
         (s.circulations as any[]).forEach(c => {
           if (c.codi === 'Viatger' && c.observacions) {
             const obs = c.observacions.split('-')[0].toUpperCase();
@@ -691,7 +691,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
     const islands = getConnectivityIslands();
     const vallesUnified = islands.S1.has('PN') || islands.S2.has('NA');
     const result: Record<string, { list: LivePersonnel[], stations: Set<string>, isUnified: boolean, label: string }> = { 
-      AFFECTED: { list: [], stations: new Set(), isUnified: false, label: 'Zona de Tall / Atrapats' }, 
+      AFFECTED: { list: [], stations: selectedCutStations, isUnified: false, label: 'Zona de Tall / Atrapats' }, 
       BCN: { list: [], stations: islands.BCN, isUnified: false, label: 'Illa Barcelona' }, 
       S1: { list: [], stations: islands.S1, isUnified: false, label: 'Illa S1 (Terrassa)' }, 
       S2: { list: [], stations: islands.S2, isUnified: false, label: 'Illa S2 (Sabadell)' }, 
@@ -792,23 +792,31 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
           tryAssign("L12 (Shuttle SR-RE)", "MITJA");
         }
 
-        // 2. L7: Target 3 units, minimum 2
-        let l7Count = 0;
-        const l7Route = canSupportL7Full ? "L7 (Shuttle PC-TB)" : "L7 (Shuttle GR-TB)";
+        // 2. L7: Dynamic quota based on current trains in island
+        const l7TrainsInIsland = physicalTrains.filter(t => t.linia === 'L7' || t.linia === '300').length;
+        let l7Target = 0;
+        let l7Withdraw = false;
+        
         if (canSupportL7Full || canSupportL7Local) {
-          if (tryAssign(l7Route, "MITJA")) l7Count++;
-          if (tryAssign(l7Route, "MITJA")) l7Count++;
+            if (l7TrainsInIsland === 2) l7Target = 2;
+            else if (l7TrainsInIsland === 3) l7Target = 3;
+            else if (l7TrainsInIsland >= 4) { l7Target = 3; l7Withdraw = true; }
+            else l7Target = 2; // Default fallback
+        }
+
+        let l7Assigned = 0;
+        const l7Route = canSupportL7Full ? "L7 (Shuttle PC-TB)" : "L7 (Shuttle GR-TB)";
+        for(let i=0; i<l7Target; i++) {
+          if (tryAssign(l7Route, "MITJA")) l7Assigned++;
+        }
+
+        if (l7Withdraw && canSupportL7Full) {
+          tryAssign("Retirada L7 a PC (Excedent)", "BÀSICA");
         }
 
         // 3. S1 / S2 / L6 Rotation Loop
-        // Sequence: [S1, S2, L6] repeated to ensure 10-min staggered frequency and L6 inclusion
         let cycleCount = 0;
         while (availableTrains.length > 0 && availableDrivers.length > 0) {
-          if (l7Count === 2 && (canSupportL7Full || canSupportL7Local)) {
-             if (tryAssign(l7Route, "BÀSICA")) l7Count++;
-             if (availableTrains.length === 0 || availableDrivers.length === 0) break;
-          }
-
           if (canSupportS1) {
             if (!tryAssign("S1 (Llançadora Terrassa)", "ALTA")) break;
           }
@@ -912,7 +920,8 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
                    <ul className="list-disc pl-4 space-y-1">
                        <li><b>Prioritat S1/S2:</b> S'assignen preferentment a qualsevol illa que contingui tronc comú o ramals Vallès.</li>
                        <li><b>Freqüència 10m:</b> Rotació optimitzada S1 - S2 - L6 per maximitzar passatge.</li>
-                       <li><b>Quotes:</b> L12 limitada a 1 unitat; L7 objectiu 3 unitats (mínim 2).</li>
+                       <li><b>L7 Dinàmica:</b> S'assignen 2 o 3 unitats segons disponibilitat. Amb 4 unitats, es prepara retirada a PC.</li>
+                       <li><b>Quotes:</b> L12 limitada a 1 unitat per servei llançadora.</li>
                    </ul>
                  </div>
               </div>
@@ -1028,7 +1037,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
                         <div className="flex flex-wrap items-center gap-2 sm:gap-3 sm:ml-auto">
                            <div className="flex items-center gap-1.5 bg-fgc-grey dark:bg-black text-white px-3 py-1 rounded-xl text-[10px] sm:text-xs font-black" title="Trens Actius"><Train size={10} /> {trainsCount} <span className="hidden sm:inline opacity-60">TRENS</span></div>
                            <div className="flex items-center gap-1.5 bg-fgc-green text-fgc-grey px-3 py-1 rounded-xl text-[10px] sm:text-xs font-black" title="Maquinistes a la zona"><User size={10} /> {items.length} <span className="hidden sm:inline opacity-60">MAQUINISTES</span></div>
-                           {col.id !== 'AFFECTED' && items.length > 0 && (
+                           {items.length > 0 && (
                              <button 
                                onClick={() => setAltServiceIsland(col.id)}
                                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-1 rounded-xl text-[10px] sm:text-xs font-black shadow-md hover:scale-105 active:scale-95 transition-all"
