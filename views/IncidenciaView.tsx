@@ -95,6 +95,18 @@ const resolveStationId = (name: string, linia: string = '') => {
     return n.length > 2 ? n.substring(0, 2) : n;
 };
 
+// Fix: Implement missing fetchGeotrenData function to retrieve real-time train data
+async function fetchGeotrenData() {
+  try {
+    const response = await fetch('https://api.fgc.cat/geotren/v1/trens');
+    if (!response.ok) throw new Error('Error al recuperar dades de GeoTren');
+    return await response.json();
+  } catch (error) {
+    console.error("GeoTren fetch error:", error);
+    throw error;
+  }
+}
+
 const MAP_STATIONS = [
   { id: 'PC', label: 'Pl. Catalunya', x: 20, y: 100 }, { id: 'PR', label: 'Provença', x: 50, y: 100 }, { id: 'GR', label: 'Gràcia', x: 80, y: 100 }, { id: 'SG', label: 'Sant Gervasi', x: 110, y: 100 }, { id: 'MN', label: 'Muntaner', x: 140, y: 100 }, { id: 'BN', label: 'La Bonanova', x: 170, y: 100 }, { id: 'TT', label: 'Les Tres Torres', x: 200, y: 100 }, { id: 'SR', label: 'Sarrià', x: 230, y: 100 }, { id: 'PF', label: 'Peu del Funicular', x: 260, y: 100 }, { id: 'VL', label: 'B. Vallvidrera', x: 290, y: 100 }, { id: 'LP', label: 'Les Planes', x: 320, y: 100 }, { id: 'LF', label: 'La Floresta', x: 350, y: 100 }, { id: 'VD', label: 'Valldoreix', x: 380, y: 100 }, { id: 'SC', label: 'Sant Cugat', x: 410, y: 100 }, { id: 'PM', label: 'Pl. Molina', x: 100, y: 160 }, { id: 'PD', label: 'Pàdua', x: 130, y: 160 }, { id: 'EP', label: 'El Putxet', x: 160, y: 160 }, { id: 'TB', label: 'Av. Tibidabo', x: 190, y: 160 }, { id: 'RE', label: 'R. Elisenda', x: 260, y: 40 }, { id: 'MS', label: 'Mira-Sol', x: 440, y: 40 }, { id: 'HG', label: 'Hosp. General', x: 470, y: 40 }, { id: 'RB', label: 'Rubí Centre', x: 500, y: 40 }, { id: 'FN', label: 'Les Fonts', x: 530, y: 40 }, { id: 'TR', label: 'Terrassa Rambla', x: 560, y: 40 }, { id: 'VP', label: 'Vallparadís', x: 590, y: 40 }, { id: 'EN', label: 'Estació del Nord', x: 620, y: 40 }, { id: 'NA', label: 'Nacions Unides', x: 650, y: 40 }, { id: 'VO', label: 'Volpalleres', x: 440, y: 160 }, { id: 'SJ', label: 'Sant Joan', x: 470, y: 160 }, { id: 'BT', label: 'Bellaterra', x: 500, y: 160 }, { id: 'UN', label: 'U. Autònoma', x: 530, y: 160 }, { id: 'SQ', label: 'Sant Quirze', x: 560, y: 160 }, { id: 'CF', label: 'Can Feu', x: 590, y: 160 }, { id: 'PJ', label: 'Pl. Major', x: 620, y: 160 }, { id: 'CT', label: 'La Creu Alta', x: 650, y: 160 }, { id: 'NO', label: 'Sabadell Nord', x: 680, y: 160 }, { id: 'PN', label: 'Parc del Nord', x: 710, y: 160 },
 ];
@@ -183,7 +195,6 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
 
   const getLiniaColorHex = (linia: string) => {
     const l = linia?.toUpperCase().trim() || '';
-    // Les circulacions F es consideren de Sabadell (Verd) segons requeriment
     if (l.startsWith('F')) return '#22c55e'; 
     if (l === 'L7' || l === '300') return '#8B4513';
     if (l === 'L6' || l === '100') return '#9333ea';
@@ -220,55 +231,6 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
     }
   }, [customTime, isRealTime, mode]);
 
-  const fetchGeotrenData = async (retries = 3): Promise<any> => {
-    const t = Date.now();
-    const targetUrl = `https://geotren.fgc.cat/geotren/trens.json?t=${t}`;
-    
-    const proxies = [
-      `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`,
-      `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
-      `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`
-    ];
-
-    for (let attempt = 0; attempt < retries; attempt++) {
-      for (const proxyUrl of proxies) {
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 8000);
-          
-          const response = await fetch(proxyUrl, { 
-            signal: controller.signal, 
-            cache: 'no-store',
-            headers: { 'Accept': 'application/json' } 
-          });
-          
-          clearTimeout(timeoutId);
-          
-          if (!response.ok) continue;
-          
-          let data = await response.json();
-          
-          if (data && data.contents) {
-             if (typeof data.contents === 'string') {
-               try {
-                 data = JSON.parse(data.contents);
-               } catch (e) {
-                 // ignore
-               }
-             }
-          }
-          
-          if (data && Array.isArray(data.trens)) return data;
-          
-        } catch (e) {
-          console.warn(`Intent fallit amb proxy ${proxyUrl}:`, e);
-        }
-      }
-      await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
-    }
-    throw new Error("No s'ha pogut establir connexió amb el servidor GeoTren d'FGC.");
-  };
-
   const fetchLiveMapData = async () => {
     setLoading(true);
     setGeotrenError(null);
@@ -303,7 +265,6 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
         }
       }
 
-      // Millora: Carregar TOTES les circulacions (paginació > 1000)
       let circDetailsData: any[] = [];
       const { count } = await supabase.from('circulations').select('*', { count: 'exact', head: true });
       const totalCount = count || 0;
@@ -331,7 +292,6 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
         if (selectedServei === 'Tots') {
             isShiftVisible = true;
         } else {
-            // Filtratge estricte per evitar que '0' coincideixi amb '100'
             if (selectedServei === '400') isShiftVisible = shiftService === '400' || shiftService === 'S1';
             else if (selectedServei === '500') isShiftVisible = shiftService === '500' || shiftService === 'S2';
             else if (selectedServei === '100') isShiftVisible = shiftService === '100' || shiftService === 'L6';
@@ -476,86 +436,6 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
         });
       });
 
-      // BLOC EXTRA: Processar circulacions 'F' de la taula circulations (independentment de shifts)
-      circDetailsMap.forEach((circ) => {
-        const codi = circ.id.toUpperCase().trim();
-        if (!codi.startsWith('F') || processedKeys.has(codi)) return;
-
-        let startMin = getFgcMinutes(circ.sortida);
-        let endMin = getFgcMinutes(circ.arribada);
-        const estacions = (circ.estacions as any[]) || [];
-
-        if (startMin === null && estacions.length > 0) startMin = getFgcMinutes(estacions[0].hora || estacions[0].arribada || estacions[0].sortida);
-        if (endMin === null && estacions.length > 0) endMin = getFgcMinutes(estacions[estacions.length - 1].hora || estacions[estacions.length - 1].arribada || estacions[estacions.length - 1].sortida);
-
-        if (startMin !== null && endMin !== null && displayMin >= startMin && displayMin <= endMin) {
-             const validStops = estacions
-                .map((st: any) => ({
-                  nom: resolveStationId(st.nom || st.id, 'F'),
-                  min: getFgcMinutes(st.hora || st.arribada || st.sortida)
-                }))
-                .filter((s: any) => s.min !== null && s.nom !== null && VALID_STATION_IDS.has(s.nom));
-
-             const startID = resolveStationId(circ.inici || (estacions[0]?.nom), 'F');
-             const endID = resolveStationId(circ.final || (estacions[estacions.length-1]?.nom), 'F');
-
-             const stopsWithTimes = [
-                { nom: startID, min: startMin },
-                ...validStops,
-                { nom: endID, min: endMin }
-             ]
-             .filter(s => VALID_STATION_IDS.has(s.nom))
-             .sort((a: any, b: any) => a.min - b.min);
-
-             if (stopsWithTimes.length < 1) return;
-
-             let x = 0, y = 0, currentStationId = stopsWithTimes[0].nom;
-
-             if (stopsWithTimes.length === 1) {
-                 const p = stationCoords[currentStationId] || stationCoords['PC'];
-                 x = p.x; y = p.y;
-             } else {
-                  const expandedStops: { nom: string, min: number }[] = [];
-                  for (let i = 0; i < stopsWithTimes.length - 1; i++) {
-                    const current = stopsWithTimes[i];
-                    const next = stopsWithTimes[i+1];
-                    const path = getFullPath(current.nom, next.nom);
-                    if (path.length > 1) {
-                      for (let j = 0; j < path.length - 1; j++) {
-                        const ratio = j / (path.length - 1);
-                        expandedStops.push({ nom: path[j], min: current.min + (next.min - current.min) * ratio });
-                      }
-                    } else expandedStops.push(current);
-                  }
-                  expandedStops.push(stopsWithTimes[stopsWithTimes.length - 1]);
-
-                  for (let i = 0; i < expandedStops.length - 1; i++) {
-                    const s1 = expandedStops[i];
-                    const s2 = expandedStops[i+1];
-                    if (displayMin >= s1.min && displayMin <= s2.min) {
-                      currentStationId = s1.nom;
-                      const p1 = stationCoords[s1.nom] || stationCoords['PC'];
-                      const p2 = stationCoords[s2.nom] || stationCoords['PC'];
-                      if (s1.min === s2.min) { x = p1.x; y = p1.y; } else {
-                        const progress = (displayMin - s1.min) / (s2.min - s1.min);
-                        x = p1.x + (p2.x - p1.x) * progress;
-                        y = p1.y + (p2.y - p1.y) * progress;
-                      }
-                      break;
-                    }
-                  }
-             }
-
-             currentPersonnel.push({
-                type: 'TRAIN', id: circ.id, linia: 'F', stationId: currentStationId, 
-                color: '#22c55e', 
-                driver: 'Mercaderies', torn: 'FGC', phones: [], inici: circ.inici, final: circ.final, horaPas: formatFgcTime(displayMin),
-                x, y, isRealTime: false
-             });
-             processedKeys.add(codi);
-        }
-      });
-
       if (mapDataSource === 'THEORETICAL') {
         allShifts.forEach(shift => {
           const shiftService = (shift.servei || '').toString();
@@ -564,7 +444,6 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
           if (selectedServei === 'Tots') {
               isShiftVisible = true;
           } else {
-              // Filtratge estricte per personal en descans
               if (selectedServei === '400') isShiftVisible = shiftService === '400' || shiftService === 'S1';
               else if (selectedServei === '500') isShiftVisible = shiftService === '500' || shiftService === 'S2';
               else if (selectedServei === '100') isShiftVisible = shiftService === '100' || shiftService === 'L6';
@@ -695,7 +574,6 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
     try {
       let shiftsQuery = supabase.from('shifts').select('id, servei, circulations, inici_torn, final_torn, duracio, dependencia');
       
-      // Filtratge de servei exacte per evitar que '0' coincideixi amb '100'
       if (selectedServei !== 'Tots') {
         shiftsQuery = shiftsQuery.eq('servei', selectedServei);
       }
@@ -1137,14 +1015,65 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
               <div className="space-y-6">
                 <div className="bg-white dark:bg-gray-900 rounded-[32px] p-8 shadow-sm border border-gray-100 dark:border-white/5 min-h-[600px] space-y-8">
                   <div className="flex items-center gap-3 border-b border-gray-100 dark:border-white/5 pb-6"><Users size={20} className="text-fgc-green" /><h3 className="text-xl font-black text-fgc-grey dark:text-white uppercase tracking-tight">Personal Disponible</h3></div>
-                  {calculating ? (<div className="py-20 flex flex-col items-center justify-center gap-4 opacity-30"><Loader2 size={48} className="animate-spin text-fgc-green" /><p className="text-xs font-black uppercase tracking-widest">Escanejant malla ferroviària...</p></div>) : (passengerResults.length > 0 || restingResults.length > 0 || extensibleResults.length > 0 || reserveInterceptResults.length > 0) ? (
+                  {calculating ? (<div className="py-20 flex flex-col items-center justify-center gap-4 opacity-30"><Loader2 size={48} className="animate-spin text-fgc-green" /><p className="text-xs font-black uppercase tracking-widest">Escanejant malla ferroviària...</p></div>) : (passengerResults.length > 0 || adjacentResults.anterior.length > 0 || adjacentResults.posterior.length > 0 || restingResults.length > 0 || extensibleResults.length > 0 || reserveInterceptResults.length > 0) ? (
                     <div className="space-y-10">
-                      {passengerResults.length > 0 && (<div className="space-y-3"><h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-2 flex items-center gap-2"><Users size={14} className="text-blue-500" /> Viatgers al tren afectat</h3><div className="flex flex-col gap-2">{passengerResults.map((t, i) => <CompactRow key={i} torn={t} color="border-l-blue-500" />)}</div></div>)}
-                      {reserveInterceptResults.length > 0 && (<div className="space-y-3"><h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-2 flex items-center gap-2"><Repeat size={14} className="text-indigo-500" /> Intercepció de Reserves</h3><div className="flex flex-col gap-2">{reserveInterceptResults.map((t, i) => <CompactRow key={i} torn={t} color="border-l-indigo-500" label={<span className="flex items-center gap-1 text-[8px] text-indigo-500 font-black uppercase tracking-widest"><Repeat size={10} /> {t.resData.resId}</span>} sub={`Intercepció proposada a ${t.resData.loc}`} />)}</div></div>)}
-                      {restingResults.length > 0 && (<div className="space-y-3"><h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-2 flex items-center gap-2"><Coffee size={14} className="text-fgc-green" /> En descans a {selectedStation}</h3><div className="flex flex-col gap-2">{restingResults.map((t, i) => <CompactRow key={i} torn={t} color="border-l-fgc-green" sub={`Lliure fins les ${formatFgcTime(t.restSeg.end)}`} />)}</div></div>)}
-                      {extensibleResults.length > 0 && (<div className="space-y-3"><h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-2 flex items-center gap-2"><Timer size={14} className="text-orange-500" /> Perllongaments de Jornada</h3><div className="flex flex-col gap-2">{extensibleResults.map((t, i) => <CompactRow key={i} torn={t} color="border-l-orange-500" sub={`Retorn estimat: ${formatFgcTime(t.extData.estimatedReturn)}`} />)}</div></div>)}
+                      {passengerResults.length > 0 && (
+                        <div className="space-y-3">
+                          <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-2 flex items-center gap-2"><Users size={14} className="text-blue-500" /> Viatgers al tren afectat</h3>
+                          <div className="flex flex-col gap-2">
+                            {passengerResults.map((t, i) => <CompactRow key={i} torn={t} color="border-l-blue-500" />)}
+                          </div>
+                        </div>
+                      )}
+
+                      {(adjacentResults.anterior.length > 0 || adjacentResults.posterior.length > 0) && (
+                        <div className="space-y-3">
+                          <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-2 flex items-center gap-2"><Users size={14} className="text-purple-500" /> Viatgers (Anterior / Posterior)</h3>
+                          <div className="flex flex-col gap-2">
+                            {adjacentResults.anterior.map((t, i) => <CompactRow key={`ant-${i}`} torn={t} color="border-l-purple-400" label={<span className="flex items-center gap-1 text-[8px] text-purple-600 font-black uppercase"><Rewind size={10} /> {t.adjCode} (Ant)</span>} />)}
+                            {adjacentResults.posterior.map((t, i) => <CompactRow key={`post-${i}`} torn={t} color="border-l-purple-600" label={<span className="flex items-center gap-1 text-[8px] text-purple-600 font-black uppercase"><FastForward size={10} /> {t.adjCode} (Post)</span>} />)}
+                          </div>
+                        </div>
+                      )}
+
+                      {reserveInterceptResults.length > 0 && (
+                        <div className="space-y-3">
+                          <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-2 flex items-center gap-2"><Repeat size={14} className="text-indigo-500" /> Intercepció de Reserves</h3>
+                          <div className="flex flex-col gap-2">
+                            {reserveInterceptResults.map((t, i) => <CompactRow key={i} torn={t} color="border-l-indigo-500" label={<span className="flex items-center gap-1 text-[8px] text-indigo-500 font-black uppercase tracking-widest"><Repeat size={10} /> {t.resData.resId}</span>} sub={`Intercepció proposada a ${t.resData.loc}`} />)}
+                          </div>
+                        </div>
+                      )}
+
+                      {restingResults.length > 0 && (
+                        <div className="space-y-3">
+                          <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-2 flex items-center gap-2"><Coffee size={14} className="text-fgc-green" /> En descans a {selectedStation}</h3>
+                          <div className="flex flex-col gap-2">
+                            {restingResults.map((t, i) => <CompactRow key={i} torn={t} color="border-l-fgc-green" sub={`Lliure fins les ${formatFgcTime(t.restSeg.end)}`} />)}
+                          </div>
+                        </div>
+                      )}
+
+                      {extensibleResults.length > 0 && (
+                        <div className="space-y-3">
+                          <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-2 flex items-center gap-2"><Timer size={14} className="text-orange-500" /> Perllongaments de Jornada</h3>
+                          <div className="flex flex-col gap-2">
+                            {extensibleResults.map((t, i) => <CompactRow key={i} torn={t} color="border-l-orange-500" sub={`Retorn estimat: ${formatFgcTime(t.extData.estimatedReturn)}`} />)}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  ) : selectedStation ? (<div className="py-20 text-center space-y-4 opacity-40"><div className="w-16 h-16 bg-gray-100 dark:bg-black/20 rounded-full flex items-center justify-center mx-auto text-gray-300 dark:text-gray-700"><Info size={28} /></div><p className="text-sm font-bold text-gray-500 max-w-[280px] mx-auto">Cap maquinista detectat en disposició de cobrir el relleu a {selectedStation}.</p></div>) : (<div className="py-20 text-center space-y-4 opacity-40"><div className="w-20 h-20 bg-gray-50 dark:bg-black/20 rounded-full flex items-center justify-center mx-auto text-gray-200 dark:text-gray-800"><User size={40} /></div><p className="text-sm font-bold text-gray-400 uppercase tracking-widest italic">Selecciona un punt de relleu</p></div>)}
+                  ) : selectedStation ? (
+                    <div className="py-20 text-center space-y-4 opacity-40">
+                      <div className="w-16 h-16 bg-gray-100 dark:bg-black/20 rounded-full flex items-center justify-center mx-auto text-gray-300 dark:text-gray-700"><Info size={28} /></div>
+                      <p className="text-sm font-bold text-gray-500 max-w-[280px] mx-auto">Cap maquinista detectat en disposició de cobrir el relleu a {selectedStation}.</p>
+                    </div>
+                  ) : (
+                    <div className="py-20 text-center space-y-4 opacity-40">
+                      <div className="w-20 h-20 bg-gray-50 dark:bg-black/20 rounded-full flex items-center justify-center mx-auto text-gray-200 dark:text-gray-800"><User size={40} /></div>
+                      <p className="text-sm font-bold text-gray-400 uppercase tracking-widest italic">Selecciona un punt de relleu</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

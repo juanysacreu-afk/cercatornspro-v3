@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Search, Loader2, Clock, Phone, Info, Users, RotateCcw, ArrowRight, MapPin, Coffee, CheckCircle2, AlertTriangle, TrainFront, Footprints, ShieldAlert, Sparkles, UserX, UserCheck, BrainCircuit, Lightbulb, X, ArrowRightLeft, Target, Zap, ArrowUpRight, History, MessageSquareQuote, Scale } from 'lucide-react';
+import { Search, Loader2, Clock, Phone, Info, Users, RotateCcw, ArrowRight, MapPin, Coffee, CheckCircle2, AlertTriangle, TrainFront, Footprints, ShieldAlert, UserX, UserCheck, X, ArrowRightLeft, Target, Zap, ArrowUpRight, History, MessageSquareQuote, Scale } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
-import { GoogleGenAI, Type } from "@google/genai";
 
 interface Props {
   selectedServei: string;
@@ -90,11 +89,6 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [disabledReserves, setDisabledReserves] = useState<Set<string>>(new Set());
   
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiResponse, setAiResponse] = useState<any | null>(null);
-  const [showAiModal, setShowAiModal] = useState(false);
-  const [appliedAiFixes, setAppliedAiFixes] = useState<Record<string, any>>({});
-
   const containerRef = useRef<HTMLDivElement>(null);
 
   function getFgcMinutes(timeStr: string) {
@@ -167,8 +161,6 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
     if (!uncoveredShiftId) return;
     setAnalyzing(true);
     setCoveragePlan([]);
-    setAiResponse(null);
-    setAppliedAiFixes({});
     try {
       const target = await fetchFullShift(uncoveredShiftId);
       if (!target) {
@@ -177,7 +169,6 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
       }
       setUncoveredShift(target);
 
-      // Usar coincidència exacta per al servei segons requeriment
       const currentServiceStr = selectedServei === 'Tots' ? (target.servei || '') : selectedServei;
       
       let shiftsQuery = supabase.from('shifts').select('*').neq('id', uncoveredShiftId);
@@ -285,102 +276,12 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
     }
   };
 
-  const askGemini = async () => {
-    setAiLoading(true);
-    setShowAiModal(true);
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const targetService = uncoveredShift?.servei || selectedServei;
-      
-      // Filtratge exacte pel prompt de la IA
-      const { data: allShiftsRaw } = await supabase.from('shifts').select('id, inici_torn, final_torn, duracio, dependencia').eq('servei', targetService);
-      const filteredForAi = allShiftsRaw?.filter(s => s.id !== uncoveredShiftId && !disabledReserves.has(s.id)) || [];
-      const otherShortIds = filteredForAi.map(s => getShortTornId(s.id));
-      const { data: allDaily } = await supabase.from('daily_assignments').select('torn, nom, cognoms').in('torn', otherShortIds);
-      
-      const availableResources = filteredForAi.map(s => {
-        const assig = allDaily?.find(d => d.torn === getShortTornId(s.id));
-        return {
-          id: s.id,
-          horari: `${s.inici_torn} - ${s.final_torn}`,
-          driver: assig ? `${assig.cognoms}, ${assig.nom}` : 'Sense assignar'
-        };
-      });
-
-      const prompt = `Ets un expert en logística ferroviària d'FGC. El torn ${uncoveredShiftId} és descobert. 
-      LLEI CRÍTICA: Un torn NO pot superar les 08:45h (525 minuts) de durada total.
-      RECURSOS DISPONIBLES: ${JSON.stringify(availableResources)}
-      OBJECTIU: Trobar solucions de canvis i salts entre els RECURSOS DISPONIBLES per cobrir els trens en risc del torn ${uncoveredShiftId}.
-      Respon exclusivament en JSON amb camps: summary, impact, steps (array amb driver, type, description, location, color), proposedFixes (array amb circCodi, assignedTorn, driverName, notes).`;
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-pro-preview',
-        config: {
-          thinkingConfig: { thinkingBudget: 32768 },
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              summary: { type: Type.STRING },
-              impact: { type: Type.STRING },
-              steps: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    driver: { type: Type.STRING },
-                    type: { type: Type.STRING },
-                    description: { type: Type.STRING },
-                    location: { type: Type.STRING },
-                    color: { type: Type.STRING }
-                  }
-                }
-              },
-              proposedFixes: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    circCodi: { type: Type.STRING },
-                    assignedTorn: { type: Type.STRING },
-                    driverName: { type: Type.STRING },
-                    notes: { type: Type.STRING }
-                  }
-                }
-              }
-            }
-          }
-        },
-        contents: prompt
-      });
-
-      const responseText = response.text || "{}";
-      const cleanedText = responseText.replace(/```json\n?|```/g, "").trim();
-      setAiResponse(JSON.parse(cleanedText));
-    } catch (e) {
-      console.error(e);
-      setAiResponse({ summary: "Error de càlcul", impact: "No s'ha pogut generar el pla logístic", steps: [], proposedFixes: [] });
-    } finally {
-      setAiLoading(false);
-    }
-  };
-
-  const executeAiPlan = () => {
-    if (!aiResponse?.proposedFixes) return;
-    const fixes: Record<string, any> = {};
-    aiResponse.proposedFixes.forEach((f: any) => {
-      fixes[f.circCodi] = f;
-    });
-    setAppliedAiFixes(fixes);
-    setShowAiModal(false);
-  };
-
   const coverageStats = useMemo(() => {
     if (!coveragePlan.length) return null;
-    const covered = coveragePlan.filter(p => p.candidates.length > 0 || appliedAiFixes[p.circ.codi]).length;
-    const uncovered = coveragePlan.filter(p => p.candidates.length === 0 && !appliedAiFixes[p.circ.codi]);
+    const covered = coveragePlan.filter(p => p.candidates.length > 0).length;
+    const uncovered = coveragePlan.filter(p => p.candidates.length === 0);
     return { total: coveragePlan.length, covered, uncovered };
-  }, [coveragePlan, appliedAiFixes]);
+  }, [coveragePlan]);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -389,7 +290,7 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
           <div className="max-w-2xl mx-auto space-y-6 text-center w-full">
             <div className="flex flex-col items-center gap-3">
                <div className="p-3 bg-blue-500/10 rounded-2xl text-blue-500"><RotateCcw size={32} /></div>
-               <h3 className="text-xl font-black text-fgc-grey dark:text-white uppercase tracking-tight">Anàlisi Logística Avançada</h3>
+               <h3 className="text-xl font-black text-fgc-grey dark:text-white uppercase tracking-tight">Anàlisi Logística</h3>
                <p className="text-xs font-bold text-gray-400 dark:text-gray-500 max-w-sm">Detecció automàtica de servei i marges de relleu al segon.</p>
             </div>
             <div className="relative">
@@ -421,7 +322,7 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
         <div className="py-32 flex flex-col items-center justify-center gap-6 opacity-30"><Loader2 size={64} className="animate-spin text-blue-500" /><div className="text-center space-y-1"><p className="text-lg font-black uppercase tracking-[0.2em] text-fgc-grey dark:text-white">Escanejant xarxa ferroviària</p><p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Calculant relleus optimitzats per marges de 1 min...</p></div></div>
       ) : coveragePlan.length > 0 ? (
         <div className="space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-white dark:bg-gray-900 rounded-[32px] p-6 border border-gray-100 dark:border-white/5 shadow-sm flex items-center gap-5">
               <div className={`p-4 rounded-2xl ${coverageStats?.uncovered.length ? 'bg-red-500 text-white' : 'bg-fgc-green text-fgc-grey'} shadow-lg`}>{coverageStats?.uncovered.length ? <ShieldAlert size={28} /> : <CheckCircle2 size={28} />}</div>
               <div><h4 className="text-sm font-black text-fgc-grey dark:text-white uppercase tracking-tight">Estat del Torn {uncoveredShiftId}</h4><p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{coverageStats?.covered} de {coverageStats?.total} trens coberts</p></div>
@@ -430,13 +331,6 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
               <div className={`p-4 rounded-2xl ${coverageStats?.uncovered.length ? 'bg-red-600 text-white animate-pulse' : 'bg-gray-100 dark:bg-white/5 text-gray-400'} shadow-lg`}><AlertTriangle size={28} /></div>
               <div><h4 className={`text-sm font-black uppercase tracking-tight ${coverageStats?.uncovered.length ? 'text-red-600 dark:text-red-400' : 'text-gray-400'}`}>Riscos detectats</h4><p className={`text-xs font-bold uppercase tracking-widest ${coverageStats?.uncovered.length ? 'text-red-500/70' : 'text-gray-300'}`}>{coverageStats?.uncovered.length || 0} trens sense cobertura directa</p></div>
             </div>
-            {showSecretMenu && (
-              <button onClick={askGemini} className="bg-fgc-grey dark:bg-black text-white rounded-[32px] p-6 border border-white/10 shadow-2xl flex items-center gap-5 group hover:scale-[1.02] active:scale-95 transition-all relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:rotate-12 transition-transform"><BrainCircuit size={80} /></div>
-                <div className="p-4 bg-fgc-green text-fgc-grey rounded-2xl shadow-lg relative z-10"><Sparkles size={28} className="group-hover:animate-spin" style={{ animationDuration: '3s' }} /></div>
-                <div className="text-left relative z-10"><h4 className="text-sm font-black text-white uppercase tracking-tight">IA: Cercar salts i cadenes</h4><p className="text-[10px] font-bold text-fgc-green uppercase tracking-widest leading-tight">Troba relleus parcials i salts entre trens</p></div>
-              </button>
-            )}
           </div>
 
           <div className="bg-white dark:bg-gray-900 rounded-[32px] p-6 sm:p-8 border border-gray-100 dark:border-white/5 shadow-sm">
@@ -445,9 +339,7 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
                 <div><h4 className="text-sm font-black text-fgc-grey dark:text-white uppercase tracking-tight">Pla de Cobertura Logística</h4><p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Marges optimitzats (1 min) | Sincronitzat amb Reserves</p></div>
              </div>
              <div className="space-y-16">
-                {coveragePlan.map((item, idx) => {
-                  const aiFix = appliedAiFixes[item.circ.codi];
-                  return (
+                {coveragePlan.map((item, idx) => (
                     <div key={idx} className="space-y-6">
                       <div className="flex flex-col sm:flex-row sm:items-center gap-3 bg-gray-100 dark:bg-white/5 p-4 rounded-3xl border border-gray-200 dark:border-white/10 relative overflow-hidden">
                          <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none"><TrainFront size={80} /></div>
@@ -456,30 +348,15 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
                             <div className="flex items-center gap-2 mb-1"><p className="text-base font-black text-fgc-grey dark:text-gray-200 uppercase tracking-tight">{item.circ.inici} → {item.circ.final}</p><span className="bg-fgc-green/20 text-fgc-green px-2 py-0.5 rounded text-[9px] font-black uppercase border border-fgc-green/20">S-{item.circ.linia}</span></div>
                             <div className="flex flex-wrap items-center gap-x-4 gap-y-1"><div className="flex items-center gap-1.5 text-xs font-bold text-gray-500"><Clock size={14} className="text-blue-500" /> {item.circ.sortida} — {item.circ.arribada}</div><div className="flex items-center gap-1.5 text-xs font-bold text-fgc-green"><MapPin size={14} /> Vies: {item.circ.via_inici} / {item.circ.via_final}</div></div>
                          </div>
-                         {item.candidates.length === 0 && !aiFix && <div className="bg-red-500 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-red-500/20 border border-red-400">SENSE COBERTURA DIRECTA</div>}
-                         {aiFix && <div className="bg-blue-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase shadow-lg flex items-center gap-2 border border-blue-400 animate-in zoom-in-95"><BrainCircuit size={14} /> SOLUCIÓ IA ACTIVADA</div>}
+                         {item.candidates.length === 0 && <div className="bg-red-500 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-red-500/20 border border-red-400">SENSE COBERTURA DIRECTA</div>}
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pl-4 border-l-2 border-dashed border-gray-200 dark:border-white/10">
-                         {aiFix ? (
-                            <div className="p-5 rounded-[32px] border bg-blue-50 dark:bg-blue-900/10 border-blue-400 ring-2 ring-blue-500/20 shadow-xl scale-[1.02] z-10 flex flex-col relative overflow-hidden animate-in fade-in duration-300">
-                               <div className="absolute top-0 right-0 bg-blue-600 text-white px-4 py-1.5 rounded-bl-2xl text-[9px] font-black uppercase flex items-center gap-1.5 shadow-md"><Zap size={10} /> Proposta IA</div>
-                               <div className="flex items-center gap-2 mb-4">
-                                  <span className="bg-blue-600 text-white text-[10px] font-black px-2.5 py-1 rounded-xl shadow-sm">{aiFix.assignedTorn}</span>
-                               </div>
-                               <p className="text-base font-black text-blue-900 dark:text-blue-100 uppercase truncate leading-tight mb-3">{aiFix.driverName}</p>
-                               <div className="bg-white/70 dark:bg-black/40 p-4 rounded-2xl border border-blue-100 dark:border-blue-900/30 flex-1">
-                                  <p className="text-[9px] font-black text-blue-500 uppercase tracking-[0.2em] mb-2 flex items-center gap-1.5"><MessageSquareQuote size={10}/> Raonament Logístic</p>
-                                  <p className="text-[11px] font-bold text-gray-700 dark:text-gray-300 leading-relaxed italic">"{aiFix.notes}"</p>
-                               </div>
-                               <button onClick={() => { const next = {...appliedAiFixes}; delete next[item.circ.codi]; setAppliedAiFixes(next); }} className="mt-4 text-[9px] font-black text-red-500 uppercase hover:underline text-left px-2">Desfer canvi IA</button>
-                            </div>
-                         ) : item.candidates.length > 0 ? (
+                         {item.candidates.length > 0 ? (
                            item.candidates.map((cand: any, cIdx: number) => {
                              const isBestOption = cIdx === 0;
                              const isReserve = cand.shiftId.startsWith('QR');
                              return (
                                <div key={cIdx} className={`p-5 rounded-[32px] border transition-all group flex flex-col h-full relative overflow-hidden ${isBestOption ? 'bg-white dark:bg-gray-800 border-blue-400 ring-2 ring-blue-500/20 shadow-xl scale-[1.02] z-10' : 'bg-gray-50/50 dark:bg-gray-800/40 border-gray-100 dark:border-white/5 shadow-sm opacity-80 hover:opacity-100'}`}>
-                                  {isBestOption && <div className="absolute top-0 right-0 bg-blue-600 text-white px-4 py-1.5 rounded-bl-2xl text-[9px] font-black uppercase flex items-center gap-1.5 shadow-md"><Sparkles size={10} /> Millor Candidat</div>}
                                   <div className="flex items-center justify-between mb-4"><div className="flex items-center gap-2"><span className={`${isReserve ? 'bg-fgc-green text-fgc-grey' : 'bg-fgc-grey dark:bg-black text-white'} text-[10px] font-black px-2.5 py-1 rounded-xl shadow-sm`}>{cand.shiftId}</span>{isReserve && <span className="bg-fgc-green/10 text-fgc-green text-[9px] font-black px-2 py-1 rounded-lg border border-fgc-green/20">RESERVA</span>}</div><div className="text-right"><p className="text-[10px] font-black text-blue-500 uppercase leading-none mb-1">Marge</p><p className="text-lg font-black text-fgc-grey dark:text-gray-200 leading-none">{cand.marginBefore + cand.marginAfter}m</p></div></div>
                                   <p className="text-base font-black text-fgc-grey dark:text-gray-200 uppercase truncate leading-tight mb-4">{cand.driver}</p>
                                   <div className="flex-1 space-y-3 mb-6">
@@ -496,132 +373,17 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu }) 
                              );
                            })
                          ) : (
-                           <div className="col-span-full py-10 flex flex-col items-center justify-center gap-3 bg-red-50/30 dark:bg-red-950/10 rounded-[32px] border-2 border-dashed border-red-100 dark:border-red-900/30"><AlertTriangle size={32} className="text-red-400 mb-2" /><p className="text-sm font-black text-red-600 dark:text-red-400 uppercase tracking-widest text-center px-4">Cap relleu directe viable<br/><span className="text-[10px] font-bold opacity-60">Pla de salts recomanat via IA per despatx</span></p></div>
+                           <div className="col-span-full py-10 flex flex-col items-center justify-center gap-3 bg-red-50/30 dark:bg-red-950/10 rounded-[32px] border-2 border-dashed border-red-100 dark:border-red-900/30"><AlertTriangle size={32} className="text-red-400 mb-2" /><p className="text-sm font-black text-red-600 dark:text-red-400 uppercase tracking-widest text-center px-4">Cap relleu directe viable</p></div>
                          )}
                       </div>
                     </div>
-                  );
-                })}
+                ))}
              </div>
           </div>
         </div>
       ) : uncoveredShiftId && !analyzing ? (
         <div className="py-20 text-center opacity-30 flex flex-col items-center gap-4"><Info size={48} className="text-gray-400" /><p className="text-sm font-bold text-gray-500 uppercase tracking-widest italic">Introdueix un torn per calcular cobertures</p></div>
       ) : null}
-
-      {showAiModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-fgc-grey/60 backdrop-blur-sm" onClick={() => setShowAiModal(false)} />
-          <div className="relative bg-white dark:bg-gray-900 w-full max-w-4xl rounded-[40px] overflow-hidden shadow-2xl border border-white/10 animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
-            <div className="p-8 border-b border-gray-100 dark:border-white/5 bg-fgc-grey dark:bg-black text-white flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="p-2.5 bg-fgc-green text-fgc-grey rounded-xl shadow-lg"><BrainCircuit size={24} /></div>
-                <div><h2 className="text-xl font-black uppercase tracking-tight">Estratègia IA Mestra</h2><p className="text-[10px] font-bold text-fgc-green uppercase tracking-widest">Gemini reasoning Engine v3.8 (Llei 08:45h)</p></div>
-              </div>
-              <button onClick={() => setShowAiModal(false)} className="p-2 hover:bg-white/10 rounded-full transition-colors"><X size={24} /></button>
-            </div>
-            <div className="p-8 overflow-y-auto custom-scrollbar flex-1">
-              {aiLoading ? (
-                <div className="py-24 flex flex-col items-center justify-center gap-8">
-                  <div className="relative">
-                    <Loader2 className="text-fgc-green animate-spin" size={64} />
-                  </div>
-                  <div className="text-center space-y-2">
-                    <p className="text-lg font-black text-fgc-grey dark:text-white uppercase tracking-widest">Calculant cadenes d'intercanvi...</p>
-                    <p className="text-xs font-bold text-gray-400 uppercase tracking-tighter">Analitzant marges de 08:45h i rellançaments de maquinistes</p>
-                  </div>
-                </div>
-              ) : aiResponse && (
-                <div className="space-y-10 animate-in fade-in duration-500">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="bg-gray-50 dark:bg-white/5 p-6 rounded-3xl border border-gray-100 dark:border-white/5 flex flex-col justify-center">
-                        <h3 className="text-2xl font-black text-fgc-grey dark:text-white uppercase tracking-tight leading-tight mb-2">{aiResponse.summary}</h3>
-                        <div className="flex items-center gap-2"><div className="w-2 h-2 bg-fgc-green rounded-full animate-pulse" /><p className="text-sm font-black text-fgc-green uppercase tracking-widest">{aiResponse.impact}</p></div>
-                    </div>
-                    <div className="bg-blue-50 dark:bg-blue-900/10 p-6 rounded-3xl border border-blue-100 dark:border-blue-900/30 flex items-start gap-4">
-                       <Scale className="text-blue-600 dark:text-blue-400 shrink-0 mt-1" size={24} />
-                       <div>
-                          <p className="text-xs font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-1">Càlcul de Temps Legals</p>
-                          <p className="text-xs font-medium text-blue-800 dark:text-blue-200 leading-relaxed italic">Aquest pla assegura que cap torn supera els 525 minuts. S'han proposat salts entre circulacions (ex: F138 → F136) per optimitzar la xarxa.</p>
-                       </div>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-6">
-                    <div className="flex items-center gap-3 px-2">
-                       <History size={18} className="text-gray-400" />
-                       <h4 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Full de Ruta de l'Intercanvi</h4>
-                    </div>
-                    <div className="grid grid-cols-1 gap-3">
-                      {aiResponse.steps?.map((step: any, sIdx: number) => {
-                        const colors: Record<string, string> = {
-                          blue: 'border-l-blue-500 bg-blue-50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400',
-                          orange: 'border-l-orange-500 bg-orange-50 dark:bg-orange-950/20 text-orange-600 dark:text-orange-400',
-                          green: 'border-l-fgc-green bg-green-50 dark:bg-green-950/20 text-green-700 dark:text-green-400',
-                          purple: 'border-l-purple-500 bg-purple-50 dark:bg-purple-950/20 text-purple-600 dark:text-purple-400',
-                        };
-                        const colorClass = colors[step.color] || colors.blue;
-                        
-                        return (
-                          <div key={sIdx} className={`rounded-2xl p-6 border border-gray-100 dark:border-white/5 border-l-8 shadow-sm flex flex-col sm:flex-row sm:items-center gap-6 group transition-all hover:translate-x-1 ${colorClass}`}>
-                            <div className="flex items-center gap-5 flex-1">
-                               <div className="h-12 w-12 bg-white/70 dark:bg-black/30 rounded-xl flex items-center justify-center font-black text-lg shadow-sm shrink-0">{sIdx + 1}</div>
-                               <div className="min-w-0">
-                                  <div className="flex items-center gap-2 mb-1.5">
-                                     <span className="bg-black/10 dark:bg-white/10 px-2.5 py-0.5 rounded text-[9px] font-black uppercase tracking-widest">{step.type}</span>
-                                     <p className="text-sm font-black uppercase tracking-tighter opacity-90">{step.driver}</p>
-                                  </div>
-                                  <p className="text-sm font-bold leading-relaxed">{step.description}</p>
-                               </div>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0 border-t sm:border-t-0 sm:border-l border-current/10 pt-4 sm:pt-0 sm:pl-8">
-                               <MapPin size={14} className="opacity-60" />
-                               <p className="text-[10px] font-black uppercase tracking-widest leading-none">{step.location}</p>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="space-y-6">
-                    <div className="flex items-center gap-3 px-2">
-                       <ArrowUpRight size={18} className="text-fgc-green" />
-                       <h4 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Resultat del Pla Automàtic</h4>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                       {aiResponse.proposedFixes?.map((fix: any, fIdx: number) => (
-                          <div key={fIdx} className="bg-gray-50 dark:bg-black/20 p-5 rounded-[24px] border border-gray-100 dark:border-white/5 space-y-4 shadow-inner">
-                             <div className="flex items-center justify-between">
-                                <span className="bg-fgc-grey dark:bg-black text-white text-[10px] font-black px-3 py-1 rounded-lg uppercase shadow-sm">{fix.circCodi}</span>
-                                <div className="flex items-center gap-1.5">
-                                  <ArrowRight size={10} className="text-gray-400" />
-                                  <span className="bg-blue-600 text-white text-[10px] font-black px-3 py-1 rounded-lg uppercase shadow-md">{fix.assignedTorn}</span>
-                                </div>
-                             </div>
-                             <p className="text-base font-black text-fgc-grey dark:text-gray-200 uppercase truncate">{fix.driverName}</p>
-                             <div className="pt-3 border-t border-gray-100 dark:border-white/5">
-                               <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 leading-relaxed italic">{fix.notes}</p>
-                             </div>
-                          </div>
-                       ))}
-                    </div>
-                  </div>
-                  
-                  <div className="pt-8 border-t border-gray-100 dark:border-white/5 flex flex-col sm:flex-row items-center justify-between gap-6">
-                     <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest max-w-sm text-center sm:text-left leading-relaxed">
-                        * Al clicar a executar, les circulacions es resoldran visualment aplicant les cadenes i salts proposats.
-                     </p>
-                     <button onClick={executeAiPlan} className="w-full sm:w-auto bg-blue-600 text-white px-12 py-5 rounded-3xl font-black text-base hover:bg-blue-700 active:scale-95 transition-all shadow-2xl flex items-center justify-center gap-3 uppercase tracking-widest">
-                       <Zap size={20} className="fill-current" /> EXECUTAR PLA IA
-                     </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
