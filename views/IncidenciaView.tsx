@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, ShieldAlert, Loader2, UserCheck, Clock, MapPin, AlertCircle, Phone, Info, Users, Zap, User, Train, Map as MapIcon, X, Timer, Scissors, ArrowDownToLine, ArrowUpToLine, ArrowLeftToLine, ArrowRightToLine, Coffee, Layers, Trash2, Repeat, Rewind, FastForward, RotateCcw, RefreshCw, LayoutGrid, CheckCircle2, Activity } from 'lucide-react';
+import { Search, ShieldAlert, Loader2, UserCheck, Clock, MapPin, AlertCircle, Phone, Info, Users, Zap, User, Train, Map as MapIcon, X, Timer, Scissors, ArrowDownToLine, ArrowUpToLine, ArrowLeftToLine, ArrowRightToLine, Coffee, Layers, Trash2, Repeat, Rewind, FastForward, RotateCcw, RefreshCw, LayoutGrid, CheckCircle2, Activity, FilePlus, ArrowRight } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
 import IncidenciaPerTorn from '../components/IncidenciaPerTorn.tsx';
 
@@ -366,12 +366,19 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
               const driverPhones = allPhones?.find(p => p.nomina === assignment?.empleat_id)?.phones || [];
 
               currentPersonnel.push({
-                type: 'TRAIN', id: circ.id, linia: circ.linia, stationId: currentStationId, 
-                color: getLiniaColorHex(codi.startsWith('F') ? 'F' : circ.linia),
-                driver: assignment ? `${assignment.cognoms}, ${assignment.nom}` : 'Sense assignar',
-                driverName: assignment?.nom,
-                driverSurname: assignment?.cognoms,
-                torn: shift?.id || '---', phones: driverPhones, inici: circ.inici, final: circ.final, horaPas: formatFgcTime(displayMin),
+                type: 'TRAIN', 
+                id: (circ as any).id as string, 
+                linia: (circ as any).linia as string, 
+                stationId: currentStationId as string, 
+                color: getLiniaColorHex((codi.startsWith('F') ? 'F' : (circ as any).linia) as string),
+                driver: assignment ? `${(assignment as any).cognoms}, ${(assignment as any).nom}` : 'Sense assignar',
+                driverName: (assignment as any)?.nom as string | undefined,
+                driverSurname: (assignment as any)?.cognoms as string | undefined,
+                torn: shift?.id || '---', 
+                phones: driverPhones, 
+                inici: (circ as any).inici as string | undefined, 
+                final: (circ as any).final as string | undefined, 
+                horaPas: formatFgcTime(displayMin),
                 x, y
               });
               processedKeys.add(codi);
@@ -406,13 +413,14 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
             const rawLoc = (shift.dependencia || '').trim().toUpperCase();
             const loc = resolveStationId(rawLoc, shiftService);
             if (loc && stationCoords[loc] && assignment) {
-              const driverPhones = allPhones?.find(p => p.nomina === assignment.empleat_id)?.phones || [];
+              const driverPhones = allPhones?.find(p => p.nomina === (assignment as any).empleat_id)?.phones || [];
               const coords = stationCoords[loc] || { x: 0, y: 0 };
               currentPersonnel.push({ 
                 type: 'REST', id: 'DESCANS', linia: 'S/L', stationId: loc, color: '#53565A', 
-                driver: `${assignment.cognoms}, ${assignment.nom}`, 
-                driverName: assignment.nom,
-                driverSurname: assignment.cognoms,
+                // Fix type errors by casting assignment to any, as its type is unknown in this context.
+                driver: `${(assignment as any).cognoms}, ${(assignment as any).nom}`, 
+                driverName: (assignment as any).nom,
+                driverSurname: (assignment as any).cognoms,
                 torn: shift.id, phones: driverPhones, 
                 inici: loc, final: loc, horaPas: formatFgcTime(displayMin),
                 x: coords.x, y: coords.y
@@ -758,6 +766,10 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
   };
 
   const AlternativeServiceOverlay = ({ islandId }: { islandId: string }) => {
+    const [viewMode, setViewMode] = useState<'RESOURCES' | 'CIRCULATIONS'>('RESOURCES');
+    const [generatedCircs, setGeneratedCircs] = useState<any[]>([]);
+    const [generating, setGenerating] = useState(false);
+
     if (!dividedPersonnel || !dividedPersonnel[islandId]) return null;
     const personnel = dividedPersonnel[islandId].list;
     const islandStations = dividedPersonnel[islandId].stations;
@@ -777,22 +789,18 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
         const availableDrivers = [...allDrivers];
         const formedServices: any[] = [];
         
-        const tryAssign = (route: string, priority: string) => {
+        const tryAssign = (route: string, priority: string, liniaCode: string) => {
           if (availableTrains.length > 0 && availableDrivers.length > 0) {
             const train = availableTrains.shift();
             const driver = availableDrivers.shift();
-            formedServices.push({ train, driver, route, priority });
+            formedServices.push({ train, driver, route, priority, liniaCode });
             return true;
           }
           return false;
         };
 
-        // 1. L12: Strictly 1 unit is enough
-        if (canSupportL12) {
-          tryAssign("L12 (Shuttle SR-RE)", "MITJA");
-        }
+        if (canSupportL12) tryAssign("L12 (Shuttle SR-RE)", "MITJA", "L12");
 
-        // 2. L7: Dynamic quota based on current trains in island
         const l7TrainsInIsland = physicalTrains.filter(t => t.linia === 'L7' || t.linia === '300').length;
         let l7Target = 0;
         let l7Withdraw = false;
@@ -801,127 +809,206 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu }) => {
             if (l7TrainsInIsland === 2) l7Target = 2;
             else if (l7TrainsInIsland === 3) l7Target = 3;
             else if (l7TrainsInIsland >= 4) { l7Target = 3; l7Withdraw = true; }
-            else l7Target = 2; // Default fallback
+            else l7Target = 2;
         }
 
-        let l7Assigned = 0;
         const l7Route = canSupportL7Full ? "L7 (Shuttle PC-TB)" : "L7 (Shuttle GR-TB)";
-        for(let i=0; i<l7Target; i++) {
-          if (tryAssign(l7Route, "MITJA")) l7Assigned++;
-        }
+        for(let i=0; i<l7Target; i++) tryAssign(l7Route, "MITJA", "L7");
+        if (l7Withdraw && canSupportL7Full) tryAssign("Retirada L7 a PC (Excedent)", "BÀSICA", "L7");
 
-        if (l7Withdraw && canSupportL7Full) {
-          tryAssign("Retirada L7 a PC (Excedent)", "BÀSICA");
-        }
-
-        // 3. S1 / S2 / L6 Rotation Loop
         let cycleCount = 0;
         while (availableTrains.length > 0 && availableDrivers.length > 0) {
-          if (canSupportS1) {
-            if (!tryAssign("S1 (Llançadora Terrassa)", "ALTA")) break;
-          }
-          if (canSupportS2) {
-            if (!tryAssign("S2 (Llançadora Sabadell)", "ALTA")) break;
-          }
-
+          if (canSupportS1 && !tryAssign("S1 (Llançadora Terrassa)", "ALTA", "S1")) break;
+          if (canSupportS2 && !tryAssign("S2 (Llançadora Sabadell)", "ALTA", "S2")) break;
           cycleCount++;
-          if (canSupportL6) {
-            if (!tryAssign("L6 (Reforç Urbà)", "MITJA")) break;
-          }
-          
+          if (canSupportL6 && !tryAssign("L6 (Reforç Urbà)", "MITJA", "L6")) break;
           if (!canSupportS1 && !canSupportS2 && !canSupportL6 && !canSupportL7Full && !canSupportL7Local && !canSupportL12) {
-             tryAssign("Llançadora Local d'Illa", "BÀSICA");
+             tryAssign("Llançadora Local d'Illa", "BÀSICA", "S1");
              break;
           }
           if (cycleCount > 20) break;
         }
-
         return formedServices;
     }, [physicalTrains, allDrivers, canSupportS1, canSupportS2, canSupportL6, canSupportL12, canSupportL7Full, canSupportL7Local]);
 
+    const handleGenerateCirculations = async () => {
+        setGenerating(true);
+        setViewMode('CIRCULATIONS');
+        try {
+            const { data: theoryCircs } = await supabase.from('circulations').select('*');
+            if (!theoryCircs) return;
+
+            const nextByLinia: Record<string, { odd: number, even: number }> = {
+                'S1': { odd: 401, even: 402 },
+                'S2': { odd: 501, even: 502 },
+                'L6': { odd: 101, even: 102 },
+                'L7': { odd: 301, even: 302 },
+                'L12': { odd: 1, even: 2 }
+            };
+
+            const liniaPrefixes: Record<string, string> = { 'S1': 'D', 'S2': 'F', 'L6': 'A', 'L7': 'B', 'L12': 'L' };
+
+            // Determinar properes circulacions segons horari actual
+            Object.keys(nextByLinia).forEach(linia => {
+                const afterCurrent = (theoryCircs as any[])
+                    .filter(c => c.linia === linia && getFgcMinutes(c.sortida as string)! >= displayMin)
+                    .sort((a,b) => getFgcMinutes(a.sortida as string)! - getFgcMinutes(b.sortida as string)!);
+                
+                const firstOdd = afterCurrent.find(c => parseInt((c.id as string).replace(/\D/g, '')) % 2 !== 0);
+                const firstEven = afterCurrent.find(c => parseInt((c.id as string).replace(/\D/g, '')) % 2 === 0);
+                
+                if (firstOdd) nextByLinia[linia].odd = parseInt((firstOdd.id as string).replace(/\D/g, ''));
+                if (firstEven) nextByLinia[linia].even = parseInt((firstEven.id as string).replace(/\D/g, ''));
+            });
+
+            const plan: any[] = [];
+            const activeResources = shuttlePlan.filter(s => s.priority !== 'BÀSICA');
+            
+            // Generar seqüència d'1 hora de servei per linia activa
+            activeResources.forEach((res, idx) => {
+                const prefix = liniaPrefixes[res.liniaCode] || 'X';
+                let currentNum = (idx % 2 === 0) ? nextByLinia[res.liniaCode].odd : nextByLinia[res.liniaCode].even;
+                
+                for(let i=0; i<6; i++) { // 6 circulacions per tren (anada i tornada 3 cops)
+                    const id = `${prefix}${currentNum.toString().padStart(3, '0')}`;
+                    plan.push({
+                        id,
+                        route: res.route,
+                        train: res.train.id,
+                        driver: res.driver.driver,
+                        time: formatFgcTime(displayMin + (i * 15)),
+                        direction: currentNum % 2 !== 0 ? 'ASCENDENT' : 'DESCENDENT'
+                    });
+                    currentNum += 2;
+                }
+            });
+
+            setGeneratedCircs(plan.sort((a,b) => getFgcMinutes(a.time)! - getFgcMinutes(b.time)!));
+        } catch (e) { console.error(e); } finally { setGenerating(false); }
+    };
+
     return (
       <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-fgc-grey/60 backdrop-blur-md animate-in fade-in duration-300">
-        <div className="bg-white dark:bg-gray-900 w-full max-w-4xl rounded-[48px] shadow-2xl border border-white/20 overflow-hidden flex flex-col max-h-[90vh]">
-           <div className="p-8 border-b border-gray-100 dark:border-white/5 flex items-center justify-between bg-gray-50/50 dark:bg-black/20">
+        <div className="bg-white dark:bg-gray-900 w-full max-w-5xl rounded-[48px] shadow-2xl border border-white/20 overflow-hidden flex flex-col max-h-[90vh]">
+           <div className="p-8 border-b border-gray-100 dark:border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-6 bg-gray-50/50 dark:bg-black/20">
               <div className="flex items-center gap-4">
                  <div className="p-3 bg-fgc-green rounded-2xl text-fgc-grey shadow-lg"><Activity size={24} /></div>
                  <div>
                     <h3 className="text-xl font-black text-fgc-grey dark:text-white uppercase tracking-tight">Pla de Servei Alternatiu (Geogràfic)</h3>
                     <p className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
-                      {dividedPersonnel[islandId].label} • {shuttlePlan.length} Serveis Assignats
+                      {dividedPersonnel[islandId].label} • {shuttlePlan.length} Unitats / {allDrivers.length} Maquinistes
                     </p>
                  </div>
               </div>
-              <button onClick={() => setAltServiceIsland(null)} className="p-3 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-500 rounded-full transition-colors"><X size={28} /></button>
+              <div className="flex items-center gap-3">
+                 <button 
+                    onClick={handleGenerateCirculations}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-sm transition-all shadow-lg active:scale-95 ${viewMode === 'CIRCULATIONS' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-fgc-grey dark:text-white border border-gray-100 dark:border-white/10'}`}
+                 >
+                    <FilePlus size={18} /> CREAR CIRCULACIONS
+                 </button>
+                 <button onClick={() => setAltServiceIsland(null)} className="p-3 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-500 rounded-full transition-colors"><X size={28} /></button>
+              </div>
            </div>
            
            <div className="flex-1 overflow-y-auto p-8 custom-scrollbar space-y-8">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                 <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-[28px] border border-blue-100 dark:border-blue-900/50 flex flex-col items-center gap-1">
-                    <Train size={24} className="text-blue-500 mb-1" />
-                    <p className="text-xl font-black text-blue-700 dark:text-blue-300">{physicalTrains.length}</p>
-                    <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest text-center leading-tight">Trens a la zona</p>
-                 </div>
-                 <div className="bg-fgc-green/10 dark:bg-fgc-green/5 p-4 rounded-[28px] border border-fgc-green/20 dark:border-fgc-green/10 flex flex-col items-center gap-1">
-                    <User size={24} className="text-fgc-green mb-1" />
-                    <p className="text-xl font-black text-fgc-grey dark:text-gray-200">{allDrivers.length}</p>
-                    <p className="text-[8px] font-black text-fgc-green uppercase tracking-widest text-center leading-tight">Personal Disponible</p>
-                 </div>
-                 <div className={`p-4 rounded-[28px] border flex flex-col items-center gap-1 ${canSupportS1 || canSupportS2 ? 'bg-orange-50 dark:bg-orange-950/20 border-orange-200' : 'bg-gray-50 opacity-40 border-gray-100'}`}>
-                    <LayoutGrid size={24} className={canSupportS1 || canSupportS2 ? "text-orange-500" : "text-gray-400"} />
-                    <p className="text-xl font-black uppercase text-fgc-grey dark:text-white">{(canSupportS1 && canSupportS2) ? "S1+S2" : canSupportS1 ? "S1" : canSupportS2 ? "S2" : "Tall"}</p>
-                    <p className="text-[8px] font-black uppercase tracking-widest text-center leading-tight">Prioritat Alta</p>
-                 </div>
-                 <div className={`p-4 rounded-[28px] border flex flex-col items-center gap-1 ${canSupportL6 || canSupportL7Full || canSupportL7Local ? 'bg-purple-50 dark:bg-purple-950/20 border-purple-200' : 'bg-gray-50 opacity-40 border-gray-100'}`}>
-                    <Layers size={24} className={canSupportL6 || canSupportL7Full || canSupportL7Local ? "text-purple-500" : "text-gray-400"} />
-                    <p className="text-xl font-black uppercase text-fgc-grey dark:text-white">
-                        {canSupportL6 ? "L6" : ""} {canSupportL7Full || canSupportL7Local ? "L7" : ""} {canSupportL12 ? "L12" : ""}
-                    </p>
-                    <p className="text-[8px] font-black uppercase tracking-widest text-center leading-tight">Serveis de Ramal</p>
-                 </div>
-              </div>
+              {viewMode === 'RESOURCES' ? (
+                <>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                     <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-[28px] border border-blue-100 dark:border-blue-900/50 flex flex-col items-center gap-1">
+                        <Train size={24} className="text-blue-500 mb-1" />
+                        <p className="text-xl font-black text-blue-700 dark:text-blue-300">{physicalTrains.length}</p>
+                        <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest text-center leading-tight">Trens a la zona</p>
+                     </div>
+                     <div className="bg-fgc-green/10 dark:bg-fgc-green/5 p-4 rounded-[28px] border border-fgc-green/20 dark:border-fgc-green/10 flex flex-col items-center gap-1">
+                        <User size={24} className="text-fgc-green mb-1" />
+                        <p className="text-xl font-black text-fgc-grey dark:text-gray-200">{allDrivers.length}</p>
+                        <p className="text-[8px] font-black text-fgc-green uppercase tracking-widest text-center leading-tight">Personal Disponible</p>
+                     </div>
+                     <div className={`p-4 rounded-[28px] border flex flex-col items-center gap-1 ${canSupportS1 || canSupportS2 ? 'bg-orange-50 dark:bg-orange-950/20 border-orange-200' : 'bg-gray-50 opacity-40 border-gray-100'}`}>
+                        <LayoutGrid size={24} className={canSupportS1 || canSupportS2 ? "text-orange-500" : "text-gray-400"} />
+                        <p className="text-xl font-black uppercase text-fgc-grey dark:text-white">{(canSupportS1 && canSupportS2) ? "S1+S2" : canSupportS1 ? "S1" : canSupportS2 ? "S2" : "Tall"}</p>
+                        <p className="text-[8px] font-black uppercase tracking-widest text-center leading-tight">Prioritat Alta</p>
+                     </div>
+                     <div className={`p-4 rounded-[28px] border flex flex-col items-center gap-1 ${canSupportL6 || canSupportL7Full || canSupportL7Local ? 'bg-purple-50 dark:bg-purple-950/20 border-purple-200' : 'bg-gray-50 opacity-40 border-gray-100'}`}>
+                        <Layers size={24} className={canSupportL6 || canSupportL7Full || canSupportL7Local ? "text-purple-500" : "text-gray-400"} />
+                        <p className="text-xl font-black uppercase text-fgc-grey dark:text-white">
+                            {canSupportL6 ? "L6" : ""} {canSupportL7Full || canSupportL7Local ? "L7" : ""} {canSupportL12 ? "L12" : ""}
+                        </p>
+                        <p className="text-[8px] font-black uppercase tracking-widest text-center leading-tight">Serveis de Ramal</p>
+                     </div>
+                  </div>
 
-              <div className="space-y-4">
-                 <div className="flex items-center gap-2 px-2"><ShieldAlert size={16} className="text-red-500" /><h4 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Escaleta de Llançadores Proposada</h4></div>
-                 <div className="grid grid-cols-1 gap-3">
-                    {shuttlePlan.map((s, idx) => (
-                       <div key={idx} className="bg-white dark:bg-gray-800 rounded-[28px] p-5 border border-gray-100 dark:border-white/5 shadow-sm flex items-center justify-between gap-6 hover:shadow-md transition-all group">
-                          <div className="flex items-center gap-5 flex-1 min-w-0">
-                             <div className={`h-12 w-12 rounded-xl flex items-center justify-center font-black text-white shadow-lg shrink-0 ${s.priority === 'ALTA' ? 'bg-red-500' : 'bg-purple-500'}`}>{idx + 1}</div>
-                             <div className="min-w-0">
-                                <div className="flex items-center gap-3 mb-1">
-                                   <p className="text-lg font-black text-fgc-grey dark:text-white uppercase truncate">{s.route}</p>
-                                   <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border ${s.priority === 'ALTA' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-purple-50 text-purple-600 border-purple-100'}`}>Prioritat {s.priority}</span>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                   <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 dark:text-gray-400"><Train size={12} className="text-blue-500" /> Tren: <span className="text-fgc-grey dark:text-gray-200 font-black">{s.train.id}</span></div>
-                                   <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 dark:text-gray-400"><UserCheck size={12} className="text-fgc-green" /> Maquinista: <span className="text-fgc-grey dark:text-gray-200 font-black truncate">{s.driver.driver}</span></div>
-                                </div>
-                             </div>
-                          </div>
-                          <div className="flex gap-2">
-                             {s.driver.phones?.map((p: string, i: number) => (
-                                <a key={i} href={`tel:${p}`} className="w-10 h-10 bg-gray-50 dark:bg-black text-fgc-grey dark:text-gray-400 rounded-xl flex items-center justify-center hover:bg-fgc-green hover:text-white transition-all shadow-sm border border-gray-100 dark:border-white/5"><Phone size={16} /></a>
-                             ))}
-                          </div>
-                       </div>
-                    ))}
-                    {shuttlePlan.length === 0 && (
-                        <div className="py-20 text-center opacity-30 italic">No hi ha prou recursos per generar un pla.</div>
+                  <div className="space-y-4">
+                     <div className="flex items-center gap-2 px-2"><ShieldAlert size={16} className="text-red-500" /><h4 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Assignació de Recursos d'Illa</h4></div>
+                     <div className="grid grid-cols-1 gap-3">
+                        {shuttlePlan.map((s, idx) => (
+                           <div key={idx} className="bg-white dark:bg-gray-800 rounded-[28px] p-5 border border-gray-100 dark:border-white/5 shadow-sm flex items-center justify-between gap-6 hover:shadow-md transition-all group">
+                              <div className="flex items-center gap-5 flex-1 min-w-0">
+                                 <div className={`h-12 w-12 rounded-xl flex items-center justify-center font-black text-white shadow-lg shrink-0 ${s.priority === 'ALTA' ? 'bg-red-500' : 'bg-purple-500'}`}>{idx + 1}</div>
+                                 <div className="min-w-0">
+                                    <div className="flex items-center gap-3 mb-1">
+                                       <p className="text-lg font-black text-fgc-grey dark:text-white uppercase truncate">{s.route}</p>
+                                       <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border ${s.priority === 'ALTA' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-purple-50 text-purple-600 border-purple-100'}`}>Prioritat {s.priority}</span>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                       <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 dark:text-gray-400"><Train size={12} className="text-blue-500" /> Tren: <span className="text-fgc-grey dark:text-gray-200 font-black">{s.train.id}</span></div>
+                                       <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 dark:text-gray-400"><UserCheck size={12} className="text-fgc-green" /> Maquinista: <span className="text-fgc-grey dark:text-gray-200 font-black truncate">{s.driver.driver}</span></div>
+                                    </div>
+                                 </div>
+                              </div>
+                              <div className="flex gap-2">
+                                 {s.driver.phones?.map((p: string, i: number) => (
+                                    <a key={i} href={`tel:${p}`} className="w-10 h-10 bg-gray-50 dark:bg-black text-fgc-grey dark:text-gray-400 rounded-xl flex items-center justify-center hover:bg-fgc-green hover:text-white transition-all shadow-sm border border-gray-100 dark:border-white/10"><Phone size={16} /></a>
+                                 ))}
+                              </div>
+                           </div>
+                        ))}
+                     </div>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-6 animate-in slide-in-from-right duration-500">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 px-2"><LayoutGrid size={16} className="text-blue-500" /><h4 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Escaleta de Circulacions d'Emergència</h4></div>
+                        <button onClick={() => setViewMode('RESOURCES')} className="text-[10px] font-black text-blue-500 hover:underline">← Tornar a recursos</button>
+                    </div>
+                    {generating ? (
+                        <div className="py-20 flex flex-col items-center gap-4 opacity-30"><Loader2 className="animate-spin text-blue-500" size={48} /><p className="text-xs font-black uppercase tracking-widest">Sincronitzant malla teòrica...</p></div>
+                    ) : (
+                        <div className="bg-gray-50 dark:bg-black/20 rounded-[32px] overflow-hidden border border-gray-100 dark:border-white/5">
+                            <div className="grid grid-cols-5 bg-fgc-grey dark:bg-black text-white p-4 text-[10px] font-black uppercase tracking-widest">
+                                <div>Codi</div><div>Tren</div><div>Inici</div><div>Ruta</div><div>Direcció</div>
+                            </div>
+                            <div className="divide-y divide-gray-100 dark:divide-white/5">
+                                {generatedCircs.map((c, idx) => (
+                                    <div key={idx} className="grid grid-cols-5 p-4 items-center hover:bg-white dark:hover:bg-white/5 transition-colors">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full bg-blue-500" />
+                                            <span className="font-black text-lg text-fgc-grey dark:text-white">{c.id}</span>
+                                        </div>
+                                        <div className="font-bold text-sm text-gray-500 dark:text-gray-400">{c.train}</div>
+                                        <div className="font-black text-sm text-blue-600 dark:text-blue-400">{c.time}</div>
+                                        <div className="text-xs font-bold text-gray-400 truncate">{c.route}</div>
+                                        <div><span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border ${c.direction === 'ASCENDENT' ? 'bg-orange-50 text-orange-600 border-orange-100' : 'bg-green-50 text-green-600 border-green-100'}`}>{c.direction}</span></div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
                     )}
-                 </div>
-              </div>
+                </div>
+              )}
            </div>
+           
            <div className="p-8 border-t border-gray-100 dark:border-white/5 bg-gray-50/30 dark:bg-black/40">
               <div className="flex items-start gap-4 p-4 bg-blue-50/50 dark:bg-blue-900/10 rounded-2xl border border-blue-100 dark:border-blue-900/20">
                  <Info size={20} className="text-blue-500 mt-1 shrink-0" />
                  <div className="text-xs font-bold text-blue-700 dark:text-blue-300 leading-relaxed">
                    <p className="uppercase tracking-widest mb-1 underline">Regles Operatives Aplicades:</p>
                    <ul className="list-disc pl-4 space-y-1">
-                       <li><b>Prioritat S1/S2:</b> S'assignen preferentment a qualsevol illa que contingui tronc comú o ramals Vallès.</li>
-                       <li><b>Freqüència 10m:</b> Rotació optimitzada S1 - S2 - L6 per maximitzar passatge.</li>
-                       <li><b>L7 Dinàmica:</b> S'assignen 2 o 3 unitats segons disponibilitat. Amb 4 unitats, es prepara retirada a PC.</li>
-                       <li><b>Quotes:</b> L12 limitada a 1 unitat per servei llançadora.</li>
+                       <li><b>Prefixes:</b> L6(A), L7(B), L12(L), S1(D), S2(F).</li>
+                       <li><b>Numeració:</b> Primera referència basada en la propera teòrica per horari.</li>
+                       <li><b>Paritat:</b> Ascendents (Imparells) i Descendents (Parells).</li>
                    </ul>
                  </div>
               </div>
