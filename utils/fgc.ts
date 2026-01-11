@@ -42,3 +42,7 @@ export const getTrainPhone = (train: string) => {
     if (serie === '115') return `697${unitStr}`;
     return null;
 };
+
+export const ALL_STATIONS = [
+    "Barcelona - Pl. Catalunya", "Provença", "Gràcia", "Sant Gervasi", "Muntaner", "La Bonanova", "Les Tres Torres", "Sarrià", "Peu del Funicular", "Baixador de Vallvidrera", "Les Planes", "La Floresta", "Valldoreix", "Sant Cugat Centre", "Mira-sol", "Hospital General", "Rubí Centre", "Les Fonts", "Terrassa Rambla", "Vallparadís Universitat", "Terrassa Estació del Nord", "Terrassa Nacions Unides", "Volpelleres", "Sant Joan", "Bellaterra", "Universitat Autònoma", "Sant Quirze", "Can Feu | Gràcia", "Sabadell Plaça Major", "La Creu Alta", "Sabadell Nord", "Sabadell Parc del Nord", "Pl. Molina", "Pàdua", "El Putxet", "Av. Tibidabo", "Reina Elisenda"
+].sort();

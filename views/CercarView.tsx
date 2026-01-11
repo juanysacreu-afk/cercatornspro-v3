@@ -6,7 +6,7 @@ import { supabase } from '../supabaseClient.ts';
 // Importación de utilidades y componentes extraídos
 import { getFgcMinutes, checkIfActive, calculateGap } from '../utils/time';
 import { fetchAllFromSupabase } from '../utils/supabase';
-import { getStatusColor, getLiniaColor, getShortTornId, getTrainPhone } from '../utils/fgc';
+import { getStatusColor, getLiniaColor, getShortTornId, getTrainPhone, ALL_STATIONS } from '../utils/fgc';
 import { fetchFullTurns } from '../utils/queries';
 import { ItineraryPoint } from '../components/ItineraryPoint';
 import { ShiftTimeline } from '../components/ShiftTimeline';
@@ -108,18 +108,7 @@ export const CercarView: React.FC = () => {
       }
 
       if (searchType === SearchType.Estacio) {
-        const data = await fetchAllFromSupabase('circulations', supabase.from('circulations').select('estacions, inici, final'));
-        if (data) {
-          const stations = new Set<string>();
-          data.forEach(c => {
-            if (c.inici) stations.add(c.inici.trim());
-            if (c.final) stations.add(c.final.trim());
-            (c.estacions as any[])?.forEach(st => {
-              if (st.nom) stations.add(st.nom.trim());
-            });
-          });
-          setAllStations(Array.from(stations).sort());
-        }
+        setAllStations(ALL_STATIONS);
       }
     };
     fetchData();
@@ -410,7 +399,7 @@ export const CercarView: React.FC = () => {
           case SearchType.Circulacio:
             let qc = supabase.from('shifts').select('id, circulations');
             if (selectedServei !== 'Tots') qc = qc.eq('servei', selectedServei);
-            const { data: c } = await qc;
+            const c = await fetchAllFromSupabase('shifts', qc);
             turnIds = c?.filter(turn => (turn.circulations as any[])?.some((circ: any) => (typeof circ === 'string' ? circ : circ.codi)?.toLowerCase().includes(searchVal.toLowerCase()))).map(turn => turn.id as string) || [];
             break;
         }
