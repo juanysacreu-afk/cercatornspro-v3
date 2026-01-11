@@ -1,84 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { SearchType, Shift, Circulation, DailyAssignment, PhonebookEntry, Assignment } from '../types.ts';
-// Added Settings to imports
-import { Search, User, Train, MapPin, Hash, ArrowRight, Loader2, Info, Phone, Clock, FileText, ChevronDown, ChevronUp, Map as MapIcon, Navigation, Coffee, Footprints, Circle, LayoutGrid, Timer, X, BookOpen, CalendarDays, Filter, AlertTriangle, Wrench, Users, UserCheck, Camera, Brush, Save, Check, RotateCw, Settings } from 'lucide-react';
+import { SearchType } from '../types.ts';
+import { Search, User, Train, MapPin, Hash, ArrowRight, Loader2, Info, Phone, Clock, FileText, ChevronDown, LayoutGrid, Timer, X, BookOpen, AlertTriangle, Users, Camera, Brush, Save, Check } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
 
-// Funció auxiliar per recuperar tots els registres d'una taula (superant el límit de 1000 de Supabase)
-async function fetchAllFromSupabase(table: string, queryBuilder: any) {
-  let allData: any[] = [];
-  let page = 0;
-  const pageSize = 1000;
-  let hasMore = true;
-
-  while (hasMore) {
-    const { data, error } = await queryBuilder.range(page * pageSize, (page + 1) * pageSize - 1);
-    if (error) throw error;
-    if (!data || data.length === 0) {
-      hasMore = false;
-    } else {
-      allData = [...allData, ...data];
-      page++;
-      if (data.length < pageSize) hasMore = false;
-    }
-  }
-  return allData;
-}
-
-function getFgcMinutes(timeStr: string) {
-  if (!timeStr || !timeStr.includes(':')) return 0;
-  const [h, m] = timeStr.split(':').map(Number);
-  let total = h * 60 + m;
-  if (h < 4) total += 24 * 60;
-  return total;
-}
-
-function formatFgcTime(totalMinutes: number) {
-  let mins = totalMinutes;
-  if (mins >= 24 * 60) mins -= 24 * 60;
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-}
-
-const ItineraryPoint: React.FC<{ point: any; isFirst?: boolean; isLast?: boolean; nextPoint?: any; nowMin: number }> = ({ point, isFirst, isLast, nextPoint, nowMin }) => {
-  const pTime = point.hora || point.sortida || point.arribada;
-  const pMin = getFgcMinutes(pTime);
-  const isNow = pTime && nowMin === pMin;
-  
-  let isTransit = false;
-  if (nextPoint && pTime && nextPoint.hora) {
-    const nextMin = getFgcMinutes(nextPoint.hora);
-    if (nowMin > pMin && nowMin < nextMin) {
-        isTransit = true;
-    }
-  }
-
-  return (
-    <React.Fragment>
-      <div className="relative flex items-center gap-4 sm:gap-8 py-4 group/point">
-        <div className={`absolute left-[-30px] sm:left-[-50px] top-1/2 -translate-y-1/2 flex items-center justify-center w-6 h-6 sm:w-8 h-8 bg-white dark:bg-gray-800 border-4 ${isFirst ? 'border-fgc-green' : isLast ? 'border-red-50 dark:border-red-900/30' : 'border-gray-300 dark:border-gray-700'} rounded-full z-10`}>
-          {isNow && <div className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.8)]" />}
-        </div>
-        <div className="w-16 sm:w-24 flex-shrink-0">
-          <p className={`text-base sm:text-xl font-black ${isNow ? 'text-red-500' : 'text-fgc-grey dark:text-gray-200'}`}>{pTime || '--:--'}</p>
-          {isNow && <p className="text-[10px] font-black text-red-500">ARA</p>}
-        </div>
-        <div className={`flex-1 p-2 sm:p-3 rounded-xl border transition-all ${isFirst ? 'bg-fgc-green/5 dark:bg-fgc-green/10 border-fgc-green/20 dark:border-fgc-green/20' : isLast ? 'bg-red-50/50 dark:bg-red-950/20 border-red-100 dark:border-red-900/30' : 'border-transparent group-hover/point:bg-gray-50 dark:group-hover/point:bg-white/5'}`}>
-          <h5 className={`text-sm sm:text-lg ${isNow ? 'font-black text-red-600' : 'font-bold text-fgc-grey dark:text-gray-300'}`}>{point.nom} {point.via && <span className="opacity-40 dark:opacity-50 ml-1">(V{point.via})</span>}</h5>
-        </div>
-      </div>
-      {isTransit && (
-        <div className="relative h-12 flex items-center">
-          <div className="absolute left-[-30px] sm:left-[-50px] top-0 bottom-0 flex flex-col items-center justify-center w-6 h-6 sm:w-8 h-8 z-20">
-            <div className="w-3 h-3 bg-red-500 rounded-full animate-bounce shadow-[0_0_12px_rgba(239,68,68,1)] border-2 border-white dark:border-gray-800" />
-          </div>
-          <div className="pl-16 sm:pl-24 text-[10px] font-black text-red-500 uppercase tracking-widest animate-pulse">EN TRAJECTE...</div>
-        </div>
-      )}
-    </React.Fragment>
-  );
-};
+// Importación de utilidades y componentes extraídos
+import { getFgcMinutes, checkIfActive, calculateGap } from '../utils/time';
+import { fetchAllFromSupabase } from '../utils/supabase';
+import { getLiniaColor, getShortTornId, getTrainPhone } from '../utils/fgc';
+import { ItineraryPoint } from '../components/ItineraryPoint';
+import { ShiftTimeline } from '../components/ShiftTimeline';
+import { TimeGapRow } from '../components/TimeGapRow';
+import { CirculationHeader } from '../components/CirculationHeader';
+import { CirculationRow } from '../components/CirculationRow';
+import { StationRow } from '../components/StationRow';
 
 export const CercarView: React.FC = () => {
   const [searchType, setSearchType] = useState<SearchType>(SearchType.Torn);
@@ -94,7 +28,7 @@ export const CercarView: React.FC = () => {
   const [allStations, setAllStations] = useState<string[]>([]);
   const [selectedStation, setSelectedStation] = useState<string>('');
   const [trainStatuses, setTrainStatuses] = useState<Record<string, any>>({});
-  
+
   // Estat per al nou menú de gestió d'unitat
   const [editingCirc, setEditingCirc] = useState<{ circ: any, cycleId: string } | null>(null);
   const [editUnitNumber, setEditUnitNumber] = useState('');
@@ -108,7 +42,7 @@ export const CercarView: React.FC = () => {
 
   const [startTime, setStartTime] = useState<string>(getCurrentTimeStr());
   const [endTime, setEndTime] = useState<string>('23:59');
-  
+
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -127,7 +61,7 @@ export const CercarView: React.FC = () => {
     const { data } = await supabase
       .from('train_status')
       .select('*');
-    
+
     if (data) {
       const statusMap: Record<string, any> = {};
       data.forEach(s => {
@@ -153,10 +87,10 @@ export const CercarView: React.FC = () => {
         setLoading(true);
         let q = supabase.from('shifts').select('circulations');
         if (selectedServei !== 'Tots') q = q.eq('servei', selectedServei);
-        
+
         const shiftsData = await fetchAllFromSupabase('shifts', q);
         const cyclesSet = new Set<string>();
-        
+
         if (shiftsData) {
           shiftsData.forEach(s => {
             (s.circulations as any[])?.forEach(c => {
@@ -165,13 +99,13 @@ export const CercarView: React.FC = () => {
             });
           });
         }
-        
+
         setAvailableCycles(Array.from(cyclesSet).sort((a, b) => {
           return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
         }));
         setLoading(false);
       }
-      
+
       if (searchType === SearchType.Estacio) {
         const data = await fetchAllFromSupabase('circulations', supabase.from('circulations').select('estacions, inici, final'));
         if (data) {
@@ -201,15 +135,15 @@ export const CercarView: React.FC = () => {
   }, []);
 
   const openUnitMenu = (circ: any, cycleId: string) => {
-    if (!cycleId) return; // No podem gestionar unitat sense cicle
+    if (!cycleId) return;
     const currentTrain = circ.train || '';
     setEditUnitNumber(currentTrain);
     const status = trainStatuses[currentTrain] || { is_broken: false, needs_images: false, needs_records: false, needs_cleaning: false };
     setTempStatus({
-        is_broken: status.is_broken || false,
-        needs_images: status.needs_images || false,
-        needs_records: status.needs_records || false,
-        needs_cleaning: status.needs_cleaning || false
+      is_broken: status.is_broken || false,
+      needs_images: status.needs_images || false,
+      needs_records: status.needs_records || false,
+      needs_cleaning: status.needs_cleaning || false
     });
     setEditingCirc({ circ, cycleId });
   };
@@ -218,32 +152,25 @@ export const CercarView: React.FC = () => {
     if (!editingCirc) return;
     setIsSavingUnit(true);
     try {
-        const trainNum = editUnitNumber.trim();
-        
-        // 1. Actualitzar assignació de cicle si el número ha canviat
-        if (trainNum) {
-            await supabase.from('assignments').upsert({
-                cycle_id: editingCirc.cycleId,
-                train_number: trainNum
-            });
-
-            // 2. Actualitzar estats del tren
-            await supabase.from('train_status').upsert({
-                train_number: trainNum,
-                ...tempStatus,
-                updated_at: new Date().toISOString()
-            }, { onConflict: 'train_number' });
-        }
-
-        // Refrescar dades locals
-        await fetchTrainStatuses();
-        // Tornar a executar la cerca actual per refrescar la UI
-        executeSearch();
-        setEditingCirc(null);
+      const trainNum = editUnitNumber.trim();
+      if (trainNum) {
+        await supabase.from('assignments').upsert({
+          cycle_id: editingCirc.cycleId,
+          train_number: trainNum
+        });
+        await supabase.from('train_status').upsert({
+          train_number: trainNum,
+          ...tempStatus,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'train_number' });
+      }
+      await fetchTrainStatuses();
+      executeSearch();
+      setEditingCirc(null);
     } catch (e) {
-        console.error("Error desant canvis d'unitat:", e);
+      console.error("Error desant canvis d'unitat:", e);
     } finally {
-        setIsSavingUnit(false);
+      setIsSavingUnit(false);
     }
   };
 
@@ -257,61 +184,24 @@ export const CercarView: React.FC = () => {
 
   const serveiTypes = ['0', '100', '400', '500'];
 
-  function calculateGap(from: string, to: string) {
-    if (!from || !to) return 0;
-    const start = getFgcMinutes(from);
-    const end = getFgcMinutes(to);
-    return end - start;
-  }
-
-  const checkIfActive = (startStr: string, endStr: string) => {
-    if (!startStr || !endStr) return false;
-    const start = getFgcMinutes(startStr);
-    const end = getFgcMinutes(endStr);
-    return nowMin >= start && nowMin < end;
-  };
-
-  const getStatusColor = (codi: string) => {
-    const c = (codi || '').toUpperCase().trim();
-    if (c === 'PC') return 'bg-blue-400'; 
-    if (c === 'SR') return 'bg-purple-600';
-    if (c === 'RE') return 'bg-purple-300';
-    if (c === 'RB') return 'bg-pink-500';
-    if (c === 'NA') return 'bg-orange-500';
-    if (c === 'PN') return 'bg-[#00B140]';
-    if (c === 'TB') return 'bg-[#a67c52]'; 
-    if (c === 'Viatger') return 'bg-sky-500';
-    return 'bg-gray-200 dark:bg-gray-700';
-  };
-
-  const getLiniaColor = (linia: string) => {
-    const l = linia?.toUpperCase().trim() || '';
-    if (l === 'L6') return 'bg-purple-600';
-    if (l === 'L7') return 'bg-[#8B4513]';
-    if (l === 'L12') return 'bg-purple-300';
-    if (l === 'S1') return 'bg-orange-500';
-    if (l === 'S2') return 'bg-[#00B140]';
-    return 'bg-fgc-grey dark:bg-gray-800';
-  };
-
   const getShiftCurrentStatus = (turn: any, shiftIdx: number) => {
     const start = getFgcMinutes(turn.inici_torn);
     const end = getFgcMinutes(turn.final_torn);
-    
+
     if (nowMin < start) return { label: 'No ha iniciat', color: 'bg-gray-200 dark:bg-gray-800 text-gray-500', targetId: null };
     if (nowMin >= end) return { label: 'Finalitzat', color: 'bg-fgc-grey dark:bg-black text-white', targetId: null };
-    
+
     const circs = turn.fullCirculations || [];
     for (let i = 0; i < circs.length; i++) {
-      if (checkIfActive(circs[i].sortida, circs[i].arribada)) {
-        return { 
-          label: `LIVE: ${circs[i].codi}`, 
+      if (checkIfActive(circs[i].sortida, circs[i].arribada, nowMin)) {
+        return {
+          label: `LIVE: ${circs[i].codi}`,
           color: 'bg-red-500 text-white animate-pulse shadow-lg',
           targetId: `circ-row-${shiftIdx}-${i}`
         };
       }
     }
-    
+
     if (circs.length === 0) {
       return { label: `Temps: ${end - nowMin} min`, color: 'bg-yellow-400 text-fgc-grey shadow-sm', targetId: null };
     }
@@ -319,8 +209,8 @@ export const CercarView: React.FC = () => {
     const firstStart = getFgcMinutes(circs[0].sortida);
     if (nowMin < firstStart) {
       const remaining = firstStart - nowMin;
-      return { 
-        label: `${(firstStart - start) >= 15 ? 'Descans' : 'Temps'}: ${remaining} min`, 
+      return {
+        label: `${(firstStart - start) >= 15 ? 'Descans' : 'Temps'}: ${remaining} min`,
         color: (firstStart - start) >= 15 ? 'bg-fgc-green text-fgc-grey shadow-sm' : 'bg-yellow-400 text-fgc-grey shadow-sm',
         targetId: `gap-pre-${shiftIdx}`
       };
@@ -328,18 +218,18 @@ export const CercarView: React.FC = () => {
 
     for (let i = 0; i < circs.length; i++) {
       const currentEnd = getFgcMinutes(circs[i].arribada);
-      const nextStart = circs[i+1] ? getFgcMinutes(circs[i+1].sortida) : end;
+      const nextStart = circs[i + 1] ? getFgcMinutes(circs[i + 1].sortida) : end;
       if (nowMin >= currentEnd && nowMin < nextStart) {
         const gapDuration = nextStart - currentEnd;
         const remaining = nextStart - nowMin;
-        return { 
-          label: `${gapDuration >= 15 ? 'Descans' : 'Temps'}: ${remaining} min`, 
+        return {
+          label: `${gapDuration >= 15 ? 'Descans' : 'Temps'}: ${remaining} min`,
           color: gapDuration >= 15 ? 'bg-fgc-green text-fgc-grey shadow-sm' : 'bg-yellow-400 text-fgc-grey shadow-sm',
           targetId: `gap-row-${shiftIdx}-${i}`
         };
       }
     }
-    
+
     return { label: 'En servei', color: 'bg-fgc-green text-fgc-grey shadow-sm', targetId: null };
   };
 
@@ -369,195 +259,33 @@ export const CercarView: React.FC = () => {
     }
   };
 
-  const getTrainPhone = (train: string) => {
-    if (!train) return null;
-    const parts = train.split('.');
-    if (parts.length < 2) return null;
-    const serie = parts[0];
-    const unit = parseInt(parts[1], 10);
-    if (isNaN(unit)) return null;
-    const unitStr = parts[1].padStart(2, '0');
-    if (serie === '112') return `692${(unit + 50).toString().padStart(2, '0')}`;
-    if (serie === '113') return `694${unitStr}`;
-    if (serie === '114') return `694${(unit + 50).toString().padStart(2, '0')}`;
-    if (serie === '115') return `697${unitStr}`;
-    return null;
-  };
-
-  const ShiftTimeline = ({ turn }: { turn: any }) => {
-    const [selectedSeg, setSelectedSeg] = useState<any>(null);
-    const startMin = getFgcMinutes(turn.inici_torn);
-    const endMin = getFgcMinutes(turn.final_torn);
-    const totalDuration = endMin - startMin;
-    if (totalDuration <= 0) return null;
-    
-    const segments: any[] = [];
-    let currentPos = startMin;
-    const circulations = turn.fullCirculations || [];
-    
-    circulations.forEach((circ: any, index: number) => {
-      const circStart = getFgcMinutes(circ.sortida);
-      const circEnd = getFgcMinutes(circ.arribada);
-      if (circStart > currentPos) {
-        const locationCode = index === 0 ? (circ.machinistInici || turn.dependencia || '') : (circulations[index - 1].machinistFinal || '');
-        segments.push({ start: currentPos, end: circStart, type: 'gap', codi: locationCode || 'DESCANS', color: getStatusColor(locationCode) });
-      }
-      segments.push({ start: circStart, end: circEnd, type: 'circ', codi: circ.codi, realCodi: circ.realCodi, color: 'bg-gray-300 dark:bg-gray-700', linia: circ.linia, train: circ.train, cicle: circ.cicle });
-      currentPos = Math.max(currentPos, circEnd);
-    });
-    
-    if (currentPos < endMin) {
-      const lastLoc = circulations.length > 0 ? circulations[circulations.length - 1].machinistFinal : turn.dependencia;
-      segments.push({ start: currentPos, end: endMin, type: 'gap', codi: lastLoc || 'FINAL', color: getStatusColor(lastLoc) });
-    }
-    
-    const showMarker = nowMin >= startMin && nowMin <= endMin;
-    const progressPct = Math.max(0, Math.min(100, ((nowMin - startMin) / totalDuration) * 100));
-    
-    return (
-      <div className="space-y-4 mb-10 p-2 relative">
-        <div className="flex items-center justify-between relative h-8">
-          <div className="flex items-center gap-3"><LayoutGrid size={16} className="text-gray-400 dark:text-gray-500" /><h4 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Estades a dependencies</h4></div>
-          <div className="absolute left-1/2 -translate-x-1/2">{showMarker && (<div className="text-[10px] font-black text-red-500 uppercase tracking-widest bg-red-50 dark:bg-red-950/30 px-4 py-1.5 rounded-full border border-red-100 dark:border-red-900 flex items-center gap-1.5 shadow-sm"><span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />Progrés: {Math.round(progressPct)}%</div>)}</div>
-        </div>
-        <div className="relative">
-          <div className="relative h-16 w-full bg-gray-50/50 dark:bg-black/20 rounded-[28px] flex items-center px-1 shadow-inner border border-gray-100/50 dark:border-white/5">
-            {segments.map((seg, i) => {
-              const widthPct = ((seg.end - seg.start) / totalDuration) * 100;
-              const isSelected = selectedSeg?.start === seg.start && selectedSeg?.end === seg.end;
-              const isCurrent = nowMin >= seg.start && nowMin < seg.end;
-              const isGap = seg.type === 'gap';
-              const segmentLabel = `${seg.codi} (${formatFgcTime(seg.start)} - ${formatFgcTime(seg.end)})`;
-              const status = seg.train ? trainStatuses[seg.train] : null;
-              const isBroken = status?.is_broken;
-              
-              return (
-                <button 
-                  key={i} 
-                  onClick={() => setSelectedSeg(seg)} 
-                  title={segmentLabel}
-                  style={{ width: `${widthPct}%` }} 
-                  className={`h-8 relative transition-all mx-0.5 outline-none flex items-center justify-center group/seg ${isBroken ? 'bg-red-600' : seg.color} ${isGap ? 'rounded-xl' : 'rounded-none'} ${isSelected ? 'brightness-110 scale-y-110 z-10 shadow-lg ring-2 ring-white/50 dark:ring-white/20' : 'hover:brightness-110 hover:z-20'} ${isCurrent ? 'ring-2 ring-red-500 shadow-lg' : ''}`}
-                >
-                  {widthPct > 5 && (<span className={`text-[9px] font-black pointer-events-none truncate px-1 ${seg.type === 'circ' ? (isBroken ? 'text-white' : 'text-gray-600 dark:text-gray-300') : 'text-white'}`}>{seg.codi === 'Viatger' ? seg.realCodi : seg.codi}</span>)}
-                  {isCurrent && (
-                    <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-red-600 rounded-full border border-white dark:border-gray-900 shadow-sm z-40" />
-                  )}
-                  {isBroken && <AlertTriangle size={8} className="absolute -bottom-2 text-red-600 animate-bounce" />}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {selectedSeg && (
-          <div className={`mt-4 p-5 rounded-2xl border animate-in fade-in slide-in-from-top-2 duration-300 flex items-center justify-between shadow-xl ${selectedSeg.type === 'circ' && selectedSeg.train && trainStatuses[selectedSeg.train]?.is_broken ? 'bg-red-600 text-white' : (selectedSeg.color + ' ' + (selectedSeg.type === 'circ' ? 'text-black dark:text-gray-200 border-gray-300 dark:border-gray-700 shadow-gray-200 dark:shadow-black' : 'text-white border-white/20'))}`}>
-            <div className="flex items-center gap-4">
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-inner border ${selectedSeg.type === 'circ' ? `${getLiniaColor(selectedSeg.linia)} border-white/20` : 'bg-white/20 border-white/20 backdrop-blur-sm'}`}>
-                {selectedSeg.type === 'circ' ? (
-                  <Train size={24} className="text-white" />
-                ) : (
-                  <Coffee size={24} className="text-white" />
-                )}
-              </div>
-              <div>
-                <p className={`text-[10px] font-black uppercase tracking-widest ${selectedSeg.type === 'circ' ? (selectedSeg.train && trainStatuses[selectedSeg.train]?.is_broken ? 'text-white/60' : 'text-gray-500 dark:text-gray-400') : 'text-white/60'}`}>{selectedSeg.type === 'circ' ? 'CIRCULACIÓ' : 'DESCANS / ESTADA'}</p>
-                <div className="flex items-center gap-2">
-                    <p className="text-xl font-black flex items-center gap-2">
-                        {selectedSeg.codi === 'Viatger' ? `Viatger (${selectedSeg.realCodi})` : selectedSeg.codi}
-                    </p>
-                    {selectedSeg.type === 'circ' && selectedSeg.cicle && (
-                        <button 
-                            onClick={(e) => { e.stopPropagation(); openUnitMenu(selectedSeg, selectedSeg.cicle); }}
-                            className="bg-white/10 hover:bg-white/20 p-1.5 rounded-lg transition-colors"
-                            title="Gestionar Unitat"
-                        >
-                            <Settings size={14} className="text-white" />
-                        </button>
-                    )}
-                </div>
-                {selectedSeg.type === 'circ' && selectedSeg.train && trainStatuses[selectedSeg.train]?.is_broken && (
-                    <span className="bg-white text-red-600 px-2 py-0.5 rounded-lg text-[10px] flex items-center gap-1 border border-red-100 shadow-sm animate-pulse mt-1">
-                      <Wrench size={10} /> AVARIA
-                    </span>
-                  )}
-              </div>
-            </div>
-            <div className="text-right flex flex-col items-end">
-              <p className={`text-[10px] font-black uppercase tracking-widest ${selectedSeg.type === 'circ' ? (selectedSeg.train && trainStatuses[selectedSeg.train]?.is_broken ? 'text-white/60' : 'text-gray-500 dark:text-gray-400') : 'text-white/60'}`}>DURADA I HORARI</p>
-              <p className="text-xl font-black">{selectedSeg.end - selectedSeg.start} min</p>
-              <p className={`text-[10px] font-bold ${selectedSeg.type === 'circ' ? (selectedSeg.train && trainStatuses[selectedSeg.train]?.is_broken ? 'text-white/80' : 'text-gray-400 dark:text-gray-500') : 'text-white/80'}`}>{formatFgcTime(selectedSeg.start)} — {formatFgcTime(selectedSeg.end)}</p>
-            </div>
-            <button onClick={() => setSelectedSeg(null)} className={`ml-4 p-2 rounded-full transition-colors ${selectedSeg.type === 'circ' && !(selectedSeg.train && trainStatuses[selectedSeg.train]?.is_broken) ? 'hover:bg-gray-200 dark:hover:bg-white/10 text-gray-400 dark:text-gray-500' : 'hover:bg-white/10 text-white/80'}`}>
-              <X size={18} />
-            </button>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const TimeGapRow = ({ from, to, id }: { from: string; to: string; id?: string }) => {
-    const minutes = calculateGap(from, to);
-    if (minutes <= 0) return null;
-    const isRest = minutes >= 15;
-    const isActiveGap = nowMin >= getFgcMinutes(from) && nowMin < getFgcMinutes(to);
-    
-    return (
-      <div id={id} className="px-8 py-2 flex justify-center items-center gap-4 animate-in fade-in duration-500 relative scroll-mt-24">
-        <div className={`flex items-center gap-2 px-6 py-1.5 rounded-full text-[11px] font-black uppercase tracking-wider border transition-all ${
-          isActiveGap 
-            ? isRest 
-              ? 'bg-fgc-green border-fgc-green/30 text-fgc-grey shadow-sm scale-105 ring-2 ring-fgc-grey/20' 
-              : 'bg-yellow-400 border-yellow-500/30 text-fgc-grey shadow-sm scale-105 ring-2 ring-yellow-500/20'
-            : isRest 
-              ? 'bg-fgc-green/15 text-fgc-grey dark:text-gray-300 border-fgc-green/30 dark:border-fgc-green/20' 
-              : 'bg-gray-50 dark:bg-white/5 text-gray-400 dark:text-gray-500 border-gray-100 dark:border-white/5'
-        }`}>
-          {isActiveGap && <span className="w-1.5 h-1.5 rounded-full bg-fgc-grey dark:bg-black animate-pulse shadow-sm" />}
-          <span>{isRest ? 'Descans:' : 'Temps:'} {minutes} min</span>
-        </div>
-      </div>
-    );
-  };
-
-  const getShortTornId = (id: string) => {
-    const trimmed = id.trim();
-    if (trimmed.startsWith('Q') && !trimmed.startsWith('QR') && trimmed.length === 5) return trimmed[0] + trimmed.slice(2);
-    return trimmed;
-  };
+  const handleSuggestionClick = (id: string) => { setQuery(id); setShowSuggestions(false); executeSearch(id); };
+  const toggleItinerari = (id: string) => { setExpandedItinerari(expandedItinerari === id ? null : id); };
 
   const fetchFullTurnData = async (turnIds: string[]) => {
     if (!turnIds.length) return [];
-    
-    const { data: shifts, error: shiftError } = await supabase.from('shifts').select('*').in('id', turnIds);
+    const { data: shifts } = await supabase.from('shifts').select('*').in('id', turnIds);
     if (!shifts || shifts.length === 0) return [];
-
     const shortIdsToQuery = shifts.map(s => getShortTornId(s.id as string));
     const { data: dailyAssig } = await supabase.from('daily_assignments').select('*').in('torn', shortIdsToQuery);
-    
     const employeeIds = dailyAssig?.map(d => d.empleat_id).filter(Boolean) || [];
     const { data: phones } = await supabase.from('phonebook').select('*').in('nomina', employeeIds as string[]);
-    
     const allCircIds = new Set<string>();
     const viatgerRealIds = new Set<string>();
-    
-    shifts.forEach(s => { 
-      (s.circulations as any[])?.forEach(c => { 
-        const codi = typeof c === 'string' ? c : c.codi; 
+    shifts.forEach(s => {
+      (s.circulations as any[])?.forEach(c => {
+        const codi = typeof c === 'string' ? c : c.codi;
         if (codi === 'Viatger' && c.observacions) {
           const rCodi = c.observacions.split('-')[0];
           allCircIds.add(rCodi);
           viatgerRealIds.add(rCodi);
         }
-        if (codi && codi !== 'Viatger') allCircIds.add(codi as string); 
-      }); 
+        if (codi && codi !== 'Viatger') allCircIds.add(codi as string);
+      });
     });
-
     const circDetails = await fetchAllFromSupabase('circulations', supabase.from('circulations').select('*').in('id', Array.from(allCircIds)));
     const { data: trainAssig } = await supabase.from('assignments').select('*');
-    
-    let viatgerCycleMap: Record<string, {cicle: string, train: string}> = {};
+    let viatgerCycleMap: Record<string, { cicle: string, train: string }> = {};
     if (viatgerRealIds.size > 0) {
       const { data: helperShifts } = await supabase.from('shifts').select('circulations').eq('servei', selectedServei);
       helperShifts?.forEach(hs => {
@@ -566,72 +294,33 @@ export const CercarView: React.FC = () => {
           if (hCodi && hCodi !== 'Viatger' && viatgerRealIds.has(hCodi)) {
             if (hc.cicle) {
               const tAssig = trainAssig?.find(ta => ta.cycle_id === hc.cicle);
-              viatgerCycleMap[hCodi] = { 
-                cicle: hc.cicle, 
-                train: tAssig?.train_number || '' 
-              };
+              viatgerCycleMap[hCodi] = { cicle: hc.cicle, train: tAssig?.train_number || '' };
             }
           }
         });
       });
     }
-    
     return shifts.map(shift => {
       const shortId = getShortTornId(shift.id as string);
       const assignments = dailyAssig?.filter(d => d.torn === shortId) || [];
-      
       const drivers = assignments.map(assig => {
         const phoneData = phones?.find(p => p.nomina === assig.empleat_id);
-        return {
-          nom: assig.nom || 'No assignat',
-          cognoms: assig.cognoms || '',
-          nomina: assig.empleat_id || '---',
-          phones: phoneData?.phones || [],
-          observacions: assig.observacions || '',
-          abs_parc_c: assig.abs_parc_c,
-          dta: assig.dta,
-          dpa: assig.dpa,
-          tipus_torn: assig.tipus_torn
-        };
+        return { nom: assig.nom || 'No assignat', cognoms: assig.cognoms || '', nomina: assig.empleat_id || '---', phones: phoneData?.phones || [], observacions: assig.observacions || '', abs_parc_c: assig.abs_parc_c, dta: assig.dta, dpa: assig.dpa, tipus_torn: assig.tipus_torn };
       });
-
       const fullCirculations = (shift.circulations as any[])?.map((cRef: any) => {
         const isViatger = cRef.codi === 'Viatger';
         const obsParts = isViatger && cRef.observacions ? cRef.observacions.split('-') : [];
         const realCodiId = isViatger && obsParts.length > 0 ? obsParts[0] : cRef.codi;
-        
         const detail = circDetails?.find(cd => cd.id === realCodiId);
         let machinistInici = cRef.inici || detail?.inici;
         let machinistFinal = cRef.final || detail?.final;
-        if (isViatger && obsParts.length >= 3) {
-          machinistInici = obsParts[1];
-          machinistFinal = obsParts[2];
-        }
-        
+        if (isViatger && obsParts.length >= 3) { machinistInici = obsParts[1]; machinistFinal = obsParts[2]; }
         let cCicle = (typeof cRef === 'object' ? cRef.cicle : null) || (isViatger ? viatgerCycleMap[realCodiId]?.cicle : null);
         let cTrain = isViatger ? viatgerCycleMap[realCodiId]?.train : null;
-        
         const cycleInfo = cCicle ? trainAssig?.find(ta => ta.cycle_id === cCicle) : null;
-        
-        return { 
-          ...detail, 
-          ...(typeof cRef === 'object' ? cRef : {}), 
-          id: cRef.codi, 
-          realCodi: isViatger ? realCodiId : null, 
-          codi: cRef.codi, 
-          machinistInici, 
-          machinistFinal, 
-          cicle: cCicle, 
-          train: cTrain || cycleInfo?.train_number, 
-          linia: detail?.linia || cRef.linia 
-        };
+        return { ...detail, ...(typeof cRef === 'object' ? cRef : {}), id: cRef.codi, realCodi: isViatger ? realCodiId : null, codi: cRef.codi, machinistInici, machinistFinal, cicle: cCicle, train: cTrain || cycleInfo?.train_number, linia: detail?.linia || cRef.linia };
       }).sort((a: any, b: any) => getFgcMinutes(a.sortida || '00:00') - getFgcMinutes(b.sortida || '00:00'));
-
-      return { 
-        ...shift, 
-        drivers: drivers.length > 0 ? drivers : [{ nom: 'No assignat', cognoms: '', nomina: '---', phones: [], observacions: '' }], 
-        fullCirculations 
-      };
+      return { ...shift, drivers: drivers.length > 0 ? drivers : [{ nom: 'No assignat', cognoms: '', nomina: '---', phones: [], observacions: '' }], fullCirculations };
     });
   };
 
@@ -647,21 +336,15 @@ export const CercarView: React.FC = () => {
       const { data } = await q.limit(8);
       if (data) { setSuggestions((data as any[]).map(item => item.id as string)); setShowSuggestions(true); }
     } else if (searchType === SearchType.Maquinista) {
-      const { data } = await supabase.from('daily_assignments')
-        .select('nom, cognoms, empleat_id')
-        .or(`nom.ilike.%${val}%,cognoms.ilike.%${val}%,empleat_id.ilike.%${val}%`)
-        .limit(8);
-      if (data) { 
-        const unique = Array.from(new Set((data as any[]).map(d => `${d.cognoms || ''}, ${d.nom || ''} (${d.empleat_id})`))) as string[]; 
-        setSuggestions(unique); setShowSuggestions(true); 
-      }
+      const { data } = await supabase.from('daily_assignments').select('nom, cognoms, empleat_id').or(`nom.ilike.%${val}%,cognoms.ilike.%${val}%,empleat_id.ilike.%${val}%`).limit(8);
+      if (data) { const unique = Array.from(new Set((data as any[]).map(d => `${d.cognoms || ''}, ${d.nom || ''} (${d.empleat_id})`))) as string[]; setSuggestions(unique); setShowSuggestions(true); }
     } else if (searchType === SearchType.Circulacio) {
       const { data } = await supabase.from('circulations').select('id').ilike('id', `%${val}%`).limit(8);
       if (data) { setSuggestions((data as any[]).map(item => item.id as string)); setShowSuggestions(true); }
     } else if (searchType === SearchType.Cicle) {
       const filtered = availableCycles.filter(c => c.toLowerCase().includes(val.toLowerCase())).slice(0, 12);
       setSuggestions(filtered); setShowSuggestions(true);
-    } else { setSuggestions([]); setShowSuggestions(false); }
+    }
   };
 
   const executeSearch = async (overrideQuery?: string) => {
@@ -697,7 +380,7 @@ export const CercarView: React.FC = () => {
         const targetStation = selectedStation.trim().toUpperCase();
         allCircs.forEach(c => {
           let stopTime: string | null = null;
-          if (c.inici?.trim().toUpperCase() === targetStation) stopTime = c.sortida as string; 
+          if (c.inici?.trim().toUpperCase() === targetStation) stopTime = c.sortida as string;
           else if (c.final?.trim().toUpperCase() === targetStation) stopTime = c.arribada as string;
           else { const stop = (c.estacions as any[])?.find(st => st.nom?.trim().toUpperCase() === targetStation); if (stop) stopTime = stop.hora || stop.arribada || stop.sortida; }
           if (stopTime) { const stopMin = getFgcMinutes(stopTime); if (stopMin >= startMinRange && stopMin <= endMinRange) matchingCircs.push({ ...c, stopTimeAtStation: stopTime }); }
@@ -751,186 +434,6 @@ export const CercarView: React.FC = () => {
     } catch (error) { console.error("Error cercant dades:", error); } finally { setLoading(false); }
   };
 
-  const handleSuggestionClick = (id: string) => { setQuery(id); setShowSuggestions(false); executeSearch(id); };
-  const toggleItinerari = (id: string) => { setExpandedItinerari(expandedItinerari === id ? null : id); };
-
-  const CirculationHeader = () => (
-    <div className="hidden md:grid grid-cols-[1fr_1.2fr_1.8fr_1.8fr_1.2fr] items-center gap-4 px-4 py-3 border-b border-gray-100 dark:border-white/5 bg-gray-50/80 dark:bg-black/40 sticky top-0 z-10">
-      <div className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest px-2">Codi / Línia</div>
-      <div className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest text-center">Cicle / Unitat</div>
-      <div className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest text-center">Sortida (Estació i Via)</div>
-      <div className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest text-center">Arribada (Estació i Via)</div>
-      <div className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest text-right px-4">Estat / Detalls</div>
-    </div>
-  );
-
-  const CirculationRow = ({ circ, itemKey }: { circ: any; itemKey: string }) => {
-    const trainPhone = getTrainPhone(circ.train);
-    const isActive = checkIfActive(circ.sortida, circ.arribada);
-    const status = circ.train ? trainStatuses[circ.train] : null;
-    const isBroken = status?.is_broken;
-    const needsImages = status?.needs_images;
-    const needsRecords = status?.needs_records;
-    const needsCleaning = status?.needs_cleaning;
-    const isViatger = circ.codi === 'Viatger';
-
-    return (
-      <div id={`circ-row-${itemKey}`} className={`p-2 sm:p-4 grid grid-cols-[auto_1fr_1fr_auto] md:grid-cols-[1fr_1.2fr_1.8fr_1.8fr_1.2fr] items-center gap-2 sm:gap-4 w-full relative transition-all scroll-mt-24 ${isActive ? 'bg-red-50/30 dark:bg-red-950/20' : isBroken ? 'bg-red-50/20 dark:bg-red-950/10 shadow-inner' : ''}`}>
-        <div className="flex items-center gap-2 overflow-visible px-1">
-            <button 
-                onClick={() => circ.cicle && openUnitMenu(circ, circ.cicle)}
-                className={`px-2.5 py-1.5 ${isViatger ? 'bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800' : getLiniaColor(circ.linia)} rounded-lg font-black text-xs sm:text-sm shadow-sm flex items-center justify-center min-w-[62px] hover:scale-105 active:scale-95 transition-transform group relative`}
-                title="Gestionar Unitat"
-            >
-              {isViatger ? (
-                <div className="flex flex-col items-center justify-center leading-none py-0.5">
-                  <span className="text-[7.5px] font-black text-sky-600 dark:text-sky-400 tracking-tighter uppercase mb-0.5">VIATGER</span>
-                  <span className="text-[11px] font-black text-sky-800 dark:text-sky-100">{circ.realCodi || '---'}</span>
-                </div>
-              ) : (
-                <span className="text-white">{circ.codi}</span>
-              )}
-              {circ.cicle && <div className="absolute -top-1 -right-1 bg-white dark:bg-black rounded-full p-0.5 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"><Settings size={8} className="text-fgc-grey dark:text-gray-400" /></div>}
-            </button>
-            <span className={`hidden md:flex px-2 py-1 ${getLiniaColor(circ.linia)} text-white rounded-md font-black text-[9px] sm:text-[11px] shadow-sm flex-shrink-0`}>{circ.linia || '??'}</span>
-            {circ.train && trainPhone && (
-              <a href={`tel:${trainPhone}`} onClick={(e) => e.stopPropagation()} className={`md:hidden p-2 rounded-lg border shadow-sm transition-all active:scale-90 ${isBroken ? 'bg-red-600 text-white border-red-700' : 'bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-grey dark:text-fgc-green border-fgc-green/30 dark:border-fgc-green/20'}`}>
-                <Phone size={14} />
-              </a>
-            )}
-        </div>
-        <div className="hidden md:flex justify-center">
-            {circ.cicle ? (
-              <div className={`text-[10px] sm:text-sm font-black px-3 py-1.5 rounded-lg border shadow-sm flex items-center justify-center gap-2 transition-all w-full max-w-[150px] ${isBroken ? 'bg-red-600 text-white border-red-700 animate-pulse' : isViatger ? 'text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-900/20 border-sky-200 dark:border-sky-800' : 'text-black dark:text-gray-200 bg-fgc-green/20 dark:bg-fgc-green/10 border-fgc-green/30 dark:border-fgc-green/20'}`}>
-                <div className="flex flex-col items-center">
-                  {isViatger && <span className="text-[7px] opacity-60 leading-none mb-0.5 uppercase">Cicle Viatger</span>}
-                  <span className="shrink-0">{circ.cicle}</span>
-                </div>
-                {circ.train && (
-                  <div className={`flex items-center gap-1.5 pl-2 border-l ${isBroken ? 'border-white/30' : isViatger ? 'border-sky-200 dark:border-sky-800' : 'border-fgc-green/40 dark:border-fgc-green/20'}`}>
-                    <a href={trainPhone ? `tel:${trainPhone}` : '#'} className={`${isBroken ? 'text-white' : isViatger ? 'text-sky-600 dark:text-sky-400' : 'text-fgc-grey dark:text-gray-300'} hover:text-blue-700 transition-colors flex items-center gap-1 ${!trainPhone && 'pointer-events-none'}`}>
-                      <Phone size={10} className="opacity-50" />
-                      <span className="text-[10px] sm:text-xs">{circ.train}</span>
-                    </a>
-                  </div>
-                )}
-              </div>
-            ) : (<span className="text-[10px] text-gray-300 dark:text-gray-600 font-bold uppercase tracking-widest italic opacity-40">Sense assignar</span>)}
-        </div>
-        <div className="flex items-center gap-2 sm:gap-4 justify-center min-w-0">
-            <div className={`text-base sm:text-2xl font-black tabular-nums w-14 sm:w-16 text-center ${isActive || isBroken ? 'text-red-600' : 'text-fgc-grey dark:text-gray-200'}`}>{circ.sortida || '--:--'}</div>
-            <div className="bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-grey dark:text-fgc-green border border-fgc-green/30 dark:border-fgc-green/20 px-2 py-0.5 rounded text-[10px] font-black shadow-sm shrink-0">V{circ.via_inici || '?'}</div>
-            <span className="text-[10px] sm:text-xs font-bold text-gray-400 dark:text-gray-500 truncate max-w-[100px] hidden md:block">{circ.machinistInici || circ.inici || '---'}</span>
-        </div>
-        <div className="flex items-center gap-2 sm:gap-4 justify-center min-w-0">
-            <span className="text-[10px] sm:text-xs font-bold text-gray-400 dark:text-gray-500 truncate max-w-[100px] text-right hidden md:block">{circ.machinistFinal || circ.final || '---'}</span>
-            <div className="bg-fgc-grey/10 dark:bg-white/5 text-fgc-grey dark:text-gray-400 border border-gray-200 dark:border-white/10 px-2 py-0.5 rounded text-[10px] font-black shadow-sm shrink-0">V{circ.via_final || '?'}</div>
-            <div className={`text-base sm:text-2xl font-black tabular-nums w-14 sm:w-16 text-center ${isActive || isBroken ? 'text-red-600' : 'text-fgc-grey dark:text-gray-200'}`}>{circ.arribada || '--:--'}</div>
-        </div>
-        <div className="flex justify-end items-center gap-2 sm:gap-3 px-1 sm:px-4">
-          {needsImages && <Camera size={16} className="text-blue-500 animate-pulse drop-shadow-sm" />}
-          {needsRecords && <FileText size={16} className="text-yellow-500 animate-pulse drop-shadow-sm" />}
-          {needsCleaning && <Brush size={16} className="text-orange-500 animate-pulse drop-shadow-sm" />}
-          {isBroken && <AlertTriangle size={16} className="text-red-600 animate-pulse drop-shadow-sm" />}
-          {isActive && <span className="hidden xl:inline text-[9px] font-black text-red-500 animate-pulse bg-red-50 dark:bg-red-950/40 px-2.5 py-1 rounded-full border border-red-100 dark:border-red-900 shadow-sm">ACTIU</span>}
-          <button onClick={() => toggleItinerari(itemKey)} className={`p-2 sm:p-3 rounded-xl shadow-md hover:shadow-xl transition-all active:scale-95 border-b-2 border-black/5 flex items-center gap-2 shrink-0 ${isActive ? 'bg-red-600 text-white border-red-700' : isBroken ? 'bg-red-600 text-white border-red-700' : 'bg-fgc-green text-fgc-grey border-fgc-green'}`}>
-            < BookOpen size={16} /><span className="hidden lg:inline text-[10px] font-black uppercase tracking-tighter">Itinerari</span>
-          </button>
-        </div>
-      </div>
-    );
-  };
-
-  const StationRow = ({ circ, itemKey }: { circ: any; itemKey: string }) => {
-    const trainPhone = getTrainPhone(circ.train);
-    const isActive = checkIfActive(circ.sortida, circ.arribada);
-    const status = circ.train ? trainStatuses[circ.train] : null;
-    const isBroken = status?.is_broken;
-    const needsImages = status?.needs_images;
-    const needsRecords = status?.needs_records;
-    const needsCleaning = status?.needs_cleaning;
-    const shiftStatus = circ.fullTurn ? getShiftCurrentStatus(circ.fullTurn, 0) : null;
-    const isViatger = circ.id === 'Viatger';
-
-    return (
-      <div id={`station-row-${itemKey}`} className={`p-2 sm:p-4 grid grid-cols-[auto_1fr_auto_auto] md:grid-cols-[1fr_1.2fr_1.8fr_1fr_1.2fr] items-center gap-2 sm:gap-4 w-full relative transition-all scroll-mt-24 ${isActive ? 'bg-red-50/40 dark:bg-red-950/20 shadow-inner' : isBroken ? 'bg-red-50/20 dark:bg-red-950/10' : ''}`}>
-        <div className="flex justify-start items-center gap-2 shrink-0 px-1">
-          <button 
-            onClick={() => circ.cicle && openUnitMenu(circ, circ.cicle)}
-            className={`px-2.5 py-1.5 ${isViatger ? 'bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800' : getLiniaColor(circ.linia)} rounded-lg font-black text-xs sm:text-sm shadow-sm flex items-center justify-center min-w-[62px] hover:scale-105 active:scale-95 transition-transform group relative`}
-            title="Gestionar Unitat"
-          >
-            {isViatger ? (
-              <div className="flex flex-col items-center justify-center leading-none py-0.5">
-                <span className="text-[7.5px] font-black text-sky-600 dark:text-sky-400 tracking-tighter uppercase mb-0.5">VIATGER</span>
-                <span className="text-[11px] font-black text-sky-800 dark:text-sky-100">{circ.realCodi || '---'}</span>
-              </div>
-            ) : (
-              <span className="text-white">{circ.id}</span>
-            )}
-            {circ.cicle && <div className="absolute -top-1 -right-1 bg-white dark:bg-black rounded-full p-0.5 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"><Settings size={8} className="text-fgc-grey dark:text-gray-400" /></div>}
-          </button>
-          <span className={`hidden md:flex px-2 py-1 ${getLiniaColor(circ.linia)} text-white rounded-md font-black text-[9px] sm:text-[11px] shadow-sm`}>{circ.linia || '??'}</span>
-          {circ.train && trainPhone && (
-            <a href={`tel:${trainPhone}`} onClick={(e) => e.stopPropagation()} className={`md:hidden p-2 rounded-lg border shadow-sm transition-all active:scale-90 ${isBroken ? 'bg-red-600 text-white border-red-700' : 'bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-grey dark:text-fgc-green border-fgc-green/30 dark:border-fgc-green/20'}`}>
-              <Phone size={14} />
-            </a>
-          )}
-        </div>
-        <div className="hidden md:flex justify-center shrink-0">
-          {circ.cicle ? (
-            <div className={`text-[10px] sm:text-sm font-black px-3 py-1.5 rounded-lg border shadow-sm flex items-center gap-2 w-full max-w-[140px] ${isBroken ? 'bg-red-600 text-white border-red-700 animate-pulse' : isViatger ? 'text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-900/20 border-sky-200 dark:border-sky-800' : 'text-black dark:text-gray-200 bg-fgc-green/20 dark:bg-fgc-green/10 border-fgc-green/30 dark:border-fgc-green/20'}`}>
-              <div className="flex flex-col items-center">
-                {isViatger && <span className="text-[7px] opacity-60 leading-none mb-0.5 uppercase">Cicle Viatger</span>}
-                <span>{circ.cicle}</span>
-              </div>
-              {circ.train && (
-                <div className={`flex items-center gap-1.5 ml-1 pl-1.5 border-l ${isBroken ? 'border-white/30' : isViatger ? 'border-sky-200 dark:border-sky-800' : 'border-fgc-green/40 dark:border-fgc-green/20'}`}>
-                  <a href={trainPhone ? `tel:${trainPhone}` : '#'} className={`${isBroken ? 'text-white' : isViatger ? 'text-sky-600 dark:text-sky-400' : 'text-fgc-grey dark:text-gray-300'} hover:text-blue-700 transition-colors flex items-center`}>
-                    <Phone size={8} className="opacity-50" />
-                    <span className="text-[10px] ml-0.5">{circ.train}</span>
-                  </a>
-                </div>
-              )}
-            </div>
-          ) : (<span className="text-[10px] text-gray-300 dark:text-gray-600 font-bold uppercase tracking-widest italic opacity-40">Sense assignar</span>)}
-        </div>
-        <div className="flex flex-col items-start px-2 min-w-0 gap-2">
-          {circ.drivers.map((driver: any, dIdx: number) => (
-            <div key={dIdx} className="flex items-center gap-2">
-                <span className={`text-sm sm:text-lg font-black leading-tight truncate w-full ${isActive ? 'text-red-700 dark:text-red-400' : isBroken ? 'text-red-600' : 'text-fgc-grey dark:text-gray-200'}`}>
-                  {driver.cognoms || ''}, {driver.nom || ''}
-                </span>
-                {driver.tipus_torn && (
-                  <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border shrink-0 ${
-                    driver.tipus_torn === 'Reducció' 
-                      ? 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800' 
-                      : 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800'
-                  }`}>
-                    {driver.tipus_torn === 'Reducció' ? 'REDUCCIÓ' : 'TORN'}
-                  </span>
-                )}
-              </div>
-          ))}
-        </div>
-        <div className="flex justify-center shrink-0">
-          <div className={`px-4 py-2 rounded-xl border transition-all tabular-nums ${isActive ? 'bg-red-600 text-white border-red-700 animate-pulse shadow-md scale-105' : isBroken ? 'bg-red-600 text-white border-red-700 shadow-sm' : 'bg-fgc-green/10 dark:bg-fgc-green/5 border-fgc-green/20 dark:border-fgc-green/10'}`}>
-            <span className={`text-base sm:text-2xl font-black ${isActive || isBroken ? 'text-white' : 'text-fgc-grey dark:text-gray-200'}`}>{circ.stopTimeAtStation || '--:--'}</span>
-          </div>
-        </div>
-        <div className="flex justify-end pr-1 sm:pr-4 items-center gap-2 shrink-0">
-          {needsImages && <Camera size={14} className="text-blue-500 animate-pulse" />}
-          {needsRecords && <FileText size={14} className="text-yellow-500 animate-pulse" />}
-          {needsCleaning && <Brush size={14} className="text-orange-500 animate-pulse" />}
-          {isBroken && <AlertTriangle size={14} className="text-red-600 animate-pulse" />}
-          <button onClick={() => toggleItinerari(itemKey)} className={`p-2 sm:p-3 rounded-xl shadow-md hover:shadow-xl transition-all active:scale-95 border-b-2 border-black/5 flex items-center gap-2 ${isActive || isBroken ? 'bg-red-600 text-white border-red-700' : 'bg-fgc-green text-fgc-grey'}`}>
-            <BookOpen size={16} /><span className="hidden lg:inline text-[10px] font-black uppercase tracking-tighter">Itinerari</span>
-          </button>
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="space-y-6">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -940,7 +443,7 @@ export const CercarView: React.FC = () => {
 
       <div className="bg-white dark:bg-gray-900 rounded-[32px] sm:rounded-[40px] p-6 sm:p-8 shadow-sm border border-gray-100 dark:border-white/5">
         <div className="flex flex-wrap gap-2 sm:gap-3 mb-6 sm:mb-8">{filterButtons.map((btn) => (<button key={btn.id} onClick={() => { setSearchType(btn.id); setResults([]); setQuery(''); setSuggestions([]); setShowSuggestions(false); }} className={`flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-black transition-all ${searchType === btn.id ? 'bg-fgc-green text-fgc-grey shadow-xl shadow-fgc-green/20' : 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/10'}`}>{btn.icon}{btn.label}</button>))}</div>
-        
+
         {searchType === SearchType.Estacio ? (
           <div className="space-y-6">
             <div className="flex flex-col lg:flex-row items-stretch lg:items-end gap-6">
@@ -981,11 +484,7 @@ export const CercarView: React.FC = () => {
                         <button
                           key={c}
                           onClick={() => { setQuery(c); executeSearch(c); }}
-                          className={`py-3 px-2 rounded-xl text-sm font-black border transition-all ${
-                            query === c 
-                            ? 'bg-fgc-green text-fgc-grey border-fgc-green shadow-lg scale-105' 
-                            : 'bg-white dark:bg-gray-800 text-fgc-grey dark:text-gray-200 border-gray-100 dark:border-white/5 hover:border-fgc-green hover:shadow-md hover:scale-105 active:scale-95'
-                          }`}
+                          className={`py-3 px-2 rounded-xl text-sm font-black border transition-all ${query === c ? 'bg-fgc-green text-fgc-grey border-fgc-green shadow-lg scale-105' : 'bg-white dark:bg-gray-800 text-fgc-grey dark:text-gray-200 border-gray-100 dark:border-white/5 hover:border-fgc-green hover:shadow-md hover:scale-105 active:scale-95'}`}
                         >
                           {c}
                         </button>
@@ -1023,18 +522,41 @@ export const CercarView: React.FC = () => {
                     <CirculationHeader />
                     <div className="grid grid-cols-1 divide-y divide-gray-100 dark:divide-white/5">
                       {group.circulations.map((circ: any, cIdx: number) => {
-                        const itemKey = `${idx}-${cIdx}`; 
-                        const isActive = checkIfActive((circ.sortida || circ.stopTimeAtStation) as string, (circ.arribada || circ.stopTimeAtStation) as string);
+                        const itemKey = `${idx}-${cIdx}`;
+                        const isActive = checkIfActive((circ.sortida || circ.stopTimeAtStation) as string, (circ.arribada || circ.stopTimeAtStation) as string, nowMin);
                         const itineraryPoints = [{ nom: circ.inici, hora: circ.sortida, via: circ.via_inici }, ...(circ.estacions?.map((st: any) => ({ nom: st.nom, hora: st.hora || st.sortida || st.arribada, via: st.via })) || []), { nom: circ.final, hora: circ.arribada, via: circ.via_final }];
                         return (
                           <div key={cIdx} className={`flex flex-col transition-all hover:bg-gray-50/50 dark:hover:bg-white/5 relative ${isActive ? 'ring-2 ring-inset ring-red-600 z-10' : ''}`}>
                             <div className="w-full">
-                              {isStationGroup ? <StationRow circ={circ} itemKey={itemKey} /> : <CirculationRow circ={circ} itemKey={itemKey} />}
+                              {isStationGroup ? (
+                                <StationRow
+                                  circ={circ}
+                                  itemKey={itemKey}
+                                  nowMin={nowMin}
+                                  trainStatuses={trainStatuses}
+                                  getTrainPhone={getTrainPhone}
+                                  getLiniaColor={getLiniaColor}
+                                  getShiftCurrentStatus={getShiftCurrentStatus}
+                                  openUnitMenu={openUnitMenu}
+                                  toggleItinerari={toggleItinerari}
+                                />
+                              ) : (
+                                <CirculationRow
+                                  circ={circ}
+                                  itemKey={itemKey}
+                                  nowMin={nowMin}
+                                  trainStatuses={trainStatuses}
+                                  getTrainPhone={getTrainPhone}
+                                  getLiniaColor={getLiniaColor}
+                                  openUnitMenu={openUnitMenu}
+                                  toggleItinerari={toggleItinerari}
+                                />
+                              )}
                               {expandedItinerari === itemKey && (
                                 <div className="p-4 sm:p-10 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-white/5 animate-in slide-in-from-top-4 duration-500 overflow-hidden">
                                   <div className="relative flex flex-col pl-8 sm:pl-16 pr-2 sm:pr-6 py-4 space-y-0">
                                     <div className="absolute left-[15px] sm:left-[29px] top-10 bottom-10 w-0.5 sm:w-1 bg-gray-100 dark:bg-gray-800 rounded-full" />
-                                    {itineraryPoints.map((point, pIdx) => (<ItineraryPoint key={pIdx} point={point} isFirst={pIdx === 0} isLast={pIdx === itineraryPoints.length - 1} nextPoint={itineraryPoints[pIdx + 1]} nowMin={nowMin}/>))}
+                                    {itineraryPoints.map((point, pIdx) => (<ItineraryPoint key={pIdx} point={point} isFirst={pIdx === 0} isLast={pIdx === itineraryPoints.length - 1} nextPoint={itineraryPoints[pIdx + 1]} nowMin={nowMin} />))}
                                   </div>
                                 </div>
                               )}
@@ -1061,19 +583,14 @@ export const CercarView: React.FC = () => {
                           )}
                         </div>
                         <div className="flex items-center gap-2">
-                           <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 dark:bg-white/5 text-gray-500 rounded-lg text-[10px] font-black uppercase border border-gray-200/50"><Timer size={12} /> {group.duracio}</div>
-                           <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 dark:bg-white/5 text-gray-500 rounded-lg text-[10px] font-black uppercase border border-gray-200/50"><MapPin size={12} /> {group.dependencia}</div>
+                          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 dark:bg-white/5 text-gray-500 rounded-lg text-[10px] font-black uppercase border border-gray-200/50"><Timer size={12} /> {group.duracio}</div>
+                          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 dark:bg-white/5 text-gray-500 rounded-lg text-[10px] font-black uppercase border border-gray-200/50"><MapPin size={12} /> {group.dependencia}</div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2.5 text-base sm:text-xl font-black text-fgc-green bg-fgc-green/5 px-4 py-2 rounded-xl border border-fgc-green/10 whitespace-nowrap">
                         <Clock size={20} /><span>{group.inici_torn}</span><span className="opacity-30 mx-1">—</span><span>{group.final_torn}</span>
                       </div>
-                      <button 
-                        onClick={() => scrollToElement(currentStatus.targetId)} 
-                        className={`px-5 py-2.5 rounded-2xl text-[10px] sm:text-xs font-black shadow-md border-b-4 border-black/10 transition-all ${currentStatus.color}`}
-                      >
-                        {currentStatus.label}
-                      </button>
+                      <button onClick={() => scrollToElement(currentStatus.targetId)} className={`px-5 py-2.5 rounded-2xl text-[10px] sm:text-xs font-black shadow-md border-b-4 border-black/10 transition-all ${currentStatus.color}`}>{currentStatus.label}</button>
                     </div>
                   </div>
                 </div>
@@ -1084,78 +601,48 @@ export const CercarView: React.FC = () => {
                       <div key={dIdx} className="p-6 sm:p-10 transition-colors hover:bg-white/5 relative">
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 sm:gap-10">
                           <div className="flex items-center gap-6 sm:gap-8 w-full md:w-auto">
-                            <div className="w-14 h-14 sm:w-16 sm:h-16 bg-white/40 dark:bg-black/20 rounded-full flex items-center justify-center text-fgc-grey border-2 border-white/60 shrink-0">
-                              {group.drivers.length > 1 ? <span className="font-black text-lg">{dIdx + 1}</span> : <User size={28} strokeWidth={2.5} />}
-                            </div>
+                            <div className="w-14 h-14 sm:w-16 sm:h-16 bg-white/40 dark:bg-black/20 rounded-full flex items-center justify-center text-fgc-grey border-2 border-white/60 shrink-0">{group.drivers.length > 1 ? <span className="font-black text-lg">{dIdx + 1}</span> : <User size={28} strokeWidth={2.5} />}</div>
                             <div className="space-y-1 min-w-0 flex-1 md:flex-none">
                               <div className="flex items-center gap-3">
                                 <h3 className="text-xl sm:text-2xl font-black text-fgc-grey tracking-tight leading-tight uppercase truncate">{driver.cognoms}, {driver.nom}</h3>
-                                {driver.tipus_torn && (
-                                  <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase shadow-sm border ${
-                                    driver.tipus_torn === 'Reducció' 
-                                      ? 'bg-purple-600 text-white border-purple-700' 
-                                      : 'bg-blue-600 text-white border-blue-700'
-                                  }`}>
-                                    {driver.tipus_torn}
-                                  </span>
-                                )}
-                                {isWorking && (
-                                  <div className="bg-fgc-grey text-white px-3 py-1 rounded-full text-[9px] font-black uppercase flex items-center gap-1.5 shadow-sm animate-bounce">
-                                    <div className="w-1.5 h-1.5 bg-fgc-green rounded-full animate-pulse" />
-                                    TREBALLANT
-                                  </div>
-                                )}
+                                {driver.tipus_torn && (<span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase shadow-sm border ${driver.tipus_torn === 'Reducció' ? 'bg-purple-600 text-white border-purple-700' : 'bg-blue-600 text-white border-blue-700'}`}>{driver.tipus_torn}</span>)}
+                                {isWorking && (<div className="bg-fgc-grey text-white px-3 py-1 rounded-full text-[9px] font-black uppercase flex items-center gap-1.5 shadow-sm animate-bounce"><div className="w-1.5 h-1.5 bg-fgc-green rounded-full animate-pulse" />TREBALLANT</div>)}
                               </div>
                               <div className="flex flex-wrap gap-2 items-center"><div className="inline-flex items-center bg-fgc-grey text-white px-2.5 py-0.5 rounded-lg font-black text-[9px] sm:text-[10px] tracking-widest uppercase">Nómina: {driver.nomina}</div>{driver.abs_parc_c === 'S' && <span className="bg-red-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded">ABS</span>}{driver.dta === 'S' && <span className="bg-blue-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded">DTA</span>}{driver.dpa === 'S' && <span className="bg-purple-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded">DPA</span>}</div>
                               {driver.observacions && (<div className="flex items-start gap-2 bg-black/10 dark:bg-black/20 px-3 py-2 rounded-xl border border-black/5 max-w-lg mt-2"><Info size={14} className="text-fgc-grey dark:text-gray-300 mt-0.5 shrink-0" /><p className="text-[11px] sm:text-xs font-bold text-fgc-grey dark:text-gray-200 leading-snug italic">{driver.observacions}</p></div>)}
                             </div>
                           </div>
-                          <div className="flex flex-wrap gap-2 sm:gap-3 w-full md:w-auto">{driver.phones?.map((p: string, i: number) => (
-                            <a key={i} href={`tel:${p}`} className="flex-1 md:flex-none flex items-center justify-center gap-2.5 bg-fgc-grey text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-black hover:bg-fgc-dark transition-all active:scale-95"><Phone size={14} />{p}</a>
-                          ))}</div>
+                          <div className="flex flex-wrap gap-2 sm:gap-3 w-full md:w-auto">{driver.phones?.map((p: string, i: number) => (<a key={i} href={`tel:${p}`} className="flex-1 md:flex-none flex items-center justify-center gap-2.5 bg-fgc-grey text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-black hover:bg-fgc-dark transition-all active:scale-95"><Phone size={14} />{p}</a>))}</div>
                         </div>
                       </div>
                     );
                   })}
                 </div>
                 <div className="bg-white dark:bg-gray-900 p-4 sm:p-10 rounded-b-[32px] sm:rounded-b-[48px] border-x border-b border-gray-100 dark:border-white/5 shadow-sm overflow-hidden">
-                  <ShiftTimeline turn={group} />
+                  <ShiftTimeline turn={group} nowMin={nowMin} trainStatuses={trainStatuses} getLiniaColor={getLiniaColor} openUnitMenu={openUnitMenu} />
                   <div className="border border-gray-100 dark:border-white/5 rounded-[32px] overflow-hidden bg-white dark:bg-black/20 shadow-sm mb-4">
                     <CirculationHeader />
                     <div className="flex flex-col divide-y divide-gray-100 dark:divide-white/5">
-                      {group.fullCirculations?.[0] && (
-                        <TimeGapRow 
-                          from={group.inici_torn} 
-                          to={group.fullCirculations[0].sortida} 
-                          id={`gap-pre-${idx}`}
-                        />
-                      )}
-                      
+                      {group.fullCirculations?.[0] && (<TimeGapRow from={group.inici_torn} to={group.fullCirculations[0].sortida} id={`gap-pre-${idx}`} nowMin={nowMin} />)}
                       {group.fullCirculations?.map((circ: any, cIdx: number) => {
-                        const shiftItemKey = `${idx}-${cIdx}`; 
-                        const isActive = checkIfActive(circ.sortida as string, circ.arribada as string);
+                        const shiftItemKey = `${idx}-${cIdx}`;
+                        const isActive = checkIfActive(circ.sortida as string, circ.arribada as string, nowMin);
                         const itineraryPoints = [{ nom: circ.inici, hora: circ.sortida, via: circ.via_inici }, ...(circ.estacions?.map((st: any) => ({ nom: st.nom, hora: st.hora || st.sortida || st.arribada, via: st.via })) || []), { nom: circ.final, hora: circ.arribada, via: circ.via_final }];
                         const nextCirc = group.fullCirculations?.[cIdx + 1];
-                        
                         return (
                           <React.Fragment key={cIdx}>
                             <div id={`circ-row-${shiftItemKey}`} className={`flex flex-col relative scroll-mt-24 ${isActive ? 'ring-2 ring-inset ring-red-600 z-10' : ''}`}>
-                              <CirculationRow circ={circ} itemKey={shiftItemKey} />
+                              <CirculationRow circ={circ} itemKey={shiftItemKey} nowMin={nowMin} trainStatuses={trainStatuses} getTrainPhone={getTrainPhone} getLiniaColor={getLiniaColor} openUnitMenu={openUnitMenu} toggleItinerari={toggleItinerari} />
                               {expandedItinerari === shiftItemKey && (
-                                <div className="p-4 sm:p-10 bg-white dark:bg-gray-900 border-t border-gray-100 animate-in slide-in-from-top-4 duration-500 overflow-hidden">
+                                <div className="p-4 sm:p-10 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-white/5 animate-in slide-in-from-top-4 duration-500 overflow-hidden">
                                   <div className="relative flex flex-col pl-8 sm:pl-16 pr-2 sm:pr-6 py-4 space-y-0">
                                     <div className="absolute left-[15px] sm:left-[29px] top-10 bottom-10 w-0.5 sm:w-1 bg-gray-100 dark:bg-gray-800 rounded-full" />
-                                    {itineraryPoints.map((point, pIdx) => (<ItineraryPoint key={pIdx} point={point} isFirst={pIdx === 0} isLast={pIdx === itineraryPoints.length - 1} nextPoint={itineraryPoints[pIdx + 1]} nowMin={nowMin}/>))}
+                                    {itineraryPoints.map((point, pIdx) => (<ItineraryPoint key={pIdx} point={point} isFirst={pIdx === 0} isLast={pIdx === itineraryPoints.length - 1} nextPoint={itineraryPoints[pIdx + 1]} nowMin={nowMin} />))}
                                   </div>
                                 </div>
                               )}
                             </div>
-                            
-                            <TimeGapRow 
-                              from={circ.arribada} 
-                              to={nextCirc ? nextCirc.sortida : group.final_torn} 
-                              id={`gap-row-${idx}-${cIdx}`}
-                            />
+                            <TimeGapRow from={circ.arribada} to={nextCirc ? nextCirc.sortida : group.final_torn} id={`gap-row-${idx}-${cIdx}`} nowMin={nowMin} />
                           </React.Fragment>
                         );
                       })}
@@ -1172,78 +659,22 @@ export const CercarView: React.FC = () => {
         )}
       </div>
 
-      {/* Menú de Gestió d'Unitat */}
       {editingCirc && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-fgc-grey/60 backdrop-blur-md animate-in fade-in duration-300">
-            <div className="bg-white dark:bg-gray-900 w-full max-w-md rounded-[48px] shadow-2xl border border-white/20 overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
-                <div className="p-8 border-b border-gray-100 dark:border-white/5 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <div className="p-3 bg-fgc-green rounded-2xl text-fgc-grey shadow-lg"><Train size={24} /></div>
-                        <div>
-                            <h3 className="text-xl font-black text-fgc-grey dark:text-white uppercase tracking-tight">Gestió d'Unitat</h3>
-                            <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
-                                Circulació {editingCirc.circ.codi} • Cicle {editingCirc.cycleId}
-                            </p>
-                        </div>
-                    </div>
-                    <button onClick={() => setEditingCirc(null)} className="p-2 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-500 rounded-full transition-colors"><X size={24} /></button>
-                </div>
-
-                <div className="p-8 space-y-8">
-                    {/* Input de Unitat */}
-                    <div className="space-y-2">
-                        <label className="block text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Assignar Unitat de Tren</label>
-                        <div className="relative">
-                            <Hash className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={18} />
-                            <input 
-                                type="text" 
-                                value={editUnitNumber}
-                                onChange={(e) => setEditUnitNumber(e.target.value)}
-                                placeholder="Ex: 112.01, 113.12..."
-                                className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-2xl py-4 pl-12 pr-4 focus:ring-4 focus:ring-fgc-green/20 outline-none font-black text-lg transition-all dark:text-white"
-                            />
-                        </div>
-                    </div>
-
-                    {/* Toggles d'Estat */}
-                    <div className="space-y-4">
-                        <label className="block text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Estat de la Flota</label>
-                        <div className="grid grid-cols-2 gap-3">
-                            {[
-                                { id: 'is_broken', label: 'AVARIAT', icon: <AlertTriangle size={16} />, color: 'red' },
-                                { id: 'needs_images', label: 'IMATGES', icon: <Camera size={16} />, color: 'blue' },
-                                { id: 'needs_records', label: 'REGISTRES', icon: <FileText size={16} />, color: 'yellow' },
-                                { id: 'needs_cleaning', label: 'NETEJA', icon: <Brush size={16} />, color: 'orange' },
-                            ].map((st) => (
-                                <button
-                                    key={st.id}
-                                    onClick={() => setTempStatus(prev => ({ ...prev, [st.id]: !prev[st.id as keyof typeof prev] }))}
-                                    className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all font-black text-[11px] ${
-                                        tempStatus[st.id as keyof typeof tempStatus]
-                                            ? `bg-${st.color}-50 dark:bg-${st.color}-900/20 border-${st.color}-500 text-${st.color}-600 dark:text-${st.color}-400 shadow-sm`
-                                            : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-white/5 text-gray-400 dark:text-gray-500 grayscale'
-                                    }`}
-                                >
-                                    <div className="flex items-center gap-2">
-                                        {st.icon}
-                                        {st.label}
-                                    </div>
-                                    {tempStatus[st.id as keyof typeof tempStatus] && <Check size={14} />}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    <button 
-                        onClick={saveUnitChanges}
-                        disabled={isSavingUnit}
-                        className="w-full bg-fgc-green text-fgc-grey py-5 rounded-2xl font-black text-lg flex items-center justify-center gap-3 shadow-xl shadow-fgc-green/20 hover:scale-[1.02] active:scale-95 disabled:opacity-50 transition-all"
-                    >
-                        {isSavingUnit ? <Loader2 size={24} className="animate-spin" /> : <Save size={24} />}
-                        DESAR CANVIS
-                    </button>
-                </div>
+          <div className="bg-white dark:bg-gray-900 w-full max-md rounded-[48px] shadow-2xl border border-white/20 overflow-hidden flex flex-col animate-in zoom-in-95 duration-300 max-w-md">
+            <div className="p-8 border-b border-gray-100 dark:border-white/5 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-fgc-green rounded-2xl text-fgc-grey shadow-lg"><Train size={24} /></div>
+                <div><h3 className="text-xl font-black text-fgc-grey dark:text-white uppercase tracking-tight">Gestió d'Unitat</h3><p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Circulació {editingCirc.circ.codi} • Cicle {editingCirc.cycleId}</p></div>
+              </div>
+              <button onClick={() => setEditingCirc(null)} className="p-2 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-500 rounded-full transition-colors"><X size={24} /></button>
             </div>
+            <div className="p-8 space-y-8">
+              <div className="space-y-2"><label className="block text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Assignar Unitat de Tren</label><div className="relative"><Hash className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={18} /><input type="text" value={editUnitNumber} onChange={(e) => setEditUnitNumber(e.target.value)} placeholder="Ex: 112.01, 113.12..." className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-2xl py-4 pl-12 pr-4 focus:ring-4 focus:ring-fgc-green/20 outline-none font-black text-lg transition-all dark:text-white" /></div></div>
+              <div className="space-y-4"><label className="block text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Estat de la Flota</label><div className="grid grid-cols-2 gap-3">{[{ id: 'is_broken', label: 'AVARIAT', icon: <AlertTriangle size={16} />, color: 'red' }, { id: 'needs_images', label: 'IMATGES', icon: <Camera size={16} />, color: 'blue' }, { id: 'needs_records', label: 'REGISTRES', icon: <FileText size={16} />, color: 'yellow' }, { id: 'needs_cleaning', label: 'NETEJA', icon: <Brush size={16} />, color: 'orange' },].map((st) => (<button key={st.id} onClick={() => setTempStatus(prev => ({ ...prev, [st.id]: !prev[st.id as keyof typeof prev] }))} className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all font-black text-[11px] ${tempStatus[st.id as keyof typeof tempStatus] ? `bg-${st.color}-50 dark:bg-${st.color}-900/20 border-${st.color}-500 text-${st.color}-600 dark:text-${st.color}-400 shadow-sm` : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-white/5 text-gray-400 dark:text-gray-500 grayscale'}`}>{st.icon}{st.label}{tempStatus[st.id as keyof typeof tempStatus] && <Check size={14} />}</button>))}</div></div>
+              <button onClick={saveUnitChanges} disabled={isSavingUnit} className="w-full bg-fgc-green text-fgc-grey py-5 rounded-2xl font-black text-lg flex items-center justify-center gap-3 shadow-xl shadow-fgc-green/20 hover:scale-[1.02] active:scale-95 disabled:opacity-50 transition-all">{isSavingUnit ? <Loader2 size={24} className="animate-spin" /> : <Save size={24} />}DESAR CANVIS</button>
+            </div>
+          </div>
         </div>
       )}
     </div>
