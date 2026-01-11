@@ -6,7 +6,8 @@ import { supabase } from '../supabaseClient.ts';
 // Importación de utilidades y componentes extraídos
 import { getFgcMinutes, checkIfActive, calculateGap } from '../utils/time';
 import { fetchAllFromSupabase } from '../utils/supabase';
-import { getLiniaColor, getShortTornId, getTrainPhone } from '../utils/fgc';
+import { getStatusColor, getLiniaColor, getShortTornId, getTrainPhone } from '../utils/fgc';
+import { fetchFullTurns } from '../utils/queries';
 import { ItineraryPoint } from '../components/ItineraryPoint';
 import { ShiftTimeline } from '../components/ShiftTimeline';
 import { TimeGapRow } from '../components/TimeGapRow';
@@ -262,66 +263,9 @@ export const CercarView: React.FC = () => {
   const handleSuggestionClick = (id: string) => { setQuery(id); setShowSuggestions(false); executeSearch(id); };
   const toggleItinerari = (id: string) => { setExpandedItinerari(expandedItinerari === id ? null : id); };
 
+  // Helper local para usar la utilidad optimizada
   const fetchFullTurnData = async (turnIds: string[]) => {
-    if (!turnIds.length) return [];
-    const { data: shifts } = await supabase.from('shifts').select('*').in('id', turnIds);
-    if (!shifts || shifts.length === 0) return [];
-    const shortIdsToQuery = shifts.map(s => getShortTornId(s.id as string));
-    const { data: dailyAssig } = await supabase.from('daily_assignments').select('*').in('torn', shortIdsToQuery);
-    const employeeIds = dailyAssig?.map(d => d.empleat_id).filter(Boolean) || [];
-    const { data: phones } = await supabase.from('phonebook').select('*').in('nomina', employeeIds as string[]);
-    const allCircIds = new Set<string>();
-    const viatgerRealIds = new Set<string>();
-    shifts.forEach(s => {
-      (s.circulations as any[])?.forEach(c => {
-        const codi = typeof c === 'string' ? c : c.codi;
-        if (codi === 'Viatger' && c.observacions) {
-          const rCodi = c.observacions.split('-')[0];
-          allCircIds.add(rCodi);
-          viatgerRealIds.add(rCodi);
-        }
-        if (codi && codi !== 'Viatger') allCircIds.add(codi as string);
-      });
-    });
-    const circDetails = await fetchAllFromSupabase('circulations', supabase.from('circulations').select('*').in('id', Array.from(allCircIds)));
-    const { data: trainAssig } = await supabase.from('assignments').select('*');
-    let viatgerCycleMap: Record<string, { cicle: string, train: string }> = {};
-    if (viatgerRealIds.size > 0) {
-      const { data: helperShifts } = await supabase.from('shifts').select('circulations').eq('servei', selectedServei);
-      helperShifts?.forEach(hs => {
-        (hs.circulations as any[])?.forEach(hc => {
-          const hCodi = typeof hc === 'object' ? hc.codi : hc;
-          if (hCodi && hCodi !== 'Viatger' && viatgerRealIds.has(hCodi)) {
-            if (hc.cicle) {
-              const tAssig = trainAssig?.find(ta => ta.cycle_id === hc.cicle);
-              viatgerCycleMap[hCodi] = { cicle: hc.cicle, train: tAssig?.train_number || '' };
-            }
-          }
-        });
-      });
-    }
-    return shifts.map(shift => {
-      const shortId = getShortTornId(shift.id as string);
-      const assignments = dailyAssig?.filter(d => d.torn === shortId) || [];
-      const drivers = assignments.map(assig => {
-        const phoneData = phones?.find(p => p.nomina === assig.empleat_id);
-        return { nom: assig.nom || 'No assignat', cognoms: assig.cognoms || '', nomina: assig.empleat_id || '---', phones: phoneData?.phones || [], observacions: assig.observacions || '', abs_parc_c: assig.abs_parc_c, dta: assig.dta, dpa: assig.dpa, tipus_torn: assig.tipus_torn };
-      });
-      const fullCirculations = (shift.circulations as any[])?.map((cRef: any) => {
-        const isViatger = cRef.codi === 'Viatger';
-        const obsParts = isViatger && cRef.observacions ? cRef.observacions.split('-') : [];
-        const realCodiId = isViatger && obsParts.length > 0 ? obsParts[0] : cRef.codi;
-        const detail = circDetails?.find(cd => cd.id === realCodiId);
-        let machinistInici = cRef.inici || detail?.inici;
-        let machinistFinal = cRef.final || detail?.final;
-        if (isViatger && obsParts.length >= 3) { machinistInici = obsParts[1]; machinistFinal = obsParts[2]; }
-        let cCicle = (typeof cRef === 'object' ? cRef.cicle : null) || (isViatger ? viatgerCycleMap[realCodiId]?.cicle : null);
-        let cTrain = isViatger ? viatgerCycleMap[realCodiId]?.train : null;
-        const cycleInfo = cCicle ? trainAssig?.find(ta => ta.cycle_id === cCicle) : null;
-        return { ...detail, ...(typeof cRef === 'object' ? cRef : {}), id: cRef.codi, realCodi: isViatger ? realCodiId : null, codi: cRef.codi, machinistInici, machinistFinal, cicle: cCicle, train: cTrain || cycleInfo?.train_number, linia: detail?.linia || cRef.linia };
-      }).sort((a: any, b: any) => getFgcMinutes(a.sortida || '00:00') - getFgcMinutes(b.sortida || '00:00'));
-      return { ...shift, drivers: drivers.length > 0 ? drivers : [{ nom: 'No assignat', cognoms: '', nomina: '---', phones: [], observacions: '' }], fullCirculations };
-    });
+    return fetchFullTurns(turnIds, selectedServei === 'Tots' ? undefined : selectedServei);
   };
 
   const handleInputChange = async (val: string) => {
@@ -355,54 +299,95 @@ export const CercarView: React.FC = () => {
       if (searchType === SearchType.Cicle) {
         let q = supabase.from('shifts').select('*');
         if (selectedServei !== 'Tots') q = q.eq('servei', selectedServei);
-        const allShifts = await fetchAllFromSupabase('shifts', q);
-        const cycleAssignments = await supabase.from('assignments').select('*').eq('cycle_id', searchVal).single();
+        const [allShifts, cycleAssigRes] = await Promise.all([
+          fetchAllFromSupabase('shifts', q),
+          supabase.from('assignments').select('*').eq('cycle_id', searchVal).single()
+        ]);
         if (allShifts) {
           const flattenedCircs: any[] = [];
           const allCodiSet = new Set<string>();
-          allShifts.forEach(shift => { (shift.circulations as any[])?.forEach(c => { const codi = typeof c === 'string' ? c : c.codi; if (c.cicle === searchVal) { flattenedCircs.push({ ...c, shift_id: shift.id, codi }); if (codi) allCodiSet.add(codi as string); } }); });
+          allShifts.forEach(shift => {
+            (shift.circulations as any[])?.forEach(c => {
+              const codi = typeof c === 'string' ? c : c.codi;
+              if (c.cicle === searchVal) {
+                flattenedCircs.push({ ...c, shift_id: shift.id, codi });
+                if (codi && codi !== 'Viatger') allCodiSet.add(codi as string);
+              }
+            });
+          });
           const details = await fetchAllFromSupabase('circulations', supabase.from('circulations').select('*').in('id', Array.from(allCodiSet)));
           const enrichedCircs = flattenedCircs.map(fc => { const detail = details?.find(d => d.id === fc.codi); return { ...detail, ...fc }; });
           enrichedCircs.sort((a, b) => getFgcMinutes(a.sortida || '00:00') - getFgcMinutes(b.sortida || '00:00'));
-          setResults([{ type: 'cycle_summary', cycle_id: searchVal, train: cycleAssignments.data?.train_number || 'S/A', circulations: enrichedCircs }]);
+          setResults([{ type: 'cycle_summary', cycle_id: searchVal, train: cycleAssigRes.data?.train_number || 'S/A', circulations: enrichedCircs }]);
         }
       } else if (searchType === SearchType.Estacio) {
         if (!selectedStation) { setLoading(false); return; }
-        let q = supabase.from('shifts').select('id, circulations');
-        if (selectedServei !== 'Tots') q = q.eq('servei', selectedServei);
-        const allShifts = await fetchAllFromSupabase('shifts', q);
-        const circIdsInService = new Set<string>();
-        allShifts?.forEach(s => { (s.circulations as any[])?.forEach(c => { const codi = typeof c === 'string' ? c : c.codi; if (codi && codi !== 'Viatger') circIdsInService.add(codi as string); }); });
-        const allCircs = await fetchAllFromSupabase('circulations', supabase.from('circulations').select('*').in('id', Array.from(circIdsInService)));
-        const matchingCircs: any[] = [];
+        const targetStation = selectedStation.trim().toUpperCase();
+
+        // Optimizació: Filtrar circulacions per estació directament en la base de dades
+        const { data: matchedCircs } = await supabase.from('circulations')
+          .select('*')
+          .or(`inici.ilike.${targetStation},final.ilike.${targetStation},estacions.cs.[{"nom":"${selectedStation}"}]`);
+
+        if (!matchedCircs || matchedCircs.length === 0) { setResults([]); return; }
+
         const startMinRange = getFgcMinutes(startTime);
         const endMinRange = getFgcMinutes(endTime);
-        const targetStation = selectedStation.trim().toUpperCase();
-        allCircs.forEach(c => {
+        const matchingCircs: any[] = [];
+
+        matchedCircs.forEach(c => {
           let stopTime: string | null = null;
           if (c.inici?.trim().toUpperCase() === targetStation) stopTime = c.sortida as string;
           else if (c.final?.trim().toUpperCase() === targetStation) stopTime = c.arribada as string;
-          else { const stop = (c.estacions as any[])?.find(st => st.nom?.trim().toUpperCase() === targetStation); if (stop) stopTime = stop.hora || stop.arribada || stop.sortida; }
-          if (stopTime) { const stopMin = getFgcMinutes(stopTime); if (stopMin >= startMinRange && stopMin <= endMinRange) matchingCircs.push({ ...c, stopTimeAtStation: stopTime }); }
+          else {
+            const stop = (c.estacions as any[])?.find(st => st.nom?.trim().toUpperCase() === targetStation);
+            if (stop) stopTime = stop.hora || stop.arribada || stop.sortida;
+          }
+          if (stopTime) {
+            const stopMin = getFgcMinutes(stopTime);
+            if (stopMin >= startMinRange && stopMin <= endMinRange) matchingCircs.push({ ...c, stopTimeAtStation: stopTime });
+          }
         });
-        const { data: trainAssig } = await supabase.from('assignments').select('*');
-        const enrichedMatching = await Promise.all(matchingCircs.map(async mc => {
-          const shift = allShifts?.find(s => (s.circulations as any[])?.some(cRef => (typeof cRef === 'string' ? cRef : cRef.codi) === mc.id));
-          const shortId = shift ? getShortTornId(shift.id as string) : null;
-          const { data: assignments } = shortId ? await supabase.from('daily_assignments').select('*').eq('torn', shortId) : { data: [] };
-          const employeeIds = assignments?.map(a => a.empleat_id).filter(Boolean) || [];
-          const { data: phones } = employeeIds.length > 0 ? await supabase.from('phonebook').select('*').in('nomina', employeeIds) : { data: [] };
-          const drivers = (assignments || []).map(assig => {
-            const pData = phones?.find(p => p.nomina === assig.empleat_id);
-            return { nom: assig.nom || 'No assignat', cognoms: assig.cognoms || '', nomina: assig.empleat_id || '---', phones: pData?.phones || [], observacions: assig.observacions || '', abs_parc_c: assig.abs_parc_c, dta: assig.dta, dpa: assig.dpa, tipus_torn: assig.tipus_torn };
-          });
-          const cRef = shift?.circulations.find((cr: any) => (typeof cr === 'string' ? cr : cr.codi) === mc.id);
-          const cCicle = typeof cRef === 'object' ? cRef.cicle : null;
-          const cycleInfo = cCicle ? trainAssig?.find(ta => ta.cycle_id === cCicle) : null;
-          const fullTurnEnriched = shift ? (await fetchFullTurnData([shift.id]))[0] : null;
-          return { ...mc, shift_id: shift?.id || '---', drivers: drivers.length > 0 ? drivers : [{ nom: 'No assignat', cognoms: '', nomina: '---', phones: [] }], cicle: cCicle, train: cycleInfo?.train_number, fullTurn: fullTurnEnriched, realCodi: cRef?.codi === 'Viatger' ? mc.id : null };
-        }));
-        setResults([{ type: 'station_summary', station: selectedStation, circulations: enrichedMatching.sort((a, b) => getFgcMinutes(a.stopTimeAtStation) - getFgcMinutes(b.stopTimeAtStation)) }]);
+
+        if (matchingCircs.length === 0) { setResults([]); return; }
+
+        // Trobar els shifts que contenen aquestes circulacions
+        const circIds = matchingCircs.map(mc => mc.id);
+        let qShifts = supabase.from('shifts').select('*');
+        if (selectedServei !== 'Tots') qShifts = qShifts.eq('servei', selectedServei);
+
+        // Com que les circulacions estan en un JSONB array, les busquem per servei i filtrem en JS (és molt més ràpid si el servei està filtrat)
+        const allShifts = await fetchAllFromSupabase('shifts', qShifts);
+        const matchedShiftIds = new Set<string>();
+        allShifts.forEach(s => {
+          if ((s.circulations as any[])?.some(cRef => circIds.includes(typeof cRef === 'string' ? cRef : cRef.codi))) {
+            matchedShiftIds.add(s.id);
+          }
+        });
+
+        // Enriquir dades d'una sola vegada
+        const enrichedShifts = await fetchFullTurnData(Array.from(matchedShiftIds));
+
+        const finalResults = matchingCircs.map(mc => {
+          const shift = enrichedShifts.find(s => s.fullCirculations.some((fc: any) => fc.codi === mc.id || fc.realCodi === mc.id));
+          if (!shift) return null;
+          const cRef = shift.fullCirculations.find((fc: any) => fc.codi === mc.id || fc.realCodi === mc.id);
+          return {
+            ...mc,
+            shift_id: shift.id,
+            drivers: shift.drivers,
+            cicle: cRef?.cicle,
+            train: cRef?.train,
+            fullTurn: shift,
+            realCodi: cRef?.realCodi
+          };
+        }).filter(Boolean);
+
+        setResults([{
+          type: 'station_summary',
+          station: selectedStation,
+          circulations: (finalResults as any[]).sort((a, b) => getFgcMinutes(a.stopTimeAtStation) - getFgcMinutes(b.stopTimeAtStation))
+        }]);
       } else {
         let turnIds: string[] = [];
         switch (searchType) {

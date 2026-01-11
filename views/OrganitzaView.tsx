@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { OrganizeType, PhonebookEntry, DailyAssignment } from '../types.ts';
 import { Columns, ShieldAlert, Search, Phone, User, Hash, Loader2, Clock, LayoutGrid, ArrowRight, CheckCircle2, Coffee, X, Train, Info, UserCheck, Users, FastForward, Rewind, Bed, Timer, MapPin, Repeat, Filter, UserCircle, ChevronDown } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
-
-// Definició dels torns de reserva segons requeriment
+import { fetchFullTurns } from '../utils/queries.ts';
+import { getShortTornId } from '../utils/fgc.ts';
 const RESERVAS_DATA = [
   { id: 'QRS1', loc: 'SR', start: '06:00', end: '14:00' },
   { id: 'QRS2', loc: 'SR', start: '14:00', end: '22:00' },
@@ -35,7 +35,7 @@ export const OrganitzaView: React.FC = () => {
   const [searchedCircData, setSearchedCircData] = useState<any>(null);
   const [mainDriverInfo, setMainDriverInfo] = useState<any>(null);
   const [passengerResults, setPassengerResults] = useState<any[]>([]);
-  const [adjacentPassengerResults, setAdjacentPassengerResults] = useState<{anterior: any[], posterior: any[]}>({anterior: [], posterior: []});
+  const [adjacentPassengerResults, setAdjacentPassengerResults] = useState<{ anterior: any[], posterior: any[] }>({ anterior: [], posterior: [] });
   const [restingDriversResults, setRestingDriversResults] = useState<any[]>([]);
   const [extensibleDriversResults, setExtensibleDriversResults] = useState<any[]>([]);
   const [reserveExtensionResults, setReserveExtensionResults] = useState<any[]>([]);
@@ -44,7 +44,7 @@ export const OrganitzaView: React.FC = () => {
   const [maquinistaQuery, setMaquinistaQuery] = useState('');
   const [allAssignments, setAllAssignments] = useState<DailyAssignment[]>([]);
   const [phonebook, setPhonebook] = useState<Record<string, string[]>>({});
-  const [disDesFilter, setDisDesFilter] = useState<DisDesFilterType>('DIS'); 
+  const [disDesFilter, setDisDesFilter] = useState<DisDesFilterType>('DIS');
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
   const [loadingMaquinistes, setLoadingMaquinistes] = useState(false);
 
@@ -107,7 +107,7 @@ export const OrganitzaView: React.FC = () => {
       setMainDriverInfo(null);
       setSearchedCircData(null);
       setPassengerResults([]);
-      setAdjacentPassengerResults({anterior: [], posterior: []});
+      setAdjacentPassengerResults({ anterior: [], posterior: [] });
       setRestingDriversResults([]);
       setExtensibleDriversResults([]);
       setReserveExtensionResults([]);
@@ -142,13 +142,13 @@ export const OrganitzaView: React.FC = () => {
 
   const getStatusColor = (codi: string) => {
     const c = (codi || '').toUpperCase().trim();
-    if (c === 'PC') return 'bg-blue-400'; 
+    if (c === 'PC') return 'bg-blue-400';
     if (c === 'SR') return 'bg-purple-600';
     if (c === 'RE') return 'bg-purple-300';
     if (c === 'RB') return 'bg-pink-500';
     if (c === 'NA') return 'bg-orange-500';
     if (c === 'PN') return 'bg-[#00B140]';
-    if (c === 'TB') return 'bg-[#a67c52]'; 
+    if (c === 'TB') return 'bg-[#a67c52]';
     return 'bg-gray-200 dark:bg-gray-700';
   };
 
@@ -159,59 +159,8 @@ export const OrganitzaView: React.FC = () => {
   };
 
   const fetchFullTurnData = async (turnId: string) => {
-    const { data: shift } = await supabase.from('shifts').select('*').eq('id', turnId).single();
-    if (!shift) return null;
-
-    const shortId = getShortTornId(shift.id as string);
-    const { data: assignments } = await supabase.from('daily_assignments').select('*').eq('torn', shortId);
-    const primaryAssignment = assignments?.[0] || null;
-    
-    const { data: driverPhone } = primaryAssignment?.empleat_id 
-      ? await supabase.from('phonebook').select('*').eq('nomina', primaryAssignment.empleat_id).single() 
-      : { data: null };
-
-    const circulations = (shift.circulations as any[]) || [];
-    const circIds = circulations.map((c: any) => {
-        const codi = typeof c === 'string' ? c : c.codi;
-        if (codi === 'Viatger' && c.observacions) return c.observacions.split('-')[0];
-        return codi;
-    });
-    const { data: circDetails } = await supabase.from('circulations').select('*').in('id', circIds);
-    const { data: trainAssig } = await supabase.from('assignments').select('*');
-
-    const fullCircs = circulations.map((c: any) => {
-        const codi = typeof c === 'string' ? c : c.codi;
-        const isViatger = codi === 'Viatger';
-        const obsParts = isViatger && c.observacions ? c.observacions.split('-') : [];
-        const realCodiId = isViatger && obsParts.length > 0 ? obsParts[0] : codi;
-        const detail = circDetails?.find(cd => cd.id === realCodiId);
-        let machinistInici = c.inici || detail?.inici;
-        let machinistFinal = c.final || detail?.final;
-        if (isViatger && obsParts.length >= 3) {
-          machinistInici = obsParts[1];
-          machinistFinal = obsParts[2];
-        }
-        const cycleInfo = c.cicle ? trainAssig?.find(ta => ta.cycle_id === c.cicle) : null;
-        return { ...detail, ...c, codi, machinistInici, machinistFinal, train: cycleInfo?.train_number, realCodi: isViatger ? realCodiId : null };
-    }).sort((a: any, b: any) => getFgcMinutes(a.sortida || '00:00') - getFgcMinutes(b.sortida || '00:00'));
-
-    return { 
-      ...shift, 
-      driver: { 
-        nom: primaryAssignment?.nom || 'No assignat', 
-        cognoms: primaryAssignment?.cognoms || '', 
-        nomina: primaryAssignment?.empleat_id || '---', 
-        phones: driverPhone?.phones || [],
-        tipus_torn: primaryAssignment?.tipus_torn
-      }, 
-      drivers: (assignments || []).map(a => ({
-        nom: a.nom,
-        cognoms: a.cognoms,
-        nomina: a.empleat_id,
-        tipus_torn: a.tipus_torn
-      })),
-      fullCirculations: fullCircs 
-    };
+    const results = await fetchFullTurns([turnId], selectedServei === '0' ? undefined : selectedServei);
+    return results[0] || null;
   };
 
   const handleCompare = async () => {
@@ -226,7 +175,7 @@ export const OrganitzaView: React.FC = () => {
   const handleSearchCoverage = async () => {
     if (!coverageQuery) return;
     setLoadingCoverage(true);
-    setMainDriverInfo(null); setSearchedCircData(null); setPassengerResults([]); setAdjacentPassengerResults({anterior: [], posterior: []}); setRestingDriversResults([]); setExtensibleDriversResults([]); setReserveExtensionResults([]);
+    setMainDriverInfo(null); setSearchedCircData(null); setPassengerResults([]); setAdjacentPassengerResults({ anterior: [], posterior: [] }); setRestingDriversResults([]); setExtensibleDriversResults([]); setReserveExtensionResults([]);
 
     try {
       const { data: searchedCirc } = await supabase.from('circulations').select('*').eq('id', coverageQuery.toUpperCase()).single();
@@ -246,13 +195,17 @@ export const OrganitzaView: React.FC = () => {
         });
       });
 
-      if (mainDriverShiftId) {
-        const enrichedMain = await fetchFullTurnData(mainDriverShiftId);
-        setMainDriverInfo(enrichedMain);
-      }
-      if (passengerShiftIds.length > 0) {
-        const enrichedPassengers = await Promise.all(passengerShiftIds.map(id => fetchFullTurnData(id)));
-        setPassengerResults(enrichedPassengers.filter(Boolean));
+      if (mainDriverShiftId || passengerShiftIds.length > 0) {
+        const turnIdsToFetch = Array.from(new Set([
+          ...(mainDriverShiftId ? [mainDriverShiftId] : []),
+          ...passengerShiftIds
+        ]));
+        const enrichedTurns = await fetchFullTurns(turnIdsToFetch, selectedServei === '0' ? undefined : selectedServei);
+
+        if (mainDriverShiftId) {
+          setMainDriverInfo(enrichedTurns.find(t => t.id === mainDriverShiftId));
+        }
+        setPassengerResults(enrichedTurns.filter(t => passengerShiftIds.includes(t.id)));
       }
 
       if (searchedCirc) {
@@ -273,15 +226,18 @@ export const OrganitzaView: React.FC = () => {
               }
             });
           });
-          const [enrichedAnterior, enrichedPosterior] = await Promise.all([Promise.all(anteriorShifts.map(id => fetchFullTurnData(id))), Promise.all(posteriorShifts.map(id => fetchFullTurnData(id)))]);
-          setAdjacentPassengerResults({ anterior: enrichedAnterior.filter(Boolean).map(t => ({ ...t, adjacentCode: anteriorId })), posterior: enrichedPosterior.filter(Boolean).map(t => ({ ...t, adjacentCode: posteriorId })) });
+          const [enrichedAnterior, enrichedPosterior] = await Promise.all([
+            fetchFullTurns(anteriorShifts, selectedServei === '0' ? undefined : selectedServei),
+            fetchFullTurns(posteriorShifts, selectedServei === '0' ? undefined : selectedServei)
+          ]);
+          setAdjacentPassengerResults({ anterior: enrichedAnterior.map(t => ({ ...t, adjacentCode: anteriorId })), posterior: enrichedPosterior.map(t => ({ ...t, adjacentCode: posteriorId })) });
         }
 
         const depOrigen = searchedCirc.inici;
         const sortidaMin = getFgcMinutes(searchedCirc.sortida);
         const arribadaMin = getFgcMinutes(searchedCirc.arribada);
-        const enrichedAll = await Promise.all(allShifts.map(s => fetchFullTurnData(s.id)));
-        
+        const enrichedAll = await fetchFullTurns(allShifts.map(s => s.id), selectedServei === '0' ? undefined : selectedServei);
+
         const restingResults: any[] = [];
         const extensibleResults: any[] = [];
         const reserveResults: any[] = [];
@@ -292,7 +248,7 @@ export const OrganitzaView: React.FC = () => {
           const [h, m] = (tData.duracio || "00:00").split(':').map(Number);
           const originalDurationMin = h * 60 + m;
           const maxExtensionCapacityMin = 525 - originalDurationMin;
-          
+
           const currentRestSeg = segs.find(seg => seg.type === 'gap' && seg.codi.toUpperCase() === depOrigen.toUpperCase() && seg.start <= sortidaMin && seg.end > sortidaMin);
           if (currentRestSeg) restingResults.push({ ...tData, restSegment: currentRestSeg });
 
@@ -318,17 +274,17 @@ export const OrganitzaView: React.FC = () => {
               for (const point of itinerary) {
                 const pointMin = getFgcMinutes(point.hora || point.arribada || point.sortida);
                 const pointName = (point.nom || '').toUpperCase();
-                
+
                 const reserve = RESERVAS_DATA.find(r => pointName.includes(r.loc) && isReserveActive(r, pointMin));
-                
+
                 if (reserve) {
-                  const returnToOriginTimeMin = pointMin + 25; 
+                  const returnToOriginTimeMin = pointMin + 25;
                   const hasConflictsPartial = segs.some(seg => seg.type === 'circ' && seg.start >= sortidaMin && seg.start < returnToOriginTimeMin);
-                  
+
                   if (!hasConflictsPartial) {
                     const shiftFinalMin = getFgcMinutes(tData.final_torn);
                     const extraNeededPartial = Math.max(0, returnToOriginTimeMin - shiftFinalMin);
-                    
+
                     if (extraNeededPartial <= maxExtensionCapacityMin) {
                       if (!bestIntercept || pointMin < bestIntercept.time) {
                         bestIntercept = { time: pointMin, name: pointName, reservaId: reserve.id, extraNeeded: extraNeededPartial };
@@ -429,10 +385,10 @@ export const OrganitzaView: React.FC = () => {
 
   const filteredMaquinistes = allAssignments.filter(maquinista => {
     const searchStr = maquinistaQuery.toLowerCase();
-    const queryMatch = (maquinista.nom || '').toLowerCase().includes(searchStr) || 
-                       (maquinista.cognoms || '').toLowerCase().includes(searchStr) ||
-                       maquinista.empleat_id.includes(searchStr);
-    
+    const queryMatch = (maquinista.nom || '').toLowerCase().includes(searchStr) ||
+      (maquinista.cognoms || '').toLowerCase().includes(searchStr) ||
+      maquinista.empleat_id.includes(searchStr);
+
     if (!queryMatch) return false;
     if (disDesFilter === 'ALL') return true;
     if (disDesFilter === 'DIS') return maquinista.torn.startsWith('DIS');
@@ -441,7 +397,7 @@ export const OrganitzaView: React.FC = () => {
     if (disDesFilter === 'FOR') return maquinista.torn.startsWith('FOR');
     if (disDesFilter === 'VAC') return maquinista.torn.startsWith('VAC');
     if (disDesFilter === 'DAG') return maquinista.torn.startsWith('DAG');
-    
+
     return true;
   });
 
@@ -470,8 +426,8 @@ export const OrganitzaView: React.FC = () => {
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
           <div className="flex justify-center"><div className="inline-flex bg-white dark:bg-gray-900 p-1 rounded-2xl shadow-sm border border-gray-100 dark:border-white/5 transition-colors">{serveiTypes.map(s => (<button key={s} onClick={() => { setSelectedServei(s); setTurn1Data(null); setTurn2Data(null); setTurn1Id(''); setTurn2Id(''); }} className={`px-6 py-2 rounded-xl text-sm font-black transition-all ${selectedServei === s ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5'}`}>S-{s}</button>))}</div></div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <CompareInputSlot label="Primer Torn" value={turn1Id} onChange={setTurn1Id} data={turn1Data} nowMin={nowMin} getSegments={getSegments} onClear={() => {setTurn1Id(''); setTurn1Data(null);}} />
-            <CompareInputSlot label="Segon Torn" value={turn2Id} onChange={setTurn2Id} data={turn2Data} nowMin={nowMin} getSegments={getSegments} onClear={() => {setTurn2Id(''); setTurn2Data(null);}} />
+            <CompareInputSlot label="Primer Torn" value={turn1Id} onChange={setTurn1Id} data={turn1Data} nowMin={nowMin} getSegments={getSegments} onClear={() => { setTurn1Id(''); setTurn1Data(null); }} />
+            <CompareInputSlot label="Segon Torn" value={turn2Id} onChange={setTurn2Id} data={turn2Data} nowMin={nowMin} getSegments={getSegments} onClear={() => { setTurn2Id(''); setTurn2Data(null); }} />
           </div>
           <div className="flex justify-center"><button onClick={handleCompare} disabled={!turn1Id || !turn2Id || loadingComparator} className="bg-fgc-green text-fgc-grey px-12 py-5 rounded-[28px] font-black text-lg shadow-xl shadow-fgc-green/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-3 disabled:opacity-50 disabled:scale-100 group">{loadingComparator ? <Loader2 className="animate-spin" size={24} /> : <RefreshCcw size={24} />}ANALITZAR COINCIDÈNCIES</button></div>
           {(turn1Data && turn2Data) && (
@@ -490,8 +446,8 @@ export const OrganitzaView: React.FC = () => {
                         <div className="space-y-1 relative z-10"><p className="text-[10px] font-black text-gray-300 dark:text-gray-600 uppercase tracking-widest ml-1">Franja Horària</p><div className="flex items-center gap-3"><span className="text-2xl font-black text-fgc-grey dark:text-gray-200">{formatFgcTime(c.start)}</span><ArrowRight className="text-fgc-green" size={18} /><span className="text-2xl font-black text-fgc-grey dark:text-gray-200">{formatFgcTime(c.end)}</span></div></div>
                         <div className="h-px bg-gray-100 dark:bg-white/5 w-full transition-colors" />
                         <div className="space-y-4 relative z-10">
-                            <div className="flex items-center gap-4"><div className="h-10 min-w-[2.5rem] px-2 rounded-xl bg-fgc-grey dark:bg-black text-white flex items-center justify-center font-black text-xs shadow-md">{getShortTornId(c.turn1)}</div><div className="min-w-0"><p className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-tighter leading-none">Maquinista A</p><p className="text-sm font-bold text-fgc-grey dark:text-gray-300 truncate">{c.driver1}</p></div></div>
-                            <div className="flex items-center gap-4"><div className="h-10 min-w-[2.5rem] px-2 rounded-xl bg-fgc-grey/10 dark:bg-white/5 text-fgc-grey dark:text-gray-400 flex items-center justify-center font-black text-xs border border-fgc-grey/20 dark:border-white/10 transition-colors">{getShortTornId(c.turn2)}</div><div className="min-w-0"><p className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-tighter leading-none">Maquinista B</p><p className="text-sm font-bold text-fgc-grey dark:text-gray-300 truncate">{c.driver2}</p></div></div>
+                          <div className="flex items-center gap-4"><div className="h-10 min-w-[2.5rem] px-2 rounded-xl bg-fgc-grey dark:bg-black text-white flex items-center justify-center font-black text-xs shadow-md">{getShortTornId(c.turn1)}</div><div className="min-w-0"><p className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-tighter leading-none">Maquinista A</p><p className="text-sm font-bold text-fgc-grey dark:text-gray-300 truncate">{c.driver1}</p></div></div>
+                          <div className="flex items-center gap-4"><div className="h-10 min-w-[2.5rem] px-2 rounded-xl bg-fgc-grey/10 dark:bg-white/5 text-fgc-grey dark:text-gray-400 flex items-center justify-center font-black text-xs border border-fgc-grey/20 dark:border-white/10 transition-colors">{getShortTornId(c.turn2)}</div><div className="min-w-0"><p className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-tighter leading-none">Maquinista B</p><p className="text-sm font-bold text-fgc-grey dark:text-gray-300 truncate">{c.driver2}</p></div></div>
                         </div>
                       </div>
                     ))}
@@ -527,11 +483,10 @@ export const OrganitzaView: React.FC = () => {
                                 <div className="flex items-center gap-2">
                                   <p className="text-xl font-black text-fgc-grey dark:text-white tracking-tight leading-none truncate">{mainDriverInfo.driver?.cognoms}, {mainDriverInfo.driver?.nom}</p>
                                   {mainDriverInfo.driver?.tipus_torn && (
-                                    <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border shrink-0 ${
-                                      mainDriverInfo.driver.tipus_torn === 'Reducció' 
-                                        ? 'bg-purple-600 text-white border-purple-700' 
+                                    <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border shrink-0 ${mainDriverInfo.driver.tipus_torn === 'Reducció'
+                                        ? 'bg-purple-600 text-white border-purple-700'
                                         : 'bg-blue-600 text-white border-blue-700'
-                                    }`}>
+                                      }`}>
                                       {mainDriverInfo.driver.tipus_torn}
                                     </span>
                                   )}
@@ -601,17 +556,17 @@ export const OrganitzaView: React.FC = () => {
             <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4">
               <div className="relative flex-1">
                 <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={20} />
-                <input 
-                  type="text" 
-                  placeholder="Cerca per nom, cognoms o nòmina..." 
+                <input
+                  type="text"
+                  placeholder="Cerca per nom, cognoms o nòmina..."
                   value={maquinistaQuery}
                   onChange={(e) => setMaquinistaQuery(e.target.value)}
-                  className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] py-4 pl-14 pr-8 focus:ring-4 focus:ring-fgc-green/20 outline-none font-black text-lg transition-all dark:text-white dark:placeholder:text-gray-600 shadow-inner" 
+                  className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] py-4 pl-14 pr-8 focus:ring-4 focus:ring-fgc-green/20 outline-none font-black text-lg transition-all dark:text-white dark:placeholder:text-gray-600 shadow-inner"
                 />
               </div>
-              
+
               <div className="relative" ref={filterRef}>
-                <button 
+                <button
                   onClick={() => setIsFilterMenuOpen(!isFilterMenuOpen)}
                   className="h-full flex items-center justify-between gap-3 px-6 py-4 bg-gray-50 dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-[24px] font-black text-sm text-fgc-grey dark:text-gray-200 transition-all hover:bg-gray-100 dark:hover:bg-white/10 min-w-[180px] shadow-sm"
                 >
@@ -631,9 +586,8 @@ export const OrganitzaView: React.FC = () => {
                           setDisDesFilter(option);
                           setIsFilterMenuOpen(false);
                         }}
-                        className={`w-full flex items-center justify-between px-6 py-4 text-sm font-black transition-colors hover:bg-gray-50 dark:hover:bg-white/5 ${
-                          disDesFilter === option ? 'text-fgc-green' : 'text-fgc-grey dark:text-gray-200'
-                        }`}
+                        className={`w-full flex items-center justify-between px-6 py-4 text-sm font-black transition-colors hover:bg-gray-50 dark:hover:bg-white/5 ${disDesFilter === option ? 'text-fgc-green' : 'text-fgc-grey dark:text-gray-200'
+                          }`}
                       >
                         {filterLabels[option]}
                         {disDesFilter === option && <CheckCircle2 size={16} />}
@@ -656,44 +610,40 @@ export const OrganitzaView: React.FC = () => {
                     const phones = phonebook[maquinista.empleat_id] || [];
                     const isDis = maquinista.torn.startsWith('DIS');
                     const isDes = maquinista.torn.startsWith('DES');
-                    
+
                     return (
-                      <div 
-                        key={maquinista.id} 
-                        className={`bg-white dark:bg-gray-800 rounded-[28px] p-5 border transition-all flex flex-col gap-4 group hover:shadow-xl ${
-                          isDis ? 'border-orange-200 dark:border-orange-500/20 bg-orange-50/10 dark:bg-orange-500/5 hover:border-orange-300' : 
-                          isDes ? 'border-green-200 dark:border-fgc-green/20 bg-green-50/10 dark:bg-fgc-green/5 hover:border-fgc-green/30' :
-                          'border-gray-100 dark:border-white/5 hover:border-fgc-green/30'
-                        }`}
+                      <div
+                        key={maquinista.id}
+                        className={`bg-white dark:bg-gray-800 rounded-[28px] p-5 border transition-all flex flex-col gap-4 group hover:shadow-xl ${isDis ? 'border-orange-200 dark:border-orange-500/20 bg-orange-50/10 dark:bg-orange-500/5 hover:border-orange-300' :
+                            isDes ? 'border-green-200 dark:border-fgc-green/20 bg-green-50/10 dark:bg-fgc-green/5 hover:border-fgc-green/30' :
+                              'border-gray-100 dark:border-white/5 hover:border-fgc-green/30'
+                          }`}
                       >
                         <div className="flex items-center gap-4">
-                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xl shadow-md shrink-0 ${
-                            isDis ? 'bg-orange-500 text-white' : 
-                            isDes ? 'bg-fgc-green text-fgc-grey' : 
-                            'bg-fgc-grey dark:bg-black text-white'
-                          }`}>
+                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xl shadow-md shrink-0 ${isDis ? 'bg-orange-500 text-white' :
+                              isDes ? 'bg-fgc-green text-fgc-grey' :
+                                'bg-fgc-grey dark:bg-black text-white'
+                            }`}>
                             {maquinista.cognoms?.charAt(0) || maquinista.nom?.charAt(0)}
                           </div>
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
                               <h3 className="text-base font-black text-fgc-grey dark:text-white leading-tight uppercase truncate">{maquinista.cognoms}, {maquinista.nom}</h3>
                               {maquinista.tipus_torn && (
-                                <span className={`px-2 py-0.5 rounded text-[7px] font-black uppercase border shrink-0 ${
-                                  maquinista.tipus_torn === 'Reducció' 
-                                    ? 'bg-purple-600 text-white border-purple-700' 
+                                <span className={`px-2 py-0.5 rounded text-[7px] font-black uppercase border shrink-0 ${maquinista.tipus_torn === 'Reducció'
+                                    ? 'bg-purple-600 text-white border-purple-700'
                                     : 'bg-blue-600 text-white border-blue-700'
-                                }`}>
+                                  }`}>
                                   {maquinista.tipus_torn === 'Reducció' ? 'RED' : 'TORN'}
                                 </span>
                               )}
                             </div>
                             <div className="flex items-center gap-2 mt-0.5">
                               <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500">#{maquinista.empleat_id}</span>
-                              <div className={`px-2 py-0.5 rounded text-[10px] font-black ${
-                                isDis ? 'bg-orange-500 text-white' : 
-                                isDes ? 'bg-fgc-green text-fgc-grey' : 
-                                'bg-gray-100 dark:bg-black text-gray-400 dark:text-gray-600'
-                              }`}>
+                              <div className={`px-2 py-0.5 rounded text-[10px] font-black ${isDis ? 'bg-orange-500 text-white' :
+                                  isDes ? 'bg-fgc-green text-fgc-grey' :
+                                    'bg-gray-100 dark:bg-black text-gray-400 dark:text-gray-600'
+                                }`}>
                                 {maquinista.torn}
                               </div>
                             </div>
@@ -706,11 +656,11 @@ export const OrganitzaView: React.FC = () => {
                             <span className="text-[11px] font-bold">{maquinista.hora_inici} — {maquinista.hora_fi}</span>
                           </div>
                           {(maquinista.abs_parc_c === 'S' || maquinista.dta === 'S' || maquinista.dpa === 'S') && (
-                             <div className="flex gap-2">
-                               {maquinista.abs_parc_c === 'S' && <span className="bg-red-50 text-red-600 text-[8px] font-black px-1.5 py-0.5 rounded border border-red-100">ABS</span>}
-                               {maquinista.dta === 'S' && <span className="bg-blue-50 text-blue-600 text-[8px] font-black px-1.5 py-0.5 rounded border border-blue-100">DTA</span>}
-                               {maquinista.dpa === 'S' && <span className="bg-purple-50 text-purple-600 text-[8px] font-black px-1.5 py-0.5 rounded border border-purple-100">DPA</span>}
-                             </div>
+                            <div className="flex gap-2">
+                              {maquinista.abs_parc_c === 'S' && <span className="bg-red-50 text-red-600 text-[8px] font-black px-1.5 py-0.5 rounded border border-red-100">ABS</span>}
+                              {maquinista.dta === 'S' && <span className="bg-blue-50 text-blue-600 text-[8px] font-black px-1.5 py-0.5 rounded border border-blue-100">DTA</span>}
+                              {maquinista.dpa === 'S' && <span className="bg-purple-50 text-purple-600 text-[8px] font-black px-1.5 py-0.5 rounded border border-purple-100">DPA</span>}
+                            </div>
                           )}
                           {maquinista.observacions && (
                             <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
@@ -723,14 +673,13 @@ export const OrganitzaView: React.FC = () => {
                         <div className="flex flex-wrap gap-2 mt-auto">
                           {phones.length > 0 ? (
                             phones.map((p, idx) => (
-                              <a 
-                                key={idx} 
-                                href={`tel:${p}`} 
-                                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black transition-all shadow-sm ${
-                                  isDis ? 'bg-orange-500 text-white hover:bg-orange-600' : 
-                                  isDes ? 'bg-fgc-green text-fgc-grey hover:brightness-110' : 
-                                  'bg-fgc-grey dark:bg-black text-white hover:bg-fgc-dark'
-                                }`}
+                              <a
+                                key={idx}
+                                href={`tel:${p}`}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black transition-all shadow-sm ${isDis ? 'bg-orange-500 text-white hover:bg-orange-600' :
+                                    isDes ? 'bg-fgc-green text-fgc-grey hover:brightness-110' :
+                                      'bg-fgc-grey dark:bg-black text-white hover:bg-fgc-dark'
+                                  }`}
                               >
                                 <Phone size={12} />
                                 {p}
@@ -782,19 +731,19 @@ const CompareInputSlot = ({ label, value, onChange, data, onClear, nowMin, getSe
     <div className="bg-white dark:bg-gray-900 rounded-[32px] p-8 border border-gray-100 dark:border-white/5 shadow-sm flex flex-col min-h-[400px] transition-all relative" ref={containerRef}>
       <div className="flex items-center justify-between mb-6"><h3 className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">{label}</h3>{data && (<button onClick={onClear} className="p-2.5 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-500 rounded-full transition-colors bg-red-50/10"><X size={18} /></button>)}</div>
       {data ? (<div className="flex-1 animate-in fade-in zoom-in-95 duration-300">
-          <div className="flex items-center gap-5 mb-6"><div className="h-16 min-w-[4rem] px-4 bg-fgc-grey dark:bg-black text-white rounded-2xl flex items-center justify-center font-black text-2xl shadow-xl whitespace-nowrap">{data.id}</div><div className="min-w-0"><p className="text-2xl font-black text-fgc-grey dark:text-white leading-tight truncate">{data.driver?.cognoms}, {data.driver?.nom}</p><div className="flex items-center gap-2 mt-1"><div className="w-2 h-2 bg-fgc-green rounded-full animate-pulse" /><p className="text-[10px] font-black text-fgc-green uppercase tracking-widest">Actiu ara {data.driver?.tipus_torn ? `(${data.driver.tipus_torn})` : ''}</p></div></div></div>
-          <div className="mb-6 bg-gray-50/50 dark:bg-black/20 p-6 rounded-[28px] border border-gray-100 dark:border-white/5 relative overflow-hidden group transition-colors">
-            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity"><Clock size={64} /></div>
-            {currentActivity ? (<div className="space-y-3 relative z-10"><div className="flex items-center justify-between"><span className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Activitat Actual</span><span className="text-[9px] font-black text-red-500 animate-pulse uppercase">EN VINCLE</span></div><div className="flex items-center gap-4"><div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm ${currentActivity.type === 'circ' ? 'bg-fgc-grey dark:bg-black text-white' : 'bg-fgc-green text-fgc-grey'}`}>{currentActivity.type === 'circ' ? <Train size={24} /> : <Coffee size={24} />}</div><div><p className="text-xl font-black text-fgc-grey dark:text-white">{currentActivity.codi}</p>{currentActivity.train && (<div className="flex items-center gap-1.5 text-xs font-bold text-fgc-green"><Hash size={12} /> Unitat: {currentActivity.train}</div>)}</div></div></div>) : (<div className="text-center py-2"><p className="text-sm font-bold text-gray-300 dark:text-gray-700 italic">Fora d'horari</p></div>)}
-          </div>
-          <div className="grid grid-cols-2 gap-4"><div className="bg-gray-50/50 dark:bg-black/20 p-4 rounded-2xl border border-gray-100 dark:border-white/5 transition-colors"><p className="text-[9px] font-black text-gray-300 dark:text-gray-600 uppercase tracking-widest mb-1.5 flex items-center gap-2"><Clock size={10} /> Torn</p><p className="text-sm font-black text-fgc-grey dark:text-gray-200 whitespace-nowrap">{data.inici_torn} — {data.final_torn}</p></div><div className="bg-gray-50/50 dark:bg-black/20 p-4 rounded-2xl border border-gray-100 dark:border-white/5 transition-colors"><p className="text-[9px] font-black text-gray-300 dark:text-gray-600 uppercase tracking-widest mb-1.5 flex items-center gap-2"><User size={10} /> Nòmina</p><p className="text-sm font-black text-fgc-grey dark:text-gray-200 whitespace-nowrap">{data.driver?.nomina}</p></div>{data.driver?.phones?.length > 0 && (<div className="col-span-2 bg-fgc-green/10 dark:bg-fgc-green/5 p-4 rounded-2xl border border-fgc-green/20 dark:border-fgc-green/10 transition-colors"><p className="text-[9px] font-black text-fgc-green uppercase tracking-widest mb-2 flex items-center gap-2"><Phone size={10} /> Contacte Directe</p><div className="flex flex-wrap gap-2">{data.driver.phones.map((p: string, i: number) => (<a key={i} href={`tel:${p}`} className="flex items-center gap-2 bg-white dark:bg-black px-3 py-1.5 rounded-xl text-xs font-black text-fgc-grey dark:text-gray-200 shadow-sm hover:bg-fgc-green dark:hover:text-black transition-all whitespace-nowrap"><Phone size={12} /> {p}</a>))}</div></div>)}</div>
+        <div className="flex items-center gap-5 mb-6"><div className="h-16 min-w-[4rem] px-4 bg-fgc-grey dark:bg-black text-white rounded-2xl flex items-center justify-center font-black text-2xl shadow-xl whitespace-nowrap">{data.id}</div><div className="min-w-0"><p className="text-2xl font-black text-fgc-grey dark:text-white leading-tight truncate">{data.driver?.cognoms}, {data.driver?.nom}</p><div className="flex items-center gap-2 mt-1"><div className="w-2 h-2 bg-fgc-green rounded-full animate-pulse" /><p className="text-[10px] font-black text-fgc-green uppercase tracking-widest">Actiu ara {data.driver?.tipus_torn ? `(${data.driver.tipus_torn})` : ''}</p></div></div></div>
+        <div className="mb-6 bg-gray-50/50 dark:bg-black/20 p-6 rounded-[28px] border border-gray-100 dark:border-white/5 relative overflow-hidden group transition-colors">
+          <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity"><Clock size={64} /></div>
+          {currentActivity ? (<div className="space-y-3 relative z-10"><div className="flex items-center justify-between"><span className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Activitat Actual</span><span className="text-[9px] font-black text-red-500 animate-pulse uppercase">EN VINCLE</span></div><div className="flex items-center gap-4"><div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm ${currentActivity.type === 'circ' ? 'bg-fgc-grey dark:bg-black text-white' : 'bg-fgc-green text-fgc-grey'}`}>{currentActivity.type === 'circ' ? <Train size={24} /> : <Coffee size={24} />}</div><div><p className="text-xl font-black text-fgc-grey dark:text-white">{currentActivity.codi}</p>{currentActivity.train && (<div className="flex items-center gap-1.5 text-xs font-bold text-fgc-green"><Hash size={12} /> Unitat: {currentActivity.train}</div>)}</div></div></div>) : (<div className="text-center py-2"><p className="text-sm font-bold text-gray-300 dark:text-gray-700 italic">Fora d'horari</p></div>)}
+        </div>
+        <div className="grid grid-cols-2 gap-4"><div className="bg-gray-50/50 dark:bg-black/20 p-4 rounded-2xl border border-gray-100 dark:border-white/5 transition-colors"><p className="text-[9px] font-black text-gray-300 dark:text-gray-600 uppercase tracking-widest mb-1.5 flex items-center gap-2"><Clock size={10} /> Torn</p><p className="text-sm font-black text-fgc-grey dark:text-gray-200 whitespace-nowrap">{data.inici_torn} — {data.final_torn}</p></div><div className="bg-gray-50/50 dark:bg-black/20 p-4 rounded-2xl border border-gray-100 dark:border-white/5 transition-colors"><p className="text-[9px] font-black text-gray-300 dark:text-gray-600 uppercase tracking-widest mb-1.5 flex items-center gap-2"><User size={10} /> Nòmina</p><p className="text-sm font-black text-fgc-grey dark:text-gray-200 whitespace-nowrap">{data.driver?.nomina}</p></div>{data.driver?.phones?.length > 0 && (<div className="col-span-2 bg-fgc-green/10 dark:bg-fgc-green/5 p-4 rounded-2xl border border-fgc-green/20 dark:border-fgc-green/10 transition-colors"><p className="text-[9px] font-black text-fgc-green uppercase tracking-widest mb-2 flex items-center gap-2"><Phone size={10} /> Contacte Directe</p><div className="flex flex-wrap gap-2">{data.driver.phones.map((p: string, i: number) => (<a key={i} href={`tel:${p}`} className="flex items-center gap-2 bg-white dark:bg-black px-3 py-1.5 rounded-xl text-xs font-black text-fgc-grey dark:text-gray-200 shadow-sm hover:bg-fgc-green dark:hover:text-black transition-all whitespace-nowrap"><Phone size={12} /> {p}</a>))}</div></div>)}</div>
       </div>) : (<div className="flex-1 flex flex-col items-center justify-center text-center px-4"><div className="w-20 h-20 bg-gray-50 dark:bg-black/20 rounded-full flex items-center justify-center mb-6 text-gray-300 dark:text-gray-700 transition-colors"><Hash size={36} /></div><p className="text-sm text-gray-400 dark:text-gray-500 mb-8 max-w-[240px] font-medium leading-relaxed">Cerca un codi de torn.</p><div className="w-full relative"><Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-600" size={20} /><input type="text" placeholder="Ex: Q002, Q004..." value={value} onChange={(e) => handleInputChange(e.target.value.toUpperCase())} onFocus={() => value.length > 0 && setShowSug(true)} className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] py-5 pl-14 pr-8 focus:ring-4 focus:ring-fgc-green/20 outline-none font-black text-xl transition-all placeholder:text-gray-300 dark:text-white dark:placeholder:text-gray-700 shadow-inner" />{showSug && suggestions.length > 0 && (<div className="absolute top-full left-0 right-0 mt-3 bg-white dark:bg-gray-800 rounded-[24px] shadow-2xl border border-gray-100 dark:border-white/10 z-[100] overflow-hidden overflow-y-auto max-h-56 animate-in slide-in-from-top-2 transition-colors">{suggestions.map((s, idx) => (<button key={idx} onClick={() => { onChange(s); setShowSug(false); }} className="w-full text-left px-8 py-4 text-base font-black text-fgc-grey dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-fgc-green transition-all border-b border-gray-50 dark:border-white/5 last:border-0 flex items-center justify-between group">{s}<ArrowRight className="opacity-0 group-hover:opacity-100 transition-all scale-110" size={16} /></button>))}</div>)}</div></div>)}
     </div>
   );
 };
 
 const RefreshCcw = ({ size, className }: { size?: number, className?: string }) => (
-  <svg width={size || 24} height={size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
+  <svg width={size || 24} height={size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" /><path d="M16 16h5v5" /></svg>
 );
 
 export default OrganitzaView;
