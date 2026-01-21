@@ -46,3 +46,43 @@ export const getTrainPhone = (train: string) => {
 export const ALL_STATIONS = [
     "Barcelona - Pl. Catalunya", "Provença", "Gràcia", "Sant Gervasi", "Muntaner", "La Bonanova", "Les Tres Torres", "Sarrià", "Peu del Funicular", "Baixador de Vallvidrera", "Les Planes", "La Floresta", "Valldoreix", "Sant Cugat Centre", "Mira-sol", "Hospital General", "Rubí Centre", "Les Fonts", "Terrassa Rambla", "Vallparadís Universitat", "Terrassa Estació del Nord", "Terrassa Nacions Unides", "Volpelleres", "Sant Joan", "Bellaterra", "Universitat Autònoma", "Sant Quirze", "Can Feu | Gràcia", "Sabadell Plaça Major", "La Creu Alta", "Sabadell Nord", "Sabadell Parc del Nord", "Pl. Molina", "Pàdua", "El Putxet", "Av. Tibidabo", "Reina Elisenda"
 ].sort();
+
+export const STATION_CODE_MAP: Record<string, string> = {
+    "Barcelona - Pl. Catalunya": "PC",
+    "Provença": "PR",
+    "Gràcia": "GR",
+    "Sant Gervasi": "SG",
+    "Muntaner": "MN",
+    "La Bonanova": "BN",
+    "Les Tres Torres": "TT",
+    "Sarrià": "SR",
+    "Peu del Funicular": "PF",
+    "Baixador de Vallvidrera": "VL",
+    "Les Planes": "LP",
+    "La Floresta": "LF",
+    "Valldoreix": "VD",
+    "Sant Cugat Centre": "SC",
+    "Mira-sol": "MS",
+    "Hospital General": "HG",
+    "Rubí Centre": "RB",
+    "Les Fonts": "FN",
+    "Terrassa Rambla": "TR",
+    "Vallparadís Universitat": "VP",
+    "Terrassa Estació del Nord": "EN",
+    "Terrassa Nacions Unides": "NA",
+    "Volpelleres": "VO",
+    "Sant Joan": "SJ",
+    "Bellaterra": "BT",
+    "Universitat Autònoma": "UN",
+    "Sant Quirze": "SQ",
+    "Can Feu | Gràcia": "CF",
+    "Sabadell Plaça Major": "PJ",
+    "La Creu Alta": "CT",
+    "Sabadell Nord": "NO",
+    "Sabadell Parc del Nord": "PN",
+    "Pl. Molina": "PM",
+    "Pàdua": "PD",
+    "El Putxet": "EP",
+    "Av. Tibidabo": "TB",
+    "Reina Elisenda": "RE"
+};

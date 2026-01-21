@@ -6,7 +6,7 @@ import { supabase } from '../supabaseClient.ts';
 // Importación de utilidades y componentes extraídos
 import { getFgcMinutes, checkIfActive, calculateGap } from '../utils/time';
 import { fetchAllFromSupabase } from '../utils/supabase';
-import { getStatusColor, getLiniaColor, getShortTornId, getTrainPhone, ALL_STATIONS } from '../utils/fgc';
+import { getStatusColor, getLiniaColor, getShortTornId, getTrainPhone, ALL_STATIONS, STATION_CODE_MAP } from '../utils/fgc';
 import { fetchFullTurns } from '../utils/queries';
 import { ItineraryPoint } from '../components/ItineraryPoint';
 import { ShiftTimeline } from '../components/ShiftTimeline';
@@ -14,10 +14,11 @@ import { TimeGapRow } from '../components/TimeGapRow';
 import { CirculationHeader } from '../components/CirculationHeader';
 import { CirculationRow } from '../components/CirculationRow';
 import { StationRow } from '../components/StationRow';
+import { getServiceToday } from '../utils/serviceCalendar';
 
 export const CercarView: React.FC = () => {
   const [searchType, setSearchType] = useState<SearchType>(SearchType.Torn);
-  const [selectedServei, setSelectedServei] = useState<string>('0');
+  const [selectedServei, setSelectedServei] = useState<string>(getServiceToday());
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -311,12 +312,14 @@ export const CercarView: React.FC = () => {
         }
       } else if (searchType === SearchType.Estacio) {
         if (!selectedStation) { setLoading(false); return; }
-        const targetStation = selectedStation.trim().toUpperCase();
+        const stationCode = STATION_CODE_MAP[selectedStation] || selectedStation;
+        const targetStation = stationCode.trim().toUpperCase();
 
         // Optimizació: Filtrar circulacions per estació directament en la base de dades
+        // Cerca pel codi (ex: 'PC') o pel nom en JSON
         const { data: matchedCircs } = await supabase.from('circulations')
           .select('*')
-          .or(`inici.ilike.${targetStation},final.ilike.${targetStation},estacions.cs.[{"nom":"${selectedStation}"}]`);
+          .or(`inici.ilike.${targetStation},final.ilike.${targetStation},estacions.cs.[{"nom":"${targetStation}"}]`);
 
         if (!matchedCircs || matchedCircs.length === 0) { setResults([]); return; }
 
@@ -329,7 +332,11 @@ export const CercarView: React.FC = () => {
           if (c.inici?.trim().toUpperCase() === targetStation) stopTime = c.sortida as string;
           else if (c.final?.trim().toUpperCase() === targetStation) stopTime = c.arribada as string;
           else {
-            const stop = (c.estacions as any[])?.find(st => st.nom?.trim().toUpperCase() === targetStation);
+            const stop = (c.estacions as any[])?.find(st => {
+              const stName = st.nom?.trim().toUpperCase();
+              // Check if match either Code or Name (just in case DB has mixed data, though unlikely if standardized)
+              return stName === targetStation;
+            });
             if (stop) stopTime = stop.hora || stop.arribada || stop.sortida;
           }
           if (stopTime) {
@@ -375,14 +382,33 @@ export const CercarView: React.FC = () => {
         setResults([{
           type: 'station_summary',
           station: selectedStation,
+          stationCode: stationCode,
           circulations: (finalResults as any[]).sort((a, b) => getFgcMinutes(a.stopTimeAtStation) - getFgcMinutes(b.stopTimeAtStation))
         }]);
       } else {
         let turnIds: string[] = [];
         switch (searchType) {
           case SearchType.Torn:
-            let qt = supabase.from('shifts').select('id').ilike('id', `%${searchVal}%`);
-            if (selectedServei !== 'Tots') qt = qt.eq('servei', selectedServei);
+            let qt = supabase.from('shifts').select('id');
+            const isNumeric = /^\d+$/.test(searchVal);
+
+            if (isNumeric && selectedServei !== 'Tots') {
+              // Smart ID construction: 
+              // If user types "32" in Servei 0 -> Q0032
+              // If user types "105" in Servei 100 -> Q1105
+              const prefix = selectedServei === '0' ? '0' : selectedServei.charAt(0);
+              const numPart = searchVal.padStart(3, '0');
+              const constructedId = `Q${prefix}${numPart}`;
+
+              // We search specifically for this constructed ID (exact match logic)
+              if (selectedServei !== 'Tots') qt = qt.eq('servei', selectedServei);
+              qt = qt.ilike('id', constructedId);
+            } else {
+              // Standard behavior
+              if (selectedServei !== 'Tots') qt = qt.eq('servei', selectedServei);
+              qt = qt.ilike('id', `%${searchVal}%`);
+            }
+
             const { data: s } = await qt;
             turnIds = s?.map(x => x.id as string) || [];
             break;
@@ -492,6 +518,18 @@ export const CercarView: React.FC = () => {
                       </div>
                     </div>
                   </div>
+                  {
+                    isStationGroup && group.stationCode && (
+                      <div className="mb-8 mx-auto w-full max-w-4xl aspect-[16/9] rounded-[32px] overflow-hidden border-[8px] border-gray-900 bg-black relative shadow-2xl">
+                        <iframe
+                          src={`https://geotren.fgc.cat/isic/${group.stationCode.toLowerCase()}`}
+                          className="w-[222.22%] h-[222.22%] border-0 origin-top-left scale-[0.45]"
+                          title={`Informació estació ${group.station}`}
+                          allow="geolocation"
+                        />
+                      </div>
+                    )
+                  }
                   <div className="border border-gray-100 dark:border-white/5 rounded-[32px] overflow-hidden bg-white dark:bg-black/20 shadow-sm">
                     <CirculationHeader />
                     <div className="grid grid-cols-1 divide-y divide-gray-100 dark:divide-white/5">
@@ -593,7 +631,7 @@ export const CercarView: React.FC = () => {
                   })}
                 </div>
                 <div className="bg-white dark:bg-gray-900 p-4 sm:p-10 rounded-b-[32px] sm:rounded-b-[48px] border-x border-b border-gray-100 dark:border-white/5 shadow-sm overflow-hidden">
-                  <ShiftTimeline turn={group} nowMin={nowMin} trainStatuses={trainStatuses} getLiniaColor={getLiniaColor} openUnitMenu={openUnitMenu} />
+                  <ShiftTimeline turn={group} nowMin={nowMin} trainStatuses={trainStatuses} getLiniaColor={getLiniaColor} openUnitMenu={openUnitMenu} getStatusColor={getStatusColor} />
                   <div className="border border-gray-100 dark:border-white/5 rounded-[32px] overflow-hidden bg-white dark:bg-black/20 shadow-sm mb-4">
                     <CirculationHeader />
                     <div className="flex flex-col divide-y divide-gray-100 dark:divide-white/5">
@@ -633,25 +671,27 @@ export const CercarView: React.FC = () => {
         )}
       </div>
 
-      {editingCirc && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-fgc-grey/60 backdrop-blur-md animate-in fade-in duration-300">
-          <div className="bg-white dark:bg-gray-900 w-full max-md rounded-[48px] shadow-2xl border border-white/20 overflow-hidden flex flex-col animate-in zoom-in-95 duration-300 max-w-md">
-            <div className="p-8 border-b border-gray-100 dark:border-white/5 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-fgc-green rounded-2xl text-fgc-grey shadow-lg"><Train size={24} /></div>
-                <div><h3 className="text-xl font-black text-fgc-grey dark:text-white uppercase tracking-tight">Gestió d'Unitat</h3><p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Circulació {editingCirc.circ.codi} • Cicle {editingCirc.cycleId}</p></div>
+      {
+        editingCirc && (
+          <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-fgc-grey/60 backdrop-blur-md animate-in fade-in duration-300">
+            <div className="bg-white dark:bg-gray-900 w-full max-md rounded-[48px] shadow-2xl border border-white/20 overflow-hidden flex flex-col animate-in zoom-in-95 duration-300 max-w-md">
+              <div className="p-8 border-b border-gray-100 dark:border-white/5 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-fgc-green rounded-2xl text-fgc-grey shadow-lg"><Train size={24} /></div>
+                  <div><h3 className="text-xl font-black text-fgc-grey dark:text-white uppercase tracking-tight">Gestió d'Unitat</h3><p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Circulació {editingCirc.circ.codi} • Cicle {editingCirc.cycleId}</p></div>
+                </div>
+                <button onClick={() => setEditingCirc(null)} className="p-2 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-500 rounded-full transition-colors"><X size={24} /></button>
               </div>
-              <button onClick={() => setEditingCirc(null)} className="p-2 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-500 rounded-full transition-colors"><X size={24} /></button>
-            </div>
-            <div className="p-8 space-y-8">
-              <div className="space-y-2"><label className="block text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Assignar Unitat de Tren</label><div className="relative"><Hash className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={18} /><input type="text" value={editUnitNumber} onChange={(e) => setEditUnitNumber(e.target.value)} placeholder="Ex: 112.01, 113.12..." className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-2xl py-4 pl-12 pr-4 focus:ring-4 focus:ring-fgc-green/20 outline-none font-black text-lg transition-all dark:text-white" /></div></div>
-              <div className="space-y-4"><label className="block text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Estat de la Flota</label><div className="grid grid-cols-2 gap-3">{[{ id: 'is_broken', label: 'AVARIAT', icon: <AlertTriangle size={16} />, color: 'red' }, { id: 'needs_images', label: 'IMATGES', icon: <Camera size={16} />, color: 'blue' }, { id: 'needs_records', label: 'REGISTRES', icon: <FileText size={16} />, color: 'yellow' }, { id: 'needs_cleaning', label: 'NETEJA', icon: <Brush size={16} />, color: 'orange' },].map((st) => (<button key={st.id} onClick={() => setTempStatus(prev => ({ ...prev, [st.id]: !prev[st.id as keyof typeof prev] }))} className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all font-black text-[11px] ${tempStatus[st.id as keyof typeof tempStatus] ? `bg-${st.color}-50 dark:bg-${st.color}-900/20 border-${st.color}-500 text-${st.color}-600 dark:text-${st.color}-400 shadow-sm` : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-white/5 text-gray-400 dark:text-gray-500 grayscale'}`}>{st.icon}{st.label}{tempStatus[st.id as keyof typeof tempStatus] && <Check size={14} />}</button>))}</div></div>
-              <button onClick={saveUnitChanges} disabled={isSavingUnit} className="w-full bg-fgc-green text-fgc-grey py-5 rounded-2xl font-black text-lg flex items-center justify-center gap-3 shadow-xl shadow-fgc-green/20 hover:scale-[1.02] active:scale-95 disabled:opacity-50 transition-all">{isSavingUnit ? <Loader2 size={24} className="animate-spin" /> : <Save size={24} />}DESAR CANVIS</button>
+              <div className="p-8 space-y-8">
+                <div className="space-y-2"><label className="block text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Assignar Unitat de Tren</label><div className="relative"><Hash className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={18} /><input type="text" value={editUnitNumber} onChange={(e) => setEditUnitNumber(e.target.value)} placeholder="Ex: 112.01, 113.12..." className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-2xl py-4 pl-12 pr-4 focus:ring-4 focus:ring-fgc-green/20 outline-none font-black text-lg transition-all dark:text-white" /></div></div>
+                <div className="space-y-4"><label className="block text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Estat de la Flota</label><div className="grid grid-cols-2 gap-3">{[{ id: 'is_broken', label: 'AVARIAT', icon: <AlertTriangle size={16} />, color: 'red' }, { id: 'needs_images', label: 'IMATGES', icon: <Camera size={16} />, color: 'blue' }, { id: 'needs_records', label: 'REGISTRES', icon: <FileText size={16} />, color: 'yellow' }, { id: 'needs_cleaning', label: 'NETEJA', icon: <Brush size={16} />, color: 'orange' },].map((st) => (<button key={st.id} onClick={() => setTempStatus(prev => ({ ...prev, [st.id]: !prev[st.id as keyof typeof prev] }))} className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all font-black text-[11px] ${tempStatus[st.id as keyof typeof tempStatus] ? `bg-${st.color}-50 dark:bg-${st.color}-900/20 border-${st.color}-500 text-${st.color}-600 dark:text-${st.color}-400 shadow-sm` : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-white/5 text-gray-400 dark:text-gray-500 grayscale'}`}>{st.icon}{st.label}{tempStatus[st.id as keyof typeof tempStatus] && <Check size={14} />}</button>))}</div></div>
+                <button onClick={saveUnitChanges} disabled={isSavingUnit} className="w-full bg-fgc-green text-fgc-grey py-5 rounded-2xl font-black text-lg flex items-center justify-center gap-3 shadow-xl shadow-fgc-green/20 hover:scale-[1.02] active:scale-95 disabled:opacity-50 transition-all">{isSavingUnit ? <Loader2 size={24} className="animate-spin" /> : <Save size={24} />}DESAR CANVIS</button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 };
 

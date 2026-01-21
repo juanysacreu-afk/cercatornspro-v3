@@ -35,7 +35,7 @@ export async function fetchFullTurns(turnIds: string[], selectedServei?: string)
     });
 
     // 3. Fetch details, daily assignments, and helper shifts for Viatger mapping in parallel
-    const queries: Promise<any>[] = [
+    const queries: any[] = [
         supabase.from('circulations').select('*').in('id', Array.from(allCircIds)),
         supabase.from('daily_assignments').select('*').in('torn', shortIds)
     ];

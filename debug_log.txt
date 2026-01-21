@@ -1,0 +1,122 @@
+--- Start Parsing Detected ---
+Flush triggered by day 6. CodesBuf: 117,202
+Flushing. Days: 1, Codes: 2. StartDay:5. Split:1
+Header 20 2 6 detected. Resetting.
+Found 1. Resume parsing.
+Flush triggered by day 5. CodesBuf: 504,100,400,500,500
+Flushing. Days: 5, Codes: 5. StartDay:1. Split:4
+Flush triggered by day 12. CodesBuf: 100,500,000,000,100,400,500,000,000,000,000,100,400,500
+Flushing. Days: 14, Codes: 14. StartDay:5. Split:14
+Flush triggered by day 19. CodesBuf: 000,000,000,000,100,400,500,000,000,000,000,100,400,500
+Flushing. Days: 14, Codes: 14. StartDay:12. Split:14
+Flush triggered by day 26. CodesBuf: 000,000,000,000,100,400,500,000,000,000,000,100,400,500
+Flushing. Days: 14, Codes: 14. StartDay:19. Split:14
+Month detected: GENER
+Month detected: FEBRER
+Flush triggered by day 1. CodesBuf: 000,000,000,000,100,400,000,000,000,000,100,400
+Flushing. Days: 12, Codes: 12. StartDay:26. Split:12
+Flush triggered by day 2. CodesBuf: 500,000,100,400,400,400
+Flushing. Days: 6, Codes: 6. StartDay:1. Split:6
+Flush triggered by day 9. CodesBuf: 000,000,000,000,100,400,500,500,000,000,000,100,400,500
+Flushing. Days: 14, Codes: 14. StartDay:2. Split:14
+Flush triggered by day 16. CodesBuf: 000,000,000,000,100,400,500,000,000,000,000,100,400,500
+Flushing. Days: 14, Codes: 14. StartDay:9. Split:14
+Flush triggered by day 23. CodesBuf: 000,000,000,000,100,400,500,000,000,000,000,100,400,500
+Flushing. Days: 14, Codes: 14. StartDay:16. Split:14
+Flush triggered by day 30. CodesBuf: 000,000,000,000,100,400,500,000,000,000,100
+Flushing. Days: 11, Codes: 11. StartDay:23. Split:11
+Month detected: MARÇ
+Month detected: ABRIL
+Flush triggered by day 1. CodesBuf: 000,000
+Flushing. Days: 2, Codes: 2. StartDay:30. Split:2
+Flush triggered by day 4. CodesBuf: 400,400,500,000,000,000,000,100,400,500
+Flushing. Days: 10, Codes: 10. StartDay:1. Split:3
+Flush triggered by day 11. CodesBuf: 000,000,000,000,100,400,500,000,000,000,000,100,400,500
+Flushing. Days: 14, Codes: 14. StartDay:4. Split:14
+Flush triggered by day 18. CodesBuf: 000,000,000,000,100,400,500,000,000,000,000,100,400,500
+Flushing. Days: 14, Codes: 14. StartDay:11. Split:14
+Flush triggered by day 25. CodesBuf: 000,000,000,000,100,400,400,000,100,500,000,100,400,500
+Flushing. Days: 14, Codes: 14. StartDay:18. Split:14
+Month detected: MAIG
+Month detected: JUNY
+Flushing. Days: 9, Codes: 9. StartDay:25. Split:9
+--- Page Break Flush ---
+--- Stop Parsing Detected ---
+{
+  "2026-01-05": "000",
+  "2026-01-01": "000",
+  "2026-01-02": "000",
+  "2026-01-03": "000",
+  "2026-01-04": "000",
+  "2026-02-01": "500",
+  "2026-01-06": "500",
+  "2026-01-07": "000",
+  "2026-01-08": "000",
+  "2026-01-09": "000",
+  "2026-01-10": "000",
+  "2026-01-11": "000",
+  "2026-01-12": "000",
+  "2026-01-13": "000",
+  "2026-01-14": "000",
+  "2026-01-15": "000",
+  "2026-01-16": "000",
+  "2026-01-17": "000",
+  "2026-01-18": "000",
+  "2026-01-19": "000",
+  "2026-01-20": "000",
+  "2026-01-21": "000",
+  "2026-01-22": "000",
+  "2026-01-23": "000",
+  "2026-01-24": "000",
+  "2026-01-25": "000",
+  "2026-01-26": "000",
+  "2026-01-27": "000",
+  "2026-01-28": "000",
+  "2026-01-29": "000",
+  "2026-01-30": "100",
+  "2026-01-31": "400",
+  "2026-03-30": "000",
+  "2026-03-31": "000",
+  "2026-03-01": "400",
+  "2026-03-02": "400",
+  "2026-03-03": "500",
+  "2026-04-01": "000",
+  "2026-04-02": "000",
+  "2026-04-03": "000",
+  "2026-04-04": "000",
+  "2026-04-05": "100",
+  "2026-04-06": "400",
+  "2026-04-07": "500",
+  "2026-03-04": "000",
+  "2026-03-05": "000",
+  "2026-03-06": "000",
+  "2026-03-07": "000",
+  "2026-03-08": "000",
+  "2026-03-09": "000",
+  "2026-03-10": "000",
+  "2026-03-11": "000",
+  "2026-03-12": "000",
+  "2026-03-13": "000",
+  "2026-03-14": "000",
+  "2026-03-15": "000",
+  "2026-03-16": "000",
+  "2026-03-17": "000",
+  "2026-03-18": "000",
+  "2026-03-19": "000",
+  "2026-03-20": "000",
+  "2026-03-21": "000",
+  "2026-03-22": "000",
+  "2026-03-23": "100",
+  "2026-03-24": "500",
+  "2026-03-25": "000",
+  "2026-03-26": "100",
+  "2026-03-27": "400",
+  "2026-03-28": "500",
+  "2026-05-25": "200",
+  "2026-05-26": "000",
+  "2026-05-27": "000",
+  "2026-05-28": "000",
+  "2026-05-29": "000",
+  "2026-05-30": "000",
+  "2026-05-31": "500"
+}
