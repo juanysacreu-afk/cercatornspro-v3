@@ -42,6 +42,8 @@ interface LivePersonnel {
   x: number;
   y: number;
   visualOffset?: number;
+  nextStationId?: string; // New field for segment tracking
+  isMoving?: boolean;     // New field
 }
 
 interface IncidenciaViewProps {
@@ -432,6 +434,8 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
             if (stopsWithTimes.length < 1) return;
 
             let x = 0, y = 0, currentStationId = stopsWithTimes[0].nom;
+            let nextStationId: string | undefined = undefined;
+            let isMoving = false;
 
             if (stopsWithTimes.length === 1) {
               const p = stationCoords[currentStationId] || stationCoords['PC'];
@@ -451,17 +455,28 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
               }
               expandedStops.push(stopsWithTimes[stopsWithTimes.length - 1]);
 
-              for (let i = 0; i < expandedStops.length - 1; i++) {
+                for (let i = 0; i < expandedStops.length - 1; i++) {
                 const s1 = expandedStops[i];
                 const s2 = expandedStops[i + 1];
                 if (displayMin >= s1.min && displayMin <= s2.min) {
                   currentStationId = s1.nom;
+                  nextStationId = s2.nom; // We are between s1 and s2
                   const p1 = stationCoords[s1.nom] || stationCoords['PC'];
                   const p2 = stationCoords[s2.nom] || stationCoords['PC'];
-                  if (s1.min === s2.min) { x = p1.x; y = p1.y; } else {
+                  if (s1.min === s2.min) { 
+                    x = p1.x; y = p1.y; 
+                    isMoving = false;
+                  } else {
                     const progress = (displayMin - s1.min) / (s2.min - s1.min);
                     x = p1.x + (p2.x - p1.x) * progress;
                     y = p1.y + (p2.y - p1.y) * progress;
+                    // If progress is significant, we are moving
+                    isMoving = progress > 0.01 && progress < 0.99;
+                    if (progress >= 0.99) {
+                         currentStationId = s2.nom;
+                         isMoving = false;
+                         nextStationId = undefined; // Arrived
+                    }
                   }
                   break;
                 }
@@ -514,7 +529,10 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
               via_inici: (circ as any).via_inici as string | undefined,
               via_final: (circ as any).via_final as string | undefined,
               horaPas: formatFgcTime(displayMin),
-              x, y
+              horaPas: formatFgcTime(displayMin),
+              x, y,
+              nextStationId,
+              isMoving
             });
             processedKeys.add(codi);
           }
@@ -817,12 +835,29 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
     return { BCN: getReachable('PC'), S1: getReachable('NA'), S2: getReachable('PN'), L6: getReachable('RE'), L7: getReachable('TB') };
   };
 
+  /* 
+    Logic for identifying affected trains:
+    1. Single Station: Train is exactly at the station.
+    2. Station Range (2 stations selected): Train is at any station in the shortest path between them (inclusive).
+    3. Segment: Train is MOVING in the segment defined by the cut.
+  */
   const dividedPersonnel = useMemo(() => {
     if (selectedCutStations.size === 0 && selectedCutSegments.size === 0) return null;
+    
+    // Calculate Affected Stations Set based on Range logic
+    let effectiveCutStations = new Set(selectedCutStations);
+    if (selectedCutStations.size === 2) {
+      const [s1, s2] = Array.from(selectedCutStations);
+      const path = getFullPath(s1, s2);
+      if (path.length > 0) {
+        path.forEach(s => effectiveCutStations.add(s));
+      }
+    }
+
     const islands = getConnectivityIslands();
     const vallesUnified = islands.S1.has('PN') || islands.S2.has('NA');
     const result: Record<string, { list: LivePersonnel[], stations: Set<string>, isUnified: boolean, label: string }> = {
-      AFFECTED: { list: [], stations: selectedCutStations, isUnified: false, label: 'Zona de Tall / Atrapats' },
+      AFFECTED: { list: [], stations: effectiveCutStations, isUnified: false, label: 'Zona de Tall / Atrapats' },
       BCN: { list: [], stations: islands.BCN, isUnified: false, label: 'Illa Barcelona' },
       S1: { list: [], stations: islands.S1, isUnified: false, label: 'Illa S1 (Terrassa)' },
       S2: { list: [], stations: islands.S2, isUnified: false, label: 'Illa S2 (Sabadell)' },
@@ -831,9 +866,42 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
       L7: { list: [], stations: islands.L7, isUnified: false, label: 'Illa L7' },
       ISOLATED: { list: [], stations: new Set(), isUnified: false, label: 'Zones Aïllades' }
     };
+
     liveData.forEach(p => {
       const st = p.stationId.toUpperCase();
-      if (selectedCutStations.has(st)) result.AFFECTED.list.push(p);
+      let isAffected = false;
+
+      // 1. Check Stations (Effective Range)
+      if (effectiveCutStations.has(st) && !p.isMoving) {
+        isAffected = true;
+      }
+
+      // 2. Check Segments (Moving Trains)
+      if (!isAffected && p.isMoving && p.nextStationId) {
+        // Construct segment ID potentially blocked
+        // ID format: FROM-TO-VX
+        // We check both V1 and V2 for simplicity of "Cut Zone", or match specifically?
+        // User request: "appear if I select a section between stations and there are trains in that concrete section"
+        
+        // We check if the segment we are on is cut.
+        // Since we don't track V1/V2 perfectly in liveData without deep logic, we check if ANY track is cut?
+        // Or we rely on the Segment ID check.
+        const segIdV1 = `${st}-${p.nextStationId}-V1`;
+        const segIdV2 = `${st}-${p.nextStationId}-V2`;
+        const segIdV1Rev = `${p.nextStationId}-${st}-V1`;
+        const segIdV2Rev = `${p.nextStationId}-${st}-V2`;
+
+        if (selectedCutSegments.has(segIdV1) || selectedCutSegments.has(segIdV2) || selectedCutSegments.has(segIdV1Rev) || selectedCutSegments.has(segIdV2Rev)) {
+           isAffected = true;
+        }
+      }
+      
+      // Also catch trains that are STATIONED but the user selected 2 stations including this one (covered by effectiveCutStations)
+      if (!isAffected && effectiveCutStations.has(st)) {
+          isAffected = true;
+      }
+
+      if (isAffected) result.AFFECTED.list.push(p);
       else if (islands.BCN.has(st)) result.BCN.list.push(p);
       else if (vallesUnified && (islands.S1.has(st) || islands.S2.has(st))) result.VALLES.list.push(p);
       else if (islands.S1.has(st)) result.S1.list.push(p);
@@ -1907,7 +1975,28 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
             })}
             {!isGeoTrenEnabled && trains.map((p, idx) => {
               const offset = (p as any).visualOffset || 0;
-              const isAffected = selectedCutStations.has(p.stationId.toUpperCase());
+              // Determine affected status using the same logic as dividedPersonnel
+              let isAffected = false;
+              let effectiveCutStations = new Set(selectedCutStations);
+              if (selectedCutStations.size === 2) {
+                const [s1, s2] = Array.from(selectedCutStations);
+                const path = getFullPath(s1, s2);
+                path.forEach(s => effectiveCutStations.add(s));
+              }
+
+              if (effectiveCutStations.has(p.stationId.toUpperCase())) isAffected = true;
+              
+              if ((p as any).isMoving && (p as any).nextStationId) {
+                 const st = p.stationId.toUpperCase();
+                 const next = (p as any).nextStationId.toUpperCase();
+                 const segIdV1 = `${st}-${next}-V1`;
+                 const segIdV2 = `${st}-${next}-V2`;
+                 const segIdV1Rev = `${next}-${st}-V1`;
+                 const segIdV2Rev = `${next}-${st}-V2`;
+                 if (selectedCutSegments.has(segIdV1) || selectedCutSegments.has(segIdV2) || selectedCutSegments.has(segIdV1Rev) || selectedCutSegments.has(segIdV2Rev)) {
+                   isAffected = true;
+                 }
+              }
 
               // Determine track offset based on direction (parity of id)
               const numId = parseInt(p.id.replace(/\D/g, ''));
