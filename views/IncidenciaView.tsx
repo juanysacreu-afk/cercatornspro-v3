@@ -455,7 +455,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
               }
               expandedStops.push(stopsWithTimes[stopsWithTimes.length - 1]);
 
-                for (let i = 0; i < expandedStops.length - 1; i++) {
+              for (let i = 0; i < expandedStops.length - 1; i++) {
                 const s1 = expandedStops[i];
                 const s2 = expandedStops[i + 1];
                 if (displayMin >= s1.min && displayMin <= s2.min) {
@@ -463,8 +463,8 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                   nextStationId = s2.nom; // We are between s1 and s2
                   const p1 = stationCoords[s1.nom] || stationCoords['PC'];
                   const p2 = stationCoords[s2.nom] || stationCoords['PC'];
-                  if (s1.min === s2.min) { 
-                    x = p1.x; y = p1.y; 
+                  if (s1.min === s2.min) {
+                    x = p1.x; y = p1.y;
                     isMoving = false;
                   } else {
                     const progress = (displayMin - s1.min) / (s2.min - s1.min);
@@ -473,9 +473,9 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                     // If progress is significant, we are moving
                     isMoving = progress > 0.01 && progress < 0.99;
                     if (progress >= 0.99) {
-                         currentStationId = s2.nom;
-                         isMoving = false;
-                         nextStationId = undefined; // Arrived
+                      currentStationId = s2.nom;
+                      isMoving = false;
+                      nextStationId = undefined; // Arrived
                     }
                   }
                   break;
@@ -528,7 +528,6 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
               final: (circ as any).final as string | undefined,
               via_inici: (circ as any).via_inici as string | undefined,
               via_final: (circ as any).via_final as string | undefined,
-              horaPas: formatFgcTime(displayMin),
               horaPas: formatFgcTime(displayMin),
               x, y,
               nextStationId,
@@ -843,7 +842,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
   */
   const dividedPersonnel = useMemo(() => {
     if (selectedCutStations.size === 0 && selectedCutSegments.size === 0) return null;
-    
+
     // Calculate Affected Stations Set based on Range logic
     let effectiveCutStations = new Set(selectedCutStations);
     if (selectedCutStations.size === 2) {
@@ -882,7 +881,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
         // ID format: FROM-TO-VX
         // We check both V1 and V2 for simplicity of "Cut Zone", or match specifically?
         // User request: "appear if I select a section between stations and there are trains in that concrete section"
-        
+
         // We check if the segment we are on is cut.
         // Since we don't track V1/V2 perfectly in liveData without deep logic, we check if ANY track is cut?
         // Or we rely on the Segment ID check.
@@ -892,13 +891,13 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
         const segIdV2Rev = `${p.nextStationId}-${st}-V2`;
 
         if (selectedCutSegments.has(segIdV1) || selectedCutSegments.has(segIdV2) || selectedCutSegments.has(segIdV1Rev) || selectedCutSegments.has(segIdV2Rev)) {
-           isAffected = true;
+          isAffected = true;
         }
       }
-      
+
       // Also catch trains that are STATIONED but the user selected 2 stations including this one (covered by effectiveCutStations)
       if (!isAffected && effectiveCutStations.has(st)) {
-          isAffected = true;
+        isAffected = true;
       }
 
       if (isAffected) result.AFFECTED.list.push(p);
@@ -1985,17 +1984,17 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
               }
 
               if (effectiveCutStations.has(p.stationId.toUpperCase())) isAffected = true;
-              
+
               if ((p as any).isMoving && (p as any).nextStationId) {
-                 const st = p.stationId.toUpperCase();
-                 const next = (p as any).nextStationId.toUpperCase();
-                 const segIdV1 = `${st}-${next}-V1`;
-                 const segIdV2 = `${st}-${next}-V2`;
-                 const segIdV1Rev = `${next}-${st}-V1`;
-                 const segIdV2Rev = `${next}-${st}-V2`;
-                 if (selectedCutSegments.has(segIdV1) || selectedCutSegments.has(segIdV2) || selectedCutSegments.has(segIdV1Rev) || selectedCutSegments.has(segIdV2Rev)) {
-                   isAffected = true;
-                 }
+                const st = p.stationId.toUpperCase();
+                const next = (p as any).nextStationId.toUpperCase();
+                const segIdV1 = `${st}-${next}-V1`;
+                const segIdV2 = `${st}-${next}-V2`;
+                const segIdV1Rev = `${next}-${st}-V1`;
+                const segIdV2Rev = `${next}-${st}-V2`;
+                if (selectedCutSegments.has(segIdV1) || selectedCutSegments.has(segIdV2) || selectedCutSegments.has(segIdV1Rev) || selectedCutSegments.has(segIdV2Rev)) {
+                  isAffected = true;
+                }
               }
 
               // Determine track offset based on direction (parity of id)
