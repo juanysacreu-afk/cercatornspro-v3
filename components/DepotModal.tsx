@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { X, Loader2 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
-export type DepotVariant = 'generic' | 'can_roca' | 'reina_elisenda' | 'ca_n_oriach' | 'rubi';
+export type DepotVariant = 'generic' | 'can_roca' | 'reina_elisenda' | 'reina_elisenda_station' | 'ca_n_oriach' | 'rubi';
 
 interface DepotModalProps {
     isOpen: boolean;
@@ -142,11 +142,78 @@ const DepotModal: React.FC<DepotModalProps> = ({
             );
         }
 
-        if (variant === 'reina_elisenda') {
-            // "Dos vias que son la continuacion de las dos vias de RE"
-            // Simple 2 straight tracks.
-            return renderStraightTracks([1, 2], 60, 80);
+        if (variant === 'reina_elisenda_station') {
+            const y2 = 80; // Top track (Via 2)
+            const y1 = 180; // Bottom track (Via 1)
+            const xStart = 60;
+            const xS2 = 220; // \
+            const xPStart = 320, xPEnd = 600;
+            const xS3 = 680; // /
+            const xEnd = 890;
+
+            return (
+                <g>
+                    {/* Main Tracks */}
+                    <line x1={xStart} y1={y2} x2={xEnd} y2={y2} stroke="#333" strokeWidth="6" strokeLinecap="round" />
+                    <line x1={xStart} y1={y1} x2={xEnd} y2={y1} stroke="#333" strokeWidth="6" strokeLinecap="round" />
+
+                    {/* Platforms */}
+                    {/* Top Platform (Superior) */}
+                    <rect x={xPStart} y={y2 - 35} width={xPEnd - xPStart} height={20} fill="#2a2a2a" rx="4" />
+                    <text x={xPStart + (xPEnd - xPStart) / 2} y={y2 - 45} textAnchor="middle" fill="#555" fontSize="8" fontWeight="black" className="uppercase tracking-widest">Andana Superior</text>
+
+                    {/* Bottom Platform (Inferior) */}
+                    <rect x={xPStart} y={y1 + 15} width={xPEnd - xPStart} height={20} fill="#2a2a2a" rx="4" />
+                    <text x={xPStart + (xPEnd - xPStart) / 2} y={y1 + 50} textAnchor="middle" fill="#555" fontSize="8" fontWeight="black" className="uppercase tracking-widest">Andana Inferior</text>
+
+                    {/* Switch 2: \ (Before platforms) connects V2 to V1 */}
+                    <path d={`M ${xS2 - 20} ${y2} L ${xS2 + 20} ${y1}`} stroke="#444" strokeWidth="4" strokeLinecap="round" />
+
+                    {/* Switch 3: / (After platforms - Depot Entry) connects V1 to V2 */}
+                    <path d={`M ${xS3 - 20} ${y1} L ${xS3 + 20} ${y2}`} stroke="#444" strokeWidth="4" strokeLinecap="round" />
+
+
+                    {/* Labels */}
+                    {[1, 2].map(t => {
+                        const y = t === 1 ? y1 : y2;
+                        return (
+                            <g key={t}>
+                                <text x={xStart - 10} y={y + 5} fill="#666" fontSize="12" fontWeight="black" textAnchor="end">Via {t}</text>
+                            </g>
+                        );
+                    })}
+                </g>
+            );
         }
+
+        if (variant === 'reina_elisenda') {
+            // Simple Depot View: 2 straight tracks with buffers at the right
+            const y2 = 100, y1 = 180;
+            const xStart = 60, xEnd = 800;
+            return (
+                <g>
+                    {[1, 2].map(t => {
+                        const y = t === 1 ? y1 : y2;
+                        return (
+                            <g key={t}>
+                                <text x={xStart - 20} y={y + 5} fill="#666" fontSize="12" fontWeight="black" textAnchor="end">Via {t}</text>
+                                <line x1={xStart} y1={y} x2={xEnd} y2={y} stroke="#333" strokeWidth="6" strokeLinecap="round" />
+                                {/* Buffer (Tope) - Vertical red line as requested */}
+                                <line x1={xEnd + 5} y1={y - 12} x2={xEnd + 5} y2={y + 12} stroke="#ef4444" strokeWidth="4" strokeLinecap="round" />
+
+                                {unitsOnTrack(t).map((u, idx) => (
+                                    <g key={u.unit_number} transform={`translate(${xStart + 100 + idx * 100}, ${y})`} className="cursor-pointer hover:scale-110 transition-transform">
+                                        <rect x="-40" y="-14" width="80" height="28" rx="6" fill="#3b82f6" stroke="white" strokeWidth="2" className="shadow-lg" />
+                                        <text x="0" y="5" textAnchor="middle" fill="white" fontSize="11" fontWeight="black">{u.unit_number}</text>
+                                    </g>
+                                ))}
+                            </g>
+                        );
+                    })}
+                </g>
+            );
+        }
+
 
         if (variant === 'ca_n_oriach') {
             // "3 vias"
@@ -165,6 +232,7 @@ const DepotModal: React.FC<DepotModalProps> = ({
     const getHeight = () => {
         if (variant === 'can_roca') return 400;
         if (variant === 'reina_elisenda') return 250;
+        if (variant === 'reina_elisenda_station') return 280;
         if (variant === 'ca_n_oriach') return 350;
         if (variant === 'rubi') return 400;
         return 60 + tracks.length * 60;
@@ -186,7 +254,13 @@ const DepotModal: React.FC<DepotModalProps> = ({
 
                 <div className="flex-1 overflow-y-auto p-8 relative scrollbar-hide">
                     <div className="bg-[#121212] rounded-2xl border border-white/5 p-8 relative overflow-hidden min-h-[300px] flex items-center justify-center">
-                        <svg width="100%" height={getHeight()} className="w-full select-none">
+                        <svg
+                            width="100%"
+                            height={getHeight()}
+                            viewBox={`0 0 950 ${getHeight()}`}
+                            className="w-full select-none"
+                            preserveAspectRatio="xMidYMid meet"
+                        >
                             {renderSVGContent()}
                         </svg>
                     </div>

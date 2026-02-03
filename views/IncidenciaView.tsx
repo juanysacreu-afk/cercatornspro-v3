@@ -213,6 +213,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
   const [isSRDiagramOpen, setIsSRDiagramOpen] = useState(false);
 
   // New Depot Diagrams
+  const [isREStationDiagramOpen, setIsREStationDiagramOpen] = useState(false);
   const [isREDiagramOpen, setIsREDiagramOpen] = useState(false);
   const [isRBDiagramOpen, setIsRBDiagramOpen] = useState(false);
   const [isNADiagramOpen, setIsNADiagramOpen] = useState(false);
@@ -1740,10 +1741,10 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
           <div className="flex flex-wrap items-center gap-3 bg-gray-50 dark:bg-black/20 p-2 rounded-[24px] border border-gray-100 dark:border-white/5">
             <button onClick={() => setIsGeoTrenEnabled(!isGeoTrenEnabled)} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${isGeoTrenEnabled ? 'bg-blue-500 text-white shadow-md' : 'text-gray-400 hover:text-fgc-grey'}`} title="Activar posicionament real GPS (GeoTren)"><Activity size={14} className={isGeoTrenEnabled ? 'animate-pulse' : ''} /> GeoTren</button>
             <div className="w-px h-6 bg-gray-200 dark:bg-white/10 mx-1 hidden sm:block"></div>
-            <button onClick={() => setIsRealTime(true)} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${isRealTime ? 'bg-fgc-grey dark:bg-fgc-green text-white dark:text-fgc-grey shadow-md' : 'text-gray-400 hover:text-fgc-grey'}`}>Live</button>
+            <button onClick={() => { setIsRealTime(true); setIsPaused(false); setIsGeoTrenEnabled(false); }} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${isRealTime && !isGeoTrenEnabled ? 'bg-fgc-grey dark:bg-fgc-green text-white dark:text-fgc-grey shadow-md' : 'text-gray-400 hover:text-fgc-grey'}`}>Live</button>
             <button onClick={() => setIsPaused(!isPaused)} className={`p-2 rounded-xl text-xs font-black transition-all ${isPaused ? 'bg-orange-500 text-white shadow-md' : 'bg-white dark:bg-white/5 text-gray-400 hover:text-fgc-grey'}`}>{isPaused ? <FastForward size={14} fill="currentColor" /> : <span className="flex gap-1"><div className="w-1 h-3 bg-current rounded-full" /><div className="w-1 h-3 bg-current rounded-full" /></span>}</button>
             <input type="time" value={customTime} onChange={(e) => { setCustomTime(e.target.value); setIsRealTime(false); }} className="bg-white dark:bg-gray-800 border-none rounded-lg px-3 py-1.5 text-xs font-black text-fgc-grey dark:text-white focus:ring-2 focus:ring-fgc-green/30 outline-none" />
-            <button onClick={fetchLiveMapData} className="p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded-lg text-gray-400"><RefreshCw size={14} /></button>
+            <button onClick={() => { setIsRealTime(true); setIsPaused(false); }} className="p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded-lg text-gray-400" title="Tornar a l'hora actual"><RefreshCw size={14} /></button>
           </div>
         </div>
         {(selectedCutStations.size > 0 || selectedCutSegments.size > 0) && (<button onClick={clearAllCuts} className="text-[10px] font-black text-red-500 uppercase flex items-center gap-2 bg-red-50 dark:bg-red-950/30 px-4 py-2.5 rounded-xl hover:scale-105 transition-all shadow-sm border border-red-100 dark:border-red-900/40 animate-in fade-in zoom-in-95"><Trash2 size={14} /> Anul·lar Talls ({selectedCutStations.size + selectedCutSegments.size})</button>)}
@@ -1834,6 +1835,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                       if (st.id === 'BN') setIsBNDiagramOpen(true);
                       if (st.id === 'TB') setIsTBDiagramOpen(true);
                       if (st.id === 'SR') setIsSRDiagramOpen(true);
+                      if (st.id === 'RE') setIsREStationDiagramOpen(true);
 
                       // New handlers for Depots - ONLY actual Depot Nodes
                       if (st.id === 'DRE') setIsREDiagramOpen(true);
@@ -1842,7 +1844,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                       if (st.id === 'DPN') setIsPNDiagramOpen(true);
 
                     }}
-                    className={`transition-all duration-300 ${['PC', 'PR', 'GR', 'PM', 'BN', 'TB', 'SR', 'DRE', 'COR', 'DNA', 'DPN'].includes(st.id) ? 'cursor-pointer hover:stroke-blue-500' : ''}`}
+                    className={`transition-all duration-300 ${['PC', 'PR', 'GR', 'PM', 'BN', 'TB', 'SR', 'RE', 'DRE', 'COR', 'DNA', 'DPN'].includes(st.id) ? 'cursor-pointer hover:stroke-blue-500' : ''}`}
                   />
                   {count > 0 && !isCut && (
                     <g onClick={() => setSelectedRestLocation(selectedRestLocation === st.id ? null : st.id)} className="cursor-pointer transition-colors">
@@ -2988,11 +2990,25 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
         )
         }
 
-        {/* RE Diagram (Reina Elisenda) */}
+        {/* RE Station Diagram */}
+        <DepotModal
+          isOpen={isREStationDiagramOpen}
+          onClose={() => setIsREStationDiagramOpen(false)}
+          title="Estació Reina Elisenda"
+          depotId="RE_ST"
+          tracks={[1, 2]}
+          variant="reina_elisenda_station"
+          parkedUnits={[]} // No units selectable in station view usually
+          onParkedUnitsChange={async () => { }}
+          isSyncing={false}
+          setSyncing={() => { }}
+        />
+
+        {/* RE Diagram (Reina Elisenda - DIPÒSIT) */}
         <DepotModal
           isOpen={isREDiagramOpen}
           onClose={() => setIsREDiagramOpen(false)}
-          title="Estació i Dipòsit Reina Elisenda"
+          title="Dipòsit Reina Elisenda"
           depotId="RE"
           tracks={[1, 2]}
           variant="reina_elisenda"
@@ -3139,8 +3155,8 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
     <div className="space-y-6 animate-in fade-in duration-500">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div className="p-3 bg-red-500 rounded-2xl text-white shadow-lg shadow-red-500/20"><ShieldAlert size={28} /></div>
-          <div><h1 className="text-3xl font-black text-fgc-grey dark:text-white tracking-tight uppercase">Gestió d'Incidències</h1><p className="text-gray-500 dark:text-gray-400 font-medium">Cerca cobertures avançades i gestiona talls operatius.</p></div>
+          <div className="p-3 bg-red-500 rounded-2xl text-white shadow-lg shadow-red-500/20 shrink-0 aspect-square flex items-center justify-center"><ShieldAlert size={28} /></div>
+          <div><h1 className="text-2xl sm:text-3xl font-black text-fgc-grey dark:text-white tracking-tight">Gestió d'Incidències</h1><p className="text-gray-500 dark:text-gray-400 font-medium h-fit pb-1">Cerca cobertures avançades i gestiona talls operatius.</p></div>
         </div>
         {mode !== 'INIT' && (
           <div className="flex flex-col gap-2"><span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Filtre de Servei (Torn)</span><div className="inline-flex bg-white dark:bg-gray-900 p-1 rounded-2xl shadow-sm border border-gray-100 dark:border-white/5">{['Tots', ...serveiTypes].map(s => (<button key={s} onClick={() => setSelectedServei(s)} className={`px-3 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-black transition-all ${selectedServei === s ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5'}`}>{s === 'Tots' ? 'Tots' : `S-${s}`}</button>))}</div></div>

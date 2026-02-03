@@ -186,6 +186,15 @@ const CiclesView: React.FC<CiclesViewProps> = ({ parkedUnits, onParkedUnitsChang
     if (!error) await fetchAllData();
   };
 
+  const handleDeleteAll = async () => {
+    if (!window.confirm("Estàs segur que vols eliminar totes les assignacions?")) return;
+    setLoading(true);
+    const { error } = await supabase.from('assignments').delete().neq('cycle_id', 'PLACEHOLDER_FOR_ALL'); // Delete all rows
+    if (error) console.error("Error deleting all assignments:", error);
+    await fetchAllData();
+    setLoading(false);
+  };
+
   const handleAddParkedUnit = async (unit: string, depot: string, track: string) => {
     if (!unit) return;
     setDepotSyncing(true);
@@ -425,6 +434,11 @@ const CiclesView: React.FC<CiclesViewProps> = ({ parkedUnits, onParkedUnitsChang
                   <LinkIcon size={18} className="text-fgc-green" />
                   <h3 className="font-black text-fgc-grey dark:text-white uppercase tracking-tight">Assignacions Actives</h3>
                 </div>
+                {assignments.length > 0 && (
+                  <button onClick={handleDeleteAll} className="flex items-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors">
+                    <Trash2 size={14} /> Eliminar Tot
+                  </button>
+                )}
               </div>
               <div className="p-6 sm:p-8">
                 {loading ? <Loader2 className="animate-spin text-fgc-green mx-auto" size={40} /> : (
