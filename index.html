@@ -56,6 +56,16 @@
     .custom-scrollbar::-webkit-scrollbar-thumb { background: #E5E7EB; border-radius: 10px; }
     .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #D1D5DB; }
     .nav-blur { backdrop-filter: blur(12px); background: rgba(83, 86, 90, 0.95); }
+    
+    @keyframes marquee {
+      0% { transform: translateX(100%); }
+      100% { transform: translateX(-100%); }
+    }
+    .animate-marquee {
+      display: inline-block;
+      white-space: nowrap;
+      animation: marquee 10s linear infinite;
+    }
   </style>
 <script type="importmap">
 {
