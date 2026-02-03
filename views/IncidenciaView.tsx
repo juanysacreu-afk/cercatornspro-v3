@@ -1838,6 +1838,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
             maxScale={4}
             centerOnInit={false} // We want to control initial view manually or let it be 0,0
             limitToBounds={false}
+            doubleClick={{ disabled: true }}
           >
             {({ zoomIn, zoomOut, resetTransform }) => (
               <>
