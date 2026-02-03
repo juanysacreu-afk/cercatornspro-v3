@@ -1791,7 +1791,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
     );
   };
 
-  const InteractiveMap = () => {
+  const renderInteractiveMap = () => {
     const trains = liveData.filter(p => p.type === 'TRAIN');
     return (
       <div className="bg-white dark:bg-black/40 rounded-[40px] p-4 sm:p-6 border border-gray-100 dark:border-white/5 relative flex flex-col transition-colors shadow-sm">
@@ -3316,7 +3316,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
               </div>
             </div>
           )}
-          {mode === 'LINIA' && (<div className="w-full"><InteractiveMap /></div>)}
+          {mode === 'LINIA' && (<div className="w-full">{renderInteractiveMap()}</div>)}
           {mode === 'PER_TORN' && (<IncidenciaPerTorn selectedServei={selectedServei} showSecretMenu={showSecretMenu} />)}
           {mode === 'MAQUINISTA' && originalShift && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in slide-in-from-bottom-4 duration-500">
