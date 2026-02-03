@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, ShieldAlert, Loader2, UserCheck, Clock, MapPin, AlertCircle, Phone, Info, Users, Zap, User, Train, Map as MapIcon, X, Timer, Scissors, ArrowDownToLine, ArrowUpToLine, ArrowLeftToLine, ArrowRightToLine, Coffee, Layers, Trash2, Repeat, Rewind, FastForward, RotateCcw, RefreshCw, LayoutGrid, CheckCircle2, Activity, FilePlus, ArrowRight, Move, Plus, Minus, Bell, Construction, Warehouse } from 'lucide-react';
+import { Search, ShieldAlert, Loader2, UserCheck, Clock, MapPin, AlertCircle, Phone, Info, Users, Zap, User, Train, Map as MapIcon, X, Timer, Scissors, ArrowDownToLine, ArrowUpToLine, ArrowLeftToLine, ArrowRightToLine, Coffee, Layers, Trash2, Repeat, Rewind, FastForward, RotateCcw, RefreshCw, LayoutGrid, CheckCircle2, Activity, FilePlus, ArrowRight, Move, Plus, Minus, Bell, Construction, Warehouse, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
 import { fetchFullTurns } from '../utils/queries.ts';
 import IncidenciaPerTorn from '../components/IncidenciaPerTorn.tsx';
 import DepotModal from '../components/DepotModal.tsx';
+import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 
 const RESERVAS_CONFIG = [
   { id: 'QRS1', loc: 'SR', start: '06:00', end: '14:00' },
@@ -1794,7 +1795,8 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
     const trains = liveData.filter(p => p.type === 'TRAIN');
     return (
       <div className="bg-white dark:bg-black/40 rounded-[40px] p-4 sm:p-6 border border-gray-100 dark:border-white/5 relative flex flex-col transition-colors shadow-sm">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-6">
+        {/* Zoom Controls */}
+        <div className="flex flex-col sm:flex-row md:items-center justify-between gap-6 mb-6">
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-3">
               <h3 className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest leading-none">Esquema Interactiu BV</h3>
@@ -1805,442 +1807,483 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
             </div>
             <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 flex items-center gap-1"><Clock size={10} /> Estat malla: <span className="text-fgc-grey dark:text-white font-black">{customTime || '--:--'}</span></p>
           </div>
-          <div className="flex flex-wrap items-center gap-3 bg-gray-50 dark:bg-black/20 p-2 rounded-[24px] border border-gray-100 dark:border-white/5">
-            <button onClick={() => setIsGeoTrenEnabled(!isGeoTrenEnabled)} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${isGeoTrenEnabled ? 'bg-blue-500 text-white shadow-md' : 'text-gray-400 hover:text-fgc-grey'}`} title="Activar posicionament real GPS (GeoTren)"><Activity size={14} className={isGeoTrenEnabled ? 'animate-pulse' : ''} /> GeoTren</button>
-            <div className="w-px h-6 bg-gray-200 dark:bg-white/10 mx-1 hidden sm:block"></div>
-            <button onClick={() => { setIsRealTime(true); setIsPaused(false); setIsGeoTrenEnabled(false); }} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${isRealTime && !isGeoTrenEnabled ? 'bg-fgc-grey dark:bg-fgc-green text-white dark:text-fgc-grey shadow-md' : 'text-gray-400 hover:text-fgc-grey'}`}>Live</button>
-            <button onClick={() => setIsPaused(!isPaused)} className={`p-2 rounded-xl text-xs font-black transition-all ${isPaused ? 'bg-orange-500 text-white shadow-md' : 'bg-white dark:bg-white/5 text-gray-400 hover:text-fgc-grey'}`}>{isPaused ? <FastForward size={14} fill="currentColor" /> : <span className="flex gap-1"><div className="w-1 h-3 bg-current rounded-full" /><div className="w-1 h-3 bg-current rounded-full" /></span>}</button>
-            <input type="time" value={customTime} onChange={(e) => { setCustomTime(e.target.value); setIsRealTime(false); }} className="bg-white dark:bg-gray-800 border-none rounded-lg px-3 py-1.5 text-xs font-black text-fgc-grey dark:text-white focus:ring-2 focus:ring-fgc-green/30 outline-none" />
-            <button onClick={() => { setIsRealTime(true); setIsPaused(false); }} className="p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded-lg text-gray-400" title="Tornar a l'hora actual"><RefreshCw size={14} /></button>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="bg-gray-50 dark:bg-black/20 p-2 rounded-[24px] border border-gray-100 dark:border-white/5 flex items-center gap-3">
+              {/* Zoom Buttons will be injected here by the TransformWrapper render prop context if possible, 
+                        or we control them via refs? 
+                        react-zoom-pan-pinch provides a hook or standard props. 
+                        Better to wrap the whole component or put content inside TransformWrapper.
+                        Actually, let's put the wrapper around the SVG container and use the render props for controls location. 
+                    */}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 bg-gray-50 dark:bg-black/20 p-2 rounded-[24px] border border-gray-100 dark:border-white/5">
+              <button onClick={() => setIsGeoTrenEnabled(!isGeoTrenEnabled)} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${isGeoTrenEnabled ? 'bg-blue-500 text-white shadow-md' : 'text-gray-400 hover:text-fgc-grey'}`} title="Activar posicionament real GPS (GeoTren)"><Activity size={14} className={isGeoTrenEnabled ? 'animate-pulse' : ''} /> GeoTren</button>
+              <div className="w-px h-6 bg-gray-200 dark:bg-white/10 mx-1 hidden sm:block"></div>
+              <button onClick={() => { setIsRealTime(true); setIsPaused(false); setIsGeoTrenEnabled(false); }} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${isRealTime && !isGeoTrenEnabled ? 'bg-fgc-grey dark:bg-fgc-green text-white dark:text-fgc-grey shadow-md' : 'text-gray-400 hover:text-fgc-grey'}`}>Live</button>
+              <button onClick={() => setIsPaused(!isPaused)} className={`p-2 rounded-xl text-xs font-black transition-all ${isPaused ? 'bg-orange-500 text-white shadow-md' : 'bg-white dark:bg-white/5 text-gray-400 hover:text-fgc-grey'}`}>{isPaused ? <FastForward size={14} fill="currentColor" /> : <span className="flex gap-1"><div className="w-1 h-3 bg-current rounded-full" /><div className="w-1 h-3 bg-current rounded-full" /></span>}</button>
+              <input type="time" value={customTime} onChange={(e) => { setCustomTime(e.target.value); setIsRealTime(false); }} className="bg-white dark:bg-gray-800 border-none rounded-lg px-3 py-1.5 text-xs font-black text-fgc-grey dark:text-white focus:ring-2 focus:ring-fgc-green/30 outline-none" />
+              <button onClick={() => { setIsRealTime(true); setIsPaused(false); }} className="p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded-lg text-gray-400" title="Tornar a l'hora actual"><RefreshCw size={14} /></button>
+            </div>
           </div>
         </div>
-        {(selectedCutStations.size > 0 || selectedCutSegments.size > 0) && (<button onClick={clearAllCuts} className="text-[10px] font-black text-red-500 uppercase flex items-center gap-2 bg-red-50 dark:bg-red-950/30 px-4 py-2.5 rounded-xl hover:scale-105 transition-all shadow-sm border border-red-100 dark:border-red-900/40 animate-in fade-in zoom-in-95"><Trash2 size={14} /> Anul·lar Talls ({selectedCutStations.size + selectedCutSegments.size})</button>)}
-        <div className="overflow-x-auto custom-scrollbar -mx-4 px-4 py-8 select-none">
-          <svg viewBox="-40 -30 790 250" className="w-full min-w-[800px] h-auto overflow-visible">
-            {/* PC Terminal Tracks Layout (Angular Style) */}
-            <g className="opacity-40">
-              {/* V1 (Top) -> Merges to V2 Main */}
-              <line x1="-35" y1="84" x2="0" y2="84" stroke="#A4A7AB" strokeWidth="2" strokeLinecap="round" />
-              <path d="M 0 84 L 12 96" stroke="#A4A7AB" strokeWidth="2" fill="none" />
 
-              {/* V2 -> Merges to V2 Main */}
-              <line x1="-35" y1="92" x2="5" y2="92" stroke="#A4A7AB" strokeWidth="2" strokeLinecap="round" />
-              <path d="M 5 92 L 9 96" stroke="#A4A7AB" strokeWidth="2" fill="none" />
+        {(selectedCutStations.size > 0 || selectedCutSegments.size > 0) && (<button onClick={clearAllCuts} className="text-[10px] font-black text-red-500 uppercase flex items-center gap-2 bg-red-50 dark:bg-red-950/30 px-4 py-2.5 rounded-xl hover:scale-105 transition-all shadow-sm border border-red-100 dark:border-red-900/40 animate-in fade-in zoom-in-95 self-start mb-4"><Trash2 size={14} /> Anul·lar Talls ({selectedCutStations.size + selectedCutSegments.size})</button>)}
 
-              {/* V3 (Center) */}
-              <line x1="-35" y1="100" x2="20" y2="100" stroke="#A4A7AB" strokeWidth="2" strokeLinecap="round" />
+        <div className="w-full h-[500px] bg-gray-50/30 dark:bg-black/20 rounded-3xl overflow-hidden border border-black/5 dark:border-white/5 relative">
+          <TransformWrapper
+            initialScale={1}
+            minScale={0.5}
+            maxScale={4}
+            centerOnInit={false} // We want to control initial view manually or let it be 0,0
+            limitToBounds={false}
+          >
+            {({ zoomIn, zoomOut, resetTransform }) => (
+              <>
+                <div className="absolute top-4 right-4 z-10 flex flex-col gap-2 bg-white dark:bg-gray-900 p-2 rounded-2xl shadow-xl border border-gray-100 dark:border-white/10">
+                  <button onClick={() => zoomIn(0.25)} className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-xl text-fgc-grey dark:text-white transition-colors"><ZoomIn size={18} /></button>
+                  <button onClick={() => zoomOut(0.25)} className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-xl text-fgc-grey dark:text-white transition-colors"><ZoomOut size={18} /></button>
+                  <button onClick={() => resetTransform()} className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-xl text-fgc-grey dark:text-white transition-colors"><Maximize size={18} /></button>
+                </div>
+                <TransformComponent wrapperClass="!w-full !h-full" contentClass="!w-full !h-full">
+                  <div className="w-full h-full flex items-center justify-center min-w-[1000px]">
+                    {/* We set a min-w to ensure SVG isn't squashed and user can pan around */}
+                    <svg viewBox="-40 -30 790 250" className="w-full h-full overflow-visible">
+                      {/* PC Terminal Tracks Layout (Angular Style) */}
+                      <g className="opacity-40">
+                        {/* V1 (Top) -> Merges to V2 Main */}
+                        <line x1="-35" y1="84" x2="0" y2="84" stroke="#A4A7AB" strokeWidth="2" strokeLinecap="round" />
+                        <path d="M 0 84 L 12 96" stroke="#A4A7AB" strokeWidth="2" fill="none" />
 
-              {/* V4 -> Merges to V1 Main */}
-              <line x1="-35" y1="108" x2="5" y2="108" stroke="#A4A7AB" strokeWidth="2" strokeLinecap="round" />
-              <path d="M 5 108 L 9 104" stroke="#A4A7AB" strokeWidth="2" fill="none" />
+                        {/* V2 -> Merges to V2 Main */}
+                        <line x1="-35" y1="92" x2="5" y2="92" stroke="#A4A7AB" strokeWidth="2" fill="none" />
 
-              {/* V5 (Bottom) -> Merges to V1 Main */}
-              <line x1="-35" y1="116" x2="0" y2="116" stroke="#A4A7AB" strokeWidth="2" strokeLinecap="round" />
-              <path d="M 0 116 L 12 104" stroke="#A4A7AB" strokeWidth="2" fill="none" />
+                        {/* V3 (Center) */}
+                        <line x1="-35" y1="100" x2="20" y2="100" stroke="#A4A7AB" strokeWidth="2" strokeLinecap="round" />
 
-              {/* Buffers (Topes) */}
-              <rect x="-38" y="83" width="3" height="2" fill="#ef4444" />
-              <rect x="-38" y="91" width="3" height="2" fill="#ef4444" />
-              <rect x="-38" y="99" width="3" height="2" fill="#ef4444" />
-              <rect x="-38" y="107" width="3" height="2" fill="#ef4444" />
-              <rect x="-38" y="115" width="3" height="2" fill="#ef4444" />
-            </g>
+                        {/* V4 -> Merges to V1 Main */}
+                        <line x1="-35" y1="108" x2="5" y2="108" stroke="#A4A7AB" strokeWidth="2" strokeLinecap="round" />
+                        <path d="M 5 108 L 9 104" stroke="#A4A7AB" strokeWidth="2" fill="none" />
 
-            {MAP_SEGMENTS.map((seg, i) => {
-              const s1 = MAP_STATIONS.find(s => s.id === (seg as any).from)!;
-              const s2 = MAP_STATIONS.find(s => s.id === (seg as any).to)!;
-              if (!s1 || !s2) return null;
+                        {/* V5 (Bottom) -> Merges to V1 Main */}
+                        <line x1="-35" y1="116" x2="0" y2="116" stroke="#A4A7AB" strokeWidth="2" strokeLinecap="round" />
+                        <path d="M 0 116 L 12 104" stroke="#A4A7AB" strokeWidth="2" fill="none" />
 
-              const isV1Blocked = selectedCutSegments.has(`${s1.id}-${s2.id}-V1`) || selectedCutSegments.has(`${s2.id}-${s1.id}-V1`);
-              const isV2Blocked = selectedCutSegments.has(`${s1.id}-${s2.id}-V2`) || selectedCutSegments.has(`${s2.id}-${s1.id}-V2`);
-
-              // Calculate normal vector for the offset
-              const dx = s2.x - s1.x;
-              const dy = s2.y - s1.y;
-              const len = Math.sqrt(dx * dx + dy * dy);
-              const nx = -dy / len;
-              const ny = dx / len;
-              const offset = 4; // Distance between tracks
-
-              return (
-                <g key={`seg-${i}`}>
-                  {/* Via 2 (Descendent - Superior/Esquerra) */}
-                  <line
-                    x1={s1.x + nx * offset} y1={s1.y + ny * offset}
-                    x2={s2.x + nx * offset} y2={s2.y + ny * offset}
-                    stroke={isV2Blocked ? "#ef4444" : "#A4A7AB"} strokeWidth="4" strokeLinecap="round"
-                    className={`cursor-pointer transition-all duration-300 ${isV2Blocked ? 'opacity-100' : 'opacity-40 hover:opacity-100 hover:stroke-blue-400'}`}
-                    onClick={() => toggleTrackCut(s1.id, s2.id, 2)}
-                  />
-                  {/* Via 1 (Ascendent - Inferior/Dreta) */}
-                  <line
-                    x1={s1.x - nx * offset} y1={s1.y - ny * offset}
-                    x2={s2.x - nx * offset} y2={s2.y - ny * offset}
-                    stroke={isV1Blocked ? "#ef4444" : "#A4A7AB"} strokeWidth="4" strokeLinecap="round"
-                    className={`cursor-pointer transition-all duration-300 ${isV1Blocked ? 'opacity-100' : 'opacity-40 hover:opacity-100 hover:stroke-blue-400'}`}
-                    onClick={() => toggleTrackCut(s1.id, s2.id, 1)}
-                  />
-                </g>
-              );
-            })}
-            {MAP_STATIONS.map(st => {
-              const isCut = selectedCutStations.has(st.id);
-              const restHere = groupedRestPersonnel[st.id] || [];
-              const count = restHere.length;
-              const isUpper = st.y < 100;
-              return (
-                <g key={st.id} className="group">
-                  {/* Station Marker: Pill shape (rounded rectangle) */}
-                  <rect
-                    x={st.x - ((st as any).type === 'depot' ? 6 : 3)} y={st.y - 11} width={(st as any).type === 'depot' ? "12" : "6"} height="22" rx="3"
-                    fill={(st as any).type === 'depot' ? "#f3f4f6" : "white"} stroke={isCut ? "#ef4444" : "#53565A"} strokeWidth="1.5"
-                    onClick={() => {
-                      if (st.id === 'PC') setIsPCDiagramOpen(true);
-                      if (st.id === 'PR') setIsPRDiagramOpen(true);
-                      if (st.id === 'GR') setIsGRDiagramOpen(true);
-                      if (st.id === 'PM') setIsPMDiagramOpen(true);
-                      if (st.id === 'BN') setIsBNDiagramOpen(true);
-                      if (st.id === 'TB') setIsTBDiagramOpen(true);
-                      if (st.id === 'SR') setIsSRDiagramOpen(true);
-                      if (st.id === 'RE') setIsREStationDiagramOpen(true);
-
-                      // New handlers for Depots - ONLY actual Depot Nodes
-                      if (st.id === 'DRE') setIsREDiagramOpen(true);
-                      if (st.id === 'COR') setIsRBDiagramOpen(true);
-                      if (st.id === 'DNA') setIsNADiagramOpen(true);
-                      if (st.id === 'DPN') setIsPNDiagramOpen(true);
-
-                    }}
-                    className={`transition-all duration-300 ${['PC', 'PR', 'GR', 'PM', 'BN', 'TB', 'SR', 'RE', 'DRE', 'COR', 'DNA', 'DPN'].includes(st.id) ? 'cursor-pointer hover:stroke-blue-500' : ''}`}
-                  />
-                  {count > 0 && !isCut && (
-                    <g onClick={() => setSelectedRestLocation(selectedRestLocation === st.id ? null : st.id)} className="cursor-pointer transition-colors">
-                      <circle cx={st.x} cy={st.y + (isUpper ? 32 : 44)} r={7} fill="#3b82f6" className="shadow-md" stroke="white" strokeWidth="1.5" />
-                      <text x={st.x} y={st.y + (isUpper ? 34.5 : 46.5)} textAnchor="middle" fill="white" className="text-[7px] font-black pointer-events-none">{count}</text>
-                    </g>
-                  )}
-                  {/* Interaction moved to the station name */}
-                  <text
-                    x={st.x + ((st as any).labelXOffset || 0)} y={st.y + (isUpper ? -16 : 28) + ((st as any).labelYOffset || 0)}
-                    textAnchor="middle"
-                    onClick={() => toggleStationCut(st.id)}
-                    className={`text-[9px] font-black select-none cursor-pointer transition-colors duration-300 hover:underline ${isCut ? 'fill-red-500' : (st as any).type === 'depot' && st.id !== 'PC' ? 'fill-blue-500 dark:fill-blue-400' : 'fill-gray-400 dark:fill-gray-500 hover:fill-fgc-grey'}`}
-                  >
-                    {(st as any).type === 'depot' && st.id !== 'PC' ? ((st as any).label || st.id) : st.id}
-                  </text>
-                </g>
-              );
-            })}
-            {MAP_CROSSOVERS.map((cross, i) => {
-              const s1 = MAP_STATIONS.find(s => s.id === cross.from)!;
-              const s2 = MAP_STATIONS.find(s => s.id === cross.to)!;
-              if (!s1 || !s2) return null;
-
-              // Position on the segment
-              const cx = s1.x + (s2.x - s1.x) * cross.pos;
-              const cy = s1.y + (s2.y - s1.y) * cross.pos;
-
-              // Segment normal vector
-              const dx = s2.x - s1.x;
-              const dy = s2.y - s1.y;
-              const len = Math.sqrt(dx * dx + dy * dy);
-              const nx = -dy / len;
-              const ny = dx / len;
-              const offset = 4;
-
-              // Diagonal span
-              const span = 6;
-              const vx = dx / len * span;
-              const vy = dy / len * span;
-
-              return (
-                <g key={`cross-${i}`} className="opacity-40">
-                  {(cross.type === 'X' || cross.type === '/') && (
-                    <line
-                      x1={cx - vx + nx * offset} y1={cy - vy + ny * offset}
-                      x2={cx + vx - nx * offset} y2={cy + vy - ny * offset}
-                      stroke="#A4A7AB" strokeWidth="2" strokeLinecap="round"
-                    />
-                  )}
-                  {(cross.type === 'X' || cross.type === '\\') && (
-                    <line
-                      x1={cx - vx - nx * offset} y1={cy - vy - ny * offset}
-                      x2={cx + vx + nx * offset} y2={cy + vy + ny * offset}
-                      stroke="#A4A7AB" strokeWidth="2" strokeLinecap="round"
-                    />
-                  )}
-                </g>
-              );
-            })}
-            {!isGeoTrenEnabled && trains.map((p, idx) => {
-              const offset = (p as any).visualOffset || 0;
-              // Determine affected status using the same logic as dividedPersonnel
-              let isAffected = false;
-              let effectiveCutStations = new Set(selectedCutStations);
-              if (selectedCutStations.size === 2) {
-                const [s1, s2] = Array.from(selectedCutStations);
-                const path = getFullPath(s1, s2);
-                path.forEach(s => effectiveCutStations.add(s));
-              }
-
-              if (effectiveCutStations.has(p.stationId.toUpperCase())) isAffected = true;
-
-              if ((p as any).isMoving && (p as any).nextStationId) {
-                const st = p.stationId.toUpperCase();
-                const next = (p as any).nextStationId.toUpperCase();
-                const segIdV1 = `${st}-${next}-V1`;
-                const segIdV2 = `${st}-${next}-V2`;
-                const segIdV1Rev = `${next}-${st}-V1`;
-                const segIdV2Rev = `${next}-${st}-V2`;
-                if (selectedCutSegments.has(segIdV1) || selectedCutSegments.has(segIdV2) || selectedCutSegments.has(segIdV1Rev) || selectedCutSegments.has(segIdV2Rev)) {
-                  isAffected = true;
-                }
-              }
-
-              // Determine track offset based on direction (parity of id)
-              const numId = parseInt(p.id.replace(/\D/g, ''));
-              const isAsc = numId % 2 !== 0; // Odd = Ascendent (V1)
-              const trackOffset = isAsc ? 6 : -6;
-
-              const labelWidth = Math.max(20, p.id.length * 5.5 + 4);
-
-              // Special handling for PC Terminal Tracks in Manual Mode
-              let finalX = p.x;
-              let finalY = p.y;
-              let useStandardOffset = true;
-
-              if (p.stationId === 'PC') {
-                const targetViaStr = (p.final === 'PC' ? p.via_final : p.via_inici) || '';
-                // Extract number from string like "4", "V4", "Via 4"
-                const viaMatch = targetViaStr.match(/(\d+)/);
-                if (viaMatch) {
-                  const via = parseInt(viaMatch[1]);
-                  if (via >= 1 && via <= 5) {
-                    finalX = -30;
-                    const yCoords = [84, 92, 100, 108, 116];
-                    finalY = yCoords[via - 1];
-                    useStandardOffset = false; // Disable standard offset for terminal tracks
-                  }
-                }
-              }
-
-              return (
-                <g key={`${p.id}-${p.torn}-${idx}`} className="transition-all duration-1000 ease-linear">
-                  <circle
-                    cx={finalX} cy={finalY} r={5.5} fill={p.color}
-                    className={`${isAffected ? "stroke-red-500 stroke-2" : "stroke-white dark:stroke-black stroke-[1.5]"}`}
-                    style={useStandardOffset ? { transform: `translate(${offset * 4}px, ${trackOffset}px)`, filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.3))' } : { filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.3))' }}
-                  >
-                    <title>{p.id} - Torn {p.torn} (Via {isAsc ? '1' : '2'})</title>
-                  </circle>
-
-                  {/* New Label Pill Design */}
-                  <g className="drop-shadow-md" style={useStandardOffset ? { transform: `translate(${offset * 4}px, ${trackOffset}px)` } : {}}>
-                    <rect
-                      x={finalX - (labelWidth / 2)}
-                      y={finalY - 16}
-                      width={labelWidth}
-                      height={12}
-                      rx={3}
-                      fill={p.color}
-                    />
-                    <text
-                      x={finalX}
-                      y={finalY - 10}
-                      textAnchor="middle"
-                      dominantBaseline="middle"
-                      className="text-[8px] font-black fill-white uppercase tracking-tighter"
-                    >
-                      {p.id}
-                    </text>
-                  </g>
-                </g>
-              );
-            })}
-            {(() => {
-              if (!isGeoTrenEnabled) return null;
-
-              // 1. Pre-calculate positions and identifiers for all GeoTren units
-              const processedGeo = geoTrenData.map((gt, idx) => {
-                const stAt = resolveStationId(gt.estacionat_a || "");
-                let stNext = null;
-                if (!stAt && gt.properes_parades) {
-                  try {
-                    const stops = gt.properes_parades.split(';');
-                    const firstStop = JSON.parse(stops[0]);
-                    stNext = resolveStationId(firstStop.parada || "");
-                  } catch (e) {
-                    const match = gt.properes_parades.match(/"parada":\s*"([^"]+)"/);
-                    if (match) stNext = resolveStationId(match[1]);
-                  }
-                }
-
-                let x = 0, y = 0, locKey = "";
-                if (stAt) {
-                  const s = MAP_STATIONS.find(st => st.id === stAt);
-                  if (s) {
-                    x = s.x; y = s.y; locKey = stAt;
-                    if (stAt === 'PC' && gt.via) {
-                      const via = parseInt(gt.via);
-                      if (!isNaN(via) && via >= 1 && via <= 5) {
-                        x = -30;
-                        const yCoords = [84, 92, 100, 108, 116];
-                        y = yCoords[via - 1];
-                      }
-                    }
-                  }
-                } else if (stNext) {
-                  const s = MAP_STATIONS.find(st => st.id === stNext);
-                  if (s) {
-                    x = s.x; y = s.y; locKey = stNext;
-                    x += (gt.dir === 'A' ? -15 : 15);
-                  }
-                }
-                return { ...gt, x, y, locKey, stAt, stNext, geoIndex: idx };
-              }).filter(u => u.locKey !== "");
-
-              // 2. Advanced Deduction Logic: Sequential matching by line and direction
-              const inferredMap = new Map<string, string>(); // ut -> circId
-              const lineKeys = ['S1', 'S2', 'L6', 'L7', 'L12'];
-
-              lineKeys.forEach(line => {
-                ['A', 'B'].forEach(dir => {
-                  const isAsc = dir === 'A';
-
-                  // Sort by journey progress: Asc (x increases), Desc (x decreases)
-                  const progressSort = (a, b) => isAsc ? (a.x - b.x) : (b.x - a.x);
-
-                  const gtUnits = processedGeo.filter(u => (u.lin === line) && (u.dir === dir))
-                    .sort(progressSort);
-
-                  const liveTrains = liveData.filter(p => {
-                    if (p.type !== 'TRAIN') return false;
-                    if (!p.linia?.toUpperCase().includes(line)) return false;
-
-                    const numPart = p.id.replace(/\D/g, '');
-                    const numId = parseInt(numPart);
-                    if (isNaN(numId)) return false;
-
-                    // Direction check: Odd = Asc (A), Even = Desc (B)
-                    if ((numId % 2 !== 0) !== isAsc) return false;
-
-                    // Special rule for L12: match everything
-                    if (line === 'L12') return true;
-
-                    // Passenger rules (A,B,L,D,F + 1-5)
-                    const prefix = p.id.charAt(0).toUpperCase();
-                    if (!['A', 'B', 'L', 'D', 'F'].includes(prefix)) return false;
-                    const firstDigit = numPart.charAt(0);
-                    if (!['1', '2', '3', '4', '5'].includes(firstDigit)) return false;
-
-                    return true;
-                  }).sort(progressSort);
-
-                  // Robust matching: A Geo unit MUST match a Live train that is at its position or further ahead.
-                  // If a Geo unit is PAST a live train's scheduled position, that live train is NOT its match (impossible early).
-                  let lIdx = 0;
-                  gtUnits.forEach((gu) => {
-                    // Special case for L12: just take the next available if positions are weird
-                    if (line === 'L12' && liveTrains[lIdx]) {
-                      inferredMap.set(gu.ut || `geo-${gu.geoIndex}`, liveTrains[lIdx].id);
-                      lIdx++;
-                      return;
-                    }
-
-                    while (lIdx < liveTrains.length) {
-                      const lt = liveTrains[lIdx];
-                      // Condition: Geo progress <= Live progress (within a small tolerance of 15 coordinate units)
-                      const geoProgress = isAsc ? gu.x : -gu.x;
-                      const liveProgress = isAsc ? lt.x : -lt.x;
-
-                      // Not ahead: geoProgress <= liveProgress + tolerance
-                      if (geoProgress <= liveProgress + 15) {
-                        inferredMap.set(gu.ut || `geo-${gu.geoIndex}`, lt.id);
-                        lIdx++; // Move to next schedule for next unit
-                        break;
-                      }
-                      // If geoProgress > liveProgress, it means this Geo unit is AHEAD of this schedule slot.
-                      // Since that's impossible per business rules, we skip this schedule slot.
-                      lIdx++;
-                    }
-                  });
-                });
-              });
-
-              const geoCollisionMap: Record<string, number> = {};
-
-              return processedGeo.map((gt) => {
-                const { x, y, locKey } = gt;
-                const offsetCount = geoCollisionMap[locKey] || 0;
-                geoCollisionMap[locKey] = offsetCount + 1;
-                const visualOffset = offsetCount * 12;
-
-                const lineColor = getLiniaColorHex(gt.lin || "");
-                const inferredCircId = inferredMap.get(gt.ut || `geo-${gt.geoIndex}`);
-                const unitLabel = gt.tipus_unitat || (gt.ut && gt.ut.length < 8 ? gt.ut : "???");
-                const trainLabel = inferredCircId || unitLabel;
-
-                const labelWidth = Math.max(24, trainLabel.length * 5.5 + 4);
-
-                return (
-                  <g key={`gt-${gt.ut || gt.geoIndex}`} className="transition-all duration-1000 ease-linear animate-in fade-in zoom-in duration-500">
-                    <g style={{ transform: `translate(${visualOffset}px, ${gt.dir === 'A' ? 6 : -6}px)` }}>
-                      <circle cx={x} cy={y} r={4} fill={lineColor} stroke="white" strokeWidth="1.5">
-                        <title>GeoTren: {gt.tipus_unitat} (ID: {gt.ut}) - Lin: {gt.lin} - Dir: {gt.dir}</title>
-                      </circle>
-
-                      <g className="drop-shadow-md">
-                        <rect
-                          x={x - (labelWidth / 2)}
-                          y={y - 16}
-                          width={labelWidth}
-                          height={12}
-                          rx={3}
-                          fill={lineColor}
-                        />
-                        <text
-                          x={x}
-                          y={y - 10}
-                          textAnchor="middle"
-                          dominantBaseline="middle"
-                          className="text-[8px] font-black fill-white uppercase tracking-tighter"
-                        >
-                          {trainLabel}
-                        </text>
+                        {/* Buffers (Topes) */}
+                        <rect x="-38" y="83" width="3" height="2" fill="#ef4444" />
+                        <rect x="-38" y="91" width="3" height="2" fill="#ef4444" />
+                        <rect x="-38" y="99" width="3" height="2" fill="#ef4444" />
+                        <rect x="-38" y="107" width="3" height="2" fill="#ef4444" />
+                        <rect x="-38" y="115" width="3" height="2" fill="#ef4444" />
                       </g>
-                    </g>
-                  </g>
-                );
-              });
-            })()
-            }
-            {/* Parked Units on Main Map */}
-            {parkedUnits.map((u, i) => {
-              const st = MAP_STATIONS.find(s => s.id === u.depot_id);
-              if (!st) return null;
 
-              let px = st.x;
-              let py = st.y;
+                      {MAP_SEGMENTS.map((seg, i) => {
+                        const s1 = MAP_STATIONS.find(s => s.id === (seg as any).from)!;
+                        const s2 = MAP_STATIONS.find(s => s.id === (seg as any).to)!;
+                        if (!s1 || !s2) return null;
 
-              // Custom positioning for depots
-              if (u.depot_id === 'PC') {
-                const trackIdx = parseInt(u.track) - 1;
-                const ys = [84, 92, 100, 108, 116];
-                px = -25;
-                py = ys[trackIdx] || 100;
-              } else {
-                // Offset small for others
-                px += 6; py -= 6;
-              }
+                        const isV1Blocked = selectedCutSegments.has(`${s1.id}-${s2.id}-V1`) || selectedCutSegments.has(`${s2.id}-${s1.id}-V1`);
+                        const isV2Blocked = selectedCutSegments.has(`${s1.id}-${s2.id}-V2`) || selectedCutSegments.has(`${s2.id}-${s1.id}-V2`);
 
-              return (
-                <g key={`main-parked-${u.unit_number}-${i}`}>
-                  <circle cx={px} cy={py} r={2.5} fill="#3b82f6" stroke="white" strokeWidth="0.5" className="animate-pulse" />
-                  <text x={px} y={py - 4} textAnchor="middle" className="text-[4px] font-black fill-blue-500 uppercase">{u.unit_number}</text>
-                </g>
-              );
-            })}
-          </svg>
+                        // Calculate normal vector for the offset
+                        const dx = s2.x - s1.x;
+                        const dy = s2.y - s1.y;
+                        const len = Math.sqrt(dx * dx + dy * dy);
+                        const nx = -dy / len;
+                        const ny = dx / len;
+                        const offset = 4; // Distance between tracks
+
+                        return (
+                          <g key={`seg-${i}`}>
+                            {/* Via 2 (Descendent - Superior/Esquerra) */}
+                            <line
+                              x1={s1.x + nx * offset} y1={s1.y + ny * offset}
+                              x2={s2.x + nx * offset} y2={s2.y + ny * offset}
+                              stroke={isV2Blocked ? "#ef4444" : "#A4A7AB"} strokeWidth="4" strokeLinecap="round"
+                              className={`cursor-pointer transition-all duration-300 ${isV2Blocked ? 'opacity-100' : 'opacity-40 hover:opacity-100 hover:stroke-blue-400'}`}
+                              onClick={() => toggleTrackCut(s1.id, s2.id, 2)}
+                              // Pointer events essential for click through zoom
+                              style={{ pointerEvents: 'auto' }}
+                            />
+                            {/* Via 1 (Ascendent - Inferior/Dreta) */}
+                            <line
+                              x1={s1.x - nx * offset} y1={s1.y - ny * offset}
+                              x2={s2.x - nx * offset} y2={s2.y - ny * offset}
+                              stroke={isV1Blocked ? "#ef4444" : "#A4A7AB"} strokeWidth="4" strokeLinecap="round"
+                              className={`cursor-pointer transition-all duration-300 ${isV1Blocked ? 'opacity-100' : 'opacity-40 hover:opacity-100 hover:stroke-blue-400'}`}
+                              onClick={() => toggleTrackCut(s1.id, s2.id, 1)}
+                              style={{ pointerEvents: 'auto' }}
+                            />
+                          </g>
+                        );
+                      })}
+                      {MAP_STATIONS.map(st => {
+                        const isCut = selectedCutStations.has(st.id);
+                        const restHere = groupedRestPersonnel[st.id] || [];
+                        const count = restHere.length;
+                        const isUpper = st.y < 100;
+                        return (
+                          <g key={st.id} className="group">
+                            {/* Station Marker: Pill shape (rounded rectangle) */}
+                            <rect
+                              x={st.x - ((st as any).type === 'depot' ? 6 : 3)} y={st.y - 11} width={(st as any).type === 'depot' ? "12" : "6"} height="22" rx="3"
+                              fill={(st as any).type === 'depot' ? "#f3f4f6" : "white"} stroke={isCut ? "#ef4444" : "#53565A"} strokeWidth="1.5"
+                              onClick={() => {
+                                if (st.id === 'PC') setIsPCDiagramOpen(true);
+                                if (st.id === 'PR') setIsPRDiagramOpen(true);
+                                if (st.id === 'GR') setIsGRDiagramOpen(true);
+                                if (st.id === 'PM') setIsPMDiagramOpen(true);
+                                if (st.id === 'BN') setIsBNDiagramOpen(true);
+                                if (st.id === 'TB') setIsTBDiagramOpen(true);
+                                if (st.id === 'SR') setIsSRDiagramOpen(true);
+                                if (st.id === 'RE') setIsREStationDiagramOpen(true);
+
+                                // New handlers for Depots - ONLY actual Depot Nodes
+                                if (st.id === 'DRE') setIsREDiagramOpen(true);
+                                if (st.id === 'COR') setIsRBDiagramOpen(true);
+                                if (st.id === 'DNA') setIsNADiagramOpen(true);
+                                if (st.id === 'DPN') setIsPNDiagramOpen(true);
+
+                              }}
+                              className={`transition-all duration-300 ${['PC', 'PR', 'GR', 'PM', 'BN', 'TB', 'SR', 'RE', 'DRE', 'COR', 'DNA', 'DPN'].includes(st.id) ? 'cursor-pointer hover:stroke-blue-500' : ''}`}
+                              style={{ pointerEvents: 'auto' }}
+                            />
+                            {count > 0 && !isCut && (
+                              <g onClick={() => setSelectedRestLocation(selectedRestLocation === st.id ? null : st.id)} className="cursor-pointer transition-colors" style={{ pointerEvents: 'auto' }}>
+                                <circle cx={st.x} cy={st.y + (isUpper ? 32 : 44)} r={7} fill="#3b82f6" className="shadow-md" stroke="white" strokeWidth="1.5" />
+                                <text x={st.x} y={st.y + (isUpper ? 34.5 : 46.5)} textAnchor="middle" fill="white" className="text-[7px] font-black pointer-events-none">{count}</text>
+                              </g>
+                            )}
+                            {/* Interaction moved to the station name */}
+                            <text
+                              x={st.x + ((st as any).labelXOffset || 0)} y={st.y + (isUpper ? -16 : 28) + ((st as any).labelYOffset || 0)}
+                              textAnchor="middle"
+                              onClick={() => toggleStationCut(st.id)}
+                              className={`text-[9px] font-black select-none cursor-pointer transition-colors duration-300 hover:underline ${isCut ? 'fill-red-500' : (st as any).type === 'depot' && st.id !== 'PC' ? 'fill-blue-500 dark:fill-blue-400' : 'fill-gray-400 dark:fill-gray-500 hover:fill-fgc-grey'}`}
+                              style={{ pointerEvents: 'auto' }}
+                            >
+                              {(st as any).type === 'depot' && st.id !== 'PC' ? ((st as any).label || st.id) : st.id}
+                            </text>
+                          </g>
+                        );
+                      })}
+                      {MAP_CROSSOVERS.map((cross, i) => {
+                        const s1 = MAP_STATIONS.find(s => s.id === (cross as any).from)!;
+                        const s2 = MAP_STATIONS.find(s => s.id === (cross as any).to)!;
+                        if (!s1 || !s2) return null;
+
+                        // Position on the segment
+                        const cx = s1.x + (s2.x - s1.x) * (cross as any).pos;
+                        const cy = s1.y + (s2.y - s1.y) * (cross as any).pos;
+
+                        // Segment normal vector
+                        const dx = s2.x - s1.x;
+                        const dy = s2.y - s1.y;
+                        const len = Math.sqrt(dx * dx + dy * dy);
+                        const nx = -dy / len;
+                        const ny = dx / len;
+                        const offset = 4;
+
+                        // Diagonal span
+                        const span = 6;
+                        const vx = dx / len * span;
+                        const vy = dy / len * span;
+
+                        return (
+                          <g key={`cross-${i}`} className="opacity-40">
+                            {((cross as any).type === 'X' || (cross as any).type === '/') && (
+                              <line
+                                x1={cx - vx + nx * offset} y1={cy - vy + ny * offset}
+                                x2={cx + vx - nx * offset} y2={cy + vy - ny * offset}
+                                stroke="#A4A7AB" strokeWidth="2" strokeLinecap="round"
+                              />
+                            )}
+                            {((cross as any).type === 'X' || (cross as any).type === '\\') && (
+                              <line
+                                x1={cx - vx - nx * offset} y1={cy - vy - ny * offset}
+                                x2={cx + vx + nx * offset} y2={cy + vy + ny * offset}
+                                stroke="#A4A7AB" strokeWidth="2" strokeLinecap="round"
+                              />
+                            )}
+                          </g>
+                        );
+                      })}
+
+                      {!isGeoTrenEnabled && trains.map((p, idx) => {
+                        const offset = (p as any).visualOffset || 0;
+                        // Determine affected status using the same logic as dividedPersonnel
+                        let isAffected = false;
+                        let effectiveCutStations = new Set(selectedCutStations);
+                        if (selectedCutStations.size === 2) {
+                          const [s1, s2] = Array.from(selectedCutStations);
+                          const path = getFullPath(s1, s2);
+                          path.forEach(s => effectiveCutStations.add(s));
+                        }
+
+                        if (effectiveCutStations.has(p.stationId.toUpperCase())) isAffected = true;
+
+                        if ((p as any).isMoving && (p as any).nextStationId) {
+                          const st = p.stationId.toUpperCase();
+                          const next = (p as any).nextStationId.toUpperCase();
+                          const segIdV1 = `${st}-${next}-V1`;
+                          const segIdV2 = `${st}-${next}-V2`;
+                          const segIdV1Rev = `${next}-${st}-V1`;
+                          const segIdV2Rev = `${next}-${st}-V2`;
+                          if (selectedCutSegments.has(segIdV1) || selectedCutSegments.has(segIdV2) || selectedCutSegments.has(segIdV1Rev) || selectedCutSegments.has(segIdV2Rev)) {
+                            isAffected = true;
+                          }
+                        }
+
+                        // Determine track offset based on direction (parity of id)
+                        const numId = parseInt(p.id.replace(/\D/g, ''));
+                        const isAsc = numId % 2 !== 0; // Odd = Ascendent (V1)
+                        const trackOffset = isAsc ? 6 : -6;
+
+                        const labelWidth = Math.max(20, p.id.length * 5.5 + 4);
+
+                        // Special handling for PC Terminal Tracks in Manual Mode
+                        let finalX = p.x;
+                        let finalY = p.y;
+                        let useStandardOffset = true;
+
+                        if (p.stationId === 'PC') {
+                          const targetViaStr = (p.final === 'PC' ? p.via_final : p.via_inici) || '';
+                          // Extract number from string like "4", "V4", "Via 4"
+                          const viaMatch = targetViaStr.match(/(\d+)/);
+                          if (viaMatch) {
+                            const via = parseInt(viaMatch[1]);
+                            if (via >= 1 && via <= 5) {
+                              finalX = -30;
+                              const yCoords = [84, 92, 100, 108, 116];
+                              finalY = yCoords[via - 1];
+                              useStandardOffset = false; // Disable standard offset for terminal tracks
+                            }
+                          }
+                        }
+
+                        return (
+                          <g key={`${p.id}-${p.torn}-${idx}`} className="transition-all duration-1000 ease-linear">
+                            <circle
+                              cx={finalX} cy={finalY} r={5.5} fill={p.color}
+                              className={`${isAffected ? "stroke-red-500 stroke-2" : "stroke-white dark:stroke-black stroke-[1.5]"}`}
+                              style={useStandardOffset ? { transform: `translate(${offset * 4}px, ${trackOffset}px)`, filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.3))' } : { filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.3))' }}
+                            >
+                              <title>{p.id} - Torn {p.torn} (Via {isAsc ? '1' : '2'})</title>
+                            </circle>
+
+                            {/* New Label Pill Design */}
+                            <g className="drop-shadow-md" style={useStandardOffset ? { transform: `translate(${offset * 4}px, ${trackOffset}px)` } : {}}>
+                              <rect
+                                x={finalX - (labelWidth / 2)}
+                                y={finalY - 16}
+                                width={labelWidth}
+                                height={12}
+                                rx={3}
+                                fill={p.color}
+                              />
+                              <text
+                                x={finalX}
+                                y={finalY - 10}
+                                textAnchor="middle"
+                                dominantBaseline="middle"
+                                className="text-[8px] font-black fill-white uppercase tracking-tighter"
+                              >
+                                {p.id}
+                              </text>
+                            </g>
+                          </g>
+                        );
+                      })}
+                      {(() => {
+                        if (!isGeoTrenEnabled) return null;
+
+                        // 1. Pre-calculate positions and identifiers for all GeoTren units
+                        const processedGeo = geoTrenData.map((gt, idx) => {
+                          const stAt = resolveStationId(gt.estacionat_a || "");
+                          let stNext = null;
+                          if (!stAt && gt.properes_parades) {
+                            try {
+                              const stops = gt.properes_parades.split(';');
+                              const firstStop = JSON.parse(stops[0]);
+                              stNext = resolveStationId(firstStop.parada || "");
+                            } catch (e) {
+                              const match = gt.properes_parades.match(/"parada":\s*"([^"]+)"/);
+                              if (match) stNext = resolveStationId(match[1]);
+                            }
+                          }
+
+                          let x = 0, y = 0, locKey = "";
+                          if (stAt) {
+                            const s = MAP_STATIONS.find(st => st.id === stAt);
+                            if (s) {
+                              x = s.x; y = s.y; locKey = stAt;
+                              if (stAt === 'PC' && gt.via) {
+                                const via = parseInt(gt.via);
+                                if (!isNaN(via) && via >= 1 && via <= 5) {
+                                  x = -30;
+                                  const yCoords = [84, 92, 100, 108, 116];
+                                  y = yCoords[via - 1];
+                                }
+                              }
+                            }
+                          } else if (stNext) {
+                            const s = MAP_STATIONS.find(st => st.id === stNext);
+                            if (s) {
+                              x = s.x; y = s.y; locKey = stNext;
+                              x += (gt.dir === 'A' ? -15 : 15);
+                            }
+                          }
+                          return { ...gt, x, y, locKey, stAt, stNext, geoIndex: idx };
+                        }).filter(u => u.locKey !== "");
+
+                        // 2. Advanced Deduction Logic: Sequential matching by line and direction
+                        const inferredMap = new Map<string, string>(); // ut -> circId
+                        const lineKeys = ['S1', 'S2', 'L6', 'L7', 'L12'];
+
+                        lineKeys.forEach(line => {
+                          ['A', 'B'].forEach(dir => {
+                            const isAsc = dir === 'A';
+
+                            // Sort by journey progress: Asc (x increases), Desc (x decreases)
+                            const progressSort = (a, b) => isAsc ? (a.x - b.x) : (b.x - a.x);
+
+                            const gtUnits = processedGeo.filter(u => (u.lin === line) && (u.dir === dir))
+                              .sort(progressSort);
+
+                            const liveTrains = liveData.filter(p => {
+                              if (p.type !== 'TRAIN') return false;
+                              if (!p.linia?.toUpperCase().includes(line)) return false;
+
+                              const numPart = p.id.replace(/\D/g, '');
+                              const numId = parseInt(numPart);
+                              if (isNaN(numId)) return false;
+
+                              // Direction check: Odd = Asc (A), Even = Desc (B)
+                              if ((numId % 2 !== 0) !== isAsc) return false;
+
+                              // Special rule for L12: match everything
+                              if (line === 'L12') return true;
+
+                              // Passenger rules (A,B,L,D,F + 1-5)
+                              const prefix = p.id.charAt(0).toUpperCase();
+                              if (!['A', 'B', 'L', 'D', 'F'].includes(prefix)) return false;
+                              const firstDigit = numPart.charAt(0);
+                              if (!['1', '2', '3', '4', '5'].includes(firstDigit)) return false;
+
+                              return true;
+                            }).sort(progressSort);
+
+                            // Robust matching: A Geo unit MUST match a Live train that is at its position or further ahead.
+                            // If a Geo unit is PAST a live train's scheduled position, that live train is NOT its match (impossible early).
+                            let lIdx = 0;
+                            gtUnits.forEach((gu) => {
+                              // Special case for L12: just take the next available if positions are weird
+                              if (line === 'L12' && liveTrains[lIdx]) {
+                                inferredMap.set(gu.ut || `geo-${gu.geoIndex}`, liveTrains[lIdx].id);
+                                lIdx++;
+                                return;
+                              }
+
+                              while (lIdx < liveTrains.length) {
+                                const lt = liveTrains[lIdx];
+                                // Condition: Geo progress <= Live progress (within a small tolerance of 15 coordinate units)
+                                const geoProgress = isAsc ? gu.x : -gu.x;
+                                const liveProgress = isAsc ? lt.x : -lt.x;
+
+                                // Not ahead: geoProgress <= liveProgress + tolerance
+                                if (geoProgress <= liveProgress + 15) {
+                                  inferredMap.set(gu.ut || `geo-${gu.geoIndex}`, lt.id);
+                                  lIdx++; // Move to next schedule for next unit
+                                  break;
+                                }
+                                // If geoProgress > liveProgress, it means this Geo unit is AHEAD of this schedule slot.
+                                // Since that's impossible per business rules, we skip this schedule slot.
+                                lIdx++;
+                              }
+                            });
+                          });
+                        });
+
+                        const geoCollisionMap: Record<string, number> = {};
+
+                        return processedGeo.map((gt) => {
+                          const { x, y, locKey } = gt;
+                          const offsetCount = geoCollisionMap[locKey] || 0;
+                          geoCollisionMap[locKey] = offsetCount + 1;
+                          const visualOffset = offsetCount * 12;
+
+                          const lineColor = getLiniaColorHex(gt.lin || "");
+                          const inferredCircId = inferredMap.get(gt.ut || `geo-${gt.geoIndex}`);
+                          const unitLabel = gt.tipus_unitat || (gt.ut && gt.ut.length < 8 ? gt.ut : "???");
+                          const trainLabel = inferredCircId || unitLabel;
+
+                          const labelWidth = Math.max(24, trainLabel.length * 5.5 + 4);
+
+                          return (
+                            <g key={`gt-${gt.ut || gt.geoIndex}`} className="transition-all duration-1000 ease-linear animate-in fade-in zoom-in duration-500">
+                              <g style={{ transform: `translate(${visualOffset}px, ${gt.dir === 'A' ? 6 : -6}px)` }}>
+                                <circle cx={x} cy={y} r={4} fill={lineColor} stroke="white" strokeWidth="1.5">
+                                  <title>GeoTren: {gt.tipus_unitat} (ID: {gt.ut}) - Lin: {gt.lin} - Dir: {gt.dir}</title>
+                                </circle>
+
+                                <g className="drop-shadow-md">
+                                  <rect
+                                    x={x - (labelWidth / 2)}
+                                    y={y - 16}
+                                    width={labelWidth}
+                                    height={12}
+                                    rx={3}
+                                    fill={lineColor}
+                                  />
+                                  <text
+                                    x={x}
+                                    y={y - 10}
+                                    textAnchor="middle"
+                                    dominantBaseline="middle"
+                                    className="text-[8px] font-black fill-white uppercase tracking-tighter"
+                                  >
+                                    {trainLabel}
+                                  </text>
+                                </g>
+                              </g>
+                            </g>
+                          );
+                        });
+                      })()
+                      }
+                      {/* Parked Units on Main Map */}
+                      {parkedUnits.map((u, i) => {
+                        const st = MAP_STATIONS.find(s => s.id === u.depot_id);
+                        if (!st) return null;
+
+                        let px = st.x;
+                        let py = st.y;
+
+                        // Custom positioning for depots
+                        if (u.depot_id === 'PC') {
+                          const trackIdx = parseInt(u.track) - 1;
+                          const ys = [84, 92, 100, 108, 116];
+                          px = -25;
+                          py = ys[trackIdx] || 100;
+                        } else {
+                          // Offset small for others
+                          px += 6; py -= 6;
+                        }
+
+                        return (
+                          <g key={`main-parked-${u.unit_number}-${i}`}>
+                            <circle cx={px} cy={py} r={2.5} fill="#3b82f6" stroke="white" strokeWidth="0.5" className="animate-pulse" />
+                            <text x={px} y={py - 4} textAnchor="middle" className="text-[4px] font-black fill-blue-500 uppercase">{u.unit_number}</text>
+                          </g>
+                        );
+                      })}
+                    </svg>
+                  </div>
+                </TransformComponent>
+              </>
+            )}
+          </TransformWrapper>
         </div>
 
         {/* Modal Diagrama SR (Sarrià) */}
