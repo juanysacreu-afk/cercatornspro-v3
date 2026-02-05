@@ -2,6 +2,7 @@
 import React from 'react';
 import { Phone, Users, Camera, FileText, Brush, AlertTriangle, BookOpen, Settings } from 'lucide-react';
 import { checkIfActive } from '../utils/time';
+import { MarqueeText } from './MarqueeText';
 
 interface StationRowProps {
     circ: any;
@@ -81,11 +82,10 @@ export const StationRow: React.FC<StationRowProps> = ({
             <div className="flex flex-col items-start px-2 min-w-0 gap-2">
                 {circ.drivers.map((driver: any, dIdx: number) => (
                     <div key={dIdx} className="flex items-center gap-2">
-                        <div className="min-w-0 shrink overflow-hidden relative w-full">
-                            <span className={`text-sm sm:text-lg font-black leading-tight whitespace-nowrap animate-marquee block ${isActive ? 'text-red-700 dark:text-red-400' : isBroken ? 'text-red-600' : 'text-fgc-grey dark:text-gray-200'}`}>
-                                {driver.cognoms || ''}, {driver.nom || ''}
-                            </span>
-                        </div>
+                        <MarqueeText
+                            text={`${driver.cognoms || ''}, ${driver.nom || ''}`}
+                            className={`text-sm sm:text-lg font-black leading-tight ${isActive ? 'text-red-700 dark:text-red-400' : isBroken ? 'text-red-600' : 'text-fgc-grey dark:text-gray-200'}`}
+                        />
                         {driver.tipus_torn && (
                             <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border shrink-0 ${driver.tipus_torn === 'Reducció'
                                 ? 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800'

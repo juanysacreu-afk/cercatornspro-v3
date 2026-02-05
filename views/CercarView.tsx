@@ -14,6 +14,7 @@ import { TimeGapRow } from '../components/TimeGapRow';
 import { CirculationHeader } from '../components/CirculationHeader';
 import { CirculationRow } from '../components/CirculationRow';
 import { StationRow } from '../components/StationRow';
+import { MarqueeText } from '../components/MarqueeText';
 import { getServiceToday } from '../utils/serviceCalendar';
 
 export const CercarView: React.FC = () => {
@@ -616,9 +617,10 @@ export const CercarView: React.FC = () => {
                             <div className="w-14 h-14 sm:w-16 sm:h-16 bg-white/40 dark:bg-black/20 rounded-full flex items-center justify-center text-fgc-grey border-2 border-white/60 shrink-0">{group.drivers.length > 1 ? <span className="font-black text-lg">{dIdx + 1}</span> : <User size={28} strokeWidth={2.5} />}</div>
                             <div className="space-y-1 min-w-0 flex-1 md:flex-none">
                               <div className="flex items-center gap-3">
-                                <div className="min-w-0 shrink overflow-hidden relative w-full sm:w-auto">
-                                  <h3 className="text-xl sm:text-2xl font-black text-fgc-grey tracking-tight leading-tight uppercase whitespace-nowrap animate-marquee">{driver.cognoms}, {driver.nom}</h3>
-                                </div>
+                                <MarqueeText
+                                  text={`${driver.cognoms}, ${driver.nom}`}
+                                  className="text-xl sm:text-2xl font-black text-fgc-grey tracking-tight leading-tight uppercase"
+                                />
                                 {driver.tipus_torn && (<span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase shadow-sm border ${driver.tipus_torn === 'Reducció' ? 'bg-purple-600 text-white border-purple-700' : 'bg-blue-600 text-white border-blue-700'}`}>{driver.tipus_torn}</span>)}
                                 {isWorking && (<div className="bg-fgc-grey text-white px-3 py-1 rounded-full text-[9px] font-black uppercase flex items-center gap-1.5 shadow-sm animate-bounce"><div className="w-1.5 h-1.5 bg-fgc-green rounded-full animate-pulse" />TREBALLANT</div>)}
                               </div>
