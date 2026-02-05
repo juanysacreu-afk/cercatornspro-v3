@@ -82,7 +82,7 @@ export const StationRow: React.FC<StationRowProps> = ({
                 {circ.drivers.map((driver: any, dIdx: number) => (
                     <div key={dIdx} className="flex items-center gap-2">
                         <div className="min-w-0 shrink overflow-hidden relative w-full">
-                            <span className={`text-sm sm:text-lg font-black leading-tight whitespace-nowrap animate-marquee sm:animate-none sm:truncate block ${isActive ? 'text-red-700 dark:text-red-400' : isBroken ? 'text-red-600' : 'text-fgc-grey dark:text-gray-200'}`}>
+                            <span className={`text-sm sm:text-lg font-black leading-tight whitespace-nowrap animate-marquee block ${isActive ? 'text-red-700 dark:text-red-400' : isBroken ? 'text-red-600' : 'text-fgc-grey dark:text-gray-200'}`}>
                                 {driver.cognoms || ''}, {driver.nom || ''}
                             </span>
                         </div>

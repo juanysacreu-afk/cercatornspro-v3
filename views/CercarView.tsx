@@ -617,7 +617,7 @@ export const CercarView: React.FC = () => {
                             <div className="space-y-1 min-w-0 flex-1 md:flex-none">
                               <div className="flex items-center gap-3">
                                 <div className="min-w-0 shrink overflow-hidden relative w-full sm:w-auto">
-                                  <h3 className="text-xl sm:text-2xl font-black text-fgc-grey tracking-tight leading-tight uppercase whitespace-nowrap animate-marquee sm:animate-none sm:truncate">{driver.cognoms}, {driver.nom}</h3>
+                                  <h3 className="text-xl sm:text-2xl font-black text-fgc-grey tracking-tight leading-tight uppercase whitespace-nowrap animate-marquee">{driver.cognoms}, {driver.nom}</h3>
                                 </div>
                                 {driver.tipus_torn && (<span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase shadow-sm border ${driver.tipus_torn === 'Reducció' ? 'bg-purple-600 text-white border-purple-700' : 'bg-blue-600 text-white border-blue-700'}`}>{driver.tipus_torn}</span>)}
                                 {isWorking && (<div className="bg-fgc-grey text-white px-3 py-1 rounded-full text-[9px] font-black uppercase flex items-center gap-1.5 shadow-sm animate-bounce"><div className="w-1.5 h-1.5 bg-fgc-green rounded-full animate-pulse" />TREBALLANT</div>)}
