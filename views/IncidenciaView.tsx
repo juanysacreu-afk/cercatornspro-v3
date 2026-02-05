@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, ShieldAlert, Loader2, UserCheck, Clock, MapPin, AlertCircle, Phone, Info, Users, Zap, User, Train, Map as MapIcon, X, Timer, Scissors, ArrowDownToLine, ArrowUpToLine, ArrowLeftToLine, ArrowRightToLine, Coffee, Layers, Trash2, Repeat, Rewind, FastForward, RotateCcw, RefreshCw, LayoutGrid, CheckCircle2, Activity, FilePlus, ArrowRight, Move, Plus, Minus, Bell, Construction, Warehouse, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
+import { Search, ShieldAlert, Loader2, UserCheck, Clock, MapPin, AlertCircle, Phone, Info, Users, Zap, User, Train, Map as MapIcon, X, Timer, Scissors, ArrowDownToLine, ArrowUpToLine, ArrowLeftToLine, ArrowRightToLine, Coffee, Layers, Trash2, Repeat, Rewind, FastForward, RotateCcw, RefreshCw, LayoutGrid, CheckCircle2, Activity, FilePlus, ArrowRight, Move, Plus, Minus, Bell, Construction, Warehouse, ZoomIn, ZoomOut, Maximize, Wand2 } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
 import { fetchFullTurns } from '../utils/queries.ts';
 import IncidenciaPerTorn from '../components/IncidenciaPerTorn.tsx';
@@ -1480,18 +1480,104 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 bg-white dark:bg-gray-800 px-4 py-2 rounded-xl border border-gray-100 dark:border-white/10">
-                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Freq:</span>
-                <input
-                  type="range" min="5" max="60" step="1"
-                  value={manualHeadway || 15}
-                  onChange={(e) => setManualHeadway(parseInt(e.target.value))}
-                  className="w-24 accent-blue-500"
-                />
-                <span className="text-xs font-black text-blue-500 w-12">{manualHeadway || 'Auto'} min</span>
-                {manualHeadway && (
-                  <button onClick={() => setManualHeadway(null)} className="text-gray-400 hover:text-red-500"><X size={14} /></button>
-                )}
+              <div className="flex items-center gap-3 bg-white dark:bg-gray-800 px-3 py-2 rounded-xl border border-gray-100 dark:border-white/10 shadow-sm">
+                <div className="flex items-center gap-2 mr-2 border-r border-gray-100 dark:border-white/10 pr-3">
+                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Freq.</span>
+                  <button
+                    onClick={() => {
+                      if (!manualHeadway) setManualHeadway(15);
+                      else setManualHeadway(Math.max(1, manualHeadway - 1));
+                    }}
+                    className="w-6 h-6 flex items-center justify-center bg-gray-100 dark:bg-white/5 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 text-gray-500 transition-colors"
+                  >
+                    <Minus size={12} />
+                  </button>
+                  <div className="flex flex-col items-center w-12">
+                    <span className="text-sm font-black text-fgc-grey dark:text-gray-200 leading-none">{manualHeadway || '--'}</span>
+                    <span className="text-[8px] font-bold text-gray-400 leading-none">min</span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (!manualHeadway) setManualHeadway(15);
+                      else setManualHeadway(manualHeadway + 1);
+                    }}
+                    className="w-6 h-6 flex items-center justify-center bg-gray-100 dark:bg-white/5 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 text-gray-500 transition-colors"
+                  >
+                    <Plus size={12} />
+                  </button>
+                </div>
+
+                <button
+                  onClick={async () => {
+                    // AUTO CALCULATION LOGIC
+                    const { data: theoryCircs } = await supabase.from('circulations').select('*');
+                    if (!theoryCircs) return;
+                    const liniaStationsRef: Record<string, string[]> = { 'S1': S1_STATIONS, 'S2': S2_STATIONS, 'L6': L6_STATIONS, 'L7': L7_STATIONS, 'L12': L12_STATIONS };
+
+                    let maxTravelTime = 0;
+                    let totalUnits = Object.values(lineCounts).reduce((a, b) => a + b, 0);
+                    if (totalUnits === 0) return;
+
+                    // Find longest route in island
+                    // We iterate over LINES assigned
+                    Object.entries(lineCounts).forEach(([linia, count]) => {
+                      if (count === 0) return;
+                      // Get endpoints for this line within island
+                      const lineStops = liniaStationsRef[linia];
+                      if (!lineStops) return;
+                      const islandLineStops = lineStops.filter(s => islandStations.has(s));
+                      if (islandLineStops.length < 2) return;
+
+                      const start = islandLineStops[0];
+                      const end = islandLineStops[islandLineStops.length - 1];
+
+                      // Find reference trip time
+                      const sample = (theoryCircs as any[])
+                        .filter(c => c.linia === linia && getFgcMinutes(c.sortida) <= displayMin)
+                        .sort((a, b) => getFgcMinutes(b.sortida) - getFgcMinutes(a.sortida))[0]
+                        || (theoryCircs as any[]).find(c => c.linia === linia); // Fallback to any
+
+                      if (sample) {
+                        // Calculate time between start and end
+                        const stops = [sample.inici, ...(sample.estacions?.map((s: any) => s.nom) || []), sample.final];
+                        const times = [sample.sortida, ...(sample.estacions?.map((s: any) => s.hora || s.sortida) || []), sample.arribada];
+
+                        const idx1 = stops.indexOf(start);
+                        const idx2 = stops.indexOf(end);
+
+                        if (idx1 !== -1 && idx2 !== -1) {
+                          const t1 = getFgcMinutes(times[idx1]);
+                          const t2 = getFgcMinutes(times[idx2]);
+                          const duration = Math.abs(t2 - t1);
+                          if (duration > maxTravelTime) maxTravelTime = duration;
+                        }
+                      } else {
+                        // Fallback generic calculation
+                        const dist = Math.abs(islandLineStops.indexOf(start) - islandLineStops.indexOf(end));
+                        const duration = dist * 3; // Approx 3 min per station
+                        if (duration > maxTravelTime) maxTravelTime = duration;
+                      }
+                    });
+
+                    if (maxTravelTime > 0) {
+                      // Formula: (RoundTrip + Turnaround*2) / Units
+                      const roundTrip = maxTravelTime * 2;
+                      const turnaround = 6; // 3 min each end
+                      const totalLoop = roundTrip + turnaround;
+                      const optimalFreq = Math.round((totalLoop / totalUnits) * 10) / 10; // 1 decimal
+
+                      // User requested minute by minute, so lets round to nearest minute or 0.5? 
+                      // Input handles integers usually, but exact calc is better. Steps are 1.
+                      // Let's round to nearest minute for simplicity in integer input
+                      setManualHeadway(Math.max(1, Math.round(optimalFreq)));
+                    }
+                  }}
+                  className="group flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
+                  title="Calcular freqüència automàtica òptima"
+                >
+                  <Wand2 size={14} className="group-hover:rotate-12 transition-transform" />
+                  <span className="text-[10px] font-black uppercase tracking-wider">AUTO</span>
+                </button>
               </div>
               <button
                 onClick={handleGenerateCirculations}
