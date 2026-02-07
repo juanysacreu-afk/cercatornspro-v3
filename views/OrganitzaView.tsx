@@ -11,7 +11,7 @@ const RESERVAS_DATA = [
   { id: 'QRS0', loc: 'SR', start: '22:00', end: '06:00' },
   { id: 'QRP0', loc: 'PC', start: '22:00', end: '06:00' },
   { id: 'QRN0', loc: 'NA', start: '22:00', end: '06:00' },
-  { id: 'QRF0', loc: 'PN', start: '22:00', end: '06:00' },
+  { id: 'QRF0', loc: 'PR', start: '22:00', end: '06:00' },
   { id: 'QRR0', loc: 'RB', start: '22:00', end: '06:00' },
   { id: 'QRR4', loc: 'RB', start: '21:50', end: '05:50' },
   { id: 'QRR1', loc: 'RB', start: '06:00', end: '14:00' },
@@ -141,6 +141,8 @@ export const OrganitzaView: React.FC = () => {
     return timeMin >= start && timeMin < end;
   };
 
+  const normalizeStr = (str: string) => str ? str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase() : "";
+
   const getStatusColor = (codi: string) => {
     const c = (codi || '').toUpperCase().trim();
     if (c === 'PC') return 'bg-blue-400';
@@ -234,154 +236,266 @@ export const OrganitzaView: React.FC = () => {
           setAdjacentPassengerResults({ anterior: enrichedAnterior.map(t => ({ ...t, adjacentCode: anteriorId })), posterior: enrichedPosterior.map(t => ({ ...t, adjacentCode: posteriorId })) });
         }
 
+
+        // Need searchedCirc details for resting/reserve calculation
+        if (!searchedCirc) {
+          setLoadingCoverage(false);
+          return;
+        }
+
         const depOrigen = searchedCirc.inici;
         const sortidaMin = getFgcMinutes(searchedCirc.sortida);
         const arribadaMin = getFgcMinutes(searchedCirc.arribada);
         const enrichedAll = await fetchFullTurns(allShifts.map(s => s.id), selectedServei === '0' ? undefined : selectedServei);
 
+        // OPTIMIZATION: Fetch ALL potential return trains for ALL stations in the itinerary in ONE query
+        const itinerary = [
+          { nom: searchedCirc.inici, hora: searchedCirc.sortida },
+          ...(searchedCirc.estacions || []),
+          { nom: searchedCirc.final, hora: searchedCirc.arribada }
+        ];
+        const itineraryStationNames = Array.from(new Set(itinerary.map(p => p.nom).filter(Boolean)));
+
+        const { data: globalBulkDataRaw } = await supabase
+          .from('circulations')
+          .select('*')
+          .in('inici', itineraryStationNames)
+          .gte('sortida', formatFgcTime(Math.max(0, sortidaMin - 20)));
+
+        // CRITICAL: Sort by time to ensure .find() picks the EARLIEST valid one
+        const globalBulkReturns = (globalBulkDataRaw || [])
+          .map(c => ({ ...c, _sMin: getFgcMinutes(c.sortida) }))
+          .sort((a, b) => a._sMin - b._sMin);
+
+        console.log(`Global discovery: ${globalBulkReturns.length} sorted candidate return trains fetched for ${itineraryStationNames.length} stations.`);
+
         const restingResults: any[] = [];
         const extensibleResults: any[] = [];
         const reserveResults: any[] = [];
 
-        enrichedAll.forEach(tData => {
-          if (!tData) return;
-          const segs = getSegments(tData);
-          const [h, m] = (tData.duracio || "00:00").split(':').map(Number);
-          const originalDurationMin = h * 60 + m;
-          const maxExtensionCapacityMin = 525 - originalDurationMin;
+        for (const tData of enrichedAll) {
+          try {
+            if (!tData) continue;
+            const segs = getSegments(tData);
+            const [h, m] = (tData.duracio || "00:00").split(':').map(Number);
+            const originalDurationMin = h * 60 + m;
+            const maxExtensionCapacityMin = 525 - originalDurationMin;
 
-          const currentRestSeg = segs.find(seg => seg.type === 'gap' && seg.codi.toUpperCase() === depOrigen.toUpperCase() && seg.start <= sortidaMin && seg.end > sortidaMin);
-          if (currentRestSeg) {
-            const availableTime = currentRestSeg.end - sortidaMin;
-            const conflictMinutes = Math.max(0, arribadaMin - currentRestSeg.end);
-            const nextCirculation = segs.find(seg => seg.type === 'circ' && seg.start >= currentRestSeg.end);
-            restingResults.push({ ...tData, restSegment: currentRestSeg, availableTime, conflictMinutes, nextCirculation });
-          }
+            const currentRestSeg = segs.find(seg => seg.type === 'gap' && seg.codi.toUpperCase() === depOrigen.toUpperCase() && seg.start <= sortidaMin && seg.end > sortidaMin);
+            if (currentRestSeg) {
+              const availableTime = currentRestSeg.end - sortidaMin;
+              const conflictMinutes = Math.max(0, arribadaMin - currentRestSeg.end);
+              const nextCirculation = segs.find(seg => seg.type === 'circ' && seg.start >= currentRestSeg.end);
+              const nextCircCode = nextCirculation?.codi;
+              let nextOriginStation = null;
 
-          if (maxExtensionCapacityMin > 0) {
-            const isAtOriginAtDeparture = segs.find(seg => seg.type === 'gap' && seg.codi.toUpperCase() === depOrigen.toUpperCase() && seg.start <= sortidaMin && seg.end > sortidaMin);
-            if (isAtOriginAtDeparture) {
-              const hasConflictsTotal = segs.some(seg => seg.type === 'circ' && seg.start >= sortidaMin && seg.start < (arribadaMin + (arribadaMin - sortidaMin) + 10));
-              if (!hasConflictsTotal) {
-                const shiftFinalMin = getFgcMinutes(tData.final_torn);
-                const extraNeededTotal = Math.max(0, (arribadaMin + (arribadaMin - sortidaMin) + 10) - shiftFinalMin);
-                if (extraNeededTotal <= maxExtensionCapacityMin) {
-                  extensibleResults.push({ ...tData, extData: { extraNeeded: extraNeededTotal, originalDuration: originalDurationMin, estimatedReturn: (arribadaMin + (arribadaMin - sortidaMin) + 10) } });
+              if (nextCircCode) {
+                const nc = tData.fullCirculations?.find((c: any) => c.codi === nextCircCode);
+                if (nc) {
+                  if (nc.codi === 'Viatger') nextOriginStation = nc.final || nc.machinistInici;
+                  else nextOriginStation = nc.machinistInici || nc.inici;
                 }
               }
+              restingResults.push({ ...tData, restSegment: currentRestSeg, availableTime, conflictMinutes, nextCirculation, nextOriginStation });
+            }
 
-              const itinerary = [
-                { nom: searchedCirc.inici, hora: searchedCirc.sortida },
-                ...(searchedCirc.estacions || []),
-                { nom: searchedCirc.final, hora: searchedCirc.arribada }
-              ];
+            if (maxExtensionCapacityMin > 0) {
+              const isAtOriginAtDeparture = segs.find(seg => seg.type === 'gap' && seg.codi.toUpperCase() === depOrigen.toUpperCase() && seg.start <= sortidaMin && seg.end > sortidaMin);
+              if (isAtOriginAtDeparture) {
+                const hasConflictsTotal = segs.some(seg => seg.type === 'circ' && seg.start >= sortidaMin && seg.start < (arribadaMin + (arribadaMin - sortidaMin) + 10));
+                if (!hasConflictsTotal) {
+                  const shiftFinalMin = getFgcMinutes(tData.final_torn);
+                  const extraNeededTotal = Math.max(0, (arribadaMin + (arribadaMin - sortidaMin) + 10) - shiftFinalMin);
+                  if (extraNeededTotal <= maxExtensionCapacityMin) {
+                    extensibleResults.push({ ...tData, extData: { extraNeeded: extraNeededTotal, originalDuration: originalDurationMin, estimatedReturn: (arribadaMin + (arribadaMin - sortidaMin) + 10) } });
+                  }
+                }
 
-              let bestIntercept = null;
-              for (const point of itinerary) {
-                const pointMin = getFgcMinutes(point.hora || point.arribada || point.sortida);
-                const pointName = (point.nom || '').toUpperCase();
+                let bestIntercept = null;
 
-                const reserve = RESERVAS_DATA.find(r => pointName.includes(r.loc) && isReserveActive(r, pointMin));
+                for (let i = 0; i < itinerary.length; i++) {
+                  const point = itinerary[i];
+                  const pointMin = getFgcMinutes(point.hora || point.arribada || point.sortida);
+                  const pointNameRaw = (point.nom || '');
+                  const pointNameNorm = normalizeStr(pointNameRaw);
 
-                if (reserve) {
-                  const returnToOriginTimeMin = pointMin + 25;
-                  const hasConflictsPartial = segs.some(seg => seg.type === 'circ' && seg.start >= sortidaMin && seg.start < returnToOriginTimeMin);
+                  const candidates = RESERVAS_DATA.filter(r =>
+                    (pointNameNorm === r.loc || pointNameNorm.includes(r.loc) || r.loc.includes(pointNameNorm)) &&
+                    isReserveActive(r, pointMin)
+                  );
 
-                  if (!hasConflictsPartial) {
-                    const shiftFinalMin = getFgcMinutes(tData.final_torn);
-                    const extraNeededPartial = Math.max(0, returnToOriginTimeMin - shiftFinalMin);
+                  for (const reserve of candidates) {
+                    let driverTarget = tData.dependencia;
+                    const nextCirc = segs.find(s => s.type === 'circ' && s.start >= pointMin);
+                    if (nextCirc) {
+                      const nc = tData.fullCirculations?.find((c: any) => c.codi === nextCirc.codi);
+                      if (nc) driverTarget = nc.machinistInici || nc.inici;
+                    }
 
-                    if (extraNeededPartial <= maxExtensionCapacityMin) {
-                      if (!bestIntercept || pointMin < bestIntercept.time) {
-                        bestIntercept = { time: pointMin, name: pointName, reservaId: reserve.id, extraNeeded: extraNeededPartial };
+                    let driverReturnTrain = null;
+                    let returnToOriginTimeMin = pointMin + 45;
+
+                    if (driverTarget) {
+                      const minDMin = pointMin + 2;
+                      const validD = globalBulkReturns.find(c =>
+                        c.inici?.trim().toUpperCase() === pointNameRaw.trim().toUpperCase() &&
+                        c._sMin >= minDMin &&
+                        (normalizeStr(c.final || '').includes(driverTarget) || (c.estacions && c.estacions.some((s: any) => normalizeStr(s.nom || '').includes(driverTarget))))
+                      );
+
+                      if (validD) {
+                        driverReturnTrain = validD;
+                        let arr = getFgcMinutes(validD.arribada);
+                        if (validD.estacions) {
+                          const st = validD.estacions.find((s: any) => normalizeStr(s.nom || '').includes(driverTarget));
+                          if (st) arr = getFgcMinutes(st.hora || st.arribada);
+                        }
+                        returnToOriginTimeMin = arr + 5;
+                      }
+                    }
+
+                    const hasConflictsPartial = segs.some(seg => seg.type === 'circ' && seg.start >= sortidaMin && seg.start < returnToOriginTimeMin);
+                    if (!hasConflictsPartial) {
+                      const shiftFinalMin = getFgcMinutes(tData.final_torn);
+                      const extraNeededPartial = Math.max(0, returnToOriginTimeMin - shiftFinalMin);
+
+                      if (extraNeededPartial <= maxExtensionCapacityMin) {
+                        const isEndBase = normalizeStr(searchedCirc.final || '').includes(reserve.loc);
+                        const reserveFinishTime = arribadaMin + (isEndBase ? 0 : 45) + 7;
+                        const reserveEndShift = getFgcMinutes(reserve.end);
+                        const reserveTotalExtra = Math.max(0, reserveFinishTime - reserveEndShift);
+
+                        let reserveStatus = 'ok';
+                        let secondaryResInfo = null;
+                        let primaryReturnCirc = null;
+
+                        if (reserveTotalExtra > 45) {
+                          reserveStatus = 'relay_needed';
+                          for (let j = i + 1; j < itinerary.length; j++) {
+                            const relaySt = itinerary[j];
+                            const relayMin = getFgcMinutes(relaySt.hora || relaySt.arribada || relaySt.sortida);
+                            const relayNameNorm = normalizeStr(relaySt.nom || '');
+                            const relayCandidates = RESERVAS_DATA.filter(r2 =>
+                              r2.id !== reserve.id && (relayNameNorm === r2.loc || relayNameNorm.includes(r2.loc)) && isReserveActive(r2, relayMin)
+                            );
+
+                            if (relayCandidates.length > 0) {
+                              const relayReserve = relayCandidates[0];
+                              const minDMin = relayMin + 2;
+                              const validReturn = globalBulkReturns.find(c =>
+                                c.inici?.trim().toUpperCase() === (relaySt.nom || '').trim().toUpperCase() &&
+                                c._sMin >= minDMin &&
+                                (normalizeStr(c.final || '').includes(reserve.loc) || (c.estacions && c.estacions.some((s: any) => normalizeStr(s.nom || '').includes(reserve.loc))))
+                              );
+
+                              if (validReturn) {
+                                let arr = getFgcMinutes(validReturn.arribada);
+                                if (validReturn.estacions) {
+                                  const stop = validReturn.estacions.find((s: any) => normalizeStr(s.nom || '').includes(reserve.loc));
+                                  if (stop) arr = getFgcMinutes(stop.hora || stop.arribada);
+                                }
+                                const primaryExtraWithRelay = Math.max(0, arr + 7 - reserveEndShift);
+                                if (primaryExtraWithRelay <= 45) {
+                                  const isRelayEndBase = normalizeStr(searchedCirc.final || '').includes(relayReserve.loc);
+                                  const relayEndShift = getFgcMinutes(relayReserve.end);
+                                  const relayExtra = Math.max(0, arribadaMin + (isRelayEndBase ? 0 : 45) + 7 - relayEndShift);
+                                  if (relayExtra <= 45) {
+                                    secondaryResInfo = {
+                                      id: relayReserve.id, loc: relayReserve.loc, station: relaySt.nom,
+                                      time: formatFgcTime(relayMin), extra: relayExtra,
+                                      primaryExtraAfterRelay: primaryExtraWithRelay, returnCirculation: validReturn
+                                    };
+                                    break;
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        } else if (reserveTotalExtra > 0) {
+                          reserveStatus = 'extended';
+                        }
+
+                        if (reserveStatus !== 'relay_needed' && !isEndBase) {
+                          const minDMin = arribadaMin + 5;
+                          primaryReturnCirc = globalBulkReturns.find(c =>
+                            c.inici?.trim().toUpperCase() === (searchedCirc.final || '').trim().toUpperCase() &&
+                            c._sMin >= minDMin &&
+                            (normalizeStr(c.final || '').includes(reserve.loc) || (c.estacions && c.estacions.some((s: any) => normalizeStr(s.nom || '').includes(reserve.loc))))
+                          );
+                        }
+
+                        if (reserveStatus === 'relay_needed' && !secondaryResInfo) continue;
+                        const finalPrimaryExtra = secondaryResInfo ? secondaryResInfo.primaryExtraAfterRelay : reserveTotalExtra;
+                        if (!bestIntercept || pointMin < bestIntercept.time) {
+                          bestIntercept = {
+                            time: pointMin, interceptTime: formatFgcTime(pointMin), name: pointNameRaw,
+                            reservaId: reserve.id, extraNeeded: extraNeededPartial, reserveExtraNeeded: finalPrimaryExtra,
+                            reserveStatus: reserveStatus, secondaryRes: secondaryResInfo, driverReturnCirc: driverReturnTrain,
+                            primaryReturnCirc: primaryReturnCirc, originalDuration: originalDurationMin
+                          };
+                        }
                       }
                     }
                   }
                 }
-              }
-
-              if (bestIntercept) {
-                reserveResults.push({ ...tData, resData: { ...bestIntercept, originalDuration: originalDurationMin, interceptTime: formatFgcTime(bestIntercept.time) } });
+                if (bestIntercept) {
+                  reserveResults.push({ ...tData, resData: { ...bestIntercept, originalDuration: originalDurationMin, interceptTime: formatFgcTime(bestIntercept.time) } });
+                }
               }
             }
+          } catch (e) {
+            console.error("Error processing driver in update loop:", e);
           }
-        });
+        }
 
         // --------------------------------------------------------------------------------
         // START: Return Trip Calculation for Drivers with Next Duty
         // --------------------------------------------------------------------------------
+        let finalRestingResults = restingResults;
+        try {
+          const nextOrigins = new Set<string>();
+          restingResults.forEach(r => {
+            if (r.nextCirculation) {
+              const nextCircFull = r.fullCirculations?.find((c: any) => c.codi === r.nextCirculation.codi);
+              if (nextCircFull && nextCircFull.machinistInici) nextOrigins.add(nextCircFull.machinistInici);
+            }
+          });
+          const returnMap: Record<string, any[]> = {};
+          if (nextOrigins.size > 0 && searchedCircData) {
+            const bufferMin = 2;
+            const minDepartureMin = arribadaMin + bufferMin;
+            const departureTimeStr = formatFgcTime(minDepartureMin);
+            const { data: returnCircs, error: retErr } = await supabase
+              .from('circulations')
+              .select('id, sortida, arribada, inici, final, linia')
+              .eq('inici', searchedCircData.final)
+              .gte('sortida', departureTimeStr)
+              .order('sortida')
+              .limit(50);
+            if (!retErr && returnCircs) returnMap[searchedCircData.final] = returnCircs;
+          }
 
-        // 1. Identify distinct next origins we need routes to
-        const nextOrigins = new Set<string>();
-        restingResults.forEach(r => {
-          if (r.nextCirculation) {
-            // Find full details to get the origin station of that circulation
+          finalRestingResults = restingResults.map(r => {
+            if (!r.nextCirculation) return r;
             const nextCircFull = r.fullCirculations?.find((c: any) => c.codi === r.nextCirculation.codi);
-            // If found use machinistInici, otherwise fallback to dependency or leave unknown
-            if (nextCircFull && nextCircFull.machinistInici) nextOrigins.add(nextCircFull.machinistInici);
-          }
-        });
-
-        const returnMap: Record<string, any[]> = {}; // Cache for routes from [CurrentFinal] -> [TargetOrigin]
-
-        // 2. Fetch potential return trains if needed
-        // We only care about trains LEAVING from 'searchedCircData.final'
-        if (nextOrigins.size > 0 && searchedCircData) {
-          const bufferMin = 2; // Time to change train/platform
-          const minDepartureMin = arribadaMin + bufferMin;
-          const departureTimeStr = formatFgcTime(minDepartureMin);
-
-          // Heuristic: Get next 50 departures from this station to analyze locally
-          const { data: returnCircs } = await supabase
-            .from('circulations')
-            .select('id, sortida, arribada, inici, final, linia')
-            .eq('inici', searchedCircData.final)
-            .gte('sortida', departureTimeStr)
-            .order('sortida')
-            .limit(50);
-
-          if (returnCircs) {
-            returnMap[searchedCircData.final] = returnCircs;
-          }
+            const nextOrigin = nextCircFull?.machinistInici || r.dependencia;
+            if (!nextOrigin) return { ...r, returnStatus: 'unknown' };
+            if (nextOrigin === searchedCircData.final) return { ...r, returnStatus: 'same_station' };
+            const candidateReturns = returnMap[searchedCircData.final] || [];
+            const validReturn = candidateReturns.find((c: any) => c.final === nextOrigin);
+            if (validReturn) {
+              const returnArrMin = getFgcMinutes(validReturn.arribada);
+              const nextStartMin = r.nextCirculation.start;
+              if (returnArrMin <= nextStartMin - 1) return { ...r, returnStatus: 'ok', returnCirc: validReturn };
+              else return { ...r, returnStatus: 'too_late', returnCirc: validReturn };
+            }
+            return { ...r, returnStatus: 'no_route' };
+          });
+        } catch (eReturn) {
+          console.error("Error calculating returns:", eReturn);
+          finalRestingResults = restingResults;
         }
 
-        // 3. Match drivers to return trains
-        const finalRestingResults = restingResults.map(r => {
-          if (!r.nextCirculation) return r;
-
-          const nextCircFull = r.fullCirculations?.find((c: any) => c.codi === r.nextCirculation.codi);
-          const nextOrigin = nextCircFull?.machinistInici || r.dependencia;
-
-          if (!nextOrigin) return { ...r, returnStatus: 'unknown' };
-
-          // Case A: Driver is already at the correct station
-          if (nextOrigin === searchedCircData.final) {
-            return { ...r, returnStatus: 'same_station' };
-          }
-
-          // Case B: Needs to travel
-          const candidateReturns = returnMap[searchedCircData.final] || [];
-
-          // Find FIRST train that goes to 'nextOrigin'
-          const validReturn = candidateReturns.find((c: any) => c.final === nextOrigin);
-
-          if (validReturn) {
-            const returnArrMin = getFgcMinutes(validReturn.arribada);
-            // r.nextCirculation.start is already in minutes (from getSegments)
-            const nextStartMin = r.nextCirculation.start;
-
-            // Check if it arrives in time (e.g., 1 min buffer before start)
-            if (returnArrMin <= nextStartMin - 1) {
-              return { ...r, returnStatus: 'ok', returnCirc: validReturn };
-            } else {
-              return { ...r, returnStatus: 'too_late', returnCirc: validReturn };
-            }
-          }
-
-          return { ...r, returnStatus: 'no_route' };
-        });
-
-        // Update state with enriched results
         setRestingDriversResults(finalRestingResults.sort((a, b) => (b.restSegment.end - b.restSegment.start) - (a.restSegment.end - a.restSegment.start)));
         setExtensibleDriversResults(extensibleResults.sort((a, b) => a.extData.extraNeeded - b.extData.extraNeeded));
         setReserveExtensionResults(reserveResults.sort((a, b) => a.resData.extraNeeded - b.resData.extraNeeded));
@@ -389,7 +503,7 @@ export const OrganitzaView: React.FC = () => {
     } catch (e) { console.error(e); } finally { setLoadingCoverage(false); }
   };
 
-  const getSegments = (turn: any) => {
+  function getSegments(turn: any) {
     if (!turn) return [];
     const startMin = getFgcMinutes(turn.inici_torn);
     const endMin = getFgcMinutes(turn.final_torn);
@@ -664,11 +778,70 @@ export const OrganitzaView: React.FC = () => {
 
                   <div className="space-y-4">
                     <div className="flex items-center gap-2 px-2"><Repeat className="text-indigo-500" size={16} /><h3 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Perllongament + Reserva ({reserveExtensionResults.length})</h3></div>
-                    {reserveExtensionResults.length > 0 ? (<div className="flex flex-col gap-2">{reserveExtensionResults.map((torn, idx) => (<div key={idx} className="bg-white dark:bg-gray-800 rounded-2xl p-3 border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-md transition-all flex items-center gap-4 border-l-4 border-l-indigo-500">
-                      <div className="h-10 min-w-[2.5rem] px-2 bg-indigo-50 dark:bg-indigo-950/20 text-indigo-600 rounded-xl flex items-center justify-center font-black text-xs shadow-sm shrink-0 whitespace-nowrap">{torn.id}</div>
-                      <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center sm:gap-6"><div className="flex-1 min-w-0"><div className="flex items-center gap-2"><p className="text-sm font-black text-fgc-grey dark:text-gray-200 truncate">{torn.drivers[0]?.cognoms}, {torn.drivers[0]?.nom}</p><span className="flex items-center gap-1 text-[8px] text-indigo-500 font-black uppercase tracking-widest"><Repeat size={10} /> Intercepció {torn.resData.reservaId}</span></div><div className="flex items-center gap-2 mt-0.5"><p className="text-[8px] font-black text-gray-300 dark:text-gray-600 uppercase tracking-widest">Nom. {torn.drivers[0]?.nomina}</p><span className="text-[8px] font-bold text-indigo-400 uppercase">Intercepció a {torn.resData.name} ({torn.resData.interceptTime})</span></div></div><div className="flex items-center gap-3 text-fgc-grey dark:text-gray-300 shrink-0"><div className="flex flex-col items-center"><div className="flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-950/20 px-3 py-1 rounded-lg border border-indigo-100 dark:border-indigo-900/40 transition-colors"><span className="text-[10px] font-black uppercase text-indigo-700 dark:text-indigo-400">{formatFgcTime(getFgcMinutes(torn.final_torn))}</span><ArrowRight size={10} className="text-indigo-300" /><span className="text-[10px] font-black uppercase text-indigo-700 dark:text-indigo-400">{formatFgcTime(getFgcMinutes(torn.resData.interceptTime) + 25)}</span></div><span className="text-[8px] font-black text-indigo-400 uppercase tracking-tighter mt-1">Extra: +{torn.resData.extraNeeded} min</span></div><div className="text-[10px] font-black text-white bg-indigo-500 px-3 py-1 rounded-lg border border-indigo-600 min-w-[100px] text-center shadow-sm">{Math.floor((525 - (torn.resData.originalDuration + torn.resData.extraNeeded)))} MIN MARGE</div></div></div>
-                      <div className="flex gap-1 shrink-0">{torn.drivers[0]?.phones?.map((p: string, i: number) => (<a key={i} href={`tel:${p}`} className="w-8 h-8 bg-indigo-500 text-white rounded-lg flex items-center justify-center hover:bg-blue-600 transition-all shadow-sm"><Phone size={12} /></a>))}</div>
-                    </div>))}</div>) : (<div className="bg-gray-50/50 dark:bg-black/20 rounded-2xl p-6 text-center border border-dashed border-gray-200 dark:border-white/10 transition-colors"><p className="text-gray-400 dark:text-gray-600 font-bold italic text-xs">Cap possibilitat d'intercepció amb reserves.</p></div>)}
+                    {reserveExtensionResults.length > 0 ? (
+                      <div className="flex flex-col gap-2">
+                        {reserveExtensionResults.map((torn, idx) => (
+                          <div key={idx} className="bg-white dark:bg-gray-800 rounded-2xl p-3 border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-md transition-all flex items-center gap-4 border-l-4 border-l-indigo-500">
+                            <div className="h-10 min-w-[2.5rem] px-2 bg-indigo-50 dark:bg-indigo-950/20 text-indigo-600 rounded-xl flex items-center justify-center font-black text-xs shadow-sm shrink-0 whitespace-nowrap">{torn.id}</div>
+
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-black text-fgc-grey dark:text-gray-200 truncate">{torn.drivers[0]?.cognoms}, {torn.drivers[0]?.nom}</p>
+                                <span className="flex items-center gap-1 text-[8px] text-indigo-500 font-black uppercase tracking-widest"><Repeat size={10} /> Intervenció {torn.resData.reservaId}{torn.resData.secondaryRes ? ` + ${torn.resData.secondaryRes.id}` : ''}</span>
+                              </div>
+
+                              <div className="flex flex-col gap-1 mt-0.5">
+                                <div className="flex items-center gap-2">
+                                  <p className="text-[8px] font-black text-gray-300 dark:text-gray-600 uppercase tracking-widest">Nom. {torn.drivers[0]?.nomina}</p>
+                                  <span className="text-[8px] font-bold text-indigo-400 uppercase tracking-tighter">
+                                    Relleu a {torn.resData.name} ({torn.resData.interceptTime})
+                                    {torn.resData.secondaryRes && ` → Relleu 2 a ${torn.resData.secondaryRes.station} (${torn.resData.secondaryRes.time})`}
+                                  </span>
+                                </div>
+
+                                {torn.resData.driverReturnCirc && (
+                                  <div className="flex items-center gap-1.5 ml-0.5">
+                                    <ArrowRight size={8} className="text-green-500" />
+                                    <span className="text-[8px] font-bold text-gray-400">Tornada Maq: <span className="text-green-600 dark:text-green-400">{torn.resData.driverReturnCirc.id}</span> ({torn.resData.driverReturnCirc.sortida} - {torn.resData.driverReturnCirc.arribada})</span>
+                                  </div>
+                                )}
+                                {torn.resData.primaryReturnCirc && (
+                                  <div className="flex items-center gap-1.5 ml-0.5">
+                                    <ArrowRight size={8} className="text-indigo-300" />
+                                    <span className="text-[8px] font-bold text-gray-400">Tornada Res 1: <span className="text-indigo-600 dark:text-indigo-400">{torn.resData.primaryReturnCirc.id}</span> ({torn.resData.primaryReturnCirc.sortida} - {torn.resData.primaryReturnCirc.arribada})</span>
+                                  </div>
+                                )}
+                                {torn.resData.secondaryRes?.returnCirculation && (
+                                  <div className="flex items-center gap-1.5 ml-0.5">
+                                    <ArrowRight size={8} className="text-indigo-300" />
+                                    <span className="text-[8px] font-bold text-gray-400">Tornada Res 1: <span className="text-indigo-600 dark:text-indigo-400">{torn.resData.secondaryRes.returnCirculation.id}</span> ({torn.resData.secondaryRes.returnCirculation.sortida} - {torn.resData.secondaryRes.returnCirculation.arribada})</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-3 text-fgc-grey dark:text-gray-300 shrink-0">
+                              <div className="flex flex-col items-center">
+                                <div className="flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-950/20 px-3 py-1 rounded-lg border border-indigo-100 dark:border-indigo-900/40 transition-colors">
+                                  <span className="text-[10px] font-black uppercase text-indigo-700 dark:text-indigo-400">{formatFgcTime(getFgcMinutes(torn.final_torn))}</span>
+                                  <ArrowRight size={10} className="text-indigo-300" />
+                                  <span className="text-[10px] font-black uppercase text-indigo-700 dark:text-indigo-400">{formatFgcTime(getFgcMinutes(torn.resData.interceptTime) + 25)}</span>
+                                </div>
+                                <span className="text-[8px] font-black text-indigo-400 uppercase tracking-tighter mt-1">Extra Torn: +{torn.resData.extraNeeded} min</span>
+                                {torn.resData.reserveExtraNeeded > 0 && <span className="text-[8px] font-black text-pink-500 uppercase tracking-tighter mt-0.5">Extra Res: +{torn.resData.reserveExtraNeeded} min</span>}
+                              </div>
+                              <div className="text-[10px] font-black text-white bg-indigo-500 px-3 py-1 rounded-lg border border-indigo-600 min-w-[100px] text-center shadow-sm">{Math.floor((525 - (torn.resData.originalDuration + torn.resData.extraNeeded)))} MIN MARGE</div>
+                            </div>
+
+                            <div className="flex gap-1 shrink-0">{torn.drivers[0]?.phones?.map((p: string, i: number) => (<a key={i} href={`tel:${p}`} className="w-8 h-8 bg-indigo-500 text-white rounded-lg flex items-center justify-center hover:bg-blue-600 transition-all shadow-sm"><Phone size={12} /></a>))}</div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="bg-gray-50/50 dark:bg-black/20 rounded-2xl p-6 text-center border border-dashed border-gray-200 dark:border-white/10 transition-colors">
+                        <p className="text-gray-400 dark:text-gray-600 font-bold italic text-xs">Cap possibilitat d'intercepció amb reserves.</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : coverageQuery ? (<div className="py-20 text-center space-y-4 opacity-40 transition-colors"><div className="w-16 h-16 bg-gray-100 dark:bg-black/20 rounded-full flex items-center justify-center mx-auto text-gray-300 dark:text-gray-700"><Info size={28} /></div><p className="font-black text-fgc-grey dark:text-gray-400 uppercase tracking-[0.2em] text-[10px]">Cap dada per a {coverageQuery}</p></div>) : (<div className="py-20 text-center space-y-4 transition-colors"><div className="w-20 h-20 bg-gray-50 dark:bg-black/20 rounded-full flex items-center justify-center mx-auto text-gray-200 dark:text-gray-800"><Train size={40} /></div><p className="text-gray-400 dark:text-gray-500 font-bold max-w-sm mx-auto leading-relaxed italic text-sm">Cerca una circulació per veure l'assignació completa de personal.</p></div>)}
@@ -827,8 +1000,9 @@ export const OrganitzaView: React.FC = () => {
             </div>
           </div>
         </div>
-      )}
-    </div>
+      )
+      }
+    </div >
   );
 };
 

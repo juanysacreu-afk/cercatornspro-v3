@@ -99,7 +99,7 @@ const App: React.FC = () => {
                 className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg object-cover shadow-sm transition-transform active:scale-95 group-hover:brightness-110"
               />
               <span className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-                Cerca<span className="text-fgc-green">Torns</span>
+                Cerca<span className="text-fgc-green">Torns</span> <span className="pro-badge">PRO</span>
               </span>
             </div>
 
