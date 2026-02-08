@@ -2084,7 +2084,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                           else if (selectedServei === '500') isShiftVisible = shiftService === '500' || shiftService === 'S2' || tripLine === 'S2';
                           else if (selectedServei === '100') isShiftVisible = shiftService === '100' || shiftService === 'L6' || tripLine === 'L6';
                           else if (selectedServei === '0') isShiftVisible = shiftService === '0' || shiftService === 'L12' || tripLine === 'L12';
-                          else isShiftVisible = (shiftService === selectedServei);
+                          else isShiftVisible = (shiftService === selectedServei || tripLine === selectedServei);
                         }
                         if (!isShiftVisible) return;
                         if (!groups[c.torn]) {
