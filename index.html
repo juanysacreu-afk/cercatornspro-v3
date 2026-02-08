@@ -112,6 +112,143 @@
       position: relative;
       top: -4px;
     }
+
+    /* Transiciones Líquidas */
+    @keyframes view-slide-in {
+      from {
+        transform: translateX(40px) scale(0.98);
+        opacity: 0;
+        filter: blur(10px);
+      }
+
+      to {
+        transform: translateX(0) scale(1);
+        opacity: 1;
+        filter: blur(0);
+      }
+    }
+
+    @keyframes view-fade-in {
+      from {
+        opacity: 0;
+      }
+
+      to {
+        opacity: 1;
+      }
+    }
+
+    .animate-in {
+      animation-duration: 700ms;
+      animation-fill-mode: forwards;
+      animation-timing-function: cubic-bezier(0.19, 1, 0.22, 1);
+    }
+
+    .fade-in {
+      animation-name: view-fade-in;
+    }
+
+    .slide-in-from-right-8 {
+      animation-name: view-slide-in;
+    }
+
+    .ease-out-expo {
+      animation-timing-function: cubic-bezier(0.19, 1, 0.22, 1);
+    }
+
+    .overflow-hidden {
+      overflow: hidden;
+    }
+
+    /* Fondo de Malla (Mesh Background) */
+    @keyframes float-1 {
+      0% {
+        transform: translate(0, 0) scale(1);
+      }
+
+      33% {
+        transform: translate(30%, 10%) scale(1.1);
+      }
+
+      66% {
+        transform: translate(-10%, 20%) scale(0.9);
+      }
+
+      100% {
+        transform: translate(0, 0) scale(1);
+      }
+    }
+
+    @keyframes float-2 {
+      0% {
+        transform: translate(0, 0) scale(1.1);
+      }
+
+      33% {
+        transform: translate(-20%, 20%) scale(0.9);
+      }
+
+      66% {
+        transform: translate(15%, -10%) scale(1.05);
+      }
+
+      100% {
+        transform: translate(0, 0) scale(1.1);
+      }
+    }
+
+    .mesh-bg {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: -10;
+      background: #f8fafc;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    .dark .mesh-bg {
+      background: #020617;
+    }
+
+    .blob {
+      position: absolute;
+      width: 800px;
+      height: 800px;
+      border-radius: 50%;
+      filter: blur(120px);
+      opacity: 0.15;
+      mix-blend-mode: multiply;
+    }
+
+    .dark .blob {
+      opacity: 0.35;
+      mix-blend-mode: screen;
+      filter: blur(140px);
+    }
+
+    .blob-1 {
+      background: #22c55e;
+      top: -10%;
+      left: -10%;
+      animation: float-1 25s infinite ease-in-out;
+    }
+
+    .blob-2 {
+      background: #3b82f6;
+      bottom: -20%;
+      right: -10%;
+      animation: float-2 30s infinite ease-in-out;
+    }
+
+    .blob-3 {
+      background: #8b5cf6;
+      top: 40%;
+      right: 15%;
+      animation: float-1 20s infinite ease-in-out reverse;
+    }
   </style>
   <script type="importmap">
 {

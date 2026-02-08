@@ -88,7 +88,13 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-fgc-light dark:bg-fgc-dark flex flex-col transition-colors duration-300">
+    <div className="min-h-screen bg-transparent flex flex-col transition-colors duration-300">
+      {/* High-Fidelity Mesh Background Global */}
+      <div className="mesh-bg">
+        <div className="blob blob-1" />
+        <div className="blob blob-2" />
+        <div className="blob blob-3" />
+      </div>
       {/* Top Navigation Bar con soporte para Safe Areas */}
       <nav className="sticky top-0 z-50 bg-fgc-grey dark:bg-black/80 dark:backdrop-blur-md text-white shadow-md safe-top border-b border-white/5">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

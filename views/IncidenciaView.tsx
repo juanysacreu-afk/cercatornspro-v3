@@ -262,6 +262,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
   const [extensibleResults, setExtensibleResults] = useState<any[]>([]);
   const [reserveInterceptResults, setReserveInterceptResults] = useState<any[]>([]);
   const [searchedCircData, setSearchedCircData] = useState<any>(null);
+  const [selectedTrain, setSelectedTrain] = useState<LivePersonnel | null>(null);
   const [mainDriverInfo, setMainDriverInfo] = useState<any>(null);
 
   const serveiTypes = ['0', '100', '400', '500'];
@@ -2143,6 +2144,126 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
     );
   };
 
+  const TrainInspectorPopup = ({ train, onClose }: { train: LivePersonnel, onClose: () => void }) => {
+    if (!train) return null;
+    const isWorking = train.type === 'TRAIN';
+    const liniaColor = train.color;
+
+    return (
+      <div className="z-[300] animate-in zoom-in-95 fade-in duration-300 pointer-events-auto">
+        <div
+          className="w-80 overflow-hidden relative group"
+          style={{
+            background: 'rgba(255, 255, 255, 0.05)',
+            backdropFilter: 'blur(20px) saturate(180%)',
+            WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: '32px',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.05)'
+          }}
+        >
+          {/* Animated Glow Background */}
+          <div
+            className="absolute -top-10 -right-10 w-32 h-32 blur-[50px] transition-all duration-700 opacity-30"
+            style={{ backgroundColor: liniaColor }}
+          />
+
+          {/* Header */}
+          <div className="p-6 border-b border-white/10 flex justify-between items-start">
+            <div>
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] mb-1">Inspector d'Unitat</p>
+              <h3 className="text-3xl font-black text-white font-mono tracking-tighter flex items-center gap-2">
+                {train.id}
+                <span className="w-2 h-2 rounded-full bg-fgc-green animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.8)]" />
+              </h3>
+            </div>
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onClose();
+              }}
+              className="p-2 hover:bg-white/10 rounded-full text-gray-400 hover:text-white transition-all transition-colors relative z-[10]"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          <div className="p-6 space-y-6">
+            {/* Operator Info */}
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center border border-white/10 group-hover:border-fgc-green/30 transition-all">
+                <User size={24} className="text-gray-400 group-hover:text-fgc-green transition-colors" />
+              </div>
+              <div>
+                <p className="text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest leading-none mb-1">Maquinista</p>
+                <p className="text-sm font-black text-white dark:text-gray-200 uppercase">{train.driver}</p>
+                <p className="text-[10px] font-bold text-fgc-green mt-1 tracking-widest uppercase">Torn {train.torn}</p>
+              </div>
+            </div>
+
+            {/* Route Progress */}
+            <div className="space-y-3">
+              <div className="flex justify-between items-end">
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Origen</span>
+                  <span className="text-[11px] font-black text-white dark:text-gray-200 uppercase">{train.inici || '---'}</span>
+                </div>
+                <div className="flex-1 flex items-center justify-center px-4">
+                  <ArrowRight size={14} className="text-gray-600 animate-pulse" />
+                </div>
+                <div className="flex flex-col items-end">
+                  <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Destinació</span>
+                  <span className="text-[11px] font-black text-white dark:text-gray-200 uppercase">{train.final || '---'}</span>
+                </div>
+              </div>
+
+              <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden p-[2px] border border-white/5">
+                <div
+                  className="h-full rounded-full transition-all duration-1000 origin-left"
+                  style={{
+                    width: '65%',
+                    background: `linear-gradient(90deg, #3b82f6, ${liniaColor})`,
+                    boxShadow: `0 0 10px ${liniaColor}66`
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Telemetry Footer */}
+            <div className="pt-4 border-t border-white/10 grid grid-cols-2 gap-4">
+              <div className="bg-white/5 p-3 rounded-2xl border border-white/5">
+                <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-1">Última Estació</p>
+                <p className="text-xs font-black text-white dark:text-gray-200 uppercase">{train.stationId}</p>
+              </div>
+              <div className="bg-white/5 p-3 rounded-2xl border border-white/5">
+                <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-1">Estat</p>
+                <p className="text-[10px] font-black text-fgc-green uppercase flex items-center gap-1.5 leading-none">
+                  <div className="w-1 h-1 rounded-full bg-fgc-green" />
+                  PUNTUAL
+                </p>
+              </div>
+            </div>
+
+            {/* Action Button */}
+            <button
+              onClick={() => {
+                setQuery(train.id);
+                handleSearchCirculation();
+                setSelectedTrain(null);
+                // Optional: scroll to search results if needed
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="w-full bg-white dark:bg-white/10 hover:bg-fgc-green hover:text-fgc-grey py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border border-white/10 shadow-lg active:scale-95"
+            >
+              Obrir Detalls Ruta
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderInteractiveMap = () => {
     const trains = liveData.filter(p => p.type === 'TRAIN' && isServiceVisible(p.servei, selectedServei));
     return (
@@ -2416,10 +2537,15 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                         }
 
                         return (
-                          <g key={`${p.id}-${p.torn}-${idx}`} className="transition-all duration-1000 ease-linear">
+                          <g
+                            key={`${p.id}-${p.torn}-${idx}`}
+                            className="transition-all duration-1000 ease-linear cursor-pointer"
+                            onClick={() => setSelectedTrain(p)}
+                            style={{ pointerEvents: 'auto' }}
+                          >
                             <circle
                               cx={finalX} cy={finalY} r={5.5} fill={p.color}
-                              className={`${isAffected ? "stroke-red-500 stroke-2" : "stroke-white dark:stroke-black stroke-[1.5]"}`}
+                              className={`${isAffected ? "stroke-red-500 stroke-2" : "stroke-white dark:stroke-black stroke-[1.5]"} hover:stroke-fgc-green transition-all`}
                               style={useStandardOffset ? { transform: `translate(${offset * 4}px, ${trackOffset}px)`, filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.3))' } : { filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.3))' }}
                             >
                               <title>{p.id} - Torn {p.torn} (Via {isAsc ? '1' : '2'})</title>
@@ -2631,6 +2757,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                           </g>
                         );
                       })}
+
                     </svg>
                   </div>
                 </TransformComponent>
@@ -2638,6 +2765,18 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
             )}
           </TransformWrapper>
         </div>
+
+        {/* Train Inspector Overlay */}
+        {selectedTrain && (
+          <div
+            className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300"
+            onClick={() => setSelectedTrain(null)}
+          >
+            <div onClick={(e) => e.stopPropagation()}>
+              <TrainInspectorPopup train={selectedTrain} onClose={() => setSelectedTrain(null)} />
+            </div>
+          </div>
+        )}
 
         {/* Modal Diagrama SR (Sarrià) */}
         {isSRDiagramOpen && (
@@ -3636,7 +3775,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="relative min-h-screen p-4 sm:p-8 space-y-6 animate-in fade-in duration-500 overflow-x-hidden">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div className="flex items-center gap-4">
           <div className="p-3 bg-red-500 rounded-2xl text-white shadow-lg shadow-red-500/20 shrink-0 aspect-square flex items-center justify-center"><ShieldAlert size={28} /></div>
