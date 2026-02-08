@@ -20,6 +20,7 @@ const App: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showSecretMenu, setShowSecretMenu] = useState(false);
+  const [isPrivacyMode, setIsPrivacyMode] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -82,6 +83,10 @@ const App: React.FC = () => {
     setShowSecretMenu(prev => !prev);
   };
 
+  const togglePrivacyMode = () => {
+    setIsPrivacyMode(prev => !prev);
+  };
+
   return (
     <div className="min-h-screen bg-fgc-light dark:bg-fgc-dark flex flex-col transition-colors duration-300">
       {/* Top Navigation Bar con soporte para Safe Areas */}
@@ -109,6 +114,7 @@ const App: React.FC = () => {
                 <button
                   key={item.id}
                   onClick={() => setActiveTab(item.id)}
+                  onDoubleClick={item.id === AppTab.Cercar ? togglePrivacyMode : undefined}
                   className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-base font-semibold transition-all ${activeTab === item.id
                     ? 'bg-fgc-green text-fgc-grey shadow-lg shadow-fgc-green/20'
                     : 'text-gray-300 hover:bg-white/10 hover:text-white'
@@ -197,6 +203,7 @@ const App: React.FC = () => {
                   setActiveTab(item.id);
                   setIsMobileMenuOpen(false);
                 }}
+                onDoubleClick={item.id === AppTab.Cercar ? togglePrivacyMode : undefined}
                 className={`w-full flex items-center gap-4 px-4 py-4 rounded-xl text-lg font-bold ${activeTab === item.id ? 'bg-fgc-green text-fgc-grey' : 'text-gray-300'
                   }`}
               >
@@ -221,20 +228,20 @@ const App: React.FC = () => {
       {/* Main Content: Mantenim les vistes muntades però ocultes per preservar l'estat */}
       <main className="flex-1 w-full py-8 safe-bottom max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className={activeTab === AppTab.Cercar ? 'block' : 'hidden'}>
-          <CercarView />
+          <CercarView isPrivacyMode={isPrivacyMode} />
         </div>
         <div className={activeTab === AppTab.Organitza ? 'block' : 'hidden'}>
-          <OrganitzaView />
+          <OrganitzaView isPrivacyMode={isPrivacyMode} />
         </div>
         <div className={activeTab === AppTab.Incidencia ? 'block' : 'hidden'}>
-          <IncidenciaView showSecretMenu={showSecretMenu} parkedUnits={parkedUnits} onParkedUnitsChange={fetchParkedUnits} />
+          <IncidenciaView isPrivacyMode={isPrivacyMode} showSecretMenu={showSecretMenu} parkedUnits={parkedUnits} onParkedUnitsChange={fetchParkedUnits} />
         </div>
         <div className={activeTab === AppTab.Cicles ? 'block' : 'hidden'}>
           <CiclesView parkedUnits={parkedUnits} onParkedUnitsChange={fetchParkedUnits} />
         </div>
         {showSecretMenu && (
           <div className={activeTab === AppTab.Agenda ? 'block' : 'hidden'}>
-            <AgendaView />
+            <AgendaView isPrivacyMode={isPrivacyMode} />
           </div>
         )}
       </main>

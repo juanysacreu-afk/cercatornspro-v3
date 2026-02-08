@@ -17,7 +17,7 @@ import { StationRow } from '../components/StationRow';
 import { MarqueeText } from '../components/MarqueeText';
 import { getServiceToday } from '../utils/serviceCalendar';
 
-export const CercarView: React.FC = () => {
+export const CercarView: React.FC<{ isPrivacyMode: boolean }> = ({ isPrivacyMode }) => {
   const [searchType, setSearchType] = useState<SearchType>(SearchType.Torn);
   const [selectedServei, setSelectedServei] = useState<string>(getServiceToday());
   const [query, setQuery] = useState('');
@@ -552,6 +552,7 @@ export const CercarView: React.FC = () => {
                                   getShiftCurrentStatus={getShiftCurrentStatus}
                                   openUnitMenu={openUnitMenu}
                                   toggleItinerari={toggleItinerari}
+                                  isPrivacyMode={isPrivacyMode}
                                 />
                               ) : (
                                 <CirculationRow
@@ -563,6 +564,7 @@ export const CercarView: React.FC = () => {
                                   getLiniaColor={getLiniaColor}
                                   openUnitMenu={openUnitMenu}
                                   toggleItinerari={toggleItinerari}
+                                  isPrivacyMode={isPrivacyMode}
                                 />
                               )}
                               {expandedItinerari === itemKey && (
@@ -628,7 +630,7 @@ export const CercarView: React.FC = () => {
                               {driver.observacions && (<div className="flex items-start gap-2 bg-black/10 dark:bg-black/20 px-3 py-2 rounded-xl border border-black/5 max-w-lg mt-2"><Info size={14} className="text-fgc-grey dark:text-gray-300 mt-0.5 shrink-0" /><p className="text-[11px] sm:text-xs font-bold text-fgc-grey dark:text-gray-200 leading-snug italic">{driver.observacions}</p></div>)}
                             </div>
                           </div>
-                          <div className="flex flex-wrap gap-2 sm:gap-3 w-full md:w-auto">{driver.phones?.map((p: string, i: number) => (<a key={i} href={`tel:${p}`} className="flex-1 md:flex-none flex items-center justify-center gap-2.5 bg-fgc-grey text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-black hover:bg-fgc-dark transition-all active:scale-95"><Phone size={14} />{p}</a>))}</div>
+                          <div className="flex flex-wrap gap-2 sm:gap-3 w-full md:w-auto">{driver.phones?.map((p: string, i: number) => (<a key={i} href={isPrivacyMode ? undefined : `tel:${p}`} className={`flex-1 md:flex-none flex items-center justify-center gap-2.5 bg-fgc-grey text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-black hover:bg-fgc-dark transition-all active:scale-95 ${isPrivacyMode ? 'cursor-default' : ''}`}><Phone size={14} />{isPrivacyMode ? '*** ** ** **' : p}</a>))}</div>
                         </div>
                       </div>
                     );
@@ -648,7 +650,7 @@ export const CercarView: React.FC = () => {
                         return (
                           <React.Fragment key={cIdx}>
                             <div id={`circ-row-${shiftItemKey}`} className={`flex flex-col relative scroll-mt-24 ${isActive ? 'ring-2 ring-inset ring-red-600 z-10' : ''}`}>
-                              <CirculationRow circ={circ} itemKey={shiftItemKey} nowMin={nowMin} trainStatuses={trainStatuses} getTrainPhone={getTrainPhone} getLiniaColor={getLiniaColor} openUnitMenu={openUnitMenu} toggleItinerari={toggleItinerari} />
+                              <CirculationRow circ={circ} itemKey={shiftItemKey} nowMin={nowMin} trainStatuses={trainStatuses} getTrainPhone={getTrainPhone} getLiniaColor={getLiniaColor} openUnitMenu={openUnitMenu} toggleItinerari={toggleItinerari} isPrivacyMode={isPrivacyMode} />
                               {expandedItinerari === shiftItemKey && (
                                 <div className="p-4 sm:p-10 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-white/5 animate-in slide-in-from-top-4 duration-500 overflow-hidden">
                                   <div className="relative flex flex-col pl-8 sm:pl-16 pr-2 sm:pr-6 py-4 space-y-0">

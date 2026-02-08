@@ -56,6 +56,7 @@ interface IncidenciaViewProps {
   showSecretMenu: boolean;
   parkedUnits: any[];
   onParkedUnitsChange: () => Promise<void>;
+  isPrivacyMode: boolean;
 }
 
 const resolveStationId = (name: string, linia: string = '') => {
@@ -188,7 +189,7 @@ const getFullPath = (start: string, end: string): string[] => {
   return [start];
 };
 
-const CompactViatgerRow: React.FC<{ torn: any, viatgerCirc: any, colorClass: string, label?: React.ReactNode }> = ({ torn, viatgerCirc, colorClass, label }) => {
+const CompactViatgerRow: React.FC<{ torn: any, viatgerCirc: any, colorClass: string, label?: React.ReactNode, isPrivacyMode: boolean }> = ({ torn, viatgerCirc, colorClass, label, isPrivacyMode }) => {
   const isBlue = colorClass.includes('blue');
   const isPurple = colorClass.includes('purple');
   const bgClass = isBlue ? 'bg-blue-50 dark:bg-blue-950/20' : (isPurple ? 'bg-purple-50 dark:bg-purple-950/20' : 'bg-fgc-grey/10 dark:bg-black');
@@ -200,12 +201,12 @@ const CompactViatgerRow: React.FC<{ torn: any, viatgerCirc: any, colorClass: str
     <div className={`bg-white dark:bg-gray-800 rounded-2xl p-3 border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-md transition-all flex items-center gap-4 border-l-4 ${colorClass}`}>
       <div className={`h-10 min-w-[2.5rem] px-2 ${bgClass} ${textClass} rounded-xl flex items-center justify-center font-black text-xs shadow-sm shrink-0 whitespace-nowrap`}>{torn.id}</div>
       <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center sm:gap-6"><div className="flex-1 min-w-0"><div className="flex items-center gap-2"><p className="text-sm font-black text-fgc-grey dark:text-gray-200 truncate">{torn.drivers[0]?.cognoms}, {torn.drivers[0]?.nom}</p>{label}</div><p className="text-[8px] font-black text-gray-300 dark:text-gray-600 uppercase tracking-widest whitespace-nowrap">Nom. {torn.drivers[0]?.nomina} {torn.drivers[0]?.tipus_torn ? `(${torn.drivers[0].tipus_torn})` : ''}</p></div><div className={`flex items-center gap-3 shrink-0 ${textClass}`}><div className={`flex items-center gap-1.5 ${bgClass} px-3 py-1 rounded-lg border border-opacity-50 transition-colors`}><span className={`text-[10px] font-black uppercase whitespace-nowrap`}>{viatgerCirc?.machinistInici || '--'}</span><ArrowRight size={10} className={arrowColor} /><span className={`text-[10px] font-black uppercase whitespace-nowrap`}>{viatgerCirc?.machinistFinal || '--'}</span></div><div className="text-[10px] font-bold text-gray-400 dark:text-gray-600 min-w-[70px] whitespace-nowrap">{torn.inici_torn} - {torn.final_torn}</div></div></div>
-      <div className="flex gap-1 shrink-0">{torn.drivers[0]?.phones?.map((p: string, i: number) => (<a key={i} href={`tel:${p}`} className={`w-8 h-8 ${btnBg} text-white rounded-lg flex items-center justify-center transition-all shadow-sm`}><Phone size={12} /></a>))}</div>
+      <div className="flex gap-1 shrink-0">{torn.drivers[0]?.phones?.map((p: string, i: number) => (<a key={i} href={isPrivacyMode ? undefined : `tel:${p}`} className={`w-8 h-8 ${btnBg} text-white rounded-lg flex items-center justify-center transition-all shadow-sm ${isPrivacyMode ? 'cursor-default' : ''}`}><Phone size={12} /></a>))}</div>
     </div>
   );
 };
 
-const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedUnits, onParkedUnitsChange }) => {
+const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedUnits, onParkedUnitsChange, isPrivacyMode }) => {
   const [mode, setMode] = useState<IncidenciaMode>('INIT');
   const [selectedServei, setSelectedServei] = useState<string>(getServiceToday());
   const [query, setQuery] = useState('');
@@ -3685,14 +3686,14 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
 
                     <div className="space-y-4">
                       <div className="flex items-center gap-2 px-2"><Users className="text-blue-500" size={16} /><h3 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Maquinistes de viatger ({passengerResults.length})</h3></div>
-                      {passengerResults.length > 0 ? (<div className="flex flex-col gap-2">{passengerResults.map((torn, idx) => <CompactViatgerRow key={idx} torn={torn} viatgerCirc={torn.fullCirculations?.find((c: any) => c.codi === 'Viatger' && c.observacions && c.observacions.split('-')[0].toUpperCase() === searchedCircData.id.toUpperCase())} colorClass="border-l-blue-500" />)}</div>) : (<div className="bg-gray-50/50 dark:bg-black/20 rounded-2xl p-6 text-center border border-dashed border-gray-200 dark:border-white/10 transition-colors"><p className="text-gray-400 dark:text-gray-600 font-bold italic text-xs">Cap maquinista de viatger detectat.</p></div>)}
+                      {passengerResults.length > 0 ? (<div className="flex flex-col gap-2">{passengerResults.map((torn, idx) => <CompactViatgerRow key={idx} torn={torn} viatgerCirc={torn.fullCirculations?.find((c: any) => c.codi === 'Viatger' && c.observacions && c.observacions.split('-')[0].toUpperCase() === searchedCircData.id.toUpperCase())} colorClass="border-l-blue-500" isPrivacyMode={isPrivacyMode} />)}</div>) : (<div className="bg-gray-50/50 dark:bg-black/20 rounded-2xl p-6 text-center border border-dashed border-gray-200 dark:border-white/10 transition-colors"><p className="text-gray-400 dark:text-gray-600 font-bold italic text-xs">Cap maquinista de viatger detectat.</p></div>)}
                     </div>
 
                     <div className="space-y-4">
                       <div className="flex items-center gap-2 px-2"><Users className="text-purple-500" size={16} /><h3 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Maquinistes de viatger (Anterior / Posterior)</h3></div>
                       {(adjacentResults.anterior.length > 0 || adjacentResults.posterior.length > 0) ? (<div className="flex flex-col gap-2">
-                        {adjacentResults.anterior.map((torn, idx) => <CompactViatgerRow key={`ant-${idx}`} torn={torn} viatgerCirc={torn.fullCirculations?.find((c: any) => c.codi === 'Viatger' && c.observacions && c.observacions.split('-')[0].toUpperCase() === torn.adjacentCode?.toUpperCase())} colorClass="border-l-purple-400" label={<span className="flex items-center gap-1 text-[8px] text-purple-600 font-black uppercase"><Rewind size={10} /> {torn.adjacentCode} (Ant)</span>} />)}
-                        {adjacentResults.posterior.map((torn, idx) => <CompactViatgerRow key={`post-${idx}`} torn={torn} viatgerCirc={torn.fullCirculations?.find((c: any) => c.codi === 'Viatger' && c.observacions && c.observacions.split('-')[0].toUpperCase() === torn.adjacentCode?.toUpperCase())} colorClass="border-l-purple-600" label={<span className="flex items-center gap-1 text-[8px] text-purple-600 font-black uppercase"><FastForward size={10} /> {torn.adjacentCode} (Post)</span>} />)}
+                        {adjacentResults.anterior.map((torn, idx) => <CompactViatgerRow key={`ant-${idx}`} torn={torn} viatgerCirc={torn.fullCirculations?.find((c: any) => c.codi === 'Viatger' && c.observacions && c.observacions.split('-')[0].toUpperCase() === torn.adjacentCode?.toUpperCase())} colorClass="border-l-purple-400" label={<span className="flex items-center gap-1 text-[8px] text-purple-600 font-black uppercase"><Rewind size={10} /> {torn.adjacentCode} (Ant)</span>} isPrivacyMode={isPrivacyMode} />)}
+                        {adjacentResults.posterior.map((torn, idx) => <CompactViatgerRow key={`post-${idx}`} torn={torn} viatgerCirc={torn.fullCirculations?.find((c: any) => c.codi === 'Viatger' && c.observacions && c.observacions.split('-')[0].toUpperCase() === torn.adjacentCode?.toUpperCase())} colorClass="border-l-purple-600" label={<span className="flex items-center gap-1 text-[8px] text-purple-600 font-black uppercase"><FastForward size={10} /> {torn.adjacentCode} (Post)</span>} isPrivacyMode={isPrivacyMode} />)}
                       </div>) : (<div className="bg-gray-50/50 dark:bg-black/20 rounded-2xl p-6 text-center border border-dashed border-gray-200 dark:border-white/10 transition-colors"><p className="text-gray-400 dark:text-gray-600 font-bold italic text-xs">Cap viatger en circulacions adjacents.</p></div>)}
                     </div>
 
@@ -3743,7 +3744,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                             </div>
                           )}
                         </div>
-                        <div className="flex gap-1 shrink-0">{torn.drivers[0]?.phones?.map((p: string, i: number) => (<a key={i} href={`tel:${p}`} className="w-8 h-8 bg-fgc-grey dark:bg-black text-white rounded-lg flex items-center justify-center hover:bg-fgc-dark transition-all shadow-sm"><Phone size={12} /></a>))}</div>
+                        <div className="flex gap-1 shrink-0">{torn.drivers[0]?.phones?.map((p: string, i: number) => (<a key={i} href={isPrivacyMode ? undefined : `tel:${p}`} className={`w-8 h-8 bg-fgc-grey dark:bg-black text-white rounded-lg flex items-center justify-center hover:bg-fgc-dark transition-all shadow-sm ${isPrivacyMode ? 'cursor-default' : ''}`}><Phone size={12} /></a>))}</div>
                       </div>))}</div>) : (<div className="bg-gray-50/50 dark:bg-black/20 rounded-2xl p-6 text-center border border-dashed border-gray-200 dark:border-white/10 transition-colors"><p className="text-gray-400 dark:text-gray-600 font-bold italic text-xs">Cap maquinista en descans.</p></div>)}
                     </div>
 
@@ -3752,7 +3753,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                       {extensibleResults.length > 0 ? (<div className="flex flex-col gap-2">{extensibleResults.map((torn, idx) => (<div key={idx} className="bg-white dark:bg-gray-800 rounded-2xl p-3 border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-md transition-all flex items-center gap-4 border-l-4 border-l-orange-500">
                         <div className="h-10 min-w-[2.5rem] px-2 bg-orange-50 dark:bg-orange-950/20 text-orange-600 rounded-xl flex items-center justify-center font-black text-xs shadow-sm shrink-0 whitespace-nowrap">{torn.id}</div>
                         <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center sm:gap-6"><div className="flex-1 min-w-0"><div className="flex items-center gap-2"><p className="text-sm font-black text-fgc-grey dark:text-gray-200 truncate">{torn.drivers[0]?.cognoms}, {torn.drivers[0]?.nom}</p><span className="flex items-center gap-1 text-[8px] text-orange-500 font-black uppercase tracking-widest"><Timer size={10} /> Extensible</span></div><div className="flex items-center gap-2 mt-0.5"><p className="text-[8px] font-black text-gray-300 dark:text-gray-600 uppercase tracking-widest">Nom. {torn.drivers[0]?.nomina} {torn.drivers[0]?.tipus_torn ? `(${torn.drivers[0].tipus_torn})` : ''}</p><span className="text-[8px] font-bold text-gray-400 dark:text-gray-500 uppercase">Durada: {torn.duracio}</span></div></div><div className="flex items-center gap-3 text-fgc-grey dark:text-gray-300 shrink-0"><div className="flex flex-col items-end"><div className="flex items-center gap-1.5 bg-orange-50 dark:bg-orange-950/20 px-3 py-1 rounded-lg border border-orange-100 dark:border-orange-900/40 transition-colors"><span className="text-[10px] font-black uppercase text-orange-700 dark:text-orange-400">{formatFgcTime(getFgcMinutes(torn.final_torn))}</span><ArrowRight size={10} className="text-orange-300" /><span className="text-[10px] font-black uppercase text-orange-700 dark:text-orange-400">{formatFgcTime(torn.extData.estimatedReturn)}</span></div><span className="text-[8px] font-black text-orange-400 uppercase tracking-tighter mt-1">Extra: +{torn.extData.extraNeeded} min</span></div><div className="text-[10px] font-black text-white bg-orange-500 px-3 py-1 rounded-lg border border-orange-600 min-w-[100px] text-center shadow-sm">{Math.floor((525 - (torn.extData.originalDuration + torn.extData.extraNeeded)))} MIN MARGE</div></div></div>
-                        <div className="flex gap-1 shrink-0">{torn.drivers[0]?.phones?.map((p: string, i: number) => (<a key={i} href={`tel:${p}`} className="w-8 h-8 bg-orange-500 text-white rounded-lg flex items-center justify-center hover:bg-orange-600 transition-all shadow-sm"><Phone size={12} /></a>))}</div>
+                        <div className="flex gap-1 shrink-0">{torn.drivers[0]?.phones?.map((p: string, i: number) => (<a key={i} href={isPrivacyMode ? undefined : `tel:${p}`} className={`w-8 h-8 bg-orange-500 text-white rounded-lg flex items-center justify-center hover:bg-orange-600 transition-all shadow-sm ${isPrivacyMode ? 'cursor-default' : ''}`}><Phone size={12} /></a>))}</div>
                       </div>))}</div>) : (<div className="bg-gray-50/50 dark:bg-black/20 rounded-2xl p-6 text-center border border-dashed border-gray-200 dark:border-white/10 transition-colors"><p className="text-gray-400 dark:text-gray-600 font-bold italic text-xs">Cap torn extensible fins al final.</p></div>)}
                     </div>
 
@@ -3773,7 +3774,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                                 </div>
                               </div>
                               <div className="flex items-center gap-3 text-fgc-grey dark:text-gray-300 shrink-0"><div className="flex flex-col items-center"><div className="flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-950/20 px-3 py-1 rounded-lg border border-indigo-100 dark:border-indigo-900/40 transition-colors"><span className="text-[10px] font-black uppercase text-indigo-700 dark:text-indigo-400">{formatFgcTime(getFgcMinutes(torn.final_torn))}</span><ArrowRight size={10} className="text-indigo-300" /><span className="text-[10px] font-black uppercase text-indigo-700 dark:text-indigo-400">{formatFgcTime((getFgcMinutes(torn.resData.interceptTime) || 0) + 25)}</span></div><span className="text-[8px] font-black text-indigo-400 uppercase tracking-tighter mt-1">Extra Torn: +{torn.resData.extraNeeded} min</span>{torn.resData.reserveExtraNeeded > 0 && <span className="text-[8px] font-black text-pink-500 uppercase tracking-tighter mt-0.5">Extra Res: +{torn.resData.reserveExtraNeeded} min</span>}</div><div className="text-[10px] font-black text-white bg-indigo-500 px-3 py-1 rounded-lg border border-indigo-600 min-w-[100px] text-center shadow-sm">{Math.floor((525 - (torn.resData.originalDuration + torn.resData.extraNeeded)))} MIN MARGE</div></div>
-                              <div className="flex gap-1 shrink-0">{torn.drivers[0]?.phones?.map((p: string, i: number) => (<a key={i} href={`tel:${p}`} className="w-8 h-8 bg-indigo-500 text-white rounded-lg flex items-center justify-center hover:bg-blue-600 transition-all shadow-sm"><Phone size={12} /></a>))}</div>
+                              <div className="flex gap-1 shrink-0">{torn.drivers[0]?.phones?.map((p: string, i: number) => (<a key={i} href={isPrivacyMode ? undefined : `tel:${p}`} className={`w-8 h-8 bg-indigo-500 text-white rounded-lg flex items-center justify-center hover:bg-blue-600 transition-all shadow-sm ${isPrivacyMode ? 'cursor-default' : ''}`}><Phone size={12} /></a>))}</div>
                             </div>
                           ))}
                         </div>
@@ -3798,7 +3799,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
           )}
 
           {mode === 'LINIA' && (<div className="w-full">{renderInteractiveMap()}</div>)}
-          {mode === 'PER_TORN' && (<IncidenciaPerTorn selectedServei={selectedServei} showSecretMenu={showSecretMenu} />)}
+          {mode === 'PER_TORN' && (<IncidenciaPerTorn selectedServei={selectedServei} showSecretMenu={showSecretMenu} isPrivacyMode={isPrivacyMode} />)}
 
         </div>
       )}

@@ -4,7 +4,7 @@ import { Search, User, Phone, Hash, Loader2, ArrowRight, X, UserCircle, Calendar
 import { supabase } from '../supabaseClient.ts';
 import { PhonebookEntry, DailyAssignment } from '../types.ts';
 
-export const AgendaView: React.FC = () => {
+export const AgendaView: React.FC<{ isPrivacyMode: boolean }> = ({ isPrivacyMode }) => {
   const [query, setQuery] = useState('');
   const [allAgents, setAllAgents] = useState<PhonebookEntry[]>([]);
   const [assignments, setAssignments] = useState<DailyAssignment[]>([]);
@@ -64,7 +64,7 @@ export const AgendaView: React.FC = () => {
 
   const filteredAgents = useMemo(() => {
     let list = allAgents;
-    
+
     if (selectedLetter && !query) {
       // Ara filtrem per la lletra inicial del primer cognom
       list = list.filter(a => (a.cognom1 || '').toUpperCase().startsWith(selectedLetter));
@@ -101,9 +101,9 @@ export const AgendaView: React.FC = () => {
       <div className="relative max-w-2xl mx-auto" ref={searchRef}>
         <div className="relative group">
           <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-fgc-green transition-colors" size={24} />
-          <input 
-            type="text" 
-            placeholder="Cerca per nom, cognoms o nòmina..." 
+          <input
+            type="text"
+            placeholder="Cerca per nom, cognoms o nòmina..."
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
@@ -113,7 +113,7 @@ export const AgendaView: React.FC = () => {
             className="w-full bg-white dark:bg-gray-900 border-none rounded-[28px] py-6 pl-16 pr-12 focus:ring-4 focus:ring-fgc-green/20 outline-none text-xl font-bold shadow-xl shadow-fgc-grey/5 dark:shadow-none transition-all placeholder:text-gray-300 dark:text-white dark:placeholder:text-gray-600"
           />
           {query && (
-            <button 
+            <button
               onClick={() => { setQuery(''); }}
               className="absolute right-6 top-1/2 -translate-y-1/2 text-gray-300 hover:text-red-500 transition-colors"
             >
@@ -125,7 +125,7 @@ export const AgendaView: React.FC = () => {
         {showSuggestions && suggestions.length > 0 && (
           <div className="absolute top-full left-4 right-4 mt-3 bg-white dark:bg-gray-800 rounded-[32px] shadow-2xl border border-gray-100 dark:border-white/10 z-[100] overflow-hidden animate-in slide-in-from-top-2 duration-300">
             {suggestions.map((agent) => (
-              <button 
+              <button
                 key={agent.nomina}
                 onClick={() => handleSuggestionClick(agent)}
                 className="w-full text-left px-8 py-5 hover:bg-fgc-green/10 transition-colors flex items-center justify-between group"
@@ -148,21 +148,19 @@ export const AgendaView: React.FC = () => {
 
       <div className="bg-white dark:bg-gray-900 p-6 rounded-[32px] shadow-sm border border-gray-100 dark:border-white/5 overflow-hidden">
         <div className="flex flex-wrap justify-center gap-1.5 sm:gap-2">
-          <button 
+          <button
             onClick={() => { setSelectedLetter(null); setQuery(''); }}
-            className={`px-4 h-10 rounded-xl font-black text-sm transition-all flex items-center justify-center border ${
-              selectedLetter === null && !query ? 'bg-fgc-grey dark:bg-fgc-green text-white dark:text-fgc-grey border-fgc-grey dark:border-fgc-green shadow-md' : 'bg-gray-50 dark:bg-gray-800 text-gray-400 dark:text-gray-500 border-gray-100 dark:border-white/5 hover:border-fgc-green hover:text-fgc-green'
-            }`}
+            className={`px-4 h-10 rounded-xl font-black text-sm transition-all flex items-center justify-center border ${selectedLetter === null && !query ? 'bg-fgc-grey dark:bg-fgc-green text-white dark:text-fgc-grey border-fgc-grey dark:border-fgc-green shadow-md' : 'bg-gray-50 dark:bg-gray-800 text-gray-400 dark:text-gray-500 border-gray-100 dark:border-white/5 hover:border-fgc-green hover:text-fgc-green'
+              }`}
           >
             Tots
           </button>
           {alphabet.map(letter => (
-            <button 
+            <button
               key={letter}
               onClick={() => { setSelectedLetter(letter); setQuery(''); }}
-              className={`w-10 h-10 rounded-xl font-black text-sm transition-all flex items-center justify-center border ${
-                selectedLetter === letter ? 'bg-fgc-green text-fgc-grey border-fgc-green shadow-lg' : 'bg-gray-50 dark:bg-gray-800 text-gray-400 dark:text-gray-500 border-gray-100 dark:border-white/5 hover:border-fgc-green hover:text-fgc-green'
-              }`}
+              className={`w-10 h-10 rounded-xl font-black text-sm transition-all flex items-center justify-center border ${selectedLetter === letter ? 'bg-fgc-green text-fgc-grey border-fgc-green shadow-lg' : 'bg-gray-50 dark:bg-gray-800 text-gray-400 dark:text-gray-500 border-gray-100 dark:border-white/5 hover:border-fgc-green hover:text-fgc-green'
+                }`}
             >
               {letter}
             </button>
@@ -183,7 +181,7 @@ export const AgendaView: React.FC = () => {
               return (
                 <div key={agent.nomina} className="bg-white dark:bg-gray-900 rounded-[32px] p-8 border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-xl hover:border-fgc-green/30 transition-all group relative overflow-hidden flex flex-col h-full">
                   <div className="absolute top-0 right-0 w-24 h-24 bg-fgc-green/5 -mr-8 -mt-8 rounded-full blur-2xl group-hover:bg-fgc-green/10 transition-colors" />
-                  
+
                   <div className="flex items-center gap-5 mb-8 relative z-10">
                     <div className="w-16 h-16 bg-fgc-grey dark:bg-black text-white rounded-2xl flex items-center justify-center font-black text-2xl shadow-lg shrink-0">
                       {(agent.cognom1 || agent.nom).charAt(0)}
@@ -206,13 +204,13 @@ export const AgendaView: React.FC = () => {
                       <div className="flex flex-wrap gap-2">
                         {agent.phones && agent.phones.length > 0 ? (
                           agent.phones.map((p, idx) => (
-                            <a 
-                              key={idx} 
-                              href={`tel:${p}`} 
-                              className="flex items-center gap-2.5 bg-gray-50 dark:bg-gray-800 text-fgc-grey dark:text-gray-300 px-4 py-2 rounded-xl text-sm font-black hover:bg-fgc-green dark:hover:bg-fgc-green dark:hover:text-fgc-grey transition-all shadow-sm border border-gray-100 dark:border-white/5"
+                            <a
+                              key={idx}
+                              href={isPrivacyMode ? undefined : `tel:${p}`}
+                              className={`flex items-center gap-2.5 bg-gray-50 dark:bg-gray-800 text-fgc-grey dark:text-gray-300 px-4 py-2 rounded-xl text-sm font-black hover:bg-fgc-green dark:hover:bg-fgc-green dark:hover:text-fgc-grey transition-all shadow-sm border border-gray-100 dark:border-white/5 ${isPrivacyMode ? 'cursor-default' : ''}`}
                             >
                               <Phone size={14} />
-                              {p}
+                              {isPrivacyMode ? '*** ** ** **' : p}
                             </a>
                           ))
                         ) : (
