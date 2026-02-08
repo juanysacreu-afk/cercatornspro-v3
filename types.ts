@@ -90,7 +90,6 @@ export enum SearchType {
 
 export enum OrganizeType {
   Comparador = 'comparador',
-  CirculacioDescoberta = 'circulacio_descoberta',
   Maquinista = 'maquinista',
   Incidencia = 'incidencia'
 }

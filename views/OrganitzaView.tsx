@@ -1,28 +1,17 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { OrganizeType, PhonebookEntry, DailyAssignment } from '../types.ts';
-import { Columns, ShieldAlert, Search, Phone, User, Hash, Loader2, Clock, LayoutGrid, ArrowRight, CheckCircle2, Coffee, X, Train, Info, UserCheck, Users, FastForward, Rewind, Bed, Timer, MapPin, Repeat, Filter, UserCircle, ChevronDown } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { OrganizeType, DailyAssignment } from '../types.ts';
+import { Columns, Search, Phone, User, Loader2, Clock, LayoutGrid, ArrowRight, CheckCircle2, Coffee, Info, Filter, UserCircle, ChevronDown, X, Train, Hash, RefreshCcw } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
 import { fetchFullTurns } from '../utils/queries.ts';
 import { getShortTornId } from '../utils/fgc.ts';
 import { getServiceToday } from '../utils/serviceCalendar';
-const RESERVAS_DATA = [
-  { id: 'QRS1', loc: 'SR', start: '06:00', end: '14:00' },
-  { id: 'QRS2', loc: 'SR', start: '14:00', end: '22:00' },
-  { id: 'QRS0', loc: 'SR', start: '22:00', end: '06:00' },
-  { id: 'QRP0', loc: 'PC', start: '22:00', end: '06:00' },
-  { id: 'QRN0', loc: 'NA', start: '22:00', end: '06:00' },
-  { id: 'QRF0', loc: 'PR', start: '22:00', end: '06:00' },
-  { id: 'QRR0', loc: 'RB', start: '22:00', end: '06:00' },
-  { id: 'QRR4', loc: 'RB', start: '21:50', end: '05:50' },
-  { id: 'QRR1', loc: 'RB', start: '06:00', end: '14:00' },
-  { id: 'QRR2', loc: 'RB', start: '14:00', end: '22:00' },
-];
+
 
 type DisDesFilterType = 'ALL' | 'DIS' | 'DES' | 'DIS_DES' | 'FOR' | 'VAC' | 'DAG';
 
 export const OrganitzaView: React.FC = () => {
   const [organizeType, setOrganizeType] = useState<OrganizeType>(OrganizeType.Comparador);
-  const [loading, setLoading] = useState(false);
+
   const [nowMin, setNowMin] = useState<number>(0);
   const [selectedServei, setSelectedServei] = useState<string>(getServiceToday());
 
@@ -32,15 +21,7 @@ export const OrganitzaView: React.FC = () => {
   const [turn2Data, setTurn2Data] = useState<any>(null);
   const [loadingComparator, setLoadingComparator] = useState(false);
 
-  const [coverageQuery, setCoverageQuery] = useState('');
-  const [searchedCircData, setSearchedCircData] = useState<any>(null);
-  const [mainDriverInfo, setMainDriverInfo] = useState<any>(null);
-  const [passengerResults, setPassengerResults] = useState<any[]>([]);
-  const [adjacentPassengerResults, setAdjacentPassengerResults] = useState<{ anterior: any[], posterior: any[] }>({ anterior: [], posterior: [] });
-  const [restingDriversResults, setRestingDriversResults] = useState<any[]>([]);
-  const [extensibleDriversResults, setExtensibleDriversResults] = useState<any[]>([]);
-  const [reserveExtensionResults, setReserveExtensionResults] = useState<any[]>([]);
-  const [loadingCoverage, setLoadingCoverage] = useState(false);
+
 
   const [maquinistaQuery, setMaquinistaQuery] = useState('');
   const [allAssignments, setAllAssignments] = useState<DailyAssignment[]>([]);
@@ -103,18 +84,7 @@ export const OrganitzaView: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    if (organizeType === OrganizeType.CirculacioDescoberta) {
-      setMainDriverInfo(null);
-      setSearchedCircData(null);
-      setPassengerResults([]);
-      setAdjacentPassengerResults({ anterior: [], posterior: [] });
-      setRestingDriversResults([]);
-      setExtensibleDriversResults([]);
-      setReserveExtensionResults([]);
-      if (coverageQuery) handleSearchCoverage();
-    }
-  }, [selectedServei, organizeType]);
+
 
   function getFgcMinutes(timeStr: string) {
     if (!timeStr || !timeStr.includes(':')) return 0;
@@ -132,16 +102,7 @@ export const OrganitzaView: React.FC = () => {
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
   }
 
-  const isReserveActive = (res: any, timeMin: number) => {
-    const start = getFgcMinutes(res.start);
-    const end = getFgcMinutes(res.end);
-    if (start > end) {
-      return timeMin >= start || timeMin < end;
-    }
-    return timeMin >= start && timeMin < end;
-  };
 
-  const normalizeStr = (str: string) => str ? str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase() : "";
 
   const getStatusColor = (codi: string) => {
     const c = (codi || '').toUpperCase().trim();
@@ -175,333 +136,7 @@ export const OrganitzaView: React.FC = () => {
     } catch (e) { console.error(e); } finally { setLoadingComparator(false); }
   };
 
-  const handleSearchCoverage = async () => {
-    if (!coverageQuery) return;
-    setLoadingCoverage(true);
-    setMainDriverInfo(null); setSearchedCircData(null); setPassengerResults([]); setAdjacentPassengerResults({ anterior: [], posterior: [] }); setRestingDriversResults([]); setExtensibleDriversResults([]); setReserveExtensionResults([]);
 
-    try {
-      const { data: searchedCirc } = await supabase.from('circulations').select('*').eq('id', coverageQuery.toUpperCase()).single();
-      if (searchedCirc) setSearchedCircData(searchedCirc);
-
-      const { data: allShifts } = await supabase.from('shifts').select('*').eq('servei', selectedServei);
-      if (!allShifts) return;
-
-      let mainDriverShiftId = null;
-      const passengerShiftIds: string[] = [];
-      allShifts.forEach(shift => {
-        const circs = (shift.circulations as any[]) || [];
-        circs.forEach(c => {
-          const codi = typeof c === 'string' ? c : c.codi;
-          if (codi.toUpperCase() === coverageQuery.toUpperCase()) mainDriverShiftId = shift.id;
-          else if (codi === 'Viatger' && c.observacions && c.observacions.split('-')[0].toUpperCase() === coverageQuery.toUpperCase()) passengerShiftIds.push(shift.id);
-        });
-      });
-
-      if (mainDriverShiftId || passengerShiftIds.length > 0) {
-        const turnIdsToFetch = Array.from(new Set([
-          ...(mainDriverShiftId ? [mainDriverShiftId] : []),
-          ...passengerShiftIds
-        ]));
-        const enrichedTurns = await fetchFullTurns(turnIdsToFetch, selectedServei === '0' ? undefined : selectedServei);
-
-        if (mainDriverShiftId) {
-          setMainDriverInfo(enrichedTurns.find(t => t.id === mainDriverShiftId));
-        }
-        setPassengerResults(enrichedTurns.filter(t => passengerShiftIds.includes(t.id)));
-      }
-
-      if (searchedCirc) {
-        const { data: relatedCircs } = await supabase.from('circulations').select('id, sortida, linia, final').eq('linia', searchedCirc.linia).eq('final', searchedCirc.final);
-        if (relatedCircs && relatedCircs.length > 1) {
-          const sorted = relatedCircs.sort((a, b) => getFgcMinutes(a.sortida) - getFgcMinutes(b.sortida));
-          const currentIndex = sorted.findIndex(c => c.id === searchedCirc.id);
-          const anteriorId = currentIndex > 0 ? sorted[currentIndex - 1].id : null;
-          const posteriorId = currentIndex < sorted.length - 1 ? sorted[currentIndex + 1].id : null;
-          const anteriorShifts: string[] = []; const posteriorShifts: string[] = [];
-          allShifts.forEach(shift => {
-            const circs = (shift.circulations as any[]) || [];
-            circs.forEach(c => {
-              if (c.codi === 'Viatger' && c.observacions) {
-                const obsCode = c.observacions.split('-')[0].toUpperCase();
-                if (anteriorId && obsCode === anteriorId) anteriorShifts.push(shift.id);
-                if (posteriorId && obsCode === posteriorId) posteriorShifts.push(shift.id);
-              }
-            });
-          });
-          const [enrichedAnterior, enrichedPosterior] = await Promise.all([
-            fetchFullTurns(anteriorShifts, selectedServei === '0' ? undefined : selectedServei),
-            fetchFullTurns(posteriorShifts, selectedServei === '0' ? undefined : selectedServei)
-          ]);
-          setAdjacentPassengerResults({ anterior: enrichedAnterior.map(t => ({ ...t, adjacentCode: anteriorId })), posterior: enrichedPosterior.map(t => ({ ...t, adjacentCode: posteriorId })) });
-        }
-
-
-        // Need searchedCirc details for resting/reserve calculation
-        if (!searchedCirc) {
-          setLoadingCoverage(false);
-          return;
-        }
-
-        const depOrigen = searchedCirc.inici;
-        const sortidaMin = getFgcMinutes(searchedCirc.sortida);
-        const arribadaMin = getFgcMinutes(searchedCirc.arribada);
-        const enrichedAll = await fetchFullTurns(allShifts.map(s => s.id), selectedServei === '0' ? undefined : selectedServei);
-
-        // OPTIMIZATION: Fetch ALL potential return trains for ALL stations in the itinerary in ONE query
-        const itinerary = [
-          { nom: searchedCirc.inici, hora: searchedCirc.sortida },
-          ...(searchedCirc.estacions || []),
-          { nom: searchedCirc.final, hora: searchedCirc.arribada }
-        ];
-        const itineraryStationNames = Array.from(new Set(itinerary.map(p => p.nom).filter(Boolean)));
-
-        const { data: globalBulkDataRaw } = await supabase
-          .from('circulations')
-          .select('*')
-          .in('inici', itineraryStationNames)
-          .gte('sortida', formatFgcTime(Math.max(0, sortidaMin - 20)));
-
-        // CRITICAL: Sort by time to ensure .find() picks the EARLIEST valid one
-        const globalBulkReturns = (globalBulkDataRaw || [])
-          .map(c => ({ ...c, _sMin: getFgcMinutes(c.sortida) }))
-          .sort((a, b) => a._sMin - b._sMin);
-
-        console.log(`Global discovery: ${globalBulkReturns.length} sorted candidate return trains fetched for ${itineraryStationNames.length} stations.`);
-
-        const restingResults: any[] = [];
-        const extensibleResults: any[] = [];
-        const reserveResults: any[] = [];
-
-        for (const tData of enrichedAll) {
-          try {
-            if (!tData) continue;
-            const segs = getSegments(tData);
-            const [h, m] = (tData.duracio || "00:00").split(':').map(Number);
-            const originalDurationMin = h * 60 + m;
-            const maxExtensionCapacityMin = 525 - originalDurationMin;
-
-            const currentRestSeg = segs.find(seg => seg.type === 'gap' && seg.codi.toUpperCase() === depOrigen.toUpperCase() && seg.start <= sortidaMin && seg.end > sortidaMin);
-            if (currentRestSeg) {
-              const availableTime = currentRestSeg.end - sortidaMin;
-              const conflictMinutes = Math.max(0, arribadaMin - currentRestSeg.end);
-              const nextCirculation = segs.find(seg => seg.type === 'circ' && seg.start >= currentRestSeg.end);
-              const nextCircCode = nextCirculation?.codi;
-              let nextOriginStation = null;
-
-              if (nextCircCode) {
-                const nc = tData.fullCirculations?.find((c: any) => c.codi === nextCircCode);
-                if (nc) {
-                  if (nc.codi === 'Viatger') nextOriginStation = nc.final || nc.machinistInici;
-                  else nextOriginStation = nc.machinistInici || nc.inici;
-                }
-              }
-              restingResults.push({ ...tData, restSegment: currentRestSeg, availableTime, conflictMinutes, nextCirculation, nextOriginStation });
-            }
-
-            if (maxExtensionCapacityMin > 0) {
-              const isAtOriginAtDeparture = segs.find(seg => seg.type === 'gap' && seg.codi.toUpperCase() === depOrigen.toUpperCase() && seg.start <= sortidaMin && seg.end > sortidaMin);
-              if (isAtOriginAtDeparture) {
-                const hasConflictsTotal = segs.some(seg => seg.type === 'circ' && seg.start >= sortidaMin && seg.start < (arribadaMin + (arribadaMin - sortidaMin) + 10));
-                if (!hasConflictsTotal) {
-                  const shiftFinalMin = getFgcMinutes(tData.final_torn);
-                  const extraNeededTotal = Math.max(0, (arribadaMin + (arribadaMin - sortidaMin) + 10) - shiftFinalMin);
-                  if (extraNeededTotal <= maxExtensionCapacityMin) {
-                    extensibleResults.push({ ...tData, extData: { extraNeeded: extraNeededTotal, originalDuration: originalDurationMin, estimatedReturn: (arribadaMin + (arribadaMin - sortidaMin) + 10) } });
-                  }
-                }
-
-                let bestIntercept = null;
-
-                for (let i = 0; i < itinerary.length; i++) {
-                  const point = itinerary[i];
-                  const pointMin = getFgcMinutes(point.hora || point.arribada || point.sortida);
-                  const pointNameRaw = (point.nom || '');
-                  const pointNameNorm = normalizeStr(pointNameRaw);
-
-                  const candidates = RESERVAS_DATA.filter(r =>
-                    (pointNameNorm === r.loc || pointNameNorm.includes(r.loc) || r.loc.includes(pointNameNorm)) &&
-                    isReserveActive(r, pointMin)
-                  );
-
-                  for (const reserve of candidates) {
-                    let driverTarget = tData.dependencia;
-                    const nextCirc = segs.find(s => s.type === 'circ' && s.start >= pointMin);
-                    if (nextCirc) {
-                      const nc = tData.fullCirculations?.find((c: any) => c.codi === nextCirc.codi);
-                      if (nc) driverTarget = nc.machinistInici || nc.inici;
-                    }
-
-                    let driverReturnTrain = null;
-                    let returnToOriginTimeMin = pointMin + 45;
-
-                    if (driverTarget) {
-                      const minDMin = pointMin + 2;
-                      const validD = globalBulkReturns.find(c =>
-                        c.inici?.trim().toUpperCase() === pointNameRaw.trim().toUpperCase() &&
-                        c._sMin >= minDMin &&
-                        (normalizeStr(c.final || '').includes(driverTarget) || (c.estacions && c.estacions.some((s: any) => normalizeStr(s.nom || '').includes(driverTarget))))
-                      );
-
-                      if (validD) {
-                        driverReturnTrain = validD;
-                        let arr = getFgcMinutes(validD.arribada);
-                        if (validD.estacions) {
-                          const st = validD.estacions.find((s: any) => normalizeStr(s.nom || '').includes(driverTarget));
-                          if (st) arr = getFgcMinutes(st.hora || st.arribada);
-                        }
-                        returnToOriginTimeMin = arr + 5;
-                      }
-                    }
-
-                    const hasConflictsPartial = segs.some(seg => seg.type === 'circ' && seg.start >= sortidaMin && seg.start < returnToOriginTimeMin);
-                    if (!hasConflictsPartial) {
-                      const shiftFinalMin = getFgcMinutes(tData.final_torn);
-                      const extraNeededPartial = Math.max(0, returnToOriginTimeMin - shiftFinalMin);
-
-                      if (extraNeededPartial <= maxExtensionCapacityMin) {
-                        const isEndBase = normalizeStr(searchedCirc.final || '').includes(reserve.loc);
-                        const reserveFinishTime = arribadaMin + (isEndBase ? 0 : 45) + 7;
-                        const reserveEndShift = getFgcMinutes(reserve.end);
-                        const reserveTotalExtra = Math.max(0, reserveFinishTime - reserveEndShift);
-
-                        let reserveStatus = 'ok';
-                        let secondaryResInfo = null;
-                        let primaryReturnCirc = null;
-
-                        if (reserveTotalExtra > 45) {
-                          reserveStatus = 'relay_needed';
-                          for (let j = i + 1; j < itinerary.length; j++) {
-                            const relaySt = itinerary[j];
-                            const relayMin = getFgcMinutes(relaySt.hora || relaySt.arribada || relaySt.sortida);
-                            const relayNameNorm = normalizeStr(relaySt.nom || '');
-                            const relayCandidates = RESERVAS_DATA.filter(r2 =>
-                              r2.id !== reserve.id && (relayNameNorm === r2.loc || relayNameNorm.includes(r2.loc)) && isReserveActive(r2, relayMin)
-                            );
-
-                            if (relayCandidates.length > 0) {
-                              const relayReserve = relayCandidates[0];
-                              const minDMin = relayMin + 2;
-                              const validReturn = globalBulkReturns.find(c =>
-                                c.inici?.trim().toUpperCase() === (relaySt.nom || '').trim().toUpperCase() &&
-                                c._sMin >= minDMin &&
-                                (normalizeStr(c.final || '').includes(reserve.loc) || (c.estacions && c.estacions.some((s: any) => normalizeStr(s.nom || '').includes(reserve.loc))))
-                              );
-
-                              if (validReturn) {
-                                let arr = getFgcMinutes(validReturn.arribada);
-                                if (validReturn.estacions) {
-                                  const stop = validReturn.estacions.find((s: any) => normalizeStr(s.nom || '').includes(reserve.loc));
-                                  if (stop) arr = getFgcMinutes(stop.hora || stop.arribada);
-                                }
-                                const primaryExtraWithRelay = Math.max(0, arr + 7 - reserveEndShift);
-                                if (primaryExtraWithRelay <= 45) {
-                                  const isRelayEndBase = normalizeStr(searchedCirc.final || '').includes(relayReserve.loc);
-                                  const relayEndShift = getFgcMinutes(relayReserve.end);
-                                  const relayExtra = Math.max(0, arribadaMin + (isRelayEndBase ? 0 : 45) + 7 - relayEndShift);
-                                  if (relayExtra <= 45) {
-                                    secondaryResInfo = {
-                                      id: relayReserve.id, loc: relayReserve.loc, station: relaySt.nom,
-                                      time: formatFgcTime(relayMin), extra: relayExtra,
-                                      primaryExtraAfterRelay: primaryExtraWithRelay, returnCirculation: validReturn
-                                    };
-                                    break;
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        } else if (reserveTotalExtra > 0) {
-                          reserveStatus = 'extended';
-                        }
-
-                        if (reserveStatus !== 'relay_needed' && !isEndBase) {
-                          const minDMin = arribadaMin + 5;
-                          primaryReturnCirc = globalBulkReturns.find(c =>
-                            c.inici?.trim().toUpperCase() === (searchedCirc.final || '').trim().toUpperCase() &&
-                            c._sMin >= minDMin &&
-                            (normalizeStr(c.final || '').includes(reserve.loc) || (c.estacions && c.estacions.some((s: any) => normalizeStr(s.nom || '').includes(reserve.loc))))
-                          );
-                        }
-
-                        if (reserveStatus === 'relay_needed' && !secondaryResInfo) continue;
-                        const finalPrimaryExtra = secondaryResInfo ? secondaryResInfo.primaryExtraAfterRelay : reserveTotalExtra;
-                        if (!bestIntercept || pointMin < bestIntercept.time) {
-                          bestIntercept = {
-                            time: pointMin, interceptTime: formatFgcTime(pointMin), name: pointNameRaw,
-                            reservaId: reserve.id, extraNeeded: extraNeededPartial, reserveExtraNeeded: finalPrimaryExtra,
-                            reserveStatus: reserveStatus, secondaryRes: secondaryResInfo, driverReturnCirc: driverReturnTrain,
-                            primaryReturnCirc: primaryReturnCirc, originalDuration: originalDurationMin
-                          };
-                        }
-                      }
-                    }
-                  }
-                }
-                if (bestIntercept) {
-                  reserveResults.push({ ...tData, resData: { ...bestIntercept, originalDuration: originalDurationMin, interceptTime: formatFgcTime(bestIntercept.time) } });
-                }
-              }
-            }
-          } catch (e) {
-            console.error("Error processing driver in update loop:", e);
-          }
-        }
-
-        // --------------------------------------------------------------------------------
-        // START: Return Trip Calculation for Drivers with Next Duty
-        // --------------------------------------------------------------------------------
-        let finalRestingResults = restingResults;
-        try {
-          const nextOrigins = new Set<string>();
-          restingResults.forEach(r => {
-            if (r.nextCirculation) {
-              const nextCircFull = r.fullCirculations?.find((c: any) => c.codi === r.nextCirculation.codi);
-              if (nextCircFull && nextCircFull.machinistInici) nextOrigins.add(nextCircFull.machinistInici);
-            }
-          });
-          const returnMap: Record<string, any[]> = {};
-          if (nextOrigins.size > 0 && searchedCircData) {
-            const bufferMin = 2;
-            const minDepartureMin = arribadaMin + bufferMin;
-            const departureTimeStr = formatFgcTime(minDepartureMin);
-            const { data: returnCircs, error: retErr } = await supabase
-              .from('circulations')
-              .select('id, sortida, arribada, inici, final, linia')
-              .eq('inici', searchedCircData.final)
-              .gte('sortida', departureTimeStr)
-              .order('sortida')
-              .limit(50);
-            if (!retErr && returnCircs) returnMap[searchedCircData.final] = returnCircs;
-          }
-
-          finalRestingResults = restingResults.map(r => {
-            if (!r.nextCirculation) return r;
-            const nextCircFull = r.fullCirculations?.find((c: any) => c.codi === r.nextCirculation.codi);
-            const nextOrigin = nextCircFull?.machinistInici || r.dependencia;
-            if (!nextOrigin) return { ...r, returnStatus: 'unknown' };
-            if (nextOrigin === searchedCircData.final) return { ...r, returnStatus: 'same_station' };
-            const candidateReturns = returnMap[searchedCircData.final] || [];
-            const validReturn = candidateReturns.find((c: any) => c.final === nextOrigin);
-            if (validReturn) {
-              const returnArrMin = getFgcMinutes(validReturn.arribada);
-              const nextStartMin = r.nextCirculation.start;
-              if (returnArrMin <= nextStartMin - 1) return { ...r, returnStatus: 'ok', returnCirc: validReturn };
-              else return { ...r, returnStatus: 'too_late', returnCirc: validReturn };
-            }
-            return { ...r, returnStatus: 'no_route' };
-          });
-        } catch (eReturn) {
-          console.error("Error calculating returns:", eReturn);
-          finalRestingResults = restingResults;
-        }
-
-        setRestingDriversResults(finalRestingResults.sort((a, b) => (b.restSegment.end - b.restSegment.start) - (a.restSegment.end - a.restSegment.start)));
-        setExtensibleDriversResults(extensibleResults.sort((a, b) => a.extData.extraNeeded - b.extData.extraNeeded));
-        setReserveExtensionResults(reserveResults.sort((a, b) => a.resData.extraNeeded - b.resData.extraNeeded));
-      }
-    } catch (e) { console.error(e); } finally { setLoadingCoverage(false); }
-  };
 
   function getSegments(turn: any) {
     if (!turn) return [];
@@ -609,10 +244,9 @@ export const OrganitzaView: React.FC = () => {
   return (
     <div className="space-y-6">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div><h1 className="text-3xl font-black text-fgc-grey dark:text-white tracking-tight">Organització i Circulació Descoberta</h1><p className="text-gray-500 dark:text-gray-400 font-medium">Anàlisi comparativa i gestió de "Viatgers".</p></div>
+        <div><h1 className="text-3xl font-black text-fgc-grey dark:text-white tracking-tight">Organització</h1><p className="text-gray-500 dark:text-gray-400 font-medium">Anàlisi comparativa i gestió.</p></div>
         <div className="flex bg-white dark:bg-gray-900 p-1 rounded-2xl shadow-sm border border-gray-100 dark:border-white/5 transition-colors w-full md:w-auto">
           <button onClick={() => setOrganizeType(OrganizeType.Comparador)} className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-6 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-sm font-black transition-all whitespace-nowrap ${organizeType === OrganizeType.Comparador ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5'}`}><Columns size={16} /><span className="truncate">Comparador</span></button>
-          <button onClick={() => setOrganizeType(OrganizeType.CirculacioDescoberta)} className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-6 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-sm font-black transition-all whitespace-nowrap ${organizeType === OrganizeType.CirculacioDescoberta ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5'}`}><ShieldAlert size={16} /><span className="truncate">Circulació descoberta</span></button>
           <button onClick={() => setOrganizeType(OrganizeType.Maquinista)} className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-6 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-sm font-black transition-all whitespace-nowrap ${organizeType === OrganizeType.Maquinista ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5'}`}><User size={16} /><span className="truncate">Maquinistes</span></button>
         </div>
       </header>
@@ -653,200 +287,6 @@ export const OrganitzaView: React.FC = () => {
               </div>
             </div>
           )}
-        </div>
-      ) : organizeType === OrganizeType.CirculacioDescoberta ? (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-          <div className="bg-white dark:bg-gray-900 rounded-[40px] p-8 sm:p-10 border border-gray-100 dark:border-white/5 shadow-sm space-y-8 transition-colors">
-            <div className="max-w-3xl mx-auto space-y-6">
-              <div className="text-center space-y-1"><h2 className="text-2xl font-black text-fgc-grey dark:text-white uppercase tracking-tight">Consulta de Circulació</h2><p className="text-xs font-medium text-gray-400 dark:text-gray-500">Personal assignat a la circulació en temps real.</p></div>
-              <div className="flex justify-center gap-2"><div className="flex items-center gap-2 bg-gray-50 dark:bg-black/20 p-1 rounded-xl border border-gray-100 dark:border-white/5 transition-colors">{serveiTypes.map(s => (<button key={s} onClick={() => setSelectedServei(s)} className={`px-4 py-1.5 rounded-lg text-[10px] font-black transition-all ${selectedServei === s ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-md' : 'text-gray-400 dark:text-gray-500 hover:bg-white dark:hover:bg-white/5'}`}>S-{s}</button>))}</div></div>
-              <div className="relative"><Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={20} /><input type="text" placeholder="Número de circulació (Ex: 1102)..." value={coverageQuery} onChange={(e) => setCoverageQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSearchCoverage()} className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] py-4 pl-14 pr-8 focus:ring-4 focus:ring-fgc-green/20 outline-none font-black text-lg transition-all placeholder:text-gray-300 dark:text-white dark:placeholder:text-gray-600 shadow-inner" /><button onClick={handleSearchCoverage} disabled={!coverageQuery || loadingCoverage} className="absolute right-3 top-1/2 -translate-y-1/2 bg-fgc-green text-fgc-grey px-6 py-2 rounded-xl font-black text-xs hover:scale-105 active:scale-95 transition-all shadow-md disabled:opacity-50">{loadingCoverage ? <Loader2 className="animate-spin" size={16} /> : 'CERCAR'}</button></div>
-            </div>
-
-            <div className="pt-6 border-t border-dashed border-gray-100 dark:border-white/10 transition-colors">
-              {loadingCoverage ? (<div className="py-20 flex flex-col items-center justify-center gap-4"><Loader2 className="animate-spin text-fgc-green" size={40} /><p className="font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest text-[10px]">Actualitzant dades...</p></div>) : (mainDriverInfo || passengerResults.length > 0 || adjacentPassengerResults.anterior.length > 0 || adjacentPassengerResults.posterior.length > 0 || restingDriversResults.length > 0 || extensibleDriversResults.length > 0 || reserveExtensionResults.length > 0) ? (
-                <div className="space-y-10">
-                  {mainDriverInfo && (
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-2 px-2"><UserCheck className="text-fgc-green" size={16} /><h3 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Maquinista titular</h3></div>
-                      <div className="bg-white dark:bg-gray-800 rounded-[24px] p-5 sm:p-6 border-2 border-fgc-green shadow-lg shadow-fgc-green/5 relative overflow-hidden group transition-colors">
-                        <div className="flex flex-col">
-                          <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-4">
-                              <div className="h-12 min-w-[3.5rem] px-3 bg-fgc-grey dark:bg-black text-white rounded-xl flex items-center justify-center font-black text-xl shadow-md shrink-0 whitespace-nowrap">{mainDriverInfo.id}</div>
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <p className="text-xl font-black text-fgc-grey dark:text-white tracking-tight leading-none truncate">{mainDriverInfo.drivers[0]?.cognoms}, {mainDriverInfo.drivers[0]?.nom}</p>
-                                  {mainDriverInfo.drivers[0]?.tipus_torn && (
-                                    <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border shrink-0 ${mainDriverInfo.drivers[0].tipus_torn === 'Reducció'
-                                      ? 'bg-purple-600 text-white border-purple-700'
-                                      : 'bg-blue-600 text-white border-blue-700'
-                                      }`}>
-                                      {mainDriverInfo.drivers[0].tipus_torn}
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-2 mt-1"><div className="w-2 h-2 bg-fgc-green rounded-full animate-pulse" /><span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Nom. {mainDriverInfo.drivers[0]?.nomina}</span>{mainDriverInfo.fullCirculations?.find((c: any) => c.codi?.toUpperCase() === coverageQuery.toUpperCase())?.train && (<span className="bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-grey dark:text-fgc-green px-2 py-0.5 rounded text-[9px] font-black uppercase flex items-center gap-1"><Train size={10} /> {mainDriverInfo.fullCirculations.find((c: any) => c.codi?.toUpperCase() === coverageQuery.toUpperCase()).train}</span>)}</div>
-                              </div>
-                            </div>
-                            <div className="flex gap-1">{mainDriverInfo.drivers[0]?.phones?.map((p: string, i: number) => (<a key={i} href={`tel:${p}`} className="flex items-center justify-center gap-2 bg-fgc-grey dark:bg-black text-white px-5 py-2.5 rounded-xl font-black text-xs hover:bg-fgc-dark transition-all shadow-md active:scale-95 whitespace-nowrap"><Phone size={14} /> {p}</a>))}</div>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pt-3 border-t border-gray-100 dark:border-white/5 transition-colors">
-                            <div className="flex items-center gap-2"><span className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-tighter">TORN:</span><span className="text-base sm:text-lg font-black text-fgc-grey dark:text-gray-200 whitespace-nowrap">{mainDriverInfo.inici_torn} — {mainDriverInfo.final_torn} <span className="text-xs font-bold text-gray-400 dark:text-gray-500 ml-2">({mainDriverInfo.duracio})</span></span></div>
-                            {searchedCircData && (<div className="flex items-center gap-2"><span className="text-[9px] font-black text-fgc-green uppercase tracking-tighter">CIRCULACIÓ:</span><span className="text-base sm:text-lg font-black text-fgc-grey dark:text-gray-200 whitespace-nowrap">{searchedCircData.sortida} — {searchedCircData.arribada}</span></div>)}
-                            {searchedCircData && (<div className="flex items-center gap-2"><span className="text-[9px] font-black text-blue-500 uppercase tracking-tighter">VIES:</span><span className="text-base sm:text-lg font-black text-fgc-grey dark:text-gray-200 whitespace-nowrap">V{searchedCircData.via_inici || '?'} → V{searchedCircData.via_final || '?'}</span></div>)}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 px-2"><Users className="text-blue-500" size={16} /><h3 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Maquinistes de viatger ({passengerResults.length})</h3></div>
-                    {passengerResults.length > 0 ? (<div className="flex flex-col gap-2">{passengerResults.map((torn, idx) => <CompactViatgerRow key={idx} torn={torn} viatgerCirc={torn.fullCirculations?.find((c: any) => c.codi === 'Viatger' && c.observacions && c.observacions.split('-')[0].toUpperCase() === coverageQuery.toUpperCase())} colorClass="border-l-blue-500" />)}</div>) : (<div className="bg-gray-50/50 dark:bg-black/20 rounded-2xl p-6 text-center border border-dashed border-gray-200 dark:border-white/10 transition-colors"><p className="text-gray-400 dark:text-gray-600 font-bold italic text-xs">Cap maquinista de viatger detectat.</p></div>)}
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 px-2"><Users className="text-purple-500" size={16} /><h3 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Maquinistes de viatger (Anterior / Posterior)</h3></div>
-                    {(adjacentPassengerResults.anterior.length > 0 || adjacentPassengerResults.posterior.length > 0) ? (<div className="flex flex-col gap-2">
-                      {adjacentPassengerResults.anterior.map((torn, idx) => <CompactViatgerRow key={`ant-${idx}`} torn={torn} viatgerCirc={torn.fullCirculations?.find((c: any) => c.codi === 'Viatger' && c.observacions && c.observacions.split('-')[0].toUpperCase() === torn.adjacentCode?.toUpperCase())} colorClass="border-l-purple-400" label={<span className="flex items-center gap-1 text-[8px] text-purple-600 font-black uppercase"><Rewind size={10} /> {torn.adjacentCode} (Ant)</span>} />)}
-                      {adjacentPassengerResults.posterior.map((torn, idx) => <CompactViatgerRow key={`post-${idx}`} torn={torn} viatgerCirc={torn.fullCirculations?.find((c: any) => c.codi === 'Viatger' && c.observacions && c.observacions.split('-')[0].toUpperCase() === torn.adjacentCode?.toUpperCase())} colorClass="border-l-purple-600" label={<span className="flex items-center gap-1 text-[8px] text-purple-600 font-black uppercase"><FastForward size={10} /> {torn.adjacentCode} (Post)</span>} />)}
-                    </div>) : (<div className="bg-gray-50/50 dark:bg-black/20 rounded-2xl p-6 text-center border border-dashed border-gray-200 dark:border-white/10 transition-colors"><p className="text-gray-400 dark:text-gray-600 font-bold italic text-xs">Cap viatger en circulacions adjacents.</p></div>)}
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 px-2"><Coffee className="text-fgc-green" size={16} /><h3 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Maquinistes en descans ({restingDriversResults.length})</h3></div>
-                    {restingDriversResults.length > 0 ? (<div className="flex flex-col gap-2">{restingDriversResults.map((torn, idx) => (<div key={idx} className="bg-white dark:bg-gray-800 rounded-2xl p-3 border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-md transition-all flex items-center gap-4 border-l-4 border-l-fgc-green">
-                      <div className="h-10 min-w-[2.5rem] px-2 bg-fgc-grey/10 dark:bg-black text-fgc-grey dark:text-gray-300 rounded-xl flex items-center justify-center font-black text-xs shadow-sm shrink-0 whitespace-nowrap">{torn.id}</div>
-                      <div className="flex-1 min-w-0 flex flex-col gap-3">
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:gap-6">
-                          <div className="flex-1 min-w-0"><div className="flex items-center gap-2"><p className="text-sm font-black text-fgc-grey dark:text-gray-200 truncate">{torn.drivers[0]?.cognoms}, {torn.drivers[0]?.nom}</p><span className="flex items-center gap-1 text-[8px] text-fgc-green font-black uppercase tracking-widest"><MapPin size={10} /> {torn.restSegment.codi}</span></div><p className="text-[8px] font-black text-gray-300 dark:text-gray-600 uppercase tracking-widest">Nom. {torn.drivers[0]?.nomina}</p></div>
-                          <div className="flex items-center gap-3 text-fgc-grey dark:text-gray-300 shrink-0"><div className="flex items-center gap-1.5 bg-fgc-green/10 dark:bg-fgc-green/5 px-3 py-1 rounded-lg border border-fgc-green/20 dark:border-fgc-green/10 transition-colors"><span className="text-[10px] font-black uppercase text-fgc-grey dark:text-gray-300">{formatFgcTime(torn.restSegment.start)}</span><ArrowRight size={10} className="text-fgc-green" /><span className="text-[10px] font-black uppercase text-fgc-grey dark:text-gray-300">{formatFgcTime(torn.restSegment.end)}</span></div><div className="flex flex-col items-end gap-0.5"><div className={`text-[10px] font-black px-2 py-0.5 rounded border min-w-[80px] text-center flex items-center justify-center gap-1 ${torn.conflictMinutes > 0 ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border-red-100 dark:border-red-900/30' : 'text-fgc-green bg-fgc-green/5 border-fgc-green/10'}`}>{torn.conflictMinutes > 0 && <ShieldAlert size={10} />}{torn.availableTime} MIN ÚTILS</div>{torn.conflictMinutes > 0 ? (<span className="text-[8px] font-bold text-red-500 dark:text-red-400">Solapa {torn.conflictMinutes} min amb següent</span>) : (<span className="text-[8px] font-bold text-gray-400 dark:text-gray-500">Total: {torn.restSegment.end - torn.restSegment.start} min</span>)}</div></div>
-                        </div>
-                        {torn.nextCirculation && (
-                          <div className="flex flex-col gap-2 bg-gray-50 dark:bg-black/20 px-3 py-2 rounded-xl border border-gray-100 dark:border-white/5">
-                            <div className="flex items-center gap-2">
-                              <div className="bg-white dark:bg-gray-700 p-1.5 rounded-lg text-gray-400 dark:text-gray-500"><Train size={12} /></div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[10px] font-black text-fgc-grey dark:text-gray-300 uppercase">Següent: Circ. {torn.nextCirculation.codi}</span>
-                                  <span className="text-[9px] font-bold text-gray-400 dark:text-gray-500">({formatFgcTime(torn.nextCirculation.start)} - {formatFgcTime(torn.nextCirculation.end)})</span>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Return Logic Display */}
-                            <div className="ml-8 border-l-2 border-gray-200 dark:border-white/10 pl-3 space-y-1">
-                              {torn.returnStatus === 'same_station' && (
-                                <p className="text-[9px] font-bold text-fgc-green flex items-center gap-1.5"><CheckCircle2 size={10} /> Ja es troba a l'estació d'inici ({torn.fullCirculations?.find((c: any) => c.codi === torn.nextCirculation.codi)?.machinistInici || '?'})</p>
-                              )}
-                              {torn.returnStatus === 'ok' && torn.returnCirc && (
-                                <div className="space-y-0.5">
-                                  <p className="text-[9px] font-bold text-fgc-green flex items-center gap-1.5"><CheckCircle2 size={10} /> Tornada possible: {torn.returnCirc.id}</p>
-                                  <p className="text-[8px] text-gray-400 font-medium pl-4">{torn.returnCirc.sortida} ({searchedCircData.final}) → {torn.returnCirc.arribada} ({torn.returnCirc.final})</p>
-                                </div>
-                              )}
-                              {torn.returnStatus === 'too_late' && torn.returnCirc && (
-                                <div className="space-y-0.5">
-                                  <p className="text-[9px] font-bold text-red-500 flex items-center gap-1.5"><X size={10} /> Arribaria tard amb: {torn.returnCirc.id}</p>
-                                  <p className="text-[8px] text-red-300 font-medium pl-4">Arriba {torn.returnCirc.arribada} (Inici torn: {formatFgcTime(torn.nextCirculation.start)})</p>
-                                </div>
-                              )}
-                              {torn.returnStatus === 'no_route' && (
-                                <p className="text-[9px] font-bold text-orange-500 flex items-center gap-1.5"><ShieldAlert size={10} /> No s'ha trobat tren de tornada directe</p>
-                              )}
-                              {torn.returnStatus === 'unknown' && (
-                                <p className="text-[9px] font-bold text-gray-400 flex items-center gap-1.5"><Info size={10} /> Ubicació destí desconeguda</p>
-                              )}
-                              <p className="text-[9px] font-medium text-red-500 dark:text-red-400 leading-none pt-1">⚠️ Aquesta circulació quedarà descoberta si no s'arriba a temps.</p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex gap-1 shrink-0">{torn.drivers[0]?.phones?.map((p: string, i: number) => (<a key={i} href={`tel:${p}`} className="w-8 h-8 bg-fgc-grey dark:bg-black text-white rounded-lg flex items-center justify-center hover:bg-fgc-dark transition-all shadow-sm"><Phone size={12} /></a>))}</div>
-                    </div>))}</div>) : (<div className="bg-gray-50/50 dark:bg-black/20 rounded-2xl p-6 text-center border border-dashed border-gray-200 dark:border-white/10 transition-colors"><p className="text-gray-400 dark:text-gray-600 font-bold italic text-xs">Cap maquinista en descans.</p></div>)}
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 px-2"><Timer className="text-orange-500" size={16} /><h3 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Torns amb possibilitat de perllongar ({extensibleDriversResults.length})</h3></div>
-                    {extensibleDriversResults.length > 0 ? (<div className="flex flex-col gap-2">{extensibleDriversResults.map((torn, idx) => (<div key={idx} className="bg-white dark:bg-gray-800 rounded-2xl p-3 border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-md transition-all flex items-center gap-4 border-l-4 border-l-orange-500">
-                      <div className="h-10 min-w-[2.5rem] px-2 bg-orange-50 dark:bg-orange-950/20 text-orange-600 rounded-xl flex items-center justify-center font-black text-xs shadow-sm shrink-0 whitespace-nowrap">{torn.id}</div>
-                      <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center sm:gap-6"><div className="flex-1 min-w-0"><div className="flex items-center gap-2"><p className="text-sm font-black text-fgc-grey dark:text-gray-200 truncate">{torn.drivers[0]?.cognoms}, {torn.drivers[0]?.nom}</p><span className="flex items-center gap-1 text-[8px] text-orange-500 font-black uppercase tracking-widest"><Timer size={10} /> Extensible</span></div><div className="flex items-center gap-2 mt-0.5"><p className="text-[8px] font-black text-gray-300 dark:text-gray-600 uppercase tracking-widest">Nom. {torn.drivers[0]?.nomina}</p><span className="text-[8px] font-bold text-gray-400 dark:text-gray-500 uppercase">Durada: {torn.duracio}</span></div></div><div className="flex items-center gap-3 text-fgc-grey dark:text-gray-300 shrink-0"><div className="flex flex-col items-end"><div className="flex items-center gap-1.5 bg-orange-50 dark:bg-orange-950/20 px-3 py-1 rounded-lg border border-orange-100 dark:border-orange-900/40 transition-colors"><span className="text-[10px] font-black uppercase text-orange-700 dark:text-orange-400">{formatFgcTime(getFgcMinutes(torn.final_torn))}</span><ArrowRight size={10} className="text-orange-300" /><span className="text-[10px] font-black uppercase text-orange-700 dark:text-orange-400">{formatFgcTime(torn.extData.estimatedReturn)}</span></div><span className="text-[8px] font-black text-orange-400 uppercase tracking-tighter mt-1">Extra: +{torn.extData.extraNeeded} min</span></div><div className="text-[10px] font-black text-white bg-orange-500 px-3 py-1 rounded-lg border border-orange-600 min-w-[100px] text-center shadow-sm">{Math.floor((525 - (torn.extData.originalDuration + torn.extData.extraNeeded)))} MIN MARGE</div></div></div>
-                      <div className="flex gap-1 shrink-0">{torn.drivers[0]?.phones?.map((p: string, i: number) => (<a key={i} href={`tel:${p}`} className="w-8 h-8 bg-orange-500 text-white rounded-lg flex items-center justify-center hover:bg-orange-600 transition-all shadow-sm"><Phone size={12} /></a>))}</div>
-                    </div>))}</div>) : (<div className="bg-gray-50/50 dark:bg-black/20 rounded-2xl p-6 text-center border border-dashed border-gray-200 dark:border-white/10 transition-colors"><p className="text-gray-400 dark:text-gray-600 font-bold italic text-xs">Cap torn extensible fins al final.</p></div>)}
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 px-2"><Repeat className="text-indigo-500" size={16} /><h3 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Perllongament + Reserva ({reserveExtensionResults.length})</h3></div>
-                    {reserveExtensionResults.length > 0 ? (
-                      <div className="flex flex-col gap-2">
-                        {reserveExtensionResults.map((torn, idx) => (
-                          <div key={idx} className="bg-white dark:bg-gray-800 rounded-2xl p-3 border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-md transition-all flex items-center gap-4 border-l-4 border-l-indigo-500">
-                            <div className="h-10 min-w-[2.5rem] px-2 bg-indigo-50 dark:bg-indigo-950/20 text-indigo-600 rounded-xl flex items-center justify-center font-black text-xs shadow-sm shrink-0 whitespace-nowrap">{torn.id}</div>
-
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <p className="text-sm font-black text-fgc-grey dark:text-gray-200 truncate">{torn.drivers[0]?.cognoms}, {torn.drivers[0]?.nom}</p>
-                                <span className="flex items-center gap-1 text-[8px] text-indigo-500 font-black uppercase tracking-widest"><Repeat size={10} /> Intervenció {torn.resData.reservaId}{torn.resData.secondaryRes ? ` + ${torn.resData.secondaryRes.id}` : ''}</span>
-                              </div>
-
-                              <div className="flex flex-col gap-1 mt-0.5">
-                                <div className="flex items-center gap-2">
-                                  <p className="text-[8px] font-black text-gray-300 dark:text-gray-600 uppercase tracking-widest">Nom. {torn.drivers[0]?.nomina}</p>
-                                  <span className="text-[8px] font-bold text-indigo-400 uppercase tracking-tighter">
-                                    Relleu a {torn.resData.name} ({torn.resData.interceptTime})
-                                    {torn.resData.secondaryRes && ` → Relleu 2 a ${torn.resData.secondaryRes.station} (${torn.resData.secondaryRes.time})`}
-                                  </span>
-                                </div>
-
-                                {torn.resData.driverReturnCirc && (
-                                  <div className="flex items-center gap-1.5 ml-0.5">
-                                    <ArrowRight size={8} className="text-green-500" />
-                                    <span className="text-[8px] font-bold text-gray-400">Tornada Maq: <span className="text-green-600 dark:text-green-400">{torn.resData.driverReturnCirc.id}</span> ({torn.resData.driverReturnCirc.sortida} - {torn.resData.driverReturnCirc.arribada})</span>
-                                  </div>
-                                )}
-                                {torn.resData.primaryReturnCirc && (
-                                  <div className="flex items-center gap-1.5 ml-0.5">
-                                    <ArrowRight size={8} className="text-indigo-300" />
-                                    <span className="text-[8px] font-bold text-gray-400">Tornada Res 1: <span className="text-indigo-600 dark:text-indigo-400">{torn.resData.primaryReturnCirc.id}</span> ({torn.resData.primaryReturnCirc.sortida} - {torn.resData.primaryReturnCirc.arribada})</span>
-                                  </div>
-                                )}
-                                {torn.resData.secondaryRes?.returnCirculation && (
-                                  <div className="flex items-center gap-1.5 ml-0.5">
-                                    <ArrowRight size={8} className="text-indigo-300" />
-                                    <span className="text-[8px] font-bold text-gray-400">Tornada Res 1: <span className="text-indigo-600 dark:text-indigo-400">{torn.resData.secondaryRes.returnCirculation.id}</span> ({torn.resData.secondaryRes.returnCirculation.sortida} - {torn.resData.secondaryRes.returnCirculation.arribada})</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-3 text-fgc-grey dark:text-gray-300 shrink-0">
-                              <div className="flex flex-col items-center">
-                                <div className="flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-950/20 px-3 py-1 rounded-lg border border-indigo-100 dark:border-indigo-900/40 transition-colors">
-                                  <span className="text-[10px] font-black uppercase text-indigo-700 dark:text-indigo-400">{formatFgcTime(getFgcMinutes(torn.final_torn))}</span>
-                                  <ArrowRight size={10} className="text-indigo-300" />
-                                  <span className="text-[10px] font-black uppercase text-indigo-700 dark:text-indigo-400">{formatFgcTime(getFgcMinutes(torn.resData.interceptTime) + 25)}</span>
-                                </div>
-                                <span className="text-[8px] font-black text-indigo-400 uppercase tracking-tighter mt-1">Extra Torn: +{torn.resData.extraNeeded} min</span>
-                                {torn.resData.reserveExtraNeeded > 0 && <span className="text-[8px] font-black text-pink-500 uppercase tracking-tighter mt-0.5">Extra Res: +{torn.resData.reserveExtraNeeded} min</span>}
-                              </div>
-                              <div className="text-[10px] font-black text-white bg-indigo-500 px-3 py-1 rounded-lg border border-indigo-600 min-w-[100px] text-center shadow-sm">{Math.floor((525 - (torn.resData.originalDuration + torn.resData.extraNeeded)))} MIN MARGE</div>
-                            </div>
-
-                            <div className="flex gap-1 shrink-0">{torn.drivers[0]?.phones?.map((p: string, i: number) => (<a key={i} href={`tel:${p}`} className="w-8 h-8 bg-indigo-500 text-white rounded-lg flex items-center justify-center hover:bg-blue-600 transition-all shadow-sm"><Phone size={12} /></a>))}</div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="bg-gray-50/50 dark:bg-black/20 rounded-2xl p-6 text-center border border-dashed border-gray-200 dark:border-white/10 transition-colors">
-                        <p className="text-gray-400 dark:text-gray-600 font-bold italic text-xs">Cap possibilitat d'intercepció amb reserves.</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ) : coverageQuery ? (<div className="py-20 text-center space-y-4 opacity-40 transition-colors"><div className="w-16 h-16 bg-gray-100 dark:bg-black/20 rounded-full flex items-center justify-center mx-auto text-gray-300 dark:text-gray-700"><Info size={28} /></div><p className="font-black text-fgc-grey dark:text-gray-400 uppercase tracking-[0.2em] text-[10px]">Cap dada per a {coverageQuery}</p></div>) : (<div className="py-20 text-center space-y-4 transition-colors"><div className="w-20 h-20 bg-gray-50 dark:bg-black/20 rounded-full flex items-center justify-center mx-auto text-gray-200 dark:text-gray-800"><Train size={40} /></div><p className="text-gray-400 dark:text-gray-500 font-bold max-w-sm mx-auto leading-relaxed italic text-sm">Cerca una circulació per veure l'assignació completa de personal.</p></div>)}
-            </div>
-          </div>
         </div>
       ) : (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -1000,19 +440,13 @@ export const OrganitzaView: React.FC = () => {
             </div>
           </div>
         </div>
-      )
-      }
-    </div >
+
+      )}
+    </div>
   );
 };
 
-const CompactViatgerRow: React.FC<{ torn: any, viatgerCirc: any, colorClass: string, label?: React.ReactNode }> = ({ torn, viatgerCirc, colorClass, label }) => (
-  <div className={`bg-white dark:bg-gray-800 rounded-2xl p-3 border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-md transition-all flex items-center gap-4 border-l-4 ${colorClass}`}>
-    <div className="h-10 min-w-[2.5rem] px-2 bg-fgc-grey/10 dark:bg-black text-fgc-grey dark:text-gray-300 rounded-xl flex items-center justify-center font-black text-xs shadow-sm shrink-0 whitespace-nowrap">{torn.id}</div>
-    <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center sm:gap-6"><div className="flex-1 min-w-0"><div className="flex items-center gap-2"><p className="text-sm font-black text-fgc-grey dark:text-gray-200 truncate">{torn.drivers[0]?.cognoms}, {torn.drivers[0]?.nom}</p>{label}</div><p className="text-[8px] font-black text-gray-300 dark:text-gray-600 uppercase tracking-widest whitespace-nowrap">Nom. {torn.drivers[0]?.nomina} {torn.drivers[0]?.tipus_torn ? `(${torn.drivers[0].tipus_torn})` : ''}</p></div><div className="flex items-center gap-3 text-blue-500 shrink-0"><div className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-950/20 px-3 py-1 rounded-lg border border-blue-100/50 dark:border-blue-900/30 transition-colors"><span className="text-[10px] font-black uppercase text-blue-600 dark:text-blue-400 whitespace-nowrap">{viatgerCirc?.machinistInici || '--'}</span><ArrowRight size={10} className="text-blue-300" /><span className="text-[10px] font-black uppercase text-blue-600 dark:text-blue-400 whitespace-nowrap">{viatgerCirc?.machinistFinal || '--'}</span></div><div className="text-[10px] font-bold text-gray-400 dark:text-gray-600 min-w-[70px] whitespace-nowrap">{torn.inici_torn} - {torn.final_torn}</div></div></div>
-    <div className="flex gap-1 shrink-0">{torn.drivers[0]?.phones?.map((p: string, i: number) => (<a key={i} href={`tel:${p}`} className="w-8 h-8 bg-blue-500 text-white rounded-lg flex items-center justify-center hover:bg-blue-600 transition-all shadow-sm"><Phone size={12} /></a>))}</div>
-  </div>
-);
+
 
 const CompareInputSlot = ({ label, value, onChange, data, onClear, nowMin, getSegments, selectedServei }: { label: string, value: string, onChange: (v: string) => void, data: any, onClear: () => void, nowMin: number, getSegments: (t: any) => any[], selectedServei: string }) => {
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -1072,8 +506,6 @@ const CompareInputSlot = ({ label, value, onChange, data, onClear, nowMin, getSe
   );
 };
 
-const RefreshCcw = ({ size, className }: { size?: number, className?: string }) => (
-  <svg width={size || 24} height={size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" /><path d="M16 16h5v5" /></svg>
-);
+
 
 export default OrganitzaView;

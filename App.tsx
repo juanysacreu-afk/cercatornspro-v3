@@ -219,7 +219,7 @@ const App: React.FC = () => {
       </nav>
 
       {/* Main Content: Mantenim les vistes muntades però ocultes per preservar l'estat */}
-      <main className={`flex-1 w-full py-8 safe-bottom ${activeTab === AppTab.Incidencia ? 'px-4' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8'}`}>
+      <main className="flex-1 w-full py-8 safe-bottom max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className={activeTab === AppTab.Cercar ? 'block' : 'hidden'}>
           <CercarView />
         </div>
