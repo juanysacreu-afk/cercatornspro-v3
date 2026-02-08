@@ -39,6 +39,7 @@ interface LivePersonnel {
   shiftStartMin?: number;
   shiftEndMin?: number;
   shiftDep?: string;
+  servei?: string;
   phones?: string[];
   inici?: string;
   final?: string;
@@ -524,6 +525,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                 shiftStartMin: getFgcMinutes(shift.inici_torn) || 0,
                 shiftEndMin: getFgcMinutes(shift.final_torn) || 0,
                 shiftDep: resolveStationId(shift.dependencia || '', shiftService),
+                servei: shiftService,
                 phones: driverPhones,
                 inici: (circ as any).inici,
                 final: (circ as any).final,
@@ -548,6 +550,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
               shiftStartMin: getFgcMinutes(shift.inici_torn) || 0,
               shiftEndMin: getFgcMinutes(shift.final_torn) || 0,
               shiftDep: resolveStationId(shift.dependencia || '', shiftService),
+              servei: shiftService,
               phones: driverPhones,
               inici: (circ as any).inici as string | undefined,
               final: (circ as any).final as string | undefined,
@@ -1427,7 +1430,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
         const LINE_ORDER = ['L12', 'L6', 'L7', 'S1', 'S2'];
 
         // Initialize Driver Pool with current personnel
-        let driverPool = allDrivers.map(d => ({
+        let driverPool: any[] = allDrivers.map(d => ({
           ...d,
           currentStation: d.stationId,
           availableAt: displayMin,
@@ -1449,6 +1452,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                   const assignment = allDaily.find(d => getShortTornId(s.id) === d.torn);
                   if (assignment) {
                     driverPool.push({
+                      servei: s.servei,
                       type: 'REST', id: 'PROPER', linia: 'S/L', stationId: dep, color: '#53565A',
                       driver: `${assignment.cognoms}, ${assignment.nom}`,
                       driverName: assignment.nom,
@@ -1642,6 +1646,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
             plan.push({
               id: `${prefix}A${tripNum.toString().padStart(3, '0')}`,
               delay: startTime - originalStart,
+              servei: (activeDriver as any).servei,
               linia: liniaCode,
               train: unitObj.train.id,
               driver: activeDriver.driver || (activeDriver as any).driverName,
@@ -2063,6 +2068,19 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                       const groups: Record<string, any> = {};
                       generatedCircs.forEach(c => {
                         if (!c.torn || c.torn === '---') return;
+
+                        let isShiftVisible = false;
+                        if (selectedServei === 'Tots') {
+                          isShiftVisible = true;
+                        } else {
+                          const shiftService = (c as any).servei || '';
+                          if (selectedServei === '400') isShiftVisible = shiftService === '400' || shiftService === 'S1';
+                          else if (selectedServei === '500') isShiftVisible = shiftService === '500' || shiftService === 'S2';
+                          else if (selectedServei === '100') isShiftVisible = shiftService === '100' || shiftService === 'L6';
+                          else if (selectedServei === '0') isShiftVisible = shiftService === '0' || shiftService === 'L12';
+                          else isShiftVisible = (shiftService === selectedServei);
+                        }
+                        if (!isShiftVisible) return;
                         if (!groups[c.torn]) {
                           groups[c.torn] = {
                             id: c.torn,
