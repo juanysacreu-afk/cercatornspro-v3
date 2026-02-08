@@ -2079,10 +2079,11 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                           isShiftVisible = true;
                         } else {
                           const shiftService = (c as any).servei || '';
-                          if (selectedServei === '400') isShiftVisible = shiftService === '400' || shiftService === 'S1';
-                          else if (selectedServei === '500') isShiftVisible = shiftService === '500' || shiftService === 'S2';
-                          else if (selectedServei === '100') isShiftVisible = shiftService === '100' || shiftService === 'L6';
-                          else if (selectedServei === '0') isShiftVisible = shiftService === '0' || shiftService === 'L12';
+                          const tripLine = c.linia || '';
+                          if (selectedServei === '400') isShiftVisible = shiftService === '400' || shiftService === 'S1' || tripLine === 'S1';
+                          else if (selectedServei === '500') isShiftVisible = shiftService === '500' || shiftService === 'S2' || tripLine === 'S2';
+                          else if (selectedServei === '100') isShiftVisible = shiftService === '100' || shiftService === 'L6' || tripLine === 'L6';
+                          else if (selectedServei === '0') isShiftVisible = shiftService === '0' || shiftService === 'L12' || tripLine === 'L12';
                           else isShiftVisible = (shiftService === selectedServei);
                         }
                         if (!isShiftVisible) return;
