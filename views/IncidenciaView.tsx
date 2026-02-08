@@ -1435,7 +1435,8 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
           currentStation: d.stationId,
           availableAt: displayMin,
           activeShiftEnd: d.shiftEndMin || 1620,
-          activeShiftDep: d.shiftDep || d.stationId
+          activeShiftDep: d.shiftDep || d.stationId,
+          tripCount: 0
         }));
 
         // FETCH FUTURE SHIFTS: Include turnos that start later in the island
@@ -1453,6 +1454,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                   if (assignment) {
                     driverPool.push({
                       servei: s.servei,
+                      tripCount: 0,
                       type: 'REST', id: 'PROPER', linia: 'S/L', stationId: dep, color: '#53565A',
                       driver: `${assignment.cognoms}, ${assignment.nom}`,
                       driverName: assignment.nom,
@@ -1605,18 +1607,21 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
               return true;
             };
 
-            // 1. Try current driver
-            let selectedDriver = driverPool.find(d => d.torn === unitObj.currentDriverId);
-            if (selectedDriver) {
-              if (selectedDriver.currentStation !== origin || selectedDriver.availableAt > startTime || !isValidForTrip(selectedDriver, endTime)) {
-                selectedDriver = undefined;
-              }
-            }
+            // 1. Equitable Distribution: Find ALL valid candidates and pick the one with fewest trips
+            let validCandidates = driverPool.filter(d =>
+              d.currentStation === origin &&
+              d.availableAt <= startTime &&
+              isValidForTrip(d, endTime)
+            );
 
-            // 2. If no current, try any available NOW at origin
-            if (!selectedDriver) {
-              selectedDriver = driverPool.find(d => d.currentStation === origin && d.availableAt <= startTime && isValidForTrip(d, endTime));
-            }
+            let selectedDriver = validCandidates.sort((a, b) => {
+              const countDiff = (a.tripCount || 0) - (b.tripCount || 0);
+              if (countDiff !== 0) return countDiff;
+              // Tie-breaker: Prefer driver currently on this unit to minimize gratuitous swaps
+              if (a.torn === unitObj.currentDriverId) return -1;
+              if (b.torn === unitObj.currentDriverId) return 1;
+              return 0;
+            })[0];
 
             // 3. Fallback: Search FUTURE available drivers to adjust frequency
             if (!selectedDriver) {
@@ -1627,7 +1632,11 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
               );
 
               if (candidates.length > 0) {
-                const best = candidates.sort((a, b) => a.availableAt - b.availableAt)[0];
+                const best = candidates.sort((a, b) => {
+                  const timeDiff = a.availableAt - b.availableAt;
+                  if (timeDiff !== 0) return timeDiff;
+                  return (a.tripCount || 0) - (b.tripCount || 0);
+                })[0];
                 const newStart = best.availableAt;
 
                 // Update Loop State
@@ -1669,6 +1678,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
             if (selectedDriver) {
               selectedDriver.currentStation = dest;
               selectedDriver.availableAt = endTime + 4; // Turnaround
+              selectedDriver.tripCount = (selectedDriver.tripCount || 0) + 1;
             }
 
             if (isAsc) nextStartTimeAsc += headway;
