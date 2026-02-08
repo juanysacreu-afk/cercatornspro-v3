@@ -1578,8 +1578,8 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
             if (isAsc && !canGoAsc) isAsc = false;
             else if (!isAsc && !canGoDesc) isAsc = true;
 
-            const startTime = isAsc ? nextStartTimeAsc : nextStartTimeDesc;
-            const endTime = startTime + refTravelTime;
+            let startTime = isAsc ? nextStartTimeAsc : nextStartTimeDesc;
+            let endTime = startTime + refTravelTime;
             if (startTime > 1620) break;
 
             const unitIdx = step % numUnits;
@@ -1588,23 +1588,49 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
             const origin = isAsc ? eps.start : eps.end;
             const dest = isAsc ? eps.end : eps.start;
 
-            const findSuitableDriver = (startNode: string, startT: number, endT: number, endNode: string) => {
-              const curr = driverPool.find(d => d.torn === unitObj.currentDriverId);
-              const checkShift = (d: any) => {
-                if (!d) return false;
-                if (endT > d.activeShiftEnd) return false;
-                if (endNode !== d.activeShiftDep && (endT + refTravelTime > d.activeShiftEnd)) return false;
-                return true;
-              };
-
-              if (curr && curr.currentStation === startNode && curr.availableAt <= startT && checkShift(curr)) {
-                return curr;
-              }
-
-              return driverPool.find(d => d.currentStation === startNode && d.availableAt <= startT && checkShift(d));
+            const isValidForTrip = (d: any, tEnd: number) => {
+              if (!d) return false;
+              if (tEnd > d.activeShiftEnd) return false;
+              if (dest !== d.activeShiftDep && (tEnd + refTravelTime > d.activeShiftEnd)) return false;
+              return true;
             };
 
-            const selectedDriver = findSuitableDriver(origin, startTime, endTime, dest);
+            // 1. Try current driver
+            let selectedDriver = driverPool.find(d => d.torn === unitObj.currentDriverId);
+            if (selectedDriver) {
+              if (selectedDriver.currentStation !== origin || selectedDriver.availableAt > startTime || !isValidForTrip(selectedDriver, endTime)) {
+                selectedDriver = undefined;
+              }
+            }
+
+            // 2. If no current, try any available NOW at origin
+            if (!selectedDriver) {
+              selectedDriver = driverPool.find(d => d.currentStation === origin && d.availableAt <= startTime && isValidForTrip(d, endTime));
+            }
+
+            // 3. Fallback: Search FUTURE available drivers to adjust frequency
+            if (!selectedDriver) {
+              const candidates = driverPool.filter(d =>
+                d.currentStation === origin &&
+                d.availableAt > startTime &&
+                isValidForTrip(d, Math.max(startTime, d.availableAt) + refTravelTime)
+              );
+
+              if (candidates.length > 0) {
+                const best = candidates.sort((a, b) => a.availableAt - b.availableAt)[0];
+                const newStart = best.availableAt;
+
+                // Update Loop State
+                startTime = newStart;
+                endTime = startTime + refTravelTime;
+                selectedDriver = best;
+
+                // Dynamic Frequency: Delay subsequent generation
+                if (isAsc) nextStartTimeAsc = startTime;
+                else nextStartTimeDesc = startTime;
+              }
+            }
+
             if (selectedDriver) unitObj.currentDriverId = selectedDriver.torn;
 
             const activeDriver = selectedDriver || { driver: 'SENSE MAQUINISTA', torn: '---' };
