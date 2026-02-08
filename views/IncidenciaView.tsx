@@ -1964,7 +1964,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                         </div>
                         <div className="flex gap-2 z-10">
                           {s.driver.phones?.map((p: string, i: number) => (
-                            <a key={i} href={`tel:${p}`} className="w-12 h-12 bg-gray-50 dark:bg-black text-fgc-grey dark:text-gray-400 rounded-2xl flex items-center justify-center hover:bg-fgc-green hover:text-white transition-all shadow-md border border-gray-100 dark:border-white/10"><Phone size={20} /></a>
+                            <a key={i} href={isPrivacyMode ? undefined : `tel:${p}`} className={`w-12 h-12 bg-gray-50 dark:bg-black text-fgc-grey dark:text-gray-400 rounded-2xl flex items-center justify-center hover:bg-fgc-green hover:text-white transition-all shadow-md border border-gray-100 dark:border-white/10 ${isPrivacyMode ? 'cursor-default' : ''}`}><Phone size={20} /></a>
                           ))}
                         </div>
                         {/* Background subtle decoration */}
