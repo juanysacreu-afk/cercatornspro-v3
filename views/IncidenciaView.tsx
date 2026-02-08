@@ -3701,47 +3701,61 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                       <div className="flex items-center gap-2 px-2"><Coffee className="text-fgc-green" size={16} /><h3 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Maquinistes en descans ({restingResults.length})</h3></div>
                       {restingResults.length > 0 ? (<div className="flex flex-col gap-2">{restingResults.map((torn, idx) => (<div key={idx} className="bg-white dark:bg-gray-800 rounded-2xl p-3 border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-md transition-all flex items-center gap-4 border-l-4 border-l-fgc-green">
                         <div className="h-10 min-w-[2.5rem] px-2 bg-fgc-grey/10 dark:bg-black text-fgc-grey dark:text-gray-300 rounded-xl flex items-center justify-center font-black text-xs shadow-sm shrink-0 whitespace-nowrap">{torn.id}</div>
-                        <div className="flex-1 min-w-0 flex flex-col gap-3">
-                          <div className="flex flex-col sm:flex-row sm:items-center sm:gap-6">
-                            <div className="flex-1 min-w-0"><div className="flex items-center gap-2"><p className="text-sm font-black text-fgc-grey dark:text-gray-200 truncate">{torn.drivers[0]?.cognoms}, {torn.drivers[0]?.nom}</p><span className="flex items-center gap-1 text-[8px] text-fgc-green font-black uppercase tracking-widest"><MapPin size={10} /> {torn.restSeg.codi}</span></div><p className="text-[8px] font-black text-gray-300 dark:text-gray-600 uppercase tracking-widest">Nom. {torn.drivers[0]?.nomina}</p></div>
-                            <div className="flex items-center gap-3 text-fgc-grey dark:text-gray-300 shrink-0"><div className="flex items-center gap-1.5 bg-fgc-green/10 dark:bg-fgc-green/5 px-3 py-1 rounded-lg border border-fgc-green/20 dark:border-fgc-green/10 transition-colors"><span className="text-[10px] font-black uppercase text-fgc-grey dark:text-gray-300">{formatFgcTime(torn.restSeg.start)}</span><ArrowRight size={10} className="text-fgc-green" /><span className="text-[10px] font-black uppercase text-fgc-grey dark:text-gray-300">{formatFgcTime(torn.restSeg.end)}</span></div><div className="flex flex-col items-end gap-0.5"><div className={`text-[10px] font-black px-2 py-0.5 rounded border min-w-[80px] text-center flex items-center justify-center gap-1 ${torn.conflictMinutes > 0 ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border-red-100 dark:border-red-900/30' : 'text-fgc-green bg-fgc-green/5 border-fgc-green/10'}`}>{torn.conflictMinutes > 0 && <ShieldAlert size={10} />}{torn.availableTime} MIN ÚTILS</div>{torn.conflictMinutes > 0 ? (<span className="text-[8px] font-bold text-red-500 dark:text-red-400">Solapa {torn.conflictMinutes} min amb següent</span>) : (<span className="text-[8px] font-bold text-gray-400 dark:text-gray-500">Total: {torn.restSeg.end - torn.restSeg.start} min</span>)}</div></div>
-                          </div>
-                          {torn.nextCirculation && (
-                            <div className="flex flex-col gap-2 bg-gray-50 dark:bg-black/20 px-3 py-2 rounded-xl border border-gray-100 dark:border-white/5">
+                        <div className="flex flex-col min-w-[160px] max-w-[220px]">
+                          <p className="text-xs sm:text-sm font-black text-fgc-grey dark:text-gray-200 truncate">{torn.drivers[0]?.cognoms}, {torn.drivers[0]?.nom}</p>
+                          <span className="flex items-center gap-1 text-[8px] text-fgc-green font-black uppercase tracking-widest mt-0.5"><MapPin size={8} /> {torn.restSeg.codi}</span>
+                          <p className="text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mt-0.5">Nom. {torn.drivers[0]?.nomina}</p>
+                        </div>
+
+                        <div className="flex-1 px-4 flex flex-col justify-center space-y-1.5 border-l border-gray-100 dark:border-white/5 mx-2">
+                          {torn.nextCirculation ? (
+                            <>
                               <div className="flex items-center gap-2">
-                                <div className="bg-white dark:bg-gray-700 p-1.5 rounded-lg text-gray-400 dark:text-gray-500"><Train size={12} /></div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-[10px] font-black text-fgc-grey dark:text-gray-300 uppercase">Següent: Circ. {torn.nextCirculation.codi}</span>
-                                    <span className="text-[9px] font-bold text-gray-400 dark:text-gray-500">({formatFgcTime(torn.nextCirculation.start)} - {formatFgcTime(torn.nextCirculation.end)})</span>
-                                  </div>
-                                </div>
+                                <div className="bg-gray-100 dark:bg-white/10 p-1.5 rounded-lg text-gray-400 dark:text-gray-500"><Train size={12} /></div>
+                                <span className="text-[10px] font-black text-fgc-grey dark:text-gray-300 uppercase leading-none">
+                                  SEGÜENT: CIRC. {torn.nextCirculation.codi} <span className="text-gray-400 dark:text-gray-500 ml-1">({formatFgcTime(torn.nextCirculation.start)} - {formatFgcTime(torn.nextCirculation.end)})</span>
+                                </span>
                               </div>
-                              <div className="ml-8 border-l-2 border-gray-200 dark:border-white/10 pl-3 space-y-1">
+                              <div className="pl-8 space-y-1">
                                 {torn.returnStatus === 'same_station' && (
-                                  <p className="text-[9px] font-bold text-fgc-green flex items-center gap-1.5"><CheckCircle2 size={10} /> Ja es troba a l'estació d'inici ({torn.fullCirculations?.find((c: any) => c.codi === torn.nextCirculation.codi)?.machinistInici || '?'})</p>
+                                  <p className="text-[9px] font-bold text-fgc-green flex items-center gap-1.5"><CheckCircle2 size={10} /> Ja a l'estació ({torn.fullCirculations?.find((c: any) => c.codi === torn.nextCirculation.codi)?.machinistInici || '?'})</p>
                                 )}
                                 {torn.returnStatus === 'ok' && torn.returnCirc && (
-                                  <div className="space-y-0.5">
-                                    <p className="text-[9px] font-bold text-fgc-green flex items-center gap-1.5"><CheckCircle2 size={10} /> Tornada possible: {torn.returnCirc.id}</p>
-                                    <p className="text-[8px] text-gray-400 font-medium pl-4">{torn.returnCirc.sortida} ({searchedCircData?.final}) → {torn.returnCirc.arribada} ({torn.returnCirc.final})</p>
-                                  </div>
+                                  <p className="text-[9px] font-bold text-fgc-green flex items-center gap-1.5"><CheckCircle2 size={10} /> Tornada: {torn.returnCirc.id} ({torn.returnCirc.sortida}-{torn.returnCirc.arribada})</p>
                                 )}
                                 {torn.returnStatus === 'too_late' && torn.returnCirc && (
-                                  <div className="space-y-0.5">
-                                    <p className="text-[9px] font-bold text-red-500 flex items-center gap-1.5"><X size={10} /> Arribaria tard amb: {torn.returnCirc.id}</p>
-                                    <p className="text-[8px] text-red-300 font-medium pl-4">Arriba {torn.returnCirc.arribada} (Inici torn: {formatFgcTime(torn.nextCirculation.start)})</p>
-                                  </div>
+                                  <p className="text-[9px] font-bold text-red-500 flex items-center gap-1.5"><X size={10} /> Tard amb {torn.returnCirc.id} ({torn.returnCirc.arribada})</p>
                                 )}
                                 {torn.returnStatus === 'no_route' && (
-                                  <p className="text-[9px] font-bold text-orange-500 flex items-center gap-1.5"><ShieldAlert size={10} /> No s'ha trobat tren de tornada directe</p>
+                                  <p className="text-[9px] font-bold text-orange-500 flex items-center gap-1.5"><ShieldAlert size={10} /> No s'ha trobat tren tornada</p>
                                 )}
                                 {torn.returnStatus === 'unknown' && (
-                                  <p className="text-[9px] font-bold text-gray-400 flex items-center gap-1.5"><Info size={10} /> Ubicació destí desconeguda</p>
+                                  <p className="text-[9px] font-bold text-gray-400 flex items-center gap-1.5"><Info size={10} /> Ubicació desc.</p>
                                 )}
-                                <p className="text-[9px] font-medium text-red-500 dark:text-red-400 leading-none pt-1">⚠️ Aquesta circulació quedarà descoberta si no s'arriba a temps.</p>
+                                <p className="text-[9px] font-medium text-red-500 dark:text-red-400 leading-none pt-0.5">⚠️ Quedarà descoberta si no s'arriba.</p>
                               </div>
+                            </>
+                          ) : (
+                            <div className="flex items-center gap-2 text-gray-300 dark:text-gray-600 italic text-[10px]">
+                              <Info size={12} /> Sense assignació posterior confirmada
                             </div>
+                          )}
+                        </div>
+
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          <div className="flex items-center gap-1.5 bg-fgc-green/10 dark:bg-fgc-green/5 px-3 py-1 rounded-lg border border-fgc-green/20 dark:border-fgc-green/10 transition-colors">
+                            <span className="text-[10px] font-black uppercase text-fgc-grey dark:text-gray-300">{formatFgcTime(torn.restSeg.start)}</span>
+                            <ArrowRight size={10} className="text-fgc-green" />
+                            <span className="text-[10px] font-black uppercase text-fgc-grey dark:text-gray-300">{formatFgcTime(torn.restSeg.end)}</span>
+                          </div>
+                          <div className={`text-[10px] font-black px-2 py-0.5 rounded border min-w-[80px] text-center flex items-center justify-center gap-1 ${torn.conflictMinutes > 0 ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border-red-100 dark:border-red-900/30' : 'text-fgc-green bg-fgc-green/5 border-fgc-green/10'}`}>
+                            {torn.conflictMinutes > 0 && <ShieldAlert size={10} />}
+                            {torn.availableTime} MIN ÚTILS
+                          </div>
+                          {torn.conflictMinutes > 0 ? (
+                            <span className="text-[8px] font-bold text-red-500 dark:text-red-400 uppercase tracking-tight">Solapa {torn.conflictMinutes} min</span>
+                          ) : (
+                            <span className="text-[8px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-tight">Total: {torn.restSeg.end - torn.restSeg.start} min</span>
                           )}
                         </div>
                         <div className="flex gap-1 shrink-0">{torn.drivers[0]?.phones?.map((p: string, i: number) => (<a key={i} href={isPrivacyMode ? undefined : `tel:${p}`} className={`w-8 h-8 bg-fgc-grey dark:bg-black text-white rounded-lg flex items-center justify-center hover:bg-fgc-dark transition-all shadow-sm ${isPrivacyMode ? 'cursor-default' : ''}`}><Phone size={12} /></a>))}</div>
