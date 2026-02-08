@@ -291,6 +291,15 @@ const App: React.FC = () => {
         )}
       </main>
 
+      {/* Floating Smart Search Button (Mobile ONLY) */}
+      <button
+        onClick={() => setIsCommandPaletteOpen(true)}
+        className="md:hidden fixed bottom-8 right-6 w-16 h-16 bg-fgc-green text-fgc-grey rounded-full shadow-[0_16px_32px_-8px_rgba(0,177,64,0.5)] border-4 border-white dark:border-gray-900 flex items-center justify-center z-[9999] active:scale-90 transition-all animate-in zoom-in-0 duration-500 delay-300"
+        title="Búsqueda Inteligente"
+      >
+        <Search size={28} strokeWidth={3} />
+      </button>
+
       {showUploadModal && <FileUploadModal onClose={() => setShowUploadModal(false)} />}
       <CommandPalette
         isOpen={isCommandPaletteOpen}
