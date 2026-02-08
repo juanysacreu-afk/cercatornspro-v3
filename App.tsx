@@ -7,6 +7,7 @@ import CiclesView from './views/CiclesView.tsx';
 import AgendaView from './views/AgendaView.tsx';
 import IncidenciaView from './views/IncidenciaView.tsx';
 import FileUploadModal from './components/FileUploadModal.tsx';
+import CommandPalette from './components/CommandPalette.tsx';
 import { supabase } from './supabaseClient.ts';
 
 interface ParkedUnit {
@@ -22,6 +23,8 @@ const App: React.FC = () => {
   const [showSecretMenu, setShowSecretMenu] = useState(false);
   const [isPrivacyMode, setIsPrivacyMode] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [globalSearch, setGlobalSearch] = useState<{ type: string, query: string } | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('theme') === 'dark' ||
@@ -67,6 +70,30 @@ const App: React.FC = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    const handleGlobalKeys = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setIsCommandPaletteOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeys);
+    return () => window.removeEventListener('keydown', handleGlobalKeys);
+  }, []);
+
+  const handleCommandSelect = (result: any) => {
+    setIsCommandPaletteOpen(false);
+
+    // Convert command types to search search types
+    let searchType = 'torn';
+    if (result.type === 'driver') searchType = 'maquinista';
+    if (result.type === 'circulation') searchType = 'circulacio';
+    if (result.type === 'station') searchType = 'estacio';
+
+    setGlobalSearch({ type: searchType, query: result.id });
+    setActiveTab(AppTab.Cercar);
+  };
 
   const navItems = [
     { id: AppTab.Cercar, label: 'Cercar', icon: <Search size={18} /> },
@@ -130,6 +157,18 @@ const App: React.FC = () => {
                   {item.label}
                 </button>
               ))}
+
+              <button
+                onClick={() => setIsCommandPaletteOpen(true)}
+                className="flex items-center gap-3 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl border border-white/5 transition-all group ml-2"
+                title="Búsqueda Inteligente (Cmd+K)"
+              >
+                <Search size={18} className="text-fgc-green group-hover:scale-110 transition-transform" />
+                <div className="hidden lg:flex items-center gap-1.5 px-1.5 py-0.5 bg-white/10 rounded border border-white/10 text-[10px] font-black text-gray-400">
+                  <span className="text-[12px]">⌘</span>K
+                </div>
+              </button>
+
               <div className="w-px h-8 bg-white/10 mx-3" />
 
               <div className="flex items-center gap-2">
@@ -234,7 +273,7 @@ const App: React.FC = () => {
       {/* Main Content: Mantenim les vistes muntades però ocultes per preservar l'estat */}
       <main className="flex-1 w-full py-8 safe-bottom max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className={activeTab === AppTab.Cercar ? 'block' : 'hidden'}>
-          <CercarView isPrivacyMode={isPrivacyMode} />
+          <CercarView isPrivacyMode={isPrivacyMode} externalSearch={globalSearch} onExternalSearchHandled={() => setGlobalSearch(null)} />
         </div>
         <div className={activeTab === AppTab.Organitza ? 'block' : 'hidden'}>
           <OrganitzaView isPrivacyMode={isPrivacyMode} />
@@ -253,6 +292,11 @@ const App: React.FC = () => {
       </main>
 
       {showUploadModal && <FileUploadModal onClose={() => setShowUploadModal(false)} />}
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        onSelect={handleCommandSelect}
+      />
     </div>
   );
 };

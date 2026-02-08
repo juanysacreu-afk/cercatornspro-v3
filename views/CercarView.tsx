@@ -17,7 +17,11 @@ import { StationRow } from '../components/StationRow';
 import { MarqueeText } from '../components/MarqueeText';
 import { getServiceToday } from '../utils/serviceCalendar';
 
-export const CercarView: React.FC<{ isPrivacyMode: boolean }> = ({ isPrivacyMode }) => {
+export const CercarView: React.FC<{
+  isPrivacyMode: boolean,
+  externalSearch?: { type: string, query: string } | null,
+  onExternalSearchHandled?: () => void
+}> = ({ isPrivacyMode, externalSearch, onExternalSearchHandled }) => {
   const [searchType, setSearchType] = useState<SearchType>(SearchType.Torn);
   const [selectedServei, setSelectedServei] = useState<string>(getServiceToday());
   const [query, setQuery] = useState('');
@@ -37,6 +41,30 @@ export const CercarView: React.FC<{ isPrivacyMode: boolean }> = ({ isPrivacyMode
   const [editUnitNumber, setEditUnitNumber] = useState('');
   const [isSavingUnit, setIsSavingUnit] = useState(false);
   const [tempStatus, setTempStatus] = useState({ is_broken: false, needs_images: false, needs_records: false, needs_cleaning: false });
+
+  useEffect(() => {
+    if (externalSearch && onExternalSearchHandled) {
+      const { type, query: q } = externalSearch;
+
+      // Map external type to internal SearchType enum if possible
+      let internalSearchType = SearchType.Torn;
+      if (type === 'maquinista') internalSearchType = SearchType.Maquinista;
+      if (type === 'circulacio') internalSearchType = SearchType.Circulacio;
+      if (type === 'estacio') {
+        internalSearchType = SearchType.Estacio;
+        setSelectedStation(q);
+      } else {
+        setQuery(q);
+      }
+
+      setSearchType(internalSearchType);
+
+      // Trigger search
+      executeSearch(q);
+
+      onExternalSearchHandled();
+    }
+  }, [externalSearch]);
 
   const getCurrentTimeStr = () => {
     const now = new Date();
@@ -188,7 +216,7 @@ export const CercarView: React.FC<{ isPrivacyMode: boolean }> = ({ isPrivacyMode
       if (checkIfActive(circs[i].sortida, circs[i].arribada, nowMin)) {
         return {
           label: `LIVE: ${circs[i].codi}`,
-          color: 'bg-red-500 text-white animate-pulse shadow-lg',
+          color: 'bg-red-500 text-white live-pulse shadow-lg scale-105',
           targetId: `circ-row-${shiftIdx}-${i}`
         };
       }
@@ -285,7 +313,7 @@ export const CercarView: React.FC<{ isPrivacyMode: boolean }> = ({ isPrivacyMode
   const executeSearch = async (overrideQuery?: string) => {
     let searchVal = overrideQuery || query;
     if (!searchVal && searchType !== SearchType.Cicle && searchType !== SearchType.Estacio) { setResults([]); return; }
-    setLoading(true); setShowSuggestions(false);
+    setLoading(true); setResults([]); setShowSuggestions(false);
     try {
       if (searchType === SearchType.Cicle) {
         let q = supabase.from('shifts').select('*');
@@ -414,14 +442,33 @@ export const CercarView: React.FC<{ isPrivacyMode: boolean }> = ({ isPrivacyMode
             turnIds = s?.map(x => x.id as string) || [];
             break;
           case SearchType.Maquinista:
-            const nominaMatch = searchVal.match(/\((\d+)\)$/);
-            const filterVal = nominaMatch ? nominaMatch[1] : searchVal;
-            const { data: m } = await supabase.from('daily_assignments').select('torn').or(`nom.ilike.%${filterVal}%,cognoms.ilike.%${filterVal}%,empleat_id.ilike.%${filterVal}%`);
-            const shortTorns = Array.from(new Set(m?.map(x => x.torn?.trim()) || []));
+            const nominaMatch = searchVal.match(/\((\d+)\)/); // More flexible regex
+            const filterVal = nominaMatch ? nominaMatch[1] : searchVal.trim();
+
+            // Si tenim nòmina, cerquem exactament per ID d'empleat si és possible, si no ilike
+            let qAssignments = supabase.from('daily_assignments').select('torn');
+            if (nominaMatch) {
+              qAssignments = qAssignments.eq('empleat_id', filterVal);
+            } else {
+              qAssignments = qAssignments.or(`nom.ilike.%${filterVal}%,cognoms.ilike.%${filterVal}%,empleat_id.ilike.%${filterVal}%`);
+            }
+
+            const { data: m } = await qAssignments;
+            const shortTorns = Array.from(new Set(m?.map(x => x.torn?.trim().toUpperCase()) || []));
+
             let qm = supabase.from('shifts').select('id');
             if (selectedServei !== 'Tots') qm = qm.eq('servei', selectedServei);
             const { data: matchingShifts } = await qm;
-            turnIds = matchingShifts?.filter(shift => shortTorns.includes(getShortTornId(shift.id as string))).map(x => x.id as string) || [];
+
+            // Matching més flexible: convertim tot a format comparable (sense Q i sense zeros a l'esquerra per comparar la part numèrica)
+            const simplifyId = (id: string) => id.replace(/^Q/i, '').replace(/^0+/, '');
+            const targetShortTornSimples = shortTorns.map(st => simplifyId(st));
+
+            turnIds = matchingShifts?.filter(shift => {
+              const shiftId = shift.id as string;
+              const simpleShiftId = simplifyId(getShortTornId(shiftId));
+              return targetShortTornSimples.includes(simpleShiftId) || shortTorns.includes(getShortTornId(shiftId).toUpperCase());
+            }).map(x => x.id as string) || [];
             break;
           case SearchType.Circulacio:
             let qc = supabase.from('shifts').select('id, circulations');
@@ -437,12 +484,15 @@ export const CercarView: React.FC<{ isPrivacyMode: boolean }> = ({ isPrivacyMode
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div><h1 className="text-2xl sm:text-3xl font-black text-fgc-grey dark:text-white tracking-tight">Cerca de Servei</h1><p className="text-sm sm:text-base text-gray-500 dark:text-gray-400 font-medium">Informació de torns, circulacions i unitats de tren.</p></div>
-        <div className="flex flex-col gap-2"><span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Filtre de Servei</span><div className="inline-flex bg-white dark:bg-gray-900 p-1 rounded-2xl shadow-sm border border-gray-100 dark:border-white/5">{['Tots', ...serveiTypes].map(s => (<button key={s} onClick={() => setSelectedServei(s)} className={`px-3 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-black transition-all ${selectedServei === s ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5'}`}>{s === 'Tots' ? 'Tots' : `S-${s}`}</button>))}</div></div>
+      <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 animate-in fade-in slide-in-from-top-4 duration-700">
+        <div><h1 className="text-2xl sm:text-3xl font-black text-fgc-grey dark:text-white tracking-tight title-glow">Cerca de Servei</h1><p className="text-sm sm:text-base text-gray-500 dark:text-gray-400 font-medium">Informació de torns, circulacions i unitats de tren.</p></div>
+        <div className="flex flex-col gap-2"><span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Filtre de Servei</span><div className="inline-flex glass-card p-1 rounded-2xl shadow-sm border border-gray-100 dark:border-white/5">{['Tots', ...serveiTypes].map(s => (<button key={s} onClick={() => setSelectedServei(s)} className={`px-3 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-black transition-all ${selectedServei === s ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5'}`}>{s === 'Tots' ? 'Tots' : `S-${s}`}</button>))}</div></div>
       </header>
 
-      <div className="bg-white dark:bg-gray-900 rounded-[32px] sm:rounded-[40px] p-6 sm:p-8 shadow-sm border border-gray-100 dark:border-white/5">
+      <div className="glass-card rounded-[32px] sm:rounded-[40px] p-6 sm:p-8 shadow-sm border border-gray-100 dark:border-white/5 relative">
+        <div className="absolute inset-0 rounded-[32px] sm:rounded-[40px] overflow-hidden pointer-events-none">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-fgc-green/5 blur-3xl -mr-32 -mt-32" />
+        </div>
         <div className="flex flex-wrap gap-2 sm:gap-3 mb-6 sm:mb-8">{filterButtons.map((btn) => (<button key={btn.id} onClick={() => { setSearchType(btn.id); setResults([]); setQuery(''); setSuggestions([]); setShowSuggestions(false); }} className={`flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-black transition-all ${searchType === btn.id ? 'bg-fgc-green text-fgc-grey shadow-xl shadow-fgc-green/20' : 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/10'}`}>{btn.icon}{btn.label}</button>))}</div>
 
         {searchType === SearchType.Estacio ? (
@@ -475,9 +525,10 @@ export const CercarView: React.FC<{ isPrivacyMode: boolean }> = ({ isPrivacyMode
                 </div>
                 <div className="bg-gray-50/50 dark:bg-black/20 p-4 sm:p-6 rounded-[28px] border border-gray-100 dark:border-white/5">
                   {loading ? (
-                    <div className="py-10 flex flex-col items-center justify-center gap-3 opacity-30">
-                      <Loader2 size={32} className="animate-spin" />
-                      <p className="text-[10px] font-black uppercase tracking-widest">Carregant cicles...</p>
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 p-1">
+                      {[...Array(16)].map((_, i) => (
+                        <div key={i} className="skeleton-item h-12 w-full" />
+                      ))}
                     </div>
                   ) : availableCycles.length > 0 ? (
                     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 max-h-[320px] overflow-y-auto pr-2 custom-scrollbar p-1">
@@ -504,12 +555,28 @@ export const CercarView: React.FC<{ isPrivacyMode: boolean }> = ({ isPrivacyMode
       </div>
 
       <div className="space-y-12 sm:space-y-16 mt-8">
-        {results.length > 0 ? (
+        {loading ? (
+          <div className="space-y-12 animate-in fade-in duration-500">
+            {[...Array(2)].map((_, i) => (
+              <div key={i} className="glass-card p-4 sm:p-10 rounded-[40px] sm:rounded-[56px] border border-gray-100 dark:border-white/5 shadow-sm space-y-8">
+                <div className="flex items-center gap-6">
+                  <div className="skeleton-item h-20 w-20 rounded-[28px]" />
+                  <div className="space-y-3">
+                    <div className="skeleton-item h-8 w-64" />
+                    <div className="skeleton-item h-4 w-40" />
+                  </div>
+                </div>
+                <div className="skeleton-item h-48 w-full rounded-3xl" />
+              </div>
+            ))}
+          </div>
+        ) : results.length > 0 ? (
           results.map((group, idx) => {
             if (group.type === 'cycle_summary' || group.type === 'station_summary') {
               const isStationGroup = group.type === 'station_summary';
               return (
-                <div key={idx} className="bg-white dark:bg-gray-900 p-4 sm:p-10 rounded-[40px] sm:rounded-[56px] border border-gray-100 dark:border-white/5 shadow-sm animate-in fade-in slide-in-from-bottom-12 duration-700">
+                <div key={idx} className="glass-card p-4 sm:p-10 rounded-[40px] sm:rounded-[56px] border border-gray-100 dark:border-white/5 shadow-sm animate-in fade-in slide-in-from-bottom-12 duration-700 relative overflow-hidden group">
+                  <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-fgc-green/5 to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-8 mb-6 sm:mb-12">
                     <div className="flex items-center gap-4 sm:gap-6">
                       <div className={`min-w-[3.5rem] min-h-[3.5rem] sm:min-w-[5rem] sm:min-h-[5rem] px-2 ${isStationGroup ? 'bg-fgc-green text-fgc-grey' : 'bg-fgc-grey dark:bg-black text-white'} rounded-2xl sm:rounded-[28px] flex items-center justify-center text-base sm:text-2xl font-black shadow-lg`}><span className="truncate">{isStationGroup ? <MapPin size={28} /> : group.cycle_id}</span></div>
@@ -587,7 +654,8 @@ export const CercarView: React.FC<{ isPrivacyMode: boolean }> = ({ isPrivacyMode
             const currentStatus = getShiftCurrentStatus(group, idx);
             return (
               <div key={idx} className="flex flex-col gap-1 group animate-in fade-in slide-in-from-bottom-12 duration-700">
-                <div className="bg-white dark:bg-gray-900 p-6 sm:p-10 rounded-t-[32px] sm:rounded-t-[48px] border-x border-t border-gray-100 dark:border-white/5 shadow-sm">
+                <div className="glass-card p-6 sm:p-10 rounded-t-[32px] sm:rounded-t-[48px] border-x border-t border-gray-100 dark:border-white/5 shadow-sm relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-fgc-green/30 to-transparent shimmer" />
                   <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                     <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 flex-1">
                       <div className="flex flex-col gap-1">
@@ -636,7 +704,7 @@ export const CercarView: React.FC<{ isPrivacyMode: boolean }> = ({ isPrivacyMode
                     );
                   })}
                 </div>
-                <div className="bg-white dark:bg-gray-900 p-4 sm:p-10 rounded-b-[32px] sm:rounded-b-[48px] border-x border-b border-gray-100 dark:border-white/5 shadow-sm overflow-hidden">
+                <div className="glass-card p-4 sm:p-10 rounded-b-[32px] sm:rounded-b-[48px] border-x border-b border-gray-100 dark:border-white/5 shadow-sm overflow-hidden relative">
                   <ShiftTimeline turn={group} nowMin={nowMin} trainStatuses={trainStatuses} getLiniaColor={getLiniaColor} openUnitMenu={openUnitMenu} getStatusColor={getStatusColor} />
                   <div className="border border-gray-100 dark:border-white/5 rounded-[32px] overflow-hidden bg-white dark:bg-black/20 shadow-sm mb-4">
                     <CirculationHeader />

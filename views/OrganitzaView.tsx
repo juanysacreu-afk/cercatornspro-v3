@@ -242,12 +242,12 @@ export const OrganitzaView: React.FC<{ isPrivacyMode: boolean }> = ({ isPrivacyM
   };
 
   return (
-    <div className="space-y-6">
-      <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div><h1 className="text-3xl font-black text-fgc-grey dark:text-white tracking-tight">Organització</h1><p className="text-gray-500 dark:text-gray-400 font-medium">Anàlisi comparativa i gestió.</p></div>
-        <div className="flex bg-white dark:bg-gray-900 p-1 rounded-2xl shadow-sm border border-gray-100 dark:border-white/5 transition-colors w-full md:w-auto">
-          <button onClick={() => setOrganizeType(OrganizeType.Comparador)} className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-6 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-sm font-black transition-all whitespace-nowrap ${organizeType === OrganizeType.Comparador ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5'}`}><Columns size={16} /><span className="truncate">Comparador</span></button>
-          <button onClick={() => setOrganizeType(OrganizeType.Maquinista)} className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-6 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-sm font-black transition-all whitespace-nowrap ${organizeType === OrganizeType.Maquinista ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5'}`}><User size={16} /><span className="truncate">Maquinistes</span></button>
+    <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-700">
+      <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+        <div><h1 className="text-2xl sm:text-3xl font-black text-fgc-grey dark:text-white tracking-tight title-glow uppercase">Organització de Torn</h1><p className="text-sm sm:text-base text-gray-500 dark:text-gray-400 font-medium">Anàlisi comparativa i gestió.</p></div>
+        <div className="flex bg-white/20 dark:bg-black/20 p-1.5 rounded-[20px] backdrop-blur-md border border-white/20 shadow-inner">
+          <button onClick={() => setOrganizeType(OrganizeType.Comparador)} className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-6 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-sm font-black transition-all whitespace-nowrap ${organizeType === OrganizeType.Comparador ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-white/10'}`}><RefreshCcw size={16} /><span className="truncate">Comparador</span></button>
+          <button onClick={() => setOrganizeType(OrganizeType.Maquinista)} className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-6 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-sm font-black transition-all whitespace-nowrap ${organizeType === OrganizeType.Maquinista ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-white/10'}`}><User size={16} /><span className="truncate">Maquinistes</span></button>
         </div>
       </header>
 
@@ -259,9 +259,10 @@ export const OrganitzaView: React.FC<{ isPrivacyMode: boolean }> = ({ isPrivacyM
               <CompareInputSlot label="Primer Torn" value={turn1Id} onChange={setTurn1Id} data={turn1Data} nowMin={nowMin} getSegments={getSegments} onClear={() => { setTurn1Id(''); setTurn1Data(null); }} selectedServei={selectedServei} isPrivacyMode={isPrivacyMode} />
               <CompareInputSlot label="Segon Torn" value={turn2Id} onChange={setTurn2Id} data={turn2Data} nowMin={nowMin} getSegments={getSegments} onClear={() => { setTurn2Id(''); setTurn2Data(null); }} selectedServei={selectedServei} isPrivacyMode={isPrivacyMode} />
             </div>
-            <div className="flex justify-center"><button onClick={handleCompare} disabled={!turn1Id || !turn2Id || loadingComparator} className="bg-fgc-green text-fgc-grey px-12 py-5 rounded-[28px] font-black text-lg shadow-xl shadow-fgc-green/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-3 disabled:opacity-50 disabled:scale-100 group">{loadingComparator ? <Loader2 className="animate-spin" size={24} /> : <RefreshCcw size={24} />}ANALITZAR COINCIDÈNCIES</button></div>
+            <div className="flex justify-center"><button onClick={handleCompare} disabled={!turn1Id || !turn2Id || loadingComparator} className="bg-fgc-green text-fgc-grey px-12 py-5 rounded-[28px] font-black text-lg shadow-xl shadow-fgc-green/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-3 disabled:opacity-50 disabled:scale-100 group relative overflow-hidden"><div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />{loadingComparator ? <Loader2 className="animate-spin" size={24} /> : <RefreshCcw size={24} />}ANALITZAR COINCIDÈNCIES</button></div>
             {(turn1Data && turn2Data) && (
-              <div className="bg-white dark:bg-gray-900 rounded-[48px] p-8 sm:p-14 border border-gray-100 dark:border-white/5 shadow-sm space-y-16 animate-in zoom-in-95 duration-500 overflow-visible transition-colors">
+              <div className="glass-card rounded-[48px] p-8 sm:p-14 border border-gray-100 dark:border-white/5 shadow-sm space-y-16 animate-in zoom-in-95 duration-700 overflow-visible transition-all relative">
+                <div className="absolute top-0 right-0 w-96 h-96 bg-fgc-green/5 blur-[120px] -mr-48 -mt-48 pointer-events-none" />
                 <SimpleTimeline label="CRONOGRAMA TORN A" turnId={turn1Data.id} segments={getSegments(turn1Data)} globalMin={gr.min} globalMax={gr.max} />
                 <SimpleTimeline label="CRONOGRAMA TORN B" turnId={turn2Data.id} segments={getSegments(turn2Data)} globalMin={gr.min} globalMax={gr.max} />
                 <div className="pt-10 border-t border-dashed border-gray-200 dark:border-white/10 overflow-visible transition-colors">
@@ -270,8 +271,8 @@ export const OrganitzaView: React.FC<{ isPrivacyMode: boolean }> = ({ isPrivacyM
                   {coincidences.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-10">
                       {coincidences.map((c, i) => (
-                        <div key={i} className="bg-white dark:bg-gray-800 rounded-[32px] p-7 border border-gray-100 dark:border-white/5 flex flex-col gap-6 hover:shadow-2xl hover:border-fgc-green/30 transition-all group relative overflow-hidden">
-                          <div className="absolute top-0 right-0 w-24 h-24 bg-fgc-green/5 -mr-8 -mt-8 rounded-full blur-2xl group-hover:bg-fgc-green/10 transition-colors" />
+                        <div key={i} className="glass-interactive glass-card rounded-[32px] p-7 border border-gray-100 dark:border-white/5 flex flex-col gap-6 hover:border-fgc-green/30 relative overflow-hidden group">
+                          <div className="absolute top-0 right-0 w-24 h-24 bg-fgc-green/10 -mr-8 -mt-8 rounded-full blur-2xl group-hover:bg-fgc-green/20 transition-all duration-700" />
                           <div className="flex items-center justify-between relative z-10"><div className={`px-5 py-2 rounded-2xl font-black text-sm text-white shadow-lg ${getStatusColor(c.codi)}`}>{c.codi}</div><div className="flex items-center gap-2 bg-fgc-green/10 text-fgc-green px-3 py-1.5 rounded-xl font-black text-xs border border-fgc-green/10"><Clock size={14} />{c.duration} min</div></div>
                           <div className="space-y-1 relative z-10"><p className="text-[10px] font-black text-gray-300 dark:text-gray-600 uppercase tracking-widest ml-1">Franja Horària</p><div className="flex items-center gap-3"><span className="text-2xl font-black text-fgc-grey dark:text-gray-200">{formatFgcTime(c.start)}</span><ArrowRight className="text-fgc-green" size={18} /><span className="text-2xl font-black text-fgc-grey dark:text-gray-200">{formatFgcTime(c.end)}</span></div></div>
                           <div className="h-px bg-gray-100 dark:bg-white/5 w-full transition-colors" />

@@ -501,17 +501,17 @@ const CiclesView: React.FC<CiclesViewProps> = ({ parkedUnits, onParkedUnitsChang
   }, [availableShiftsCycles, assignedCycleIds, filterPending, selectedOrigin, filterMode]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-700">
       <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-6">
         <div>
-          <h1 className="text-3xl font-black text-fgc-grey dark:text-white tracking-tight uppercase">Gestió d'Unitats</h1>
-          <p className="text-gray-500 dark:text-gray-400 font-medium">Assignació de material, estat de flota i gestió de dipòsits.</p>
+          <h1 className="text-2xl sm:text-3xl font-black text-fgc-grey dark:text-white tracking-tight title-glow uppercase">Gestió d'Unitats</h1>
+          <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400 font-medium tracking-tight">Assignació de material, estat de flota i gestió de dipòsits.</p>
         </div>
 
-        <div className="flex bg-white dark:bg-gray-900 p-1.5 rounded-[24px] shadow-sm border border-gray-100 dark:border-white/5">
+        <div className="flex bg-white/20 dark:bg-black/20 p-1.5 rounded-[24px] backdrop-blur-md border border-white/20 shadow-inner">
           <button
             onClick={() => setActiveView('FLEET')}
-            className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-xs font-black transition-all ${activeView === 'FLEET' ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-xl' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5'
+            className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-[11px] font-black transition-all ${activeView === 'FLEET' ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-xl' : 'text-gray-400 dark:text-gray-500 hover:bg-white/10'
               }`}
           >
             <Train size={16} />
@@ -519,7 +519,7 @@ const CiclesView: React.FC<CiclesViewProps> = ({ parkedUnits, onParkedUnitsChang
           </button>
           <button
             onClick={() => setActiveView('DEPOTS')}
-            className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-xs font-black transition-all ${activeView === 'DEPOTS' ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-xl' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5'
+            className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-[11px] font-black transition-all ${activeView === 'DEPOTS' ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-xl' : 'text-gray-400 dark:text-gray-500 hover:bg-white/10'
               }`}
           >
             <MapPin size={16} />
