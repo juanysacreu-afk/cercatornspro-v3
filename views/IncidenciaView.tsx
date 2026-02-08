@@ -1261,7 +1261,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
     const [generating, setGenerating] = useState(false);
 
     if (!dividedPersonnel || !dividedPersonnel[islandId]) return null;
-    const personnel = dividedPersonnel[islandId].list;
+    const personnel = (dividedPersonnel[islandId].list || []).filter(p => isServiceVisible(p.servei, selectedServei));
     const islandStations = dividedPersonnel[islandId].stations;
     const physicalTrains = personnel.filter(p => p.type === 'TRAIN');
     const allDrivers = [...personnel];
@@ -1424,43 +1424,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
           tripCount: 0
         }));
 
-        // FETCH FUTURE SHIFTS: Include turnos that start later in the island
-        const { data: allShifts } = await supabase.from('shifts').select('*');
-        const { data: allDaily } = await supabase.from('daily_assignments').select('*');
 
-        if (allShifts && allDaily) {
-          allShifts.forEach(s => {
-            const startMin = getFgcMinutes(s.inici_torn);
-            if (startMin !== null && startMin >= displayMin) {
-              const dep = resolveStationId(s.dependencia || '');
-              if (islandStations.has(dep)) {
-                if (!driverPool.some(d => d.torn === s.id)) {
-                  const assignment = allDaily.find(d => getShortTornId(s.id) === d.torn);
-                  if (assignment) {
-                    driverPool.push({
-                      servei: s.servei,
-                      tripCount: 0,
-                      type: 'REST', id: 'PROPER', linia: 'S/L', stationId: dep, color: '#53565A',
-                      driver: `${assignment.cognoms}, ${assignment.nom}`,
-                      driverName: assignment.nom,
-                      driverSurname: assignment.cognoms,
-                      torn: s.id,
-                      shiftStartMin: startMin,
-                      shiftEndMin: getFgcMinutes(s.final_torn) || 1620,
-                      shiftDep: dep,
-                      currentStation: dep,
-                      availableAt: startMin,
-                      activeShiftEnd: getFgcMinutes(s.final_torn) || 1620,
-                      activeShiftDep: dep,
-                      phones: [],
-                      x: 0, y: 0
-                    });
-                  }
-                }
-              }
-            }
-          });
-        }
 
         const DEPOT_NODES = ['PC', 'RE', 'COR', 'NA', 'PN', 'RB', 'SC', 'GR'];
         const islandDepots = DEPOT_NODES.filter(d => islandStations.has(d));
@@ -1592,50 +1556,57 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
               return true;
             };
 
-            // 1. Equitable Distribution: Find ALL valid candidates and pick the one with fewest trips
-            let validCandidates = driverPool.filter(d =>
-              d.currentStation === origin &&
-              d.availableAt <= startTime &&
-              isValidForTrip(d, endTime)
-            );
+            // 1. Unified Global Candidate Search: Look at ALL drivers in the pool
+            const candidateList = driverPool.map(d => {
+              const pathToOrigin = getFullPath(d.currentStation, origin);
+              const travelTime = Math.max(0, (pathToOrigin.length - 1) * 3);
+              const earliestArrival = Math.max(d.availableAt, displayMin + travelTime);
 
-            let selectedDriver = validCandidates.sort((a, b) => {
-              const countDiff = (a.tripCount || 0) - (b.tripCount || 0);
+              const potentialStart = Math.max(startTime, earliestArrival);
+              const potentialEnd = potentialStart + refTravelTime;
+
+              return {
+                driver: d,
+                earliestArrival,
+                potentialStart,
+                potentialEnd,
+                isValid: isValidForTrip(d, potentialEnd)
+              };
+            }).filter(c => c.isValid);
+
+            let selectedCandidate = candidateList.sort((a, b) => {
+              // Priority 1: Fewest trips (Essential for "Distribute among all")
+              const countDiff = (a.driver.tripCount || 0) - (b.driver.tripCount || 0);
               if (countDiff !== 0) return countDiff;
-              // Tie-breaker: Prefer driver currently on this unit to minimize gratuitous swaps
-              if (a.torn === unitObj.currentDriverId) return -1;
-              if (b.torn === unitObj.currentDriverId) return 1;
+
+              // Priority 2: Minimize delay (Earliest potential start)
+              const timeDiff = a.potentialStart - b.potentialStart;
+              if (timeDiff !== 0) return timeDiff;
+
+              // Priority 3: Prefer those already at the station to avoid unnecessary travel
+              if (a.driver.currentStation === origin && b.driver.currentStation !== origin) return -1;
+              if (a.driver.currentStation !== origin && b.driver.currentStation === origin) return 1;
+
+              // Priority 4: Tie-breaker - prefer current driver to minimize swaps if everything else is equal
+              if (a.driver.torn === unitObj.currentDriverId) return -1;
+              if (b.driver.torn === unitObj.currentDriverId) return 1;
+
               return 0;
             })[0];
 
-            // 3. Fallback: Search FUTURE available drivers to adjust frequency
-            if (!selectedDriver) {
-              const candidates = driverPool.filter(d =>
-                d.currentStation === origin &&
-                d.availableAt > startTime &&
-                isValidForTrip(d, Math.max(startTime, d.availableAt) + refTravelTime)
-              );
+            let selectedDriver = null;
+            if (selectedCandidate) {
+              // Update trip times based on when the selected driver can actually arrive
+              startTime = selectedCandidate.potentialStart;
+              endTime = selectedCandidate.potentialEnd;
+              selectedDriver = selectedCandidate.driver;
 
-              if (candidates.length > 0) {
-                const best = candidates.sort((a, b) => {
-                  const timeDiff = a.availableAt - b.availableAt;
-                  if (timeDiff !== 0) return timeDiff;
-                  return (a.tripCount || 0) - (b.tripCount || 0);
-                })[0];
-                const newStart = best.availableAt;
+              // Ensure subsequent trips in this direction are pushed back if we delayed this one
+              if (isAsc) nextStartTimeAsc = startTime;
+              else nextStartTimeDesc = startTime;
 
-                // Update Loop State
-                startTime = newStart;
-                endTime = startTime + refTravelTime;
-                selectedDriver = best;
-
-                // Dynamic Frequency: Delay subsequent generation
-                if (isAsc) nextStartTimeAsc = startTime;
-                else nextStartTimeDesc = startTime;
-              }
+              unitObj.currentDriverId = selectedDriver.torn;
             }
-
-            if (selectedDriver) unitObj.currentDriverId = selectedDriver.torn;
 
             const activeDriver = selectedDriver || { driver: 'SENSE MAQUINISTA', torn: '---' };
 
