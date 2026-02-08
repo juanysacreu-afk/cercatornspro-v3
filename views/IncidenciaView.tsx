@@ -1579,6 +1579,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
             else if (!isAsc && !canGoDesc) isAsc = true;
 
             let startTime = isAsc ? nextStartTimeAsc : nextStartTimeDesc;
+            const originalStart = startTime;
             let endTime = startTime + refTravelTime;
             if (startTime > 1620) break;
 
@@ -1640,6 +1641,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
 
             plan.push({
               id: `${prefix}A${tripNum.toString().padStart(3, '0')}`,
+              delay: startTime - originalStart,
               linia: liniaCode,
               train: unitObj.train.id,
               driver: activeDriver.driver || (activeDriver as any).driverName,
@@ -2032,7 +2034,10 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                             <span className="font-black text-xs text-fgc-grey dark:text-white uppercase">{c.torn || '---'}</span>
                             <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 truncate">{c.driver}</span>
                           </div>
-                          <div className="font-black text-sm text-orange-600 dark:text-orange-400">{c.sortida}</div>
+                          <div className="flex flex-col">
+                            <span className="font-black text-sm text-orange-600 dark:text-orange-400 leading-none">{c.sortida}</span>
+                            {c.delay > 0 && <span className="text-[9px] font-black text-red-500 animate-pulse">+{c.delay} min</span>}
+                          </div>
                           <div className="font-black text-sm text-blue-600 dark:text-blue-400">{c.arribada}</div>
                           <div className="text-[10px] font-bold text-fgc-grey dark:text-gray-300 truncate">{c.route}</div>
                           <div className="font-bold text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-tight">{c.nextId}</div>
