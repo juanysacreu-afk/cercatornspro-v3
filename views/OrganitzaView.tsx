@@ -26,7 +26,7 @@ export const OrganitzaView: React.FC<{ isPrivacyMode: boolean }> = ({ isPrivacyM
   const [maquinistaQuery, setMaquinistaQuery] = useState('');
   const [allAssignments, setAllAssignments] = useState<DailyAssignment[]>([]);
   const [phonebook, setPhonebook] = useState<Record<string, string[]>>({});
-  const [disDesFilter, setDisDesFilter] = useState<DisDesFilterType>('DIS');
+  const [disDesFilter, setDisDesFilter] = useState<DisDesFilterType>('DIS_DES');
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
   const [loadingMaquinistes, setLoadingMaquinistes] = useState(false);
 
