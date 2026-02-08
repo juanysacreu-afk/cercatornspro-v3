@@ -107,6 +107,15 @@ const resolveStationId = (name: string, linia: string = '') => {
 
   return n.length > 2 ? n.substring(0, 2) : n;
 };
+const isServiceVisible = (val: string | undefined, f: string) => {
+  if (f === 'Tots') return true;
+  const s = (val || '').toString();
+  if (f === '400' || f === 'S1') return s === '400' || s === 'S1' || s.includes('S1');
+  if (f === '500' || f === 'S2') return s === '500' || s === 'S2' || s.includes('S2');
+  if (f === '100' || f === 'L6') return s === '100' || s === 'L6' || s.includes('L6');
+  if (f === '0' || f === 'L12') return s === '0' || s === 'L12' || s.includes('L12');
+  return s === f || s.includes(f) || f.includes(s);
+};
 
 const MAP_STATIONS = [
   { id: 'PC', label: 'Pl. Catalunya', x: 20, y: 100, type: 'depot' }, { id: 'PR', label: 'Provença', x: 50, y: 100 }, { id: 'GR', label: 'Gràcia', x: 80, y: 100 }, { id: 'SG', label: 'Sant Gervasi', x: 110, y: 100 }, { id: 'MN', label: 'Muntaner', x: 140, y: 100 }, { id: 'BN', label: 'La Bonanova', x: 170, y: 100 }, { id: 'TT', label: 'Les Tres Torres', x: 200, y: 100 }, { id: 'SR', label: 'Sarrià', x: 230, y: 100 }, { id: 'PF', label: 'Peu del Funicular', x: 260, y: 100 }, { id: 'VL', label: 'B. Vallvidrera', x: 290, y: 100 }, { id: 'LP', label: 'Les Planes', x: 320, y: 100 }, { id: 'LF', label: 'La Floresta', x: 350, y: 100 }, { id: 'VD', label: 'Valldoreix', x: 380, y: 100 }, { id: 'SC', label: 'Sant Cugat', x: 410, y: 100 }, { id: 'PM', label: 'Pl. Molina', x: 100, y: 160 }, { id: 'PD', label: 'Pàdua', x: 130, y: 160 }, { id: 'EP', label: 'El Putxet', x: 160, y: 160 }, { id: 'TB', label: 'Av. Tibidabo', x: 190, y: 160 }, { id: 'RE', label: 'R. Elisenda', x: 260, y: 40 }, { id: 'MS', label: 'Mira-Sol', x: 440, y: 40 }, { id: 'HG', label: 'Hosp. General', x: 470, y: 40 }, { id: 'RB', label: 'Rubí Centre', x: 500, y: 40 }, { id: 'FN', label: 'Les Fonts', x: 530, y: 40 }, { id: 'TR', label: 'Terrassa Rambla', x: 560, y: 40 }, { id: 'VP', label: 'Vallparadís', x: 590, y: 40 }, { id: 'EN', label: 'Estació del Nord', x: 620, y: 40 }, { id: 'NA', label: 'Nacions Unides', x: 650, y: 40 }, { id: 'VO', label: 'Volpalleres', x: 440, y: 160 }, { id: 'SJ', label: 'Sant Joan', x: 470, y: 160 }, { id: 'BT', label: 'Bellaterra', x: 500, y: 160 }, { id: 'UN', label: 'U. Autònoma', x: 530, y: 160 }, { id: 'SQ', label: 'Sant Quirze', x: 560, y: 160 }, { id: 'CF', label: 'Can Feu', x: 590, y: 160 }, { id: 'PJ', label: 'Pl. Major', x: 620, y: 160 }, { id: 'CT', label: 'La Creu Alta', x: 650, y: 160 }, { id: 'NO', label: 'Sabadell Nord', x: 680, y: 160 }, { id: 'PN', label: 'Parc del Nord', x: 710, y: 160 },
@@ -395,18 +404,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
       allShifts.forEach(shift => {
         const shiftService = (shift.servei || '').toString();
 
-        let isShiftVisible = false;
-        if (selectedServei === 'Tots') {
-          isShiftVisible = true;
-        } else {
-          if (selectedServei === '400') isShiftVisible = shiftService === '400' || shiftService === 'S1';
-          else if (selectedServei === '500') isShiftVisible = shiftService === '500' || shiftService === 'S2';
-          else if (selectedServei === '100') isShiftVisible = shiftService === '100' || shiftService === 'L6';
-          else if (selectedServei === '0') isShiftVisible = shiftService === '0' || shiftService === 'L12';
-          else isShiftVisible = (shiftService === selectedServei);
-        }
 
-        if (!isShiftVisible) return;
 
         (shift.circulations as any[]).forEach(cRef => {
           const rawCodi = (typeof cRef === 'string' ? cRef : cRef.codi);
@@ -568,19 +566,6 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
 
       allShifts.forEach(shift => {
         const shiftService = (shift.servei || '').toString();
-
-        let isShiftVisible = false;
-        if (selectedServei === 'Tots') {
-          isShiftVisible = true;
-        } else {
-          if (selectedServei === '400') isShiftVisible = shiftService === '400' || shiftService === 'S1';
-          else if (selectedServei === '500') isShiftVisible = shiftService === '500' || shiftService === 'S2';
-          else if (selectedServei === '100') isShiftVisible = shiftService === '100' || shiftService === 'L6';
-          else if (selectedServei === '0') isShiftVisible = shiftService === '0' || shiftService === 'L12';
-          else isShiftVisible = (shiftService === selectedServei);
-        }
-
-        if (!isShiftVisible) return;
 
         const startMin = getFgcMinutes(shift.inici_torn);
         const endMin = getFgcMinutes(shift.final_torn);
@@ -1156,11 +1141,11 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
   }, [liveData, selectedCutStations, selectedCutSegments]);
 
   const groupedRestPersonnel = useMemo(() => {
-    const rest = liveData.filter(p => p.type === 'REST');
+    const rest = liveData.filter(p => p.type === 'REST' && isServiceVisible(p.servei, selectedServei));
     const grouped: Record<string, LivePersonnel[]> = {};
     rest.forEach(p => { if (!grouped[p.stationId]) grouped[p.stationId] = []; grouped[p.stationId].push(p); });
     return grouped;
-  }, [liveData]);
+  }, [liveData, selectedServei]);
 
   const CompactRow: React.FC<{ torn: any, color: string, label?: React.ReactNode, sub?: string }> = ({ torn, color, label, sub }) => (
     <div className={`bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-md transition-all flex items-center gap-4 border-l-4 ${color}`}>
@@ -2088,13 +2073,19 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                         if (selectedServei === 'Tots') {
                           isShiftVisible = true;
                         } else {
-                          const shiftService = (c as any).servei || '';
-                          const tripLine = c.linia || '';
-                          if (selectedServei === '400') isShiftVisible = shiftService === '400' || shiftService === 'S1' || tripLine === 'S1';
-                          else if (selectedServei === '500') isShiftVisible = shiftService === '500' || shiftService === 'S2' || tripLine === 'S2';
-                          else if (selectedServei === '100') isShiftVisible = shiftService === '100' || shiftService === 'L6' || tripLine === 'L6';
-                          else if (selectedServei === '0') isShiftVisible = shiftService === '0' || shiftService === 'L12' || tripLine === 'L12';
-                          else isShiftVisible = (shiftService === selectedServei || tripLine === selectedServei);
+                          const s = (c as any).servei || '';
+                          const t = c.linia || '';
+                          const f = selectedServei;
+
+                          const check = (val: string) => {
+                            if (f === '400' || f === 'S1') return val === '400' || val === 'S1' || val.includes('S1');
+                            if (f === '500' || f === 'S2') return val === '500' || val === 'S2' || val.includes('S2');
+                            if (f === '100' || f === 'L6') return val === '100' || val === 'L6' || val.includes('L6');
+                            if (f === '0' || f === 'L12') return val === '0' || val === 'L12' || val.includes('L12');
+                            return val === f || val.includes(f) || f.includes(val);
+                          };
+
+                          isShiftVisible = check(s) || check(t);
                         }
                         if (!isShiftVisible) return;
                         if (!groups[c.torn]) {
@@ -2182,7 +2173,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
   };
 
   const renderInteractiveMap = () => {
-    const trains = liveData.filter(p => p.type === 'TRAIN');
+    const trains = liveData.filter(p => p.type === 'TRAIN' && isServiceVisible(p.servei, selectedServei));
     return (
       <div className="bg-white dark:bg-black/40 rounded-[40px] p-4 sm:p-6 border border-gray-100 dark:border-white/5 relative flex flex-col transition-colors shadow-sm">
         {/* Zoom Controls */}
@@ -3606,7 +3597,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                   { id: 'ISOLATED', label: 'Zones Aïllades', Icon: Layers, color: 'gray', iconClass: "text-gray-500" },
                 ].map((col) => {
                   const bucket = dividedPersonnel[col.id];
-                  const items = bucket?.list || [];
+                  const items = (bucket?.list || []).filter(p => isServiceVisible(p.servei, selectedServei));
                   const vallesUnified = dividedPersonnel.VALLES.isUnified;
                   if (col.unifiedOnly && !vallesUnified) return null;
                   if (col.splitOnly && vallesUnified) return null;
