@@ -1596,7 +1596,12 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
             const isValidForTrip = (d: any, tEnd: number) => {
               if (!d) return false;
               if (tEnd > d.activeShiftEnd) return false;
-              if (dest !== d.activeShiftDep && (tEnd + refTravelTime > d.activeShiftEnd)) return false;
+
+              // Calculate specific return time to driver's base
+              const returnPath = getFullPath(dest, d.activeShiftDep || 'PC');
+              const returnDuration = Math.max(0, (returnPath.length - 1) * 3);
+
+              if (tEnd + returnDuration > d.activeShiftEnd) return false;
               return true;
             };
 
