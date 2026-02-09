@@ -369,19 +369,28 @@ export const CercarView: React.FC<{
 
         matchedCircs.forEach(c => {
           let stopTime: string | null = null;
-          if (c.inici?.trim().toUpperCase() === targetStation) stopTime = c.sortida as string;
-          else if (c.final?.trim().toUpperCase() === targetStation) stopTime = c.arribada as string;
-          else {
+          let stopVia: string | null = null;
+          if (c.inici?.trim().toUpperCase() === targetStation) {
+            stopTime = c.sortida as string;
+            stopVia = c.via_inici;
+          } else if (c.final?.trim().toUpperCase() === targetStation) {
+            stopTime = c.arribada as string;
+            stopVia = c.via_final;
+          } else {
             const stop = (c.estacions as any[])?.find(st => {
               const stName = st.nom?.trim().toUpperCase();
-              // Check if match either Code or Name (just in case DB has mixed data, though unlikely if standardized)
               return stName === targetStation;
             });
-            if (stop) stopTime = stop.hora || stop.arribada || stop.sortida;
+            if (stop) {
+              stopTime = stop.hora || stop.arribada || stop.sortida;
+              stopVia = stop.via;
+            }
           }
           if (stopTime) {
             const stopMin = getFgcMinutes(stopTime);
-            if (stopMin >= startMinRange && stopMin <= endMinRange) matchingCircs.push({ ...c, stopTimeAtStation: stopTime });
+            if (stopMin >= startMinRange && stopMin <= endMinRange) {
+              matchingCircs.push({ ...c, stopTimeAtStation: stopTime, viaAtStation: stopVia });
+            }
           }
         });
 

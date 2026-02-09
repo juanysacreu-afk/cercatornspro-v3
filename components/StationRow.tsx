@@ -41,7 +41,7 @@ export const StationRow: React.FC<StationRowProps> = ({
     return (
         <div id={`station-row-${itemKey}`} className={`p-2.5 sm:p-4 grid grid-cols-[auto_1fr_auto] md:grid-cols-[1fr_1.2fr_1.8fr_1fr_1.2fr] items-center gap-3 sm:gap-4 w-full relative transition-all scroll-mt-24 ${isActive ? 'bg-red-50/40 dark:bg-red-950/20 shadow-inner' : isBroken ? 'bg-red-50/20 dark:bg-red-950/10' : ''}`}>
             {/* Torn i Linia (Mòbil: Agrupats a l'esquerra) */}
-            <div className="flex flex-col sm:flex-row justify-start items-center gap-1.5 shrink-0">
+            <div className="flex flex-col justify-center items-center gap-1.5 shrink-0">
                 <button
                     onClick={() => circ.cicle && openUnitMenu(circ, circ.cicle)}
                     className={`px-2 py-1 sm:px-2.5 sm:py-1.5 ${isViatger ? 'bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800' : getLiniaColor(circ.linia)} rounded-lg font-black text-[10px] sm:text-sm shadow-sm flex items-center justify-center min-w-[54px] sm:min-w-[62px] hover:scale-105 active:scale-95 transition-transform group relative`}
@@ -57,7 +57,12 @@ export const StationRow: React.FC<StationRowProps> = ({
                     )}
                     {circ.cicle && <div className="absolute -top-1 -right-1 bg-white dark:bg-black rounded-full p-0.5 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"><Settings size={8} className="text-fgc-grey dark:text-gray-400" /></div>}
                 </button>
-                <span className={`px-1.5 py-0.5 sm:px-2 sm:py-1 ${getLiniaColor(circ.linia)} text-white rounded-md font-black text-[8px] sm:text-[11px] shadow-sm`}>{circ.linia || '??'}</span>
+                <div className="flex items-center gap-1">
+                    <span className={`px-1.5 py-0.5 bg-gray-100 dark:bg-white/10 ${getLiniaColor(circ.linia)} text-white rounded-md font-black text-[8px] sm:text-[11px] shadow-sm`}>{circ.linia || '??'}</span>
+                    {circ.viaAtStation && (
+                        <span className="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-800 text-fgc-grey dark:text-gray-300 rounded-md font-black text-[8px] sm:text-[11px] shadow-sm border border-gray-300/50 dark:border-white/10 uppercase">V{circ.viaAtStation}</span>
+                    )}
+                </div>
 
                 {/* Telèfon mòbil (opcional) */}
                 {circ.train && trainPhone && (
@@ -109,6 +114,12 @@ export const StationRow: React.FC<StationRowProps> = ({
 
             {/* Hora i Accions (Mòbil: Agrupats a la dreta) */}
             <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                {/* Via Desktop */}
+                {circ.viaAtStation && (
+                    <div className="hidden md:flex px-3 py-2 bg-gray-100 dark:bg-white/5 text-fgc-grey dark:text-gray-400 border border-gray-200 dark:border-white/10 rounded-xl font-black text-sm shadow-sm uppercase">
+                        Via {circ.viaAtStation}
+                    </div>
+                )}
                 <div className={`px-2 py-1.5 sm:px-4 sm:py-2 rounded-xl border transition-all tabular-nums ${isActive ? 'bg-red-600 text-white border-red-700 animate-pulse shadow-md' : isBroken ? 'bg-red-600 text-white border-red-700 shadow-sm' : 'bg-fgc-green/10 dark:bg-fgc-green/5 border-fgc-green/20 dark:border-fgc-green/10'}`}>
                     <span className={`text-xs sm:text-2xl font-black ${isActive || isBroken ? 'text-white' : 'text-fgc-grey dark:text-gray-200'}`}>
                         {(circ.stopTimeAtStation || '--:--').substring(0, 5)}
