@@ -1321,20 +1321,31 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
         return false;
       };
 
-      if (canSupportL12) tryInc("L12");
-
-      if (canSupportL7Full || canSupportL7Local) {
-        const l7TrainsInIsland = physicalTrains.filter(t => t.linia === 'L7' || t.linia === '300').length;
-        let l7Target = l7TrainsInIsland >= 4 ? 3 : Math.max(2, l7TrainsInIsland);
-        for (let i = 0; i < l7Target; i++) tryInc("L7");
-      }
-
+      // 1. Prioritat Alta: S1 i S2 (de forma equilibrada)
       let cycle = 0;
       while (avTrains > 0 && avDrivers > 0 && cycle < 30) {
         let changed = false;
         if (canSupportS1 && tryInc("S1")) changed = true;
         if (canSupportS2 && tryInc("S2")) changed = true;
+        if (!changed) break;
+        cycle++;
+      }
+
+      // 2. Prioritat Mitja: L7
+      if (canSupportL7Full || canSupportL7Local) {
+        const l7TrainsInIsland = physicalTrains.filter(t => t.linia === 'L7' || t.linia === '300').length;
+        let l7Target = l7TrainsInIsland >= 4 ? 3 : Math.max(2, l7TrainsInIsland);
+        for (let i = 0; i < l7Target; i++) {
+          if (avTrains > 0 && avDrivers > 0) tryInc("L7");
+        }
+      }
+
+      // 3. Prioritat Baixa: L6 i L12 (de forma equilibrada)
+      cycle = 0;
+      while (avTrains > 0 && avDrivers > 0 && cycle < 30) {
+        let changed = false;
         if (canSupportL6 && tryInc("L6")) changed = true;
+        if (canSupportL12 && tryInc("L12")) changed = true;
 
         if (!changed) break;
         cycle++;
@@ -1390,15 +1401,27 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
         }
       };
 
-      // Order: L12, L6, L7, S1, S2
-      const LINE_ORDER = ['L12', 'L6', 'L7', 'S1', 'S2'];
+      // Priority Groups order: High (S1, S2) -> Medium (L7) -> Low (L6, L12)
+      const priorityGroups = [
+        { lines: ['S1', 'S2'], priority: 'ALTA' },
+        { lines: ['L7'], priority: 'MITJA' },
+        { lines: ['L6', 'L12'], priority: 'BAIXA' }
+      ];
 
-      LINE_ORDER.forEach(linia => {
-        const count = lineCounts[linia] || 0;
-        const route = getRouteForLinia(linia);
-        const priority = (linia === 'S1' || linia === 'S2') ? 'ALTA' : 'MITJA';
-        for (let i = 0; i < count; i++) {
-          tryAssign(route, priority, linia);
+      priorityGroups.forEach(group => {
+        let anyRemaining = true;
+        const assignedInGroup = group.lines.map(() => 0);
+        while (anyRemaining) {
+          anyRemaining = false;
+          group.lines.forEach((linia, idx) => {
+            if (assignedInGroup[idx] < (lineCounts[linia] || 0)) {
+              const route = getRouteForLinia(linia);
+              if (tryAssign(route, group.priority, linia)) {
+                assignedInGroup[idx]++;
+                anyRemaining = true;
+              }
+            }
+          });
         }
       });
 
@@ -1435,7 +1458,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
         });
 
         const activeSimultaneous = Math.min(physicalTrains.length, allDrivers.length);
-        const LINE_ORDER = ['L12', 'L6', 'L7', 'S1', 'S2'];
+        const LINE_ORDER = ['S1', 'S2', 'L7', 'L6', 'L12'];
 
         // Initialize Driver Pool with current personnel
         let driverPool: any[] = allDrivers.map(d => ({
