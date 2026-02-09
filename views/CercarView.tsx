@@ -648,10 +648,10 @@ export const CercarView: React.FC<{
                     </div>
                   </div>
                   {isStationGroup && group.stationCode && (
-                    <div className="mb-8 mx-auto w-full max-w-4xl aspect-[16/9] h-[320px] sm:h-auto rounded-[32px] overflow-x-auto overflow-y-hidden border-[8px] border-gray-900 bg-black relative shadow-2xl custom-scrollbar">
+                    <div className="mb-8 mx-auto w-full max-w-4xl aspect-[16/9] rounded-[32px] overflow-hidden border-[8px] border-gray-900 bg-black relative shadow-2xl">
                       <iframe
                         src={`https://geotren.fgc.cat/isic/${group.stationCode.toLowerCase()}`}
-                        className="w-[200%] sm:w-[222.22%] h-[200%] sm:h-[222.22%] border-0 origin-top-left scale-[0.5] sm:scale-[0.45]"
+                        className="w-[357%] sm:w-[222.22%] h-[357%] sm:h-[222.22%] border-0 origin-top-left scale-[0.28] sm:scale-[0.45]"
                         title={`Informació estació ${group.station}`}
                         allow="geolocation"
                       />
