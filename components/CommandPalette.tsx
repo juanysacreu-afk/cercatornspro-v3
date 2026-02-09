@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Search, Train, User, MapPin, X, ArrowRight, Loader2, Command } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { ALL_STATIONS } from '../utils/fgc';
+import { feedback } from '../utils/feedback';
 
 const normalizeStr = (str: string) =>
     str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -44,10 +45,12 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSele
             if (e.key === 'Escape') onClose();
             if (e.key === 'ArrowDown') {
                 e.preventDefault();
+                feedback.haptic(2);
                 setSelectedIndex(prev => (prev < results.length - 1 ? prev + 1 : prev));
             }
             if (e.key === 'ArrowUp') {
                 e.preventDefault();
+                feedback.haptic(2);
                 setSelectedIndex(prev => (prev > 0 ? prev - 1 : prev));
             }
             if (e.key === 'Enter' && results[selectedIndex]) {
@@ -174,8 +177,14 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSele
                             {results.map((result, index) => (
                                 <button
                                     key={`${result.type}-${result.id}-${index}`}
-                                    onClick={() => onSelect(result)}
-                                    onMouseEnter={() => setSelectedIndex(index)}
+                                    onClick={() => {
+                                        feedback.click();
+                                        onSelect(result);
+                                    }}
+                                    onMouseEnter={() => {
+                                        if (selectedIndex !== index) feedback.haptic(2);
+                                        setSelectedIndex(index);
+                                    }}
                                     className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all text-left group ${selectedIndex === index
                                         ? 'bg-fgc-green text-fgc-grey shadow-lg shadow-fgc-green/20 translate-x-1'
                                         : 'hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300'

@@ -16,6 +16,8 @@ import { CirculationRow } from '../components/CirculationRow';
 import { StationRow } from '../components/StationRow';
 import { MarqueeText } from '../components/MarqueeText';
 import { getServiceToday } from '../utils/serviceCalendar';
+import { feedback } from '../utils/feedback';
+import { useToast } from '../components/ToastProvider';
 
 const normalizeStr = (str: string) =>
   (str || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -26,6 +28,7 @@ export const CercarView: React.FC<{
   onExternalSearchHandled?: () => void
 }> = ({ isPrivacyMode, externalSearch, onExternalSearchHandled }) => {
   const [searchType, setSearchType] = useState<SearchType>(SearchType.Torn);
+  const { showToast } = useToast();
   const [selectedServei, setSelectedServei] = useState<string>(getServiceToday());
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -190,8 +193,10 @@ export const CercarView: React.FC<{
       await fetchTrainStatuses();
       executeSearch();
       setEditingCirc(null);
+      showToast('Canvis desats correctament', 'success');
     } catch (e) {
       console.error("Error desant canvis d'unitat:", e);
+      showToast('Error al desar els canvis', 'error');
     } finally {
       setIsSavingUnit(false);
     }
@@ -318,6 +323,7 @@ export const CercarView: React.FC<{
     const currentType = overrideType || searchType;
     if (!searchVal && currentType !== SearchType.Cicle && currentType !== SearchType.Estacio) { setResults([]); return; }
     setLoading(true); setResults([]); setShowSuggestions(false);
+    feedback.click();
     try {
       if (currentType === SearchType.Cicle) {
         let q = supabase.from('shifts').select('*');
@@ -498,7 +504,7 @@ export const CercarView: React.FC<{
         <div className="absolute inset-0 rounded-[32px] sm:rounded-[40px] overflow-hidden pointer-events-none">
           <div className="absolute top-0 right-0 w-64 h-64 bg-fgc-green/5 blur-3xl -mr-32 -mt-32" />
         </div>
-        <div className="flex flex-wrap gap-2 sm:gap-3 mb-6 sm:mb-8">{filterButtons.map((btn) => (<button key={btn.id} onClick={() => { setSearchType(btn.id); setResults([]); setQuery(''); setSuggestions([]); setShowSuggestions(false); }} className={`flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-black transition-all ${searchType === btn.id ? 'bg-fgc-green text-fgc-grey shadow-xl shadow-fgc-green/20' : 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/10'}`}>{btn.icon}{btn.label}</button>))}</div>
+        <div className="flex flex-wrap gap-2 sm:gap-3 mb-6 sm:mb-8">{filterButtons.map((btn) => (<button key={btn.id} onClick={() => { feedback.click(); setSearchType(btn.id); setResults([]); setQuery(''); setSuggestions([]); setShowSuggestions(false); }} className={`flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-black transition-all ${searchType === btn.id ? 'bg-fgc-green text-fgc-grey shadow-xl shadow-fgc-green/20' : 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/10'}`}>{btn.icon}{btn.label}</button>))}</div>
 
         {searchType === SearchType.Estacio ? (
           <div className="space-y-6">

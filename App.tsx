@@ -9,6 +9,8 @@ import IncidenciaView from './views/IncidenciaView.tsx';
 import FileUploadModal from './components/FileUploadModal.tsx';
 import CommandPalette from './components/CommandPalette.tsx';
 import { supabase } from './supabaseClient.ts';
+import { feedback } from './utils/feedback';
+import { useToast } from './components/ToastProvider';
 
 interface ParkedUnit {
   unit_number: string;
@@ -18,6 +20,12 @@ interface ParkedUnit {
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AppTab>(AppTab.Cercar);
+  const { showToast } = useToast();
+
+  const handleTabChange = (tab: AppTab) => {
+    feedback.click();
+    setActiveTab(tab);
+  };
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showSecretMenu, setShowSecretMenu] = useState(false);
@@ -75,6 +83,7 @@ const App: React.FC = () => {
     const handleGlobalKeys = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
+        feedback.click();
         setIsCommandPaletteOpen(true);
       }
     };
@@ -122,7 +131,8 @@ const App: React.FC = () => {
     if (result.type === 'station') searchType = 'estacio';
 
     setGlobalSearch({ type: searchType, query: result.id });
-    setActiveTab(AppTab.Cercar);
+    handleTabChange(AppTab.Cercar);
+    showToast(`Cercant ${result.title}...`, 'info');
   };
 
   const navItems = [
@@ -176,7 +186,7 @@ const App: React.FC = () => {
               {navItems.map((item) => (
                 <button
                   key={item.id}
-                  onClick={() => setActiveTab(item.id)}
+                  onClick={() => handleTabChange(item.id)}
                   onDoubleClick={item.id === AppTab.Cercar ? togglePrivacyMode : undefined}
                   className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-base font-semibold transition-all ${activeTab === item.id
                     ? 'bg-fgc-green text-fgc-grey shadow-lg shadow-fgc-green/20'
@@ -326,7 +336,10 @@ const App: React.FC = () => {
 
       {/* Floating Smart Search Button (Mobile ONLY) */}
       <button
-        onClick={() => setIsCommandPaletteOpen(true)}
+        onClick={() => {
+          feedback.click();
+          setIsCommandPaletteOpen(true);
+        }}
         className="md:hidden fixed bottom-8 right-6 w-16 h-16 bg-fgc-green text-fgc-grey rounded-full shadow-[0_16px_32px_-8px_rgba(0,177,64,0.5)] border-4 border-white dark:border-gray-900 flex items-center justify-center z-[9999] active:scale-90 transition-all animate-in zoom-in-0 duration-500 delay-300"
         title="Búsqueda Inteligente"
       >

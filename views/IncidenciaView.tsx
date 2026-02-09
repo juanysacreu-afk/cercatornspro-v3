@@ -7,6 +7,8 @@ import { getServiceToday } from '../utils/serviceCalendar';
 import IncidenciaPerTorn from '../components/IncidenciaPerTorn.tsx';
 import DepotModal from '../components/DepotModal.tsx';
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
+import { feedback } from '../utils/feedback';
+import { useToast } from '../components/ToastProvider';
 
 const RESERVAS_DATA = [
   { id: 'QRS1', loc: 'SR', start: '06:00', end: '14:00' },
@@ -218,6 +220,7 @@ const CompactViatgerRow: React.FC<{ torn: any, viatgerCirc: any, colorClass: str
 
 const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedUnits, onParkedUnitsChange, isPrivacyMode }) => {
   const [mode, setMode] = useState<IncidenciaMode>('INIT');
+  const { showToast } = useToast();
   const [selectedServei, setSelectedServei] = useState<string>(getServiceToday());
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
@@ -654,6 +657,8 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
   const handleSearchCirculation = async () => {
     if (!query) return;
     setLoading(true);
+    feedback.click();
+    showToast(`Escanejant trànsit per ${query}...`, 'info');
     setMainDriverInfo(null);
     setSearchedCircData(null);
     setPassengerResults([]);
@@ -901,15 +906,6 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                           reserveStatus = 'extended';
                         }
 
-                        if (reserveStatus !== 'relay_needed' && !isEndBase) {
-                          const minDMin = arribadaMin + 5;
-                          primaryReturnCirc = globalBulkReturns.find(c =>
-                            c.inici?.trim().toUpperCase() === (searchedCirc.final || '').trim().toUpperCase() &&
-                            c._sMin >= minDMin &&
-                            (normalizeStr(c.final || '').includes(reserve.loc) || (c.estacions && c.estacions.some((s: any) => normalizeStr(s.nom || '').includes(reserve.loc))))
-                          );
-                        }
-
                         if (reserveStatus === 'relay_needed' && !secondaryResInfo) continue;
                         const finalPrimaryExtra = secondaryResInfo ? secondaryResInfo.primaryExtraAfterRelay : reserveTotalExtra;
                         if (!bestIntercept || pointMin < bestIntercept.time) {
@@ -1003,7 +999,11 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
   };
 
   const resetAllModeData = () => {
-    setMode('INIT'); setQuery(''); setSearchedCircData(null); setMainDriverInfo(null);
+    feedback.click();
+    setMode('INIT');
+    setQuery('');
+    setSearchedCircData(null);
+    setMainDriverInfo(null);
     setPassengerResults([]); setAdjacentResults({ anterior: [], posterior: [] }); setRestingResults([]); setExtensibleResults([]); setReserveInterceptResults([]);
     setSelectedCutStations(new Set()); setSelectedCutSegments(new Set()); setAltServiceIsland(null);
   };
