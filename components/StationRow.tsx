@@ -129,9 +129,8 @@ export const StationRow: React.FC<StationRowProps> = ({
                     {needsCleaning && <Brush size={14} className="text-orange-500 animate-pulse drop-shadow-sm" />}
                     {isBroken && <AlertTriangle size={14} className="text-red-600 animate-pulse drop-shadow-sm" />}
                 </div>
-                <button onClick={() => toggleItinerari(itemKey)} className={`p-2 sm:p-3 rounded-xl shadow-md hover:shadow-xl transition-all active:scale-95 border-b-2 border-black/5 flex items-center gap-2 ${isActive || isBroken ? 'bg-red-600 text-white border-red-700' : 'bg-fgc-green text-fgc-grey'}`}>
+                <button onClick={() => toggleItinerari(itemKey)} className={`p-2 sm:p-3 rounded-xl shadow-md hover:shadow-xl transition-all active:scale-95 border-b-2 border-black/5 flex items-center justify-center ${isActive || isBroken ? 'bg-red-600 text-white border-red-700' : 'bg-fgc-green text-fgc-grey'}`} title="Llibre d'itineraris">
                     <BookOpen size={16} />
-                    <span className="hidden lg:inline text-[10px] font-black uppercase tracking-tighter">Itinerari</span>
                 </button>
             </div>
         </div>
