@@ -525,8 +525,8 @@ export const CercarView: React.FC<{
                 </div>
               </div>
 
-              <div className="flex flex-row gap-3 sm:gap-4 w-full">
-                <div className="flex-1 min-w-0 space-y-2">
+              <div className="grid grid-cols-2 gap-3 sm:gap-4 w-full">
+                <div className="space-y-2">
                   <label className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-4 flex items-center gap-2">
                     De les<button onClick={() => setStartTime(getCurrentTimeStr())} className="text-fgc-green"><Clock size={12} /></button>
                   </label>
@@ -534,10 +534,10 @@ export const CercarView: React.FC<{
                     type="time"
                     value={startTime}
                     onChange={(e) => setStartTime(e.target.value)}
-                    className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] sm:rounded-[32px] py-4 sm:py-6 px-4 sm:px-8 focus:ring-4 focus:ring-fgc-green/20 outline-none text-base sm:text-2xl font-bold dark:text-white shadow-inner text-center sm:text-left"
+                    className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[20px] sm:rounded-[32px] py-4 sm:py-6 px-2 sm:px-8 focus:ring-4 focus:ring-fgc-green/20 outline-none text-base sm:text-2xl font-black dark:text-white text-center appearance-none"
                   />
                 </div>
-                <div className="flex-1 min-w-0 space-y-2">
+                <div className="space-y-2">
                   <label className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-4 flex items-center gap-2">
                     A les<button onClick={() => setEndTime(getCurrentTimeStr())} className="text-fgc-green"><Clock size={12} /></button>
                   </label>
@@ -545,14 +545,14 @@ export const CercarView: React.FC<{
                     type="time"
                     value={endTime}
                     onChange={(e) => setEndTime(e.target.value)}
-                    className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] sm:rounded-[32px] py-4 sm:py-6 px-4 sm:px-8 focus:ring-4 focus:ring-fgc-green/20 outline-none text-base sm:text-2xl font-bold dark:text-white shadow-inner text-center sm:text-left"
+                    className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[20px] sm:rounded-[32px] py-4 sm:py-6 px-2 sm:px-8 focus:ring-4 focus:ring-fgc-green/20 outline-none text-base sm:text-2xl font-black dark:text-white text-center appearance-none"
                   />
                 </div>
               </div>
 
               <button
                 onClick={() => executeSearch()}
-                className="bg-fgc-green text-fgc-grey h-[60px] sm:h-[76px] w-full rounded-[24px] sm:rounded-[32px] text-lg sm:text-xl font-black shadow-xl shadow-fgc-green/20 hover:scale-[1.01] active:scale-95 flex items-center justify-center gap-3 transition-all mt-2"
+                className="bg-fgc-green text-fgc-grey h-[60px] sm:h-[76px] w-full rounded-[20px] sm:rounded-[32px] text-lg sm:text-xl font-black shadow-xl shadow-fgc-green/20 hover:scale-[1.01] active:scale-95 flex items-center justify-center gap-3 transition-all mt-2"
               >
                 <Search size={22} />CERCAR
               </button>
