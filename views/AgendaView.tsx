@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Search, User, Phone, Hash, Loader2, ArrowRight, X, UserCircle, CalendarDays, Share2 } from 'lucide-react';
+import { MarqueeText } from '../components/MarqueeText';
 import { supabase } from '../supabaseClient.ts';
 import { PhonebookEntry, DailyAssignment } from '../types.ts';
 
@@ -137,8 +138,11 @@ export const AgendaView: React.FC<{
                   <div className="w-10 h-10 bg-fgc-grey dark:bg-black text-white rounded-full flex items-center justify-center font-black text-xs">
                     {(agent.cognom1 || agent.nom).charAt(0)}
                   </div>
-                  <div>
-                    <p className="font-black text-fgc-grey dark:text-gray-200 uppercase leading-none">{agent.cognom1} {agent.cognom2}, {agent.nom}</p>
+                  <div className="min-w-0 flex-1">
+                    <MarqueeText
+                      text={`${agent.cognom1} ${agent.cognom2 || ''}, ${agent.nom}`}
+                      className="font-black text-fgc-grey dark:text-gray-200 uppercase leading-none"
+                    />
                     <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mt-1">Nòmina: {agent.nomina}</p>
                   </div>
                 </div>
@@ -193,8 +197,11 @@ export const AgendaView: React.FC<{
                       {(agent.cognom1 || agent.nom).charAt(0)}
                     </div>
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-xl font-black text-fgc-grey dark:text-white leading-tight uppercase truncate">{agent.cognom1} {agent.cognom2}, {agent.nom}</h3>
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <MarqueeText
+                          text={`${agent.cognom1} ${agent.cognom2 || ''}, ${agent.nom}`}
+                          className="text-xl font-black text-fgc-grey dark:text-white leading-tight uppercase"
+                        />
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
