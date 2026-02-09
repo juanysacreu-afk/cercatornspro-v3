@@ -41,6 +41,7 @@ export const CercarView: React.FC<{
   const [allStations, setAllStations] = useState<string[]>([]);
   const [selectedStation, setSelectedStation] = useState<string>('');
   const [trainStatuses, setTrainStatuses] = useState<Record<string, any>>({});
+  const [selectedVia, setSelectedVia] = useState<string>('Totes');
 
   // Estat per al nou menú de gestió d'unitat
   const [editingCirc, setEditingCirc] = useState<{ circ: any, cycleId: string } | null>(null);
@@ -658,31 +659,54 @@ export const CercarView: React.FC<{
                     </div>
                   )}
                   <div className="border border-gray-100 dark:border-white/5 rounded-[32px] overflow-hidden bg-white dark:bg-black/20 shadow-sm">
+                    {isStationGroup && group.stationCode === 'PC' && (
+                      <div className="flex flex-wrap items-center justify-center gap-2 p-4 bg-gray-50/50 dark:bg-black/40 border-b border-gray-100 dark:border-white/5">
+                        <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mr-2">Filtrar per via:</span>
+                        {['Totes', 'V1', 'V2', 'V3', 'V4', 'V5'].map(via => (
+                          <button
+                            key={via}
+                            onClick={() => {
+                              feedback.click();
+                              setSelectedVia(via);
+                            }}
+                            className={`px-4 py-1.5 rounded-full text-xs font-black transition-all ${selectedVia === via
+                              ? 'bg-fgc-green text-fgc-grey shadow-md scale-105'
+                              : 'bg-white dark:bg-white/5 text-gray-500 dark:text-gray-400 border border-gray-100 dark:border-white/5 hover:bg-gray-100'
+                              }`}
+                          >
+                            {via}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     <CirculationHeader />
                     <div className="grid grid-cols-1 divide-y divide-gray-100 dark:divide-white/5">
-                      {group.circulations.map((circ: any, cIdx: number) => {
-                        const itemKey = `${idx}-${cIdx}`;
-                        const isActive = checkIfActive((circ.sortida || circ.stopTimeAtStation) as string, (circ.arribada || circ.stopTimeAtStation) as string, nowMin);
-                        return (
-                          <div key={cIdx} className={`flex flex-col transition-all hover:bg-gray-50/50 dark:hover:bg-white/5 relative ${isActive ? 'ring-2 ring-inset ring-red-600 z-10' : ''}`}>
-                            {isStationGroup ? (
-                              <StationRow circ={circ} itemKey={itemKey} nowMin={nowMin} trainStatuses={trainStatuses} getTrainPhone={getTrainPhone} getLiniaColor={getLiniaColor} getShiftCurrentStatus={getShiftCurrentStatus} openUnitMenu={openUnitMenu} toggleItinerari={toggleItinerari} isPrivacyMode={isPrivacyMode} />
-                            ) : (
-                              <CirculationRow circ={circ} itemKey={itemKey} nowMin={nowMin} trainStatuses={trainStatuses} getTrainPhone={getTrainPhone} getLiniaColor={getLiniaColor} openUnitMenu={openUnitMenu} toggleItinerari={toggleItinerari} isPrivacyMode={isPrivacyMode} />
-                            )}
-                            {expandedItinerari === itemKey && (
-                              <div className="p-4 sm:p-10 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-white/5 animate-in slide-in-from-top-4 duration-500 overflow-hidden">
-                                <div className="relative flex flex-col pl-8 sm:pl-16 pr-2 sm:pr-6 py-4 space-y-0">
-                                  <div className="absolute left-[15px] sm:left-[29px] top-10 bottom-10 w-0.5 sm:w-1 bg-gray-100 dark:bg-gray-800 rounded-full" />
-                                  {[{ nom: circ.inici, hora: circ.sortida, via: circ.via_inici }, ...(circ.estacions?.map((st: any) => ({ nom: st.nom, hora: st.hora || st.sortida || st.arribada, via: st.via })) || []), { nom: circ.final, hora: circ.arribada, via: circ.via_final }].map((point, pIdx, arr) => (
-                                    <ItineraryPoint key={pIdx} point={point} isFirst={pIdx === 0} isLast={pIdx === arr.length - 1} nextPoint={arr[pIdx + 1]} nowMin={nowMin} />
-                                  ))}
+                      {group.circulations
+                        .filter((c: any) => selectedVia === 'Totes' || (c.viaAtStation?.includes(selectedVia.replace('V', '')) && c.viaAtStation.length > 0))
+                        .map((circ: any, cIdx: number) => {
+                          const itemKey = `${idx}-${cIdx}`;
+                          // ... resto del mapa ...
+                          const isActive = checkIfActive((circ.sortida || circ.stopTimeAtStation) as string, (circ.arribada || circ.stopTimeAtStation) as string, nowMin);
+                          return (
+                            <div key={cIdx} className={`flex flex-col transition-all hover:bg-gray-50/50 dark:hover:bg-white/5 relative ${isActive ? 'ring-2 ring-inset ring-red-600 z-10' : ''}`}>
+                              {isStationGroup ? (
+                                <StationRow circ={circ} itemKey={itemKey} nowMin={nowMin} trainStatuses={trainStatuses} getTrainPhone={getTrainPhone} getLiniaColor={getLiniaColor} getShiftCurrentStatus={getShiftCurrentStatus} openUnitMenu={openUnitMenu} toggleItinerari={toggleItinerari} isPrivacyMode={isPrivacyMode} />
+                              ) : (
+                                <CirculationRow circ={circ} itemKey={itemKey} nowMin={nowMin} trainStatuses={trainStatuses} getTrainPhone={getTrainPhone} getLiniaColor={getLiniaColor} openUnitMenu={openUnitMenu} toggleItinerari={toggleItinerari} isPrivacyMode={isPrivacyMode} />
+                              )}
+                              {expandedItinerari === itemKey && (
+                                <div className="p-4 sm:p-10 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-white/5 animate-in slide-in-from-top-4 duration-500 overflow-hidden">
+                                  <div className="relative flex flex-col pl-8 sm:pl-16 pr-2 sm:pr-6 py-4 space-y-0">
+                                    <div className="absolute left-[15px] sm:left-[29px] top-10 bottom-10 w-0.5 sm:w-1 bg-gray-100 dark:bg-gray-800 rounded-full" />
+                                    {[{ nom: circ.inici, hora: circ.sortida, via: circ.via_inici }, ...(circ.estacions?.map((st: any) => ({ nom: st.nom, hora: st.hora || st.sortida || st.arribada, via: st.via })) || []), { nom: circ.final, hora: circ.arribada, via: circ.via_final }].map((point, pIdx, arr) => (
+                                      <ItineraryPoint key={pIdx} point={point} isFirst={pIdx === 0} isLast={pIdx === arr.length - 1} nextPoint={arr[pIdx + 1]} nowMin={nowMin} />
+                                    ))}
+                                  </div>
                                 </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
+                              )}
+                            </div>
+                          );
+                        })}
                     </div>
                   </div>
                 </div>
