@@ -199,8 +199,9 @@ const App: React.FC = () => {
                 alt="FGC Logo"
                 className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg object-cover shadow-sm transition-transform active:scale-95 group-hover:brightness-110"
               />
-              <span className="text-2xl sm:text-3xl font-extrabold tracking-tight text-fgc-grey dark:text-white">
-                Cerca<span className="text-fgc-green">Torns</span> <span className="pro-badge">PRO</span>
+              <span className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+                <span className="text-fgc-grey dark:text-white transition-colors duration-300">Cerca</span>
+                <span className="text-fgc-green">Torns</span> <span className="pro-badge">PRO</span>
               </span>
             </div>
 
@@ -290,13 +291,13 @@ const App: React.FC = () => {
             <div className="md:hidden flex items-center gap-2">
               <button
                 onClick={() => setIsDarkMode(!isDarkMode)}
-                className="p-2 rounded-lg text-fgc-grey/60 dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+                className="p-2 rounded-lg text-fgc-grey dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
               >
                 {isDarkMode ? <Moon size={24} /> : <Sun size={24} />}
               </button>
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="p-2 rounded-lg text-fgc-grey/60 dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/10 transition-transform active:scale-90"
+                className="p-2 rounded-lg text-fgc-grey dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/10 transition-transform active:scale-90"
               >
                 <div className={`transition-all duration-500 ${isMobileMenuOpen ? 'rotate-90 scale-110' : 'rotate-0 scale-100'}`}>
                   {isMobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
