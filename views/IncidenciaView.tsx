@@ -3778,7 +3778,8 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
   return (
     <>
       <div className="relative min-h-screen p-4 sm:p-8 space-y-6 animate-in fade-in duration-700 overflow-x-hidden">
-        <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 animate-in fade-in slide-in-from-top-4 duration-700">
+        {/* Header con Parallax Suave */}
+        <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 parallax-slow animate-in fade-in slide-in-from-top-4 duration-700">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-red-500 rounded-2xl text-white shadow-xl shadow-red-500/20 shrink-0 aspect-square flex items-center justify-center live-pulse"><ShieldAlert size={28} /></div>
             <div><h1 className="text-2xl sm:text-3xl font-black text-fgc-grey dark:text-white tracking-tight title-glow">Gestió d'Incidències</h1><p className="text-sm sm:text-base text-gray-500 dark:text-gray-400 font-medium pb-1 tracking-tight">Anàlisi de talls, cobertures i Pla de Servei Alternatiu.</p></div>

@@ -82,6 +82,36 @@ const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleGlobalKeys);
   }, []);
 
+  // Parallax Effect Logic
+  useEffect(() => {
+    let ticking = false;
+    const handleParallax = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const scrollY = window.scrollY;
+          document.documentElement.style.setProperty('--scroll-y', `${scrollY}px`);
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const x = (e.clientX / window.innerWidth - 0.5) * 2;
+      const y = (e.clientY / window.innerHeight - 0.5) * 2;
+      document.documentElement.style.setProperty('--mouse-x', x.toString());
+      document.documentElement.style.setProperty('--mouse-y', y.toString());
+    };
+
+    window.addEventListener('scroll', handleParallax, { passive: true });
+    window.addEventListener('mousemove', handleMouseMove);
+
+    return () => {
+      window.removeEventListener('scroll', handleParallax);
+      window.removeEventListener('mousemove', handleMouseMove);
+    };
+  }, []);
+
   const handleCommandSelect = (result: any) => {
     setIsCommandPaletteOpen(false);
 
@@ -116,11 +146,11 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-transparent flex flex-col transition-colors duration-300">
-      {/* High-Fidelity Mesh Background Global */}
+      {/* High-Fidelity Mesh Background Global with Parallax */}
       <div className="mesh-bg">
-        <div className="blob blob-1" />
-        <div className="blob blob-2" />
-        <div className="blob blob-3" />
+        <div className="blob blob-1 parallax-blob" data-speed="0.05" />
+        <div className="blob blob-2 parallax-blob" data-speed="0.08" />
+        <div className="blob blob-3 parallax-blob" data-speed="0.03" />
       </div>
       {/* Top Navigation Bar con soporte para Safe Areas */}
       <nav className="sticky top-0 z-50 bg-fgc-grey dark:bg-black/80 dark:backdrop-blur-md text-white shadow-md safe-top border-b border-white/5">
