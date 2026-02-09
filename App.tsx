@@ -158,17 +158,6 @@ const App: React.FC = () => {
                 </button>
               ))}
 
-              <button
-                onClick={() => setIsCommandPaletteOpen(true)}
-                className="flex items-center gap-3 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl border border-white/5 transition-all group ml-2"
-                title="Búsqueda Inteligente (Cmd+K)"
-              >
-                <Search size={18} className="text-fgc-green group-hover:scale-110 transition-transform" />
-                <div className="hidden lg:flex items-center gap-1.5 px-1.5 py-0.5 bg-white/10 rounded border border-white/10 text-[10px] font-black text-gray-400">
-                  <span className="text-[12px]">⌘</span>K
-                </div>
-              </button>
-
               <div className="w-px h-8 bg-white/10 mx-3" />
 
               <div className="flex items-center gap-2">
@@ -213,6 +202,20 @@ const App: React.FC = () => {
                               }`} />
                           </div>
                         </button>
+
+                        <div className="mx-3 mt-4 mb-2 p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
+                          <p className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2">Cerca Intel·ligent</p>
+                          <div className="flex flex-col gap-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 italic">Atall Windows</span>
+                              <span className="px-1.5 py-0.5 bg-white dark:bg-white/10 rounded border border-gray-200 dark:border-white/10 text-[10px] font-black text-fgc-grey dark:text-gray-300">CTRL + K</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 italic">Atall macOS</span>
+                              <span className="px-1.5 py-0.5 bg-white dark:bg-white/10 rounded border border-gray-200 dark:border-white/10 text-[10px] font-black text-fgc-grey dark:text-gray-300">⌘ + K</span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   )}
