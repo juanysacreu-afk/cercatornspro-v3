@@ -29,6 +29,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSele
     const [loading, setLoading] = useState(false);
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [animating, setAnimating] = useState(false);
+    const [isExpanded, setIsExpanded] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
 
     // Expansion coordinates (Viewport relative)
@@ -41,13 +42,26 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSele
             setResults([]);
             setSelectedIndex(0);
             setAnimating(true);
+
+            // Force the starting state (0px) to render first, then trigger expansion
             const timer = setTimeout(() => {
+                setIsExpanded(true);
+            }, 10);
+
+            const focusTimer = setTimeout(() => {
                 inputRef.current?.focus();
-            }, 500);
-            return () => clearTimeout(timer);
+            }, 600);
+
+            return () => {
+                clearTimeout(timer);
+                clearTimeout(focusTimer);
+            };
         } else {
+            setIsExpanded(false);
             setAnimating(true);
-            const timer = setTimeout(() => setAnimating(false), 500);
+            const timer = setTimeout(() => {
+                setAnimating(false);
+            }, 700);
             return () => clearTimeout(timer);
         }
     }, [isOpen]);
@@ -117,20 +131,11 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSele
 
     if (!isOpen && !animating) return null;
 
-    const getIcon = (type: SearchResult['type']) => {
-        switch (type) {
-            case 'shift': return <Command size={18} />;
-            case 'driver': return <User size={18} />;
-            case 'circulation': return <Train size={18} />;
-            case 'station': return <MapPin size={18} />;
-        }
-    };
-
     return (
         <div
-            className={`fixed inset-0 z-[10001] flex items-start justify-center p-4 transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] will-change-[clip-path] ${isOpen ? 'bg-black/40 backdrop-blur-sm pointer-events-auto' : 'bg-transparent backdrop-blur-0 pointer-events-none'}`}
+            className={`fixed inset-0 z-[10001] flex items-start justify-center p-4 transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] will-change-[clip-path] cursor-default ${isOpen && isExpanded ? 'bg-black/40 backdrop-blur-sm pointer-events-auto' : 'bg-transparent backdrop-blur-0 pointer-events-none'}`}
             style={{
-                clipPath: isOpen
+                clipPath: isExpanded
                     ? `circle(150% at ${cx}px ${cy}px)`
                     : `circle(0px at ${cx}px ${cy}px)`
             }}
@@ -140,7 +145,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSele
 
             {/* Container */}
             <div
-                className={`w-full max-w-2xl bg-white dark:bg-gray-900 rounded-[32px] shadow-2xl overflow-hidden relative transition-all duration-500 delay-100 ${isOpen ? 'mt-4 sm:mt-[10vh] opacity-100 scale-100' : 'mt-0 opacity-0 scale-90'}`}
+                className={`w-full max-w-2xl bg-white dark:bg-gray-900 rounded-[32px] shadow-2xl overflow-hidden relative transition-all duration-500 delay-100 ${isOpen && isExpanded ? 'mt-4 sm:mt-[10vh] opacity-100 scale-100' : 'mt-0 opacity-0 scale-90 translate-y-10'}`}
             >
                 {/* Header */}
                 <div className="relative border-b border-gray-100 dark:border-white/5">
@@ -172,8 +177,11 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSele
                                     onClick={() => { feedback.click(); onSelect(result); }}
                                     className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all text-left group ${selectedIndex === index ? 'bg-fgc-green text-fgc-grey shadow-lg shadow-fgc-green/20' : 'hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300'}`}
                                 >
-                                    <div className={`p-3 rounded-xl ${selectedIndex === index ? 'bg-fgc-grey/10' : 'bg-gray-100 dark:bg-white/10'}`}>
-                                        {getIcon(result.type)}
+                                    <div className="p-3 rounded-xl bg-gray-100 dark:bg-white/10 group-hover:bg-fgc-grey/10 transition-colors">
+                                        {result.type === 'shift' && <Command size={18} />}
+                                        {result.type === 'driver' && <User size={18} />}
+                                        {result.type === 'circulation' && <Train size={18} />}
+                                        {result.type === 'station' && <MapPin size={18} />}
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <p className={`font-black text-base uppercase tracking-tight ${selectedIndex === index ? 'text-fgc-grey' : ''}`}>{result.title}</p>
