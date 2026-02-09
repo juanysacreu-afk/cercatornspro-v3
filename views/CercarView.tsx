@@ -661,7 +661,7 @@ export const CercarView: React.FC<{
                   <div className="border border-gray-100 dark:border-white/5 rounded-[32px] overflow-hidden bg-white dark:bg-black/20 shadow-sm">
                     {isStationGroup && group.stationCode === 'PC' && (
                       <div className="flex flex-wrap items-center justify-center gap-2 p-4 bg-gray-50/50 dark:bg-black/40 border-b border-gray-100 dark:border-white/5">
-                        <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mr-2">Filtrar per via:</span>
+                        <span className="hidden sm:inline text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mr-2">Filtrar per via:</span>
                         {['Totes', 'V1', 'V2', 'V3', 'V4', 'V5'].map(via => (
                           <button
                             key={via}
