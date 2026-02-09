@@ -196,8 +196,8 @@ export const AgendaView: React.FC<{
                     <div className="w-16 h-16 bg-fgc-grey dark:bg-black text-white rounded-2xl flex items-center justify-center font-black text-2xl shadow-lg shrink-0">
                       {(agent.cognom1 || agent.nom).charAt(0)}
                     </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
                         <MarqueeText
                           text={`${agent.cognom1} ${agent.cognom2 || ''}, ${agent.nom}`}
                           className="text-xl font-black text-fgc-grey dark:text-white leading-tight uppercase"
