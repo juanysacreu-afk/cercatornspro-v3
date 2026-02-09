@@ -98,7 +98,7 @@ export const StationRow: React.FC<StationRowProps> = ({
                     <div key={dIdx} className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 w-full min-w-0">
                         <MarqueeText
                             text={`${driver.cognoms || ''}, ${driver.nom || ''}`}
-                            className={`text-xs sm:text-lg font-black leading-tight truncate ${isActive ? 'text-red-700 dark:text-red-400' : isBroken ? 'text-red-600' : 'text-fgc-grey dark:text-gray-200'}`}
+                            className={`text-xs sm:text-lg font-black leading-tight ${isActive ? 'text-red-700 dark:text-red-400' : isBroken ? 'text-red-600' : 'text-fgc-grey dark:text-gray-200'}`}
                         />
                         {driver.tipus_torn && (
                             <span className={`px-1.5 py-0.5 rounded-[4px] text-[7px] sm:text-[8px] font-black uppercase border self-start sm:self-auto shrink-0 ${driver.tipus_torn === 'Reducció'

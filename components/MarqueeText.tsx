@@ -8,7 +8,7 @@ interface MarqueeTextProps {
 export const MarqueeText: React.FC<MarqueeTextProps> = ({ text, className = '' }) => {
     const [shouldAnimate, setShouldAnimate] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
-    const textRef = useRef<HTMLSpanElement>(null);
+    const textRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         const checkOverflow = () => {
@@ -29,20 +29,21 @@ export const MarqueeText: React.FC<MarqueeTextProps> = ({ text, className = '' }
     }, [text]);
 
     return (
-        <div ref={containerRef} className="min-w-0 shrink overflow-hidden relative w-full h-full">
-            <span
+        <div ref={containerRef} className="min-w-0 shrink overflow-hidden relative w-full">
+            <div
                 ref={textRef}
                 className={`
                     ${className} 
-                    inline-block
+                    flex
                     whitespace-nowrap 
                     ${shouldAnimate ? 'animate-marquee' : 'truncate'}
                     transition-all
                 `}
-                title={!shouldAnimate ? text : undefined} // Tooltip only if static (and perhaps truncated by system, though we force truncate here if logic fails to animate) but actually if logic fails and it truncates, title is good.
+                title={!shouldAnimate ? text : undefined}
             >
-                {text}
-            </span>
+                <span>{text}</span>
+                {shouldAnimate && <span className="ml-8">{text}</span>}
+            </div>
         </div>
     );
 };
