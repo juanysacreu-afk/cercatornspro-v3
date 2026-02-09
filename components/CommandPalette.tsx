@@ -31,7 +31,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSele
     const [animating, setAnimating] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    // Expansion coordinates
+    // Expansion coordinates (Viewport relative)
     const cx = triggerRect ? triggerRect.left + triggerRect.width / 2 : window.innerWidth / 2;
     const cy = triggerRect ? triggerRect.top + triggerRect.height / 2 : window.innerHeight / 2;
 
@@ -41,11 +41,9 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSele
             setResults([]);
             setSelectedIndex(0);
             setAnimating(true);
-            // On mobile, focus might need more time or a cleaner state
             const timer = setTimeout(() => {
                 inputRef.current?.focus();
-                setAnimating(false);
-            }, 600);
+            }, 500);
             return () => clearTimeout(timer);
         } else {
             setAnimating(true);
@@ -129,17 +127,20 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSele
     };
 
     return (
-        <div className={`fixed inset-0 z-[10001] flex items-start justify-center p-4 transition-all duration-300 ${isOpen ? 'bg-black/40 backdrop-blur-sm' : 'bg-transparent backdrop-blur-0 pointer-events-none'}`}>
-            {/* Morphing Container */}
+        <div
+            className={`fixed inset-0 z-[10001] flex items-start justify-center p-4 transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] will-change-[clip-path] ${isOpen ? 'bg-black/40 backdrop-blur-sm pointer-events-auto' : 'bg-transparent backdrop-blur-0 pointer-events-none'}`}
+            style={{
+                clipPath: isOpen
+                    ? `circle(150% at ${cx}px ${cy}px)`
+                    : `circle(0px at ${cx}px ${cy}px)`
+            }}
+        >
+            {/* Backdrop click area */}
+            <div className="absolute inset-0" onClick={onClose} />
+
+            {/* Container */}
             <div
-                className={`w-full max-w-2xl bg-white dark:bg-gray-900 rounded-[32px] shadow-2xl overflow-hidden relative transition-all duration-500 will-change-[clip-path,transform] ${isOpen ? 'mt-4 sm:mt-[10vh]' : 'mt-0'}`}
-                style={{
-                    clipPath: isOpen
-                        ? `circle(150% at ${cx}px ${cy}px)`
-                        : `circle(0px at ${cx}px ${cy}px)`,
-                    transform: isOpen ? 'scale(1) translateY(0)' : 'scale(0.8) translateY(40px)',
-                    opacity: isOpen ? 1 : 0
-                }}
+                className={`w-full max-w-2xl bg-white dark:bg-gray-900 rounded-[32px] shadow-2xl overflow-hidden relative transition-all duration-500 delay-100 ${isOpen ? 'mt-4 sm:mt-[10vh] opacity-100 scale-100' : 'mt-0 opacity-0 scale-90'}`}
             >
                 {/* Header */}
                 <div className="relative border-b border-gray-100 dark:border-white/5">
@@ -169,7 +170,6 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSele
                                 <button
                                     key={`${result.type}-${result.id}-${index}`}
                                     onClick={() => { feedback.click(); onSelect(result); }}
-                                    onMouseEnter={() => { if (selectedIndex !== index) feedback.haptic(2); setSelectedIndex(index); }}
                                     className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all text-left group ${selectedIndex === index ? 'bg-fgc-green text-fgc-grey shadow-lg shadow-fgc-green/20' : 'hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300'}`}
                                 >
                                     <div className={`p-3 rounded-xl ${selectedIndex === index ? 'bg-fgc-grey/10' : 'bg-gray-100 dark:bg-white/10'}`}>
