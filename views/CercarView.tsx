@@ -78,6 +78,12 @@ export const CercarView: React.FC<{
     return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
   };
 
+  const getTimePlusMinutes = (minutes: number) => {
+    const now = new Date();
+    now.setMinutes(now.getMinutes() + minutes);
+    return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+  };
+
   const [startTime, setStartTime] = useState<string>(getCurrentTimeStr());
   const [endTime, setEndTime] = useState<string>('23:59');
 
@@ -549,7 +555,7 @@ export const CercarView: React.FC<{
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-4 flex items-center gap-2">
-                    A les<button onClick={() => setEndTime(getCurrentTimeStr())} className="text-fgc-green"><Clock size={12} /></button>
+                    A les<button onClick={() => setEndTime(getTimePlusMinutes(15))} className="text-fgc-green"><Clock size={12} /></button>
                   </label>
                   <input
                     type="time"
