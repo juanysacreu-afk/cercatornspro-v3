@@ -3825,10 +3825,25 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                 <div className="bg-white dark:bg-gray-900 rounded-[32px] p-8 shadow-sm border border-gray-100 dark:border-white/5 transition-colors">
                   <div className="max-w-2xl mx-auto space-y-6 text-center w-full">
                     <h3 className="text-sm font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Identifica el Tren afectat</h3>
-                    <div className="relative">
-                      <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={24} />
-                      <input type="text" placeholder="Ex: 1104, 2351..." value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSearchCirculation()} className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[28px] py-6 pl-16 pr-8 focus:ring-4 focus:ring-red-500/20 outline-none text-xl font-bold transition-all dark:text-white shadow-inner" />
-                      <button onClick={handleSearchCirculation} disabled={loading || !query} className="absolute right-3 top-1/2 -translate-y-1/2 bg-fgc-grey dark:bg-fgc-green text-white dark:text-fgc-grey px-8 py-3 rounded-2xl font-black text-sm hover:scale-105 active:scale-95 transition-all shadow-lg disabled:opacity-50">{loading ? <Loader2 className="animate-spin" size={20} /> : 'BUSCAR'}</button>
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 relative">
+                      <div className="relative flex-1">
+                        <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={24} />
+                        <input
+                          type="text"
+                          placeholder="Ex: 1104, 2351..."
+                          value={query}
+                          onChange={(e) => setQuery(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && handleSearchCirculation()}
+                          className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] sm:rounded-[28px] py-5 sm:py-6 pl-14 sm:pl-16 pr-8 focus:ring-4 focus:ring-red-500/20 outline-none text-lg sm:text-xl font-bold transition-all dark:text-white shadow-inner"
+                        />
+                      </div>
+                      <button
+                        onClick={handleSearchCirculation}
+                        disabled={loading || !query}
+                        className="bg-fgc-green text-fgc-grey px-8 py-5 sm:py-3 rounded-[24px] sm:rounded-2xl font-black text-sm sm:text-base hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-fgc-green/20 disabled:opacity-50 whitespace-nowrap flex items-center justify-center gap-2"
+                      >
+                        {loading ? <Loader2 className="animate-spin" size={20} /> : <><Search size={18} /> CERCAR</>}
+                      </button>
                     </div>
                   </div>
                 </div>
