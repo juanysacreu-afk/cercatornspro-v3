@@ -118,12 +118,6 @@ export const OrganitzaView: React.FC<{
     return 'bg-gray-200 dark:bg-gray-700';
   };
 
-  const getShortTornId = (id: string) => {
-    const trimmed = id.trim();
-    if (trimmed.startsWith('Q') && !trimmed.startsWith('QR') && trimmed.length === 5) return trimmed[0] + trimmed.slice(2);
-    return trimmed;
-  };
-
   const fetchFullTurnData = async (turnId: string) => {
     const results = await fetchFullTurns([turnId], selectedServei === '0' ? undefined : selectedServei);
     return results[0] || null;
@@ -213,7 +207,7 @@ export const OrganitzaView: React.FC<{
   };
 
   const gr = (turn1Data && turn2Data) ? { min: Math.min(getFgcMinutes(turn1Data.inici_torn), getFgcMinutes(turn2Data.inici_torn)), max: Math.max(getFgcMinutes(turn1Data.final_torn), getFgcMinutes(turn2Data.final_torn)) } : { min: 0, max: 0 };
-  const coincidences = calculateCoincidences(turn1Data, turn2Data);
+  const coincidences = (turn1Data && turn2Data) ? calculateCoincidences(turn1Data, turn2Data) : [];
 
   const filteredMaquinistes = allAssignments.filter(maquinista => {
     const searchStr = maquinistaQuery.toLowerCase();
@@ -257,11 +251,21 @@ export const OrganitzaView: React.FC<{
         {organizeType === OrganizeType.Comparador ? (
           <div key="comparador-view" className="space-y-8 animate-in fade-in slide-in-from-right-8 duration-700 ease-out-expo">
             <div className="flex justify-center"><div className="inline-flex bg-white dark:bg-gray-900 p-1 rounded-2xl shadow-sm border border-gray-100 dark:border-white/5 transition-colors">{serveiTypes.map(s => (<button key={s} onClick={() => { setSelectedServei(s); setTurn1Data(null); setTurn2Data(null); setTurn1Id(''); setTurn2Id(''); }} className={`px-6 py-2 rounded-xl text-sm font-black transition-all ${selectedServei === s ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5'}`}>S-{s}</button>))}</div></div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
               <CompareInputSlot label="Primer Torn" value={turn1Id} onChange={setTurn1Id} data={turn1Data} nowMin={nowMin} getSegments={getSegments} onClear={() => { setTurn1Id(''); setTurn1Data(null); }} selectedServei={selectedServei} isPrivacyMode={isPrivacyMode} />
               <CompareInputSlot label="Segon Torn" value={turn2Id} onChange={setTurn2Id} data={turn2Data} nowMin={nowMin} getSegments={getSegments} onClear={() => { setTurn2Id(''); setTurn2Data(null); }} selectedServei={selectedServei} isPrivacyMode={isPrivacyMode} />
             </div>
-            <div className="flex justify-center"><button onClick={handleCompare} disabled={!turn1Id || !turn2Id || loadingComparator} className="bg-fgc-green text-fgc-grey px-12 py-5 rounded-[28px] font-black text-lg shadow-xl shadow-fgc-green/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-3 disabled:opacity-50 disabled:scale-100 group relative overflow-hidden"><div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />{loadingComparator ? <Loader2 className="animate-spin" size={24} /> : <RefreshCcw size={24} />}ANALITZAR COINCIDÈNCIES</button></div>
+            <div className="flex justify-center">
+              <button
+                onClick={handleCompare}
+                disabled={!turn1Id || !turn2Id || loadingComparator}
+                className="bg-fgc-green text-fgc-grey w-full sm:w-auto px-12 py-4 sm:py-5 rounded-[24px] sm:rounded-[28px] font-black text-base sm:text-lg shadow-xl shadow-fgc-green/20 hover:scale-[1.02] sm:hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:scale-100 group relative overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
+                {loadingComparator ? <Loader2 className="animate-spin" size={24} /> : <RefreshCcw size={20} />}
+                COMPARAR
+              </button>
+            </div>
             {(turn1Data && turn2Data) && (
               <div className="glass-card rounded-[48px] p-8 sm:p-14 border border-gray-100 dark:border-white/5 shadow-sm space-y-16 animate-in zoom-in-95 duration-700 overflow-visible transition-all relative">
                 <div className="absolute top-0 right-0 w-96 h-96 bg-fgc-green/5 blur-[120px] -mr-48 -mt-48 pointer-events-none" />
@@ -355,6 +359,7 @@ export const OrganitzaView: React.FC<{
 
                       return (
                         <div
+                          key={maquinista.empleat_id}
                           className={`bg-white dark:bg-gray-800 rounded-[28px] p-5 border transition-all flex flex-col h-full gap-4 group hover:shadow-xl ${isDis ? 'border-orange-200 dark:border-orange-500/20 bg-orange-50/10 dark:bg-orange-500/5 hover:border-orange-300' :
                             isDes ? 'border-green-200 dark:border-fgc-green/20 bg-green-50/10 dark:bg-fgc-green/5 hover:border-fgc-green/30' :
                               'border-gray-100 dark:border-white/5 hover:border-fgc-green/30'
@@ -416,11 +421,11 @@ export const OrganitzaView: React.FC<{
                               phones.map((p, idx) => (
                                 <a
                                   key={idx}
-                                  href={isPrivacyMode ? undefined : `tel:${p}`}
-                                  className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black transition-all shadow-sm ${isDis ? 'bg-orange-500 text-white hover:bg-orange-600' :
+                                  href={isPrivacyMode ? undefined : \`tel:\${p}\`}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black transition-all shadow-sm \${isDis ? 'bg-orange-500 text-white hover:bg-orange-600' :
                                     isDes ? 'bg-fgc-green text-fgc-grey hover:brightness-110' :
                                       'bg-fgc-grey dark:bg-black text-white hover:bg-fgc-dark'
-                                    } ${isPrivacyMode ? 'cursor-default' : ''}`}
+                                    } \${isPrivacyMode ? 'cursor-default' : ''}\`}
                                 >
                                   <Phone size={12} />
                                   {isPrivacyMode ? '*** ** ** **' : p}
@@ -468,47 +473,47 @@ const CompareInputSlot = ({ label, value, onChange, data, onClear, nowMin, getSe
       if (isNumeric && selectedServei !== 'Tots') {
         const prefix = selectedServei === '0' ? '0' : selectedServei.charAt(0);
         const numPart = val.padStart(3, '0');
-        const constructedId = `Q${prefix}${numPart}`;
-        if (selectedServei !== 'Tots') q = q.eq('servei', selectedServei);
-        q = q.ilike('id', `%${constructedId}%`);
+        const constructedId = `Q\${prefix}\${numPart}\`;
+                            if (selectedServei !== 'Tots') q = q.eq('servei', selectedServei);
+                            q = q.ilike('id', \`%\${constructedId}%\`);
       } else {
         if (selectedServei !== 'Tots') q = q.eq('servei', selectedServei);
-        q = q.ilike('id', `%${val}%`);
+                            q = q.ilike('id', \`%\${val}%\`);
       }
 
-      const { data: s } = await q.limit(5);
+                            const {data: s } = await q.limit(5);
       if (s) setSuggestions(s.map(x => x.id as string));
-      setShowSug(true);
+                            setShowSug(true);
     } else {
-      setSuggestions([]); setShowSug(false);
+                              setSuggestions([]); setShowSug(false);
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+                            const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       if (suggestions.length > 0) {
-        onChange(suggestions[0]);
-        setShowSug(false);
+                                onChange(suggestions[0]);
+                              setShowSug(false);
       }
     }
   };
 
   const currentActivity = data ? getSegments(data).find(s => nowMin >= s.start && nowMin < s.end) : null;
-  return (
-    <div className="bg-white dark:bg-gray-900 rounded-[32px] p-8 border border-gray-100 dark:border-white/5 shadow-sm flex flex-col min-h-[400px] transition-all relative" ref={containerRef}>
-      <div className="flex items-center justify-between mb-6"><h3 className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">{label}</h3>{data && (<button onClick={onClear} className="p-2.5 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-500 rounded-full transition-colors bg-red-50/10"><X size={18} /></button>)}</div>
-      {data ? (<div className="flex-1 animate-in fade-in zoom-in-95 duration-300">
-        <div className="flex items-center gap-5 mb-6"><div className="h-16 min-w-[4rem] px-4 bg-fgc-grey dark:bg-black text-white rounded-2xl flex items-center justify-center font-black text-2xl shadow-xl whitespace-nowrap">{data.id}</div><div className="min-w-0"><p className="text-2xl font-black text-fgc-grey dark:text-white leading-tight truncate">{data.drivers[0]?.cognoms}, {data.drivers[0]?.nom}</p><div className="flex items-center gap-2 mt-1"><div className="w-2 h-2 bg-fgc-green rounded-full animate-pulse" /><p className="text-[10px] font-black text-fgc-green uppercase tracking-widest">Actiu ara {data.drivers[0]?.tipus_torn ? `(${data.drivers[0].tipus_torn})` : ''}</p></div></div></div>
-        <div className="mb-6 bg-gray-50/50 dark:bg-black/20 p-6 rounded-[28px] border border-gray-100 dark:border-white/5 relative overflow-hidden group transition-colors">
-          <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity"><Clock size={64} /></div>
-          {currentActivity ? (<div className="space-y-3 relative z-10"><div className="flex items-center justify-between"><span className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Activitat Actual</span><span className="text-[9px] font-black text-red-500 animate-pulse uppercase">EN VINCLE</span></div><div className="flex items-center gap-4"><div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm ${currentActivity.type === 'circ' ? 'bg-fgc-grey dark:bg-black text-white' : 'bg-fgc-green text-fgc-grey'}`}>{currentActivity.type === 'circ' ? <Train size={24} /> : <Coffee size={24} />}</div><div><p className="text-xl font-black text-fgc-grey dark:text-white">{currentActivity.codi}</p>{currentActivity.train && (<div className="flex items-center gap-1.5 text-xs font-bold text-fgc-green"><Hash size={12} /> Unitat: {currentActivity.train}</div>)}</div></div></div>) : (<div className="text-center py-2"><p className="text-sm font-bold text-gray-300 dark:text-gray-700 italic">Fora d'horari</p></div>)}
+                              return (
+                              <div className="bg-white dark:bg-gray-900 rounded-[32px] p-5 sm:p-8 border border-gray-100 dark:border-white/5 shadow-sm flex flex-col min-h-[240px] sm:min-h-[400px] transition-all relative" ref={containerRef}>
+                                <div className="flex items-center justify-between mb-4 sm:mb-6"><h3 className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">{label}</h3>{data && (<button onClick={onClear} className="p-2.5 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-500 rounded-full transition-colors bg-red-50/10"><X size={18} /></button>)}</div>
+                                {data ? (<div className="flex-1 animate-in fade-in zoom-in-95 duration-300">
+        <div className="flex items-center gap-5 mb-4 sm:mb-6"><div className="h-14 sm:h-16 min-w-[3.5rem] sm:min-w-[4rem] px-3 sm:px-4 bg-fgc-grey dark:bg-black text-white rounded-2xl flex items-center justify-center font-black text-xl sm:text-2xl shadow-xl whitespace-nowrap">{data.id}</div><div className="min-w-0"><p className="text-xl sm:text-2xl font-black text-fgc-grey dark:text-white leading-tight truncate">{data.drivers[0]?.cognoms}, {data.drivers[0]?.nom}</p><div className="flex items-center gap-2 mt-1"><div className="w-2 h-2 bg-fgc-green rounded-full animate-pulse" /><p className="text-[10px] font-black text-fgc-green uppercase tracking-widest">Actiu ara {data.drivers[0]?.tipus_torn ? \`(\${data.drivers[0].tipus_torn})\` : ''}</p></div></div></div>
+        <div className="mb-4 sm:mb-6 bg-gray-50/50 dark:bg-black/20 p-5 sm:p-6 rounded-[28px] border border-gray-100 dark:border-white/5 relative overflow-hidden group transition-colors">
+          <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity"><Clock size={48} /></div>
+          {currentActivity ? (<div className="space-y-2 sm:space-y-3 relative z-10"><div className="flex items-center justify-between"><span className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Activitat Actual</span><span className="text-[9px] font-black text-red-500 animate-pulse uppercase">EN VINCLE</span></div><div className="flex items-center gap-3 sm:gap-4"><div className={\`w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-sm \${currentActivity.type === 'circ' ? 'bg-fgc-grey dark:bg-black text-white' : 'bg-fgc-green text-fgc-grey'}\`}>{currentActivity.type === 'circ' ? <Train size={20} /> : <Coffee size={20} />}</div><div><p className="text-lg sm:text-xl font-black text-fgc-grey dark:text-white">{currentActivity.codi}</p>{currentActivity.train && (<div className="flex items-center gap-1.5 text-xs font-bold text-fgc-green"><Hash size={12} /> Unitat: {currentActivity.train}</div>)}</div></div></div>) : (<div className="text-center py-2"><p className="text-sm font-bold text-gray-300 dark:text-gray-700 italic">Fora d'horari</p></div>)}
         </div>
-        <div className="grid grid-cols-2 gap-4"><div className="bg-gray-50/50 dark:bg-black/20 p-4 rounded-2xl border border-gray-100 dark:border-white/5 transition-colors"><p className="text-[9px] font-black text-gray-300 dark:text-gray-600 uppercase tracking-widest mb-1.5 flex items-center gap-2"><Clock size={10} /> Torn</p><p className="text-sm font-black text-fgc-grey dark:text-gray-200 whitespace-nowrap">{data.inici_torn} — {data.final_torn}</p></div><div className="bg-gray-50/50 dark:bg-black/20 p-4 rounded-2xl border border-gray-100 dark:border-white/5 transition-colors"><p className="text-[9px] font-black text-gray-300 dark:text-gray-600 uppercase tracking-widest mb-1.5 flex items-center gap-2"><User size={10} /> Nòmina</p><p className="text-sm font-black text-fgc-grey dark:text-gray-200 whitespace-nowrap">{data.drivers[0]?.nomina}</p></div>{data.drivers[0]?.phones?.length > 0 && (<div className="col-span-2 bg-fgc-green/10 dark:bg-fgc-green/5 p-4 rounded-2xl border border-fgc-green/20 dark:border-fgc-green/10 transition-colors"><p className="text-[9px] font-black text-fgc-green uppercase tracking-widest mb-2 flex items-center gap-2"><Phone size={10} /> Contacte Directe</p><div className="flex flex-wrap gap-2">{data.drivers[0].phones.map((p: string, i: number) => (<a key={i} href={isPrivacyMode ? undefined : `tel:${p}`} className={`flex items-center gap-2 bg-white dark:bg-black px-3 py-1.5 rounded-xl text-xs font-black text-fgc-grey dark:text-gray-200 shadow-sm hover:bg-fgc-green dark:hover:text-black transition-all whitespace-nowrap ${isPrivacyMode ? 'cursor-default' : ''}`}><Phone size={12} /> {isPrivacyMode ? '*** ** ** **' : p}</a>))}</div></div>)}</div>
-      </div>) : (<div className="flex-1 flex flex-col items-center justify-center text-center px-4"><div className="w-20 h-20 bg-gray-50 dark:bg-black/20 rounded-full flex items-center justify-center mb-6 text-gray-300 dark:text-gray-700 transition-colors"><Hash size={36} /></div><p className="text-sm text-gray-400 dark:text-gray-500 mb-8 max-w-[240px] font-medium leading-relaxed">Cerca un codi de torn.</p><div className="w-full relative"><Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-600" size={20} /><input type="text" placeholder="Ex: Q002, Q004..." value={value} onChange={(e) => handleInputChange(e.target.value.toUpperCase())} onKeyDown={handleKeyDown} onFocus={() => value.length > 0 && setShowSug(true)} className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] py-5 pl-14 pr-8 focus:ring-4 focus:ring-fgc-green/20 outline-none font-black text-xl transition-all placeholder:text-gray-300 dark:text-white dark:placeholder:text-gray-700 shadow-inner" />{showSug && suggestions.length > 0 && (<div className="absolute top-full left-0 right-0 mt-3 bg-white dark:bg-gray-800 rounded-[24px] shadow-2xl border border-gray-100 dark:border-white/10 z-[100] overflow-hidden overflow-y-auto max-h-56 animate-in slide-in-from-top-2 transition-colors">{suggestions.map((s, idx) => (<button key={idx} onClick={() => { onChange(s); setShowSug(false); }} className="w-full text-left px-8 py-4 text-base font-black text-fgc-grey dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-fgc-green transition-all border-b border-gray-50 dark:border-white/5 last:border-0 flex items-center justify-between group">{s}<ArrowRight className="opacity-0 group-hover:opacity-100 transition-all scale-110" size={16} /></button>))}</div>)}</div></div>)}
-    </div>
-  );
-};
+        <div className="grid grid-cols-2 gap-3 sm:gap-4"><div className="bg-gray-50/50 dark:bg-black/20 p-3 sm:p-4 rounded-2xl border border-gray-100 dark:border-white/5 transition-colors"><p className="text-[9px] font-black text-gray-300 dark:text-gray-600 uppercase tracking-widest mb-1 sm:mb-1.5 flex items-center gap-2"><Clock size={10} /> Torn</p><p className="text-[12px] sm:text-sm font-black text-fgc-grey dark:text-gray-200 whitespace-nowrap">{data.inici_torn} — {data.final_torn}</p></div><div className="bg-gray-50/50 dark:bg-black/20 p-3 sm:p-4 rounded-2xl border border-gray-100 dark:border-white/5 transition-colors"><p className="text-[9px] font-black text-gray-300 dark:text-gray-600 uppercase tracking-widest mb-1 sm:mb-1.5 flex items-center gap-2"><User size={10} /> Nòmina</p><p className="text-[12px] sm:text-sm font-black text-fgc-grey dark:text-gray-200 whitespace-nowrap">{data.drivers[0]?.nomina}</p></div>{data.drivers[0]?.phones?.length > 0 && (<div className="col-span-2 bg-fgc-green/10 dark:bg-fgc-green/5 p-3 sm:p-4 rounded-2xl border border-fgc-green/20 dark:border-fgc-green/10 transition-colors"><p className="text-[9px] font-black text-fgc-green uppercase tracking-widest mb-2 flex items-center gap-2"><Phone size={10} /> Contacte Directe</p><div className="flex flex-wrap gap-2">{data.drivers[0].phones.map((p: string, i: number) => (<a key={i} href={isPrivacyMode ? undefined : \`tel:\${p}\`} className={\`flex items-center gap-2 bg-white dark:bg-black px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-black text-fgc-grey dark:text-gray-200 shadow-sm hover:bg-fgc-green dark:hover:text-black transition-all whitespace-nowrap \${isPrivacyMode ? 'cursor-default' : ''}\`}><Phone size={12} /> {isPrivacyMode ? '*** ** ** **' : p}</a>))}</div></div>)}</div>
+                          </div>) : (<div className="flex-1 flex flex-col items-center justify-center text-center px-2 sm:px-4"><div className="w-16 h-16 sm:w-20 sm:h-20 bg-gray-50 dark:bg-black/20 rounded-full flex items-center justify-center mb-4 sm:mb-6 text-gray-300 dark:text-gray-700 transition-colors"><Hash size={30} /></div><p className="text-xs sm:text-sm text-gray-400 dark:text-gray-500 mb-6 sm:mb-8 max-w-[240px] font-medium leading-relaxed">Cerca un codi de torn.</p><div className="w-full relative"><Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-600" size={18} /><input type="text" placeholder="Ex: Q002, Q004..." value={value} onChange={(e) => handleInputChange(e.target.value.toUpperCase())} onKeyDown={handleKeyDown} onFocus={() => value.length > 0 && setShowSug(true)} className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[20px] sm:rounded-[24px] py-4 sm:py-5 pl-14 pr-8 focus:ring-4 focus:ring-fgc-green/20 outline-none font-black text-lg transition-all placeholder:text-gray-300 dark:text-white dark:placeholder:text-gray-700 shadow-inner" />{showSug && suggestions.length > 0 && (<div className="absolute top-full left-0 right-0 mt-3 bg-white dark:bg-gray-800 rounded-[24px] shadow-2xl border border-gray-100 dark:border-white/10 z-[100] overflow-hidden overflow-y-auto max-h-56 animate-in slide-in-from-top-2 transition-colors">{suggestions.map((s, idx) => (<button key={idx} onClick={() => { onChange(s); setShowSug(false); }} className="w-full text-left px-8 py-4 text-base font-black text-fgc-grey dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-fgc-green transition-all border-b border-gray-50 dark:border-white/5 last:border-0 flex items-center justify-between group">{s}<ArrowRight className="opacity-0 group-hover:opacity-100 transition-all scale-110" size={16} /></button>))}</div>)}</div></div>)}
+                        </div>
+                      );
+                    };
 
 
 
-export default OrganitzaView;
+                    export default OrganitzaView;
