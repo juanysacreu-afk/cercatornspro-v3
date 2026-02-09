@@ -133,7 +133,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSele
 
     return (
         <div
-            className={`fixed inset-0 z-[10001] flex items-start justify-center p-4 transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] will-change-[clip-path] cursor-default ${isOpen && isExpanded ? 'bg-black/40 backdrop-blur-sm pointer-events-auto' : 'bg-transparent backdrop-blur-0 pointer-events-none'}`}
+            className={`fixed inset-0 z-[10001] flex items-start justify-center p-4 pt-[calc(1rem+env(safe-area-inset-top))] transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] will-change-[clip-path] cursor-default ${isOpen && isExpanded ? 'bg-black/40 backdrop-blur-sm pointer-events-auto' : 'bg-transparent backdrop-blur-0 pointer-events-none'}`}
             style={{
                 clipPath: isExpanded
                     ? `circle(150% at ${cx}px ${cy}px)`
@@ -145,7 +145,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSele
 
             {/* Container */}
             <div
-                className={`w-full max-w-2xl bg-white dark:bg-gray-900 rounded-[32px] shadow-2xl overflow-hidden relative transition-all duration-500 delay-100 ${isOpen && isExpanded ? 'mt-4 sm:mt-[10vh] opacity-100 scale-100' : 'mt-0 opacity-0 scale-90 translate-y-10'}`}
+                className={`w-full max-w-2xl bg-white dark:bg-gray-900 rounded-[32px] shadow-2xl overflow-hidden relative transition-all duration-500 delay-100 ${isOpen && isExpanded ? 'mt-0 sm:mt-[10vh] opacity-100 scale-100' : 'mt-0 opacity-0 scale-90 translate-y-10'}`}
             >
                 {/* Header */}
                 <div className="relative border-b border-gray-100 dark:border-white/5">
