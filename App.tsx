@@ -63,6 +63,9 @@ const App: React.FC = () => {
     }
   };
 
+  const [searchTriggerRect, setSearchTriggerRect] = useState<DOMRect | null>(null);
+  const searchButtonRef = useRef<HTMLButtonElement>(null);
+
   const fetchParkedUnits = async () => {
     const { data } = await supabase.from('parked_units').select('*');
     if (data) setParkedUnits(data);
@@ -370,11 +373,13 @@ const App: React.FC = () => {
 
       {/* Floating Smart Search Button (Mobile ONLY) */}
       <button
-        onClick={() => {
+        ref={searchButtonRef}
+        onClick={(e) => {
           feedback.click();
+          setSearchTriggerRect(e.currentTarget.getBoundingClientRect());
           setIsCommandPaletteOpen(true);
         }}
-        className="md:hidden fixed bottom-8 right-6 w-16 h-16 bg-fgc-green text-fgc-grey rounded-full shadow-[0_16px_32px_-8px_rgba(0,177,64,0.5)] border-4 border-white dark:border-gray-900 flex items-center justify-center z-[9999] active:scale-90 transition-all animate-in zoom-in-0 duration-500 delay-300"
+        className={`md:hidden fixed bottom-8 right-6 w-16 h-16 bg-fgc-green text-fgc-grey rounded-full shadow-[0_16px_32px_-8px_rgba(0,177,64,0.5)] border-4 border-white dark:border-gray-900 flex items-center justify-center z-[9999] active:scale-95 transition-all duration-500 delay-300 ${isCommandPaletteOpen ? 'scale-0 rotate-180 opacity-0' : 'scale-100 rotate-0 opacity-100'}`}
         title="Búsqueda Inteligente"
       >
         <Search size={28} strokeWidth={3} />
@@ -385,6 +390,7 @@ const App: React.FC = () => {
         isOpen={isCommandPaletteOpen}
         onClose={() => setIsCommandPaletteOpen(false)}
         onSelect={handleCommandSelect}
+        triggerRect={searchTriggerRect}
       />
     </div>
   );

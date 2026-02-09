@@ -20,13 +20,15 @@ interface CommandPaletteProps {
     isOpen: boolean;
     onClose: () => void;
     onSelect: (result: SearchResult) => void;
+    triggerRect?: DOMRect | null;
 }
 
-const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSelect }) => {
+const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSelect, triggerRect }) => {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<SearchResult[]>([]);
     const [loading, setLoading] = useState(false);
     const [selectedIndex, setSelectedIndex] = useState(0);
+    const [animating, setAnimating] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
@@ -34,7 +36,12 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSele
             setQuery('');
             setResults([]);
             setSelectedIndex(0);
-            setTimeout(() => inputRef.current?.focus(), 100);
+            setAnimating(true);
+            setTimeout(() => inputRef.current?.focus(), 400);
+        } else {
+            setAnimating(true);
+            const timer = setTimeout(() => setAnimating(false), 800);
+            return () => clearTimeout(timer);
         }
     }, [isOpen]);
 
@@ -72,38 +79,27 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSele
             setLoading(true);
             try {
                 const searchTasks = [
-                    // 1. Search Shifts (Torns)
                     supabase.from('shifts').select('id, servei').ilike('id', `%${query}%`).limit(5),
-                    // 2. Search Drivers
                     supabase.from('daily_assignments').select('nom, cognoms, torn, empleat_id').or(`nom.ilike.%${query}%,cognoms.ilike.%${query}%,empleat_id.ilike.%${query}%`).limit(5),
-                    // 3. Search Circulations
                     supabase.from('circulations').select('id, inici, final').ilike('id', `%${query}%`).limit(5)
                 ];
 
                 const [shiftsRes, driversRes, circRes] = await Promise.all(searchTasks);
-
                 const newResults: SearchResult[] = [];
                 const normalizedQuery = normalizeStr(query);
 
-                // Stations Local Search
                 ALL_STATIONS.filter(s => normalizeStr(s).includes(normalizedQuery)).slice(0, 3).forEach(s => {
                     newResults.push({ id: s, type: 'station', title: s, subtitle: 'Estació de la xarxa' });
                 });
 
-                // Shifts
                 shiftsRes.data?.forEach(s => {
                     newResults.push({ id: s.id, type: 'shift', title: `Torn ${s.id}`, subtitle: `Servei S-${s.servei}` });
                 });
 
-                // Drivers
                 driversRes.data?.forEach(d => {
                     const fullName = `${d.cognoms}, ${d.nom}`;
-                    const searchId = `${fullName} (${d.empleat_id})`;
-
-                    // Client-side refinement for accent-insensitivity if needed
-                    // (though Supabase ilike already filtered some, this ensures parity)
                     newResults.push({
-                        id: searchId,
+                        id: `${fullName} (${d.empleat_id})`,
                         type: 'driver',
                         title: fullName,
                         subtitle: `Torn ${d.torn} (Nom. ${d.empleat_id})`,
@@ -111,10 +107,6 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSele
                     });
                 });
 
-                // Optimization: if no results from DB because of accents, we could fetch a broader set,
-                // but for now we focus on local standardization of what we display.
-
-                // Circulations
                 circRes.data?.forEach(c => {
                     newResults.push({ id: c.id, type: 'circulation', title: `Circulació ${c.id}`, subtitle: `${c.inici} ➔ ${c.final}` });
                 });
@@ -131,7 +123,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSele
         return () => clearTimeout(timer);
     }, [query]);
 
-    if (!isOpen) return null;
+    if (!isOpen && !animating) return null;
 
     const getIcon = (type: SearchResult['type']) => {
         switch (type) {
@@ -142,16 +134,32 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSele
         }
     };
 
+    const cx = triggerRect ? triggerRect.left + triggerRect.width / 2 : window.innerWidth / 2;
+    const cy = triggerRect ? triggerRect.top + triggerRect.height / 2 : window.innerHeight / 2;
+
     return (
-        <div className="fixed inset-0 z-[10001] flex items-start justify-center pt-[15vh] px-4">
-            {/* Backdrop */}
+        <div className={`fixed inset-0 z-[10001] flex items-center justify-center p-4 sm:pt-[15vh] transition-all duration-500 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
             <div
-                className="fixed inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-md animate-in fade-in duration-300"
+                className={`fixed inset-0 bg-black/20 dark:bg-black/40 backdrop-blur-xl transition-all duration-700 ${isOpen ? 'opacity-100' : 'opacity-0'}`}
+                style={{
+                    clipPath: isOpen
+                        ? 'circle(150% at ' + cx + 'px ' + cy + 'px)'
+                        : 'circle(0% at ' + cx + 'px ' + cy + 'px)',
+                    transitionTimingFunction: 'cubic-bezier(0.4, 0, 0.2, 1)'
+                }}
                 onClick={onClose}
             />
 
-            {/* Palette Overlay */}
-            <div className="w-full max-w-2xl bg-white dark:bg-gray-900 rounded-[32px] shadow-2xl border border-gray-100 dark:border-white/10 overflow-hidden relative animate-in zoom-in-95 slide-in-from-top-4 duration-300">
+            <div
+                className={`w-full max-w-2xl bg-white/90 dark:bg-gray-900/90 backdrop-blur-2xl rounded-[32px] shadow-[0_32px_128px_-16px_rgba(0,0,0,0.3)] border border-white/20 dark:border-white/10 overflow-hidden relative transition-all duration-600 ease-[cubic-bezier(0.34,1.56,0.64,1)]`}
+                style={{
+                    clipPath: isOpen
+                        ? 'circle(150% at ' + cx + 'px ' + cy + 'px)'
+                        : 'circle(32px at ' + cx + 'px ' + cy + 'px)',
+                    transform: isOpen ? 'scale(1) translateY(0)' : 'scale(0.8) translateY(20px)',
+                    opacity: isOpen ? 1 : 0
+                }}
+            >
                 <div className="relative border-b border-gray-100 dark:border-white/5">
                     <Search className="absolute left-7 top-1/2 -translate-y-1/2 text-gray-400" size={24} />
                     <input
@@ -164,9 +172,9 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSele
                     />
                     <div className="absolute right-7 top-1/2 -translate-y-1/2 flex items-center gap-2">
                         {loading ? <Loader2 className="animate-spin text-fgc-green" size={20} /> : (
-                            <div className="flex items-center gap-1.5 px-2 py-1 bg-gray-100 dark:bg-white/5 rounded-lg border border-gray-200/50 dark:border-white/5 text-[10px] font-black text-gray-400 uppercase tracking-tighter">
-                                ESC tancar
-                            </div>
+                            <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-full transition-colors">
+                                <X size={20} className="text-gray-400" />
+                            </button>
                         )}
                     </div>
                 </div>
@@ -225,7 +233,6 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSele
                     )}
                 </div>
 
-                {/* Footer info */}
                 <div className="p-4 bg-gray-50 dark:bg-black/20 border-t border-gray-100 dark:border-white/5 flex items-center justify-between text-[10px] font-black text-gray-400 uppercase tracking-tighter">
                     <div className="flex items-center gap-4">
                         <span className="flex items-center gap-1"><ArrowRight size={10} className="rotate-90" /> navegar</span>
