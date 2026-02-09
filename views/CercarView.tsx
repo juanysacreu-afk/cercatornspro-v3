@@ -524,7 +524,7 @@ export const CercarView: React.FC<{
                   <ChevronDown className="absolute right-8 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none" size={24} />
                 </div>
               </div>
-              <div className="flex-1 flex flex-row gap-4 items-end">
+              <div className="flex flex-col sm:flex-row gap-4 items-stretch lg:items-end flex-1">
                 <div className="flex-1 space-y-2 relative">
                   <label className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-4 flex items-center gap-2">
                     De les<button onClick={() => setStartTime(getCurrentTimeStr())} className="text-fgc-green"><Clock size={12} /></button>
@@ -538,7 +538,10 @@ export const CercarView: React.FC<{
                   <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] sm:rounded-[32px] py-4 sm:py-6 px-6 focus:ring-4 focus:ring-fgc-green/20 outline-none text-lg sm:text-2xl font-bold dark:text-white" />
                 </div>
               </div>
-              <button onClick={() => executeSearch()} className="bg-fgc-green text-fgc-grey h-[60px] sm:h-[76px] px-8 sm:px-12 rounded-[24px] sm:rounded-[32px] text-lg sm:text-xl font-black shadow-xl shadow-fgc-green/20 hover:scale-105 active:scale-95 flex items-center justify-center gap-3 shrink-0 transition-all">
+              <button
+                onClick={() => executeSearch()}
+                className="bg-fgc-green text-fgc-grey h-[60px] sm:h-[76px] px-8 sm:px-12 rounded-[24px] sm:rounded-[32px] text-lg sm:text-xl font-black shadow-xl shadow-fgc-green/20 hover:scale-105 active:scale-95 flex items-center justify-center gap-3 transition-all shrink-0 w-full sm:w-auto mt-2 sm:mt-0"
+              >
                 <Search size={22} />CERCAR
               </button>
             </div>
