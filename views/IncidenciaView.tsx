@@ -1321,12 +1321,20 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
         return false;
       };
 
-      // 1. Prioritat Alta: S1 i S2 (de forma equilibrada)
+      // 1. Prioritat Alta: S1 i S2 (de forma equilibrada i mateixa quantitat)
       let cycle = 0;
       while (avTrains > 0 && avDrivers > 0 && cycle < 30) {
         let changed = false;
-        if (canSupportS1 && tryInc("S1")) changed = true;
-        if (canSupportS2 && tryInc("S2")) changed = true;
+        if (canSupportS1 && canSupportS2) {
+          if (avTrains >= 2 && avDrivers >= 2) {
+            tryInc("S1");
+            tryInc("S2");
+            changed = true;
+          }
+        } else {
+          if (canSupportS1 && tryInc("S1")) changed = true;
+          if (canSupportS2 && tryInc("S2")) changed = true;
+        }
         if (!changed) break;
         cycle++;
       }
@@ -1362,16 +1370,22 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
 
     const updateCount = (linia: string, delta: number) => {
       setLineCounts(prev => {
-        const nextValue = Math.max(0, prev[linia] + delta);
-        const totalOther = Object.entries(prev)
-          .filter(([k]) => k !== linia)
-          .reduce((sum, [_, v]) => sum + v, 0);
+        let updates: Record<string, number> = { [linia]: Math.max(0, prev[linia] + delta) };
+
+        // Mantenir mateixa quantitat de S1 i S2 si l'illa suporta ambdues
+        if ((linia === 'S1' || linia === 'S2') && canSupportS1 && canSupportS2) {
+          const val = updates[linia];
+          updates = { S1: val, S2: val };
+        }
+
+        const nextState = { ...prev, ...updates };
+        const total = Object.values(nextState).reduce((sum, v) => sum + v, 0);
 
         // Block if exceeding total physical trains or total drivers
-        if (delta > 0 && (totalOther + nextValue > physicalTrains.length || totalOther + nextValue > allDrivers.length)) {
+        if (total > physicalTrains.length || total > allDrivers.length) {
           return prev;
         }
-        return { ...prev, [linia]: nextValue };
+        return nextState;
       });
     };
 
