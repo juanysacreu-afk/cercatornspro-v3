@@ -1,7 +1,6 @@
-
 {
-  "name": "FGC Maquinista Pro",
-  "short_name": "Cercatorns",
+  "name": "FGC CercaTorns Pro",
+  "short_name": "CercaTorns Pro",
   "description": "Buscador de torns i gestió de flota per a maquinistes d'FGC",
   "start_url": "/",
   "display": "standalone",
