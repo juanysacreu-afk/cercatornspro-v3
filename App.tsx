@@ -199,7 +199,7 @@ const App: React.FC = () => {
                 alt="FGC Logo"
                 className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg object-cover shadow-sm transition-transform active:scale-95 group-hover:brightness-110"
               />
-              <span className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+              <span className="text-2xl sm:text-3xl font-extrabold tracking-tight text-fgc-grey dark:text-white">
                 Cerca<span className="text-fgc-green">Torns</span> <span className="pro-badge">PRO</span>
               </span>
             </div>
@@ -290,13 +290,13 @@ const App: React.FC = () => {
             <div className="md:hidden flex items-center gap-2">
               <button
                 onClick={() => setIsDarkMode(!isDarkMode)}
-                className="p-2 rounded-lg text-gray-400 hover:text-white"
+                className="p-2 rounded-lg text-fgc-grey/60 dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
               >
                 {isDarkMode ? <Moon size={24} /> : <Sun size={24} />}
               </button>
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-transform active:scale-90"
+                className="p-2 rounded-lg text-fgc-grey/60 dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/10 transition-transform active:scale-90"
               >
                 <div className={`transition-all duration-500 ${isMobileMenuOpen ? 'rotate-90 scale-110' : 'rotate-0 scale-100'}`}>
                   {isMobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
@@ -307,7 +307,7 @@ const App: React.FC = () => {
         </div>
 
         {/* Mobile menu (Notch expansion style) */}
-        <div className={`md:hidden bg-fgc-grey border-t border-white/10 px-2 pt-2 pb-6 space-y-1 shadow-2xl overflow-hidden dynamic-island-menu ${isMobileMenuOpen ? 'dynamic-island-menu-open' : ''}`}>
+        <div className={`md:hidden space-y-1 overflow-hidden dynamic-island-menu ${isMobileMenuOpen ? 'dynamic-island-menu-open' : ''}`}>
           {navItems.map((item, index) => (
             <button
               key={item.id}
@@ -316,7 +316,7 @@ const App: React.FC = () => {
                 setIsMobileMenuOpen(false);
               }}
               onDoubleClick={item.id === AppTab.Cercar ? togglePrivacyMode : undefined}
-              className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-lg font-bold transition-all active:scale-95 menu-item-stagger ${activeTab === item.id ? 'bg-fgc-green text-fgc-grey' : 'text-gray-300 hover:bg-white/5'
+              className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-lg font-bold transition-all active:scale-95 menu-item-stagger ${activeTab === item.id ? 'bg-fgc-green text-fgc-grey' : 'text-fgc-grey/70 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5'
                 }`}
               style={{ transitionDelay: `${index * 50}ms` }}
             >
@@ -329,7 +329,7 @@ const App: React.FC = () => {
               setShowUploadModal(true);
               setIsMobileMenuOpen(false);
             }}
-            className="w-full flex items-center gap-4 px-6 py-4 text-fgc-green font-bold text-lg border-t border-white/5 mt-4 menu-item-stagger"
+            className="w-full flex items-center gap-4 px-6 py-4 text-fgc-green font-bold text-lg border-t border-black/5 dark:border-white/5 mt-4 menu-item-stagger"
             style={{ transitionDelay: `${navItems.length * 50}ms` }}
           >
             <Download size={20} />
