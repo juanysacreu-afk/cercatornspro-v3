@@ -41,7 +41,7 @@ export const CercarView: React.FC<{
   const [allStations, setAllStations] = useState<string[]>([]);
   const [selectedStation, setSelectedStation] = useState<string>('');
   const [trainStatuses, setTrainStatuses] = useState<Record<string, any>>({});
-  const [selectedVia, setSelectedVia] = useState<string>('Totes');
+  const [selectedVia, setSelectedVia] = useState<string>('Tot');
 
   // Estat per al nou menú de gestió d'unitat
   const [editingCirc, setEditingCirc] = useState<{ circ: any, cycleId: string } | null>(null);
@@ -660,16 +660,16 @@ export const CercarView: React.FC<{
                   )}
                   <div className="border border-gray-100 dark:border-white/5 rounded-[32px] overflow-hidden bg-white dark:bg-black/20 shadow-sm">
                     {isStationGroup && group.stationCode === 'PC' && (
-                      <div className="flex flex-wrap items-center justify-center gap-2 p-4 bg-gray-50/50 dark:bg-black/40 border-b border-gray-100 dark:border-white/5">
+                      <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 p-3 sm:p-4 bg-gray-50/50 dark:bg-black/40 border-b border-gray-100 dark:border-white/5">
                         <span className="hidden sm:inline text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mr-2">Filtrar per via:</span>
-                        {['Totes', 'V1', 'V2', 'V3', 'V4', 'V5'].map(via => (
+                        {['Tot', 'V1', 'V2', 'V3', 'V4', 'V5'].map(via => (
                           <button
                             key={via}
                             onClick={() => {
                               feedback.click();
                               setSelectedVia(via);
                             }}
-                            className={`px-4 py-1.5 rounded-full text-xs font-black transition-all ${selectedVia === via
+                            className={`px-3 sm:px-4 py-1.5 rounded-full text-[10px] sm:text-xs font-black transition-all ${selectedVia === via
                               ? 'bg-fgc-green text-fgc-grey shadow-md scale-105'
                               : 'bg-white dark:bg-white/5 text-gray-500 dark:text-gray-400 border border-gray-100 dark:border-white/5 hover:bg-gray-100'
                               }`}
@@ -682,7 +682,7 @@ export const CercarView: React.FC<{
                     <CirculationHeader />
                     <div className="grid grid-cols-1 divide-y divide-gray-100 dark:divide-white/5">
                       {group.circulations
-                        .filter((c: any) => selectedVia === 'Totes' || (c.viaAtStation?.includes(selectedVia.replace('V', '')) && c.viaAtStation.length > 0))
+                        .filter((c: any) => selectedVia === 'Tot' || (c.viaAtStation?.includes(selectedVia.replace('V', '')) && c.viaAtStation.length > 0))
                         .map((circ: any, cIdx: number) => {
                           const itemKey = `${idx}-${cIdx}`;
                           // ... resto del mapa ...
