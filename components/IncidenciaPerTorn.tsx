@@ -294,17 +294,32 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu, is
               <h3 className="text-xl font-black text-fgc-grey dark:text-white uppercase tracking-tight">Anàlisi Logística</h3>
               <p className="text-xs font-bold text-gray-400 dark:text-gray-500 max-w-sm">Detecció automàtica de servei i marges de relleu al segon.</p>
             </div>
-            <div className="relative">
-              <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={24} />
-              <input type="text" placeholder="Torn descobert (Ex: Q031)..." value={uncoveredShiftId} onChange={(e) => handleInputChange(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && calculatePlan()} className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[28px] py-6 pl-16 pr-8 focus:ring-4 focus:ring-blue-500/20 outline-none text-xl font-bold transition-all dark:text-white shadow-inner" />
-              {showSuggestions && suggestions.length > 0 && (
-                <div className="absolute top-full left-2 right-2 mt-2 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 z-[50] overflow-hidden animate-in slide-in-from-top-2">
-                  {suggestions.map(s => (
-                    <button key={s} onClick={() => { setUncoveredShiftId(s); setShowSuggestions(false); }} className="w-full text-left px-6 py-4 hover:bg-blue-50 dark:hover:bg-blue-900/20 font-bold transition-colors flex items-center justify-between border-b border-gray-50 dark:border-white/5 last:border-0 dark:text-white"><span>{s}</span><ArrowRight size={16} className="text-blue-500" /></button>
-                  ))}
-                </div>
-              )}
-              <button onClick={calculatePlan} disabled={analyzing || !uncoveredShiftId} className="absolute right-3 top-1/2 -translate-y-1/2 bg-blue-600 text-white px-8 py-3 rounded-2xl font-black text-sm hover:scale-105 active:scale-95 transition-all shadow-lg disabled:opacity-50">{analyzing ? <Loader2 className="animate-spin" size={20} /> : 'ANALITZAR'}</button>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 relative">
+              <div className="relative flex-1">
+                <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={24} />
+                <input
+                  type="text"
+                  placeholder="Torn descobert (Ex: Q031)..."
+                  value={uncoveredShiftId}
+                  onChange={(e) => handleInputChange(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && calculatePlan()}
+                  className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] sm:rounded-[28px] py-5 sm:py-6 pl-14 sm:pl-16 pr-8 focus:ring-4 focus:ring-blue-500/20 outline-none text-lg sm:text-xl font-bold transition-all dark:text-white shadow-inner"
+                />
+                {showSuggestions && suggestions.length > 0 && (
+                  <div className="absolute top-full left-2 right-2 mt-2 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 z-[50] overflow-hidden animate-in slide-in-from-top-2">
+                    {suggestions.map(s => (
+                      <button key={s} onClick={() => { setUncoveredShiftId(s); setShowSuggestions(false); }} className="w-full text-left px-6 py-4 hover:bg-blue-50 dark:hover:bg-blue-900/20 font-bold transition-colors flex items-center justify-between border-b border-gray-50 dark:border-white/5 last:border-0 dark:text-white"><span>{s}</span><ArrowRight size={16} className="text-blue-500" /></button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={calculatePlan}
+                disabled={analyzing || !uncoveredShiftId}
+                className="bg-blue-600 text-white px-8 py-5 sm:py-3 rounded-[24px] sm:rounded-2xl font-black text-sm sm:text-base hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-blue-500/20 disabled:opacity-50 whitespace-nowrap flex items-center justify-center gap-2"
+              >
+                {analyzing ? <Loader2 className="animate-spin" size={20} /> : <><RotateCcw size={18} /> ANALITZAR</>}
+              </button>
             </div>
           </div>
         </div>
