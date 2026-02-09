@@ -1,10 +1,13 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Search, User, Phone, Hash, Loader2, ArrowRight, X, UserCircle, CalendarDays } from 'lucide-react';
+import { Search, User, Phone, Hash, Loader2, ArrowRight, X, UserCircle, CalendarDays, Share2 } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
 import { PhonebookEntry, DailyAssignment } from '../types.ts';
 
-export const AgendaView: React.FC<{ isPrivacyMode: boolean }> = ({ isPrivacyMode }) => {
+export const AgendaView: React.FC<{
+  isPrivacyMode: boolean,
+  onShare: (title: string, text: string, url?: string, files?: File[]) => void
+}> = ({ isPrivacyMode, onShare }) => {
   const [query, setQuery] = useState('');
   const [allAgents, setAllAgents] = useState<PhonebookEntry[]>([]);
   const [assignments, setAssignments] = useState<DailyAssignment[]>([]);
@@ -179,7 +182,10 @@ export const AgendaView: React.FC<{ isPrivacyMode: boolean }> = ({ isPrivacyMode
             filteredAgents.map(agent => {
               const shift = getAgentShift(agent.nomina);
               return (
-                <div key={agent.nomina} className="bg-white dark:bg-gray-900 rounded-[32px] p-8 border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-xl hover:border-fgc-green/30 transition-all group relative overflow-hidden flex flex-col h-full">
+                <div
+                  key={agent.nomina}
+                  className="bg-white dark:bg-gray-900 rounded-[32px] p-8 border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-xl hover:border-fgc-green/30 transition-all group relative overflow-hidden flex flex-col h-full"
+                >
                   <div className="absolute top-0 right-0 w-24 h-24 bg-fgc-green/5 -mr-8 -mt-8 rounded-full blur-2xl group-hover:bg-fgc-green/10 transition-colors" />
 
                   <div className="flex items-center gap-5 mb-8 relative z-10">
@@ -187,7 +193,29 @@ export const AgendaView: React.FC<{ isPrivacyMode: boolean }> = ({ isPrivacyMode
                       {(agent.cognom1 || agent.nom).charAt(0)}
                     </div>
                     <div className="min-w-0">
-                      <h3 className="text-xl font-black text-fgc-grey dark:text-white leading-tight uppercase truncate">{agent.cognom1} {agent.cognom2}, {agent.nom}</h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-xl font-black text-fgc-grey dark:text-white leading-tight uppercase truncate">{agent.cognom1} {agent.cognom2}, {agent.nom}</h3>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const vcard = [
+                              'BEGIN:VCARD',
+                              'VERSION:3.0',
+                              `FN:${agent.nom} ${agent.cognom1} ${agent.cognom2}`,
+                              `N:${agent.cognom1} ${agent.cognom2};${agent.nom};;;`,
+                              ...(agent.phones ? agent.phones.map(p => `TEL;TYPE=CELL:${p}`) : []),
+                              `NOTE:Nòmina ${agent.nomina}`,
+                              'END:VCARD'
+                            ].join('\n');
+                            const file = new File([vcard], `${agent.cognom1 || agent.nom}_${agent.nomina}.vcf`, { type: 'text/vcard' });
+                            onShare(`${agent.cognom1}, ${agent.nom}`, `Contacte de l'agent nòmina ${agent.nomina}`, undefined, [file]);
+                          }}
+                          className="p-2 text-gray-300 hover:text-fgc-green transition-colors"
+                          title="Compartir Contacte"
+                        >
+                          <Share2 size={16} />
+                        </button>
+                      </div>
                       <div className="flex items-center gap-2 mt-1">
                         <Hash size={12} className="text-gray-400 dark:text-gray-500" />
                         <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">{agent.nomina}</span>

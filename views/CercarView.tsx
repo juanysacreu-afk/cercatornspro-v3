@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { SearchType } from '../types.ts';
-import { Search, User, Train, MapPin, Hash, ArrowRight, Loader2, Info, Phone, Clock, FileText, ChevronDown, LayoutGrid, Timer, X, BookOpen, AlertTriangle, Users, Camera, Brush, Save, Check } from 'lucide-react';
+import { Search, User, Train, MapPin, Hash, ArrowRight, Loader2, Info, Phone, Clock, FileText, ChevronDown, LayoutGrid, Timer, X, BookOpen, AlertTriangle, Users, Camera, Brush, Save, Check, Share2 } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
 
 // Importación de utilidades y componentes extraídos
@@ -623,63 +623,39 @@ export const CercarView: React.FC<{
                       </div>
                     </div>
                   </div>
-                  {
-                    isStationGroup && group.stationCode && (
-                      <div className="mb-8 mx-auto w-full max-w-4xl aspect-[16/9] rounded-[32px] overflow-hidden border-[8px] border-gray-900 bg-black relative shadow-2xl">
-                        <iframe
-                          src={`https://geotren.fgc.cat/isic/${group.stationCode.toLowerCase()}`}
-                          className="w-[222.22%] h-[222.22%] border-0 origin-top-left scale-[0.45]"
-                          title={`Informació estació ${group.station}`}
-                          allow="geolocation"
-                        />
-                      </div>
-                    )
-                  }
+                  {isStationGroup && group.stationCode && (
+                    <div className="mb-8 mx-auto w-full max-w-4xl aspect-[16/9] rounded-[32px] overflow-hidden border-[8px] border-gray-900 bg-black relative shadow-2xl">
+                      <iframe
+                        src={`https://geotren.fgc.cat/isic/${group.stationCode.toLowerCase()}`}
+                        className="w-[222.22%] h-[222.22%] border-0 origin-top-left scale-[0.45]"
+                        title={`Informació estació ${group.station}`}
+                        allow="geolocation"
+                      />
+                    </div>
+                  )}
                   <div className="border border-gray-100 dark:border-white/5 rounded-[32px] overflow-hidden bg-white dark:bg-black/20 shadow-sm">
                     <CirculationHeader />
                     <div className="grid grid-cols-1 divide-y divide-gray-100 dark:divide-white/5">
                       {group.circulations.map((circ: any, cIdx: number) => {
                         const itemKey = `${idx}-${cIdx}`;
                         const isActive = checkIfActive((circ.sortida || circ.stopTimeAtStation) as string, (circ.arribada || circ.stopTimeAtStation) as string, nowMin);
-                        const itineraryPoints = [{ nom: circ.inici, hora: circ.sortida, via: circ.via_inici }, ...(circ.estacions?.map((st: any) => ({ nom: st.nom, hora: st.hora || st.sortida || st.arribada, via: st.via })) || []), { nom: circ.final, hora: circ.arribada, via: circ.via_final }];
                         return (
                           <div key={cIdx} className={`flex flex-col transition-all hover:bg-gray-50/50 dark:hover:bg-white/5 relative ${isActive ? 'ring-2 ring-inset ring-red-600 z-10' : ''}`}>
-                            <div className="w-full">
-                              {isStationGroup ? (
-                                <StationRow
-                                  circ={circ}
-                                  itemKey={itemKey}
-                                  nowMin={nowMin}
-                                  trainStatuses={trainStatuses}
-                                  getTrainPhone={getTrainPhone}
-                                  getLiniaColor={getLiniaColor}
-                                  getShiftCurrentStatus={getShiftCurrentStatus}
-                                  openUnitMenu={openUnitMenu}
-                                  toggleItinerari={toggleItinerari}
-                                  isPrivacyMode={isPrivacyMode}
-                                />
-                              ) : (
-                                <CirculationRow
-                                  circ={circ}
-                                  itemKey={itemKey}
-                                  nowMin={nowMin}
-                                  trainStatuses={trainStatuses}
-                                  getTrainPhone={getTrainPhone}
-                                  getLiniaColor={getLiniaColor}
-                                  openUnitMenu={openUnitMenu}
-                                  toggleItinerari={toggleItinerari}
-                                  isPrivacyMode={isPrivacyMode}
-                                />
-                              )}
-                              {expandedItinerari === itemKey && (
-                                <div className="p-4 sm:p-10 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-white/5 animate-in slide-in-from-top-4 duration-500 overflow-hidden">
-                                  <div className="relative flex flex-col pl-8 sm:pl-16 pr-2 sm:pr-6 py-4 space-y-0">
-                                    <div className="absolute left-[15px] sm:left-[29px] top-10 bottom-10 w-0.5 sm:w-1 bg-gray-100 dark:bg-gray-800 rounded-full" />
-                                    {itineraryPoints.map((point, pIdx) => (<ItineraryPoint key={pIdx} point={point} isFirst={pIdx === 0} isLast={pIdx === itineraryPoints.length - 1} nextPoint={itineraryPoints[pIdx + 1]} nowMin={nowMin} />))}
-                                  </div>
+                            {isStationGroup ? (
+                              <StationRow circ={circ} itemKey={itemKey} nowMin={nowMin} trainStatuses={trainStatuses} getTrainPhone={getTrainPhone} getLiniaColor={getLiniaColor} getShiftCurrentStatus={getShiftCurrentStatus} openUnitMenu={openUnitMenu} toggleItinerari={toggleItinerari} isPrivacyMode={isPrivacyMode} />
+                            ) : (
+                              <CirculationRow circ={circ} itemKey={itemKey} nowMin={nowMin} trainStatuses={trainStatuses} getTrainPhone={getTrainPhone} getLiniaColor={getLiniaColor} openUnitMenu={openUnitMenu} toggleItinerari={toggleItinerari} isPrivacyMode={isPrivacyMode} />
+                            )}
+                            {expandedItinerari === itemKey && (
+                              <div className="p-4 sm:p-10 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-white/5 animate-in slide-in-from-top-4 duration-500 overflow-hidden">
+                                <div className="relative flex flex-col pl-8 sm:pl-16 pr-2 sm:pr-6 py-4 space-y-0">
+                                  <div className="absolute left-[15px] sm:left-[29px] top-10 bottom-10 w-0.5 sm:w-1 bg-gray-100 dark:bg-gray-800 rounded-full" />
+                                  {[{ nom: circ.inici, hora: circ.sortida, via: circ.via_inici }, ...(circ.estacions?.map((st: any) => ({ nom: st.nom, hora: st.hora || st.sortida || st.arribada, via: st.via })) || []), { nom: circ.final, hora: circ.arribada, via: circ.via_final }].map((point, pIdx, arr) => (
+                                    <ItineraryPoint key={pIdx} point={point} isFirst={pIdx === 0} isLast={pIdx === arr.length - 1} nextPoint={arr[pIdx + 1]} nowMin={nowMin} />
+                                  ))}
                                 </div>
-                              )}
-                            </div>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -699,7 +675,9 @@ export const CercarView: React.FC<{
                         <div className="flex items-center gap-3">
                           <h2 className="text-xl sm:text-3xl font-black text-fgc-grey dark:text-white tracking-tighter uppercase leading-tight">Torn {group.id}</h2>
                           {group.drivers.length > 1 && (
-                            <span className="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-lg text-[9px] font-black uppercase flex items-center gap-1"><Users size={10} /> Compartit ({group.drivers.length})</span>
+                            <div className="flex gap-2">
+                              <span className="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-lg text-[9px] font-black uppercase flex items-center gap-1"><Users size={10} /> Compartit ({group.drivers.length})</span>
+                            </div>
                           )}
                         </div>
                         <div className="flex items-center gap-2">
@@ -724,10 +702,7 @@ export const CercarView: React.FC<{
                             <div className="w-14 h-14 sm:w-16 sm:h-16 bg-white/40 dark:bg-black/20 rounded-full flex items-center justify-center text-fgc-grey border-2 border-white/60 shrink-0">{group.drivers.length > 1 ? <span className="font-black text-lg">{dIdx + 1}</span> : <User size={28} strokeWidth={2.5} />}</div>
                             <div className="space-y-1 min-w-0 flex-1 md:flex-none">
                               <div className="flex items-center gap-3">
-                                <MarqueeText
-                                  text={`${driver.cognoms}, ${driver.nom}`}
-                                  className="text-xl sm:text-2xl font-black text-fgc-grey tracking-tight leading-tight uppercase"
-                                />
+                                <MarqueeText text={`${driver.cognoms}, ${driver.nom}`} className="text-xl sm:text-2xl font-black text-fgc-grey tracking-tight leading-tight uppercase" />
                                 {driver.tipus_torn && (<span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase shadow-sm border ${driver.tipus_torn === 'Reducció' ? 'bg-purple-600 text-white border-purple-700' : 'bg-blue-600 text-white border-blue-700'}`}>{driver.tipus_torn}</span>)}
                                 {isWorking && (<div className="bg-fgc-grey text-white px-3 py-1 rounded-full text-[9px] font-black uppercase flex items-center gap-1.5 shadow-sm animate-bounce"><div className="w-1.5 h-1.5 bg-fgc-green rounded-full animate-pulse" />TREBALLANT</div>)}
                               </div>
@@ -750,8 +725,6 @@ export const CercarView: React.FC<{
                       {group.fullCirculations?.map((circ: any, cIdx: number) => {
                         const shiftItemKey = `${idx}-${cIdx}`;
                         const isActive = checkIfActive(circ.sortida as string, circ.arribada as string, nowMin);
-                        const itineraryPoints = [{ nom: circ.inici, hora: circ.sortida, via: circ.via_inici }, ...(circ.estacions?.map((st: any) => ({ nom: st.nom, hora: st.hora || st.sortida || st.arribada, via: st.via })) || []), { nom: circ.final, hora: circ.arribada, via: circ.via_final }];
-                        const nextCirc = group.fullCirculations?.[cIdx + 1];
                         return (
                           <React.Fragment key={cIdx}>
                             <div id={`circ-row-${shiftItemKey}`} className={`flex flex-col relative scroll-mt-24 ${isActive ? 'ring-2 ring-inset ring-red-600 z-10' : ''}`}>
@@ -760,12 +733,14 @@ export const CercarView: React.FC<{
                                 <div className="p-4 sm:p-10 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-white/5 animate-in slide-in-from-top-4 duration-500 overflow-hidden">
                                   <div className="relative flex flex-col pl-8 sm:pl-16 pr-2 sm:pr-6 py-4 space-y-0">
                                     <div className="absolute left-[15px] sm:left-[29px] top-10 bottom-10 w-0.5 sm:w-1 bg-gray-100 dark:bg-gray-800 rounded-full" />
-                                    {itineraryPoints.map((point, pIdx) => (<ItineraryPoint key={pIdx} point={point} isFirst={pIdx === 0} isLast={pIdx === itineraryPoints.length - 1} nextPoint={itineraryPoints[pIdx + 1]} nowMin={nowMin} />))}
+                                    {[{ nom: circ.inici, hora: circ.sortida, via: circ.via_inici }, ...(circ.estacions?.map((st: any) => ({ nom: st.nom, hora: st.hora || st.sortida || st.arribada, via: st.via })) || []), { nom: circ.final, hora: circ.arribada, via: circ.via_final }].map((point, pIdx, arr) => (
+                                      <ItineraryPoint key={pIdx} point={point} isFirst={pIdx === 0} isLast={pIdx === arr.length - 1} nextPoint={arr[pIdx + 1]} nowMin={nowMin} />
+                                    ))}
                                   </div>
                                 </div>
                               )}
                             </div>
-                            <TimeGapRow from={circ.arribada} to={nextCirc ? nextCirc.sortida : group.final_torn} id={`gap-row-${idx}-${cIdx}`} nowMin={nowMin} />
+                            <TimeGapRow from={circ.arribada} to={group.fullCirculations?.[cIdx + 1]?.sortida || group.final_torn} id={`gap-row-${idx}-${cIdx}`} nowMin={nowMin} />
                           </React.Fragment>
                         );
                       })}
@@ -779,7 +754,8 @@ export const CercarView: React.FC<{
           <div className="bg-white dark:bg-gray-900 rounded-[32px] py-20 text-center text-gray-400 flex flex-col items-center gap-6"><div className="w-24 h-24 bg-gray-50 dark:bg-black/20 rounded-full flex items-center justify-center text-gray-100"><Search size={48} /></div><div className="space-y-2"><p className="text-xl font-black text-fgc-grey uppercase">No s'han trobat dades</p><p className="text-sm font-medium">Revisa els paràmetres de cerca.</p></div></div>
         ) : !loading && (
           <div className="text-center py-24 opacity-10 flex flex-col items-center"><Train size={80} className="text-fgc-grey mb-8" /><p className="text-lg font-black uppercase tracking-[0.4em] text-fgc-grey">Consulta de Torns Activa</p></div>
-        )}
+        )
+        }
       </div>
 
       {

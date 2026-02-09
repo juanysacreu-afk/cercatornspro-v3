@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, RefreshCcw, Train, Menu, X, Download, BookOpen, Settings, Moon, Sun, ShieldAlert } from 'lucide-react';
 import { AppTab } from './types.ts';
-import CercarView from './views/CercarView.tsx';
+import { CercarView } from './views/CercarView.tsx';
 import OrganitzaView from './views/OrganitzaView.tsx';
 import CiclesView from './views/CiclesView.tsx';
 import AgendaView from './views/AgendaView.tsx';
@@ -42,6 +42,26 @@ const App: React.FC = () => {
   });
 
   const [parkedUnits, setParkedUnits] = useState<ParkedUnit[]>([]);
+
+  const handleShare = async (title: string, text: string, url: string = window.location.href, files?: File[]) => {
+    feedback.click();
+    if (navigator.share) {
+      try {
+        const shareData: ShareData = { title, text, url };
+        if (files && files.length > 0 && navigator.canShare && navigator.canShare({ files })) {
+          shareData.files = files;
+        }
+        await navigator.share(shareData);
+      } catch (e) {
+        if ((e as Error).name !== 'AbortError') {
+          console.warn('Share failed', e);
+        }
+      }
+    } else {
+      navigator.clipboard.writeText(`${title}\n${text}\n${url}`);
+      showToast('Enllaç copiat al portapapers', 'success');
+    }
+  };
 
   const fetchParkedUnits = async () => {
     const { data } = await supabase.from('parked_units').select('*');
@@ -316,20 +336,34 @@ const App: React.FC = () => {
       {/* Main Content: Mantenim les vistes muntades però ocultes per preservar l'estat */}
       <main className="flex-1 w-full py-8 safe-bottom max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className={activeTab === AppTab.Cercar ? 'block' : 'hidden'}>
-          <CercarView isPrivacyMode={isPrivacyMode} externalSearch={globalSearch} onExternalSearchHandled={() => setGlobalSearch(null)} />
+          <CercarView
+            isPrivacyMode={isPrivacyMode}
+            externalSearch={globalSearch}
+            onExternalSearchHandled={() => setGlobalSearch(null)}
+          />
         </div>
         <div className={activeTab === AppTab.Organitza ? 'block' : 'hidden'}>
-          <OrganitzaView isPrivacyMode={isPrivacyMode} />
+          <OrganitzaView
+            isPrivacyMode={isPrivacyMode}
+          />
         </div>
         <div className={activeTab === AppTab.Incidencia ? 'block' : 'hidden'}>
-          <IncidenciaView isPrivacyMode={isPrivacyMode} showSecretMenu={showSecretMenu} parkedUnits={parkedUnits} onParkedUnitsChange={fetchParkedUnits} />
+          <IncidenciaView
+            showSecretMenu={showSecretMenu}
+            parkedUnits={parkedUnits}
+            onParkedUnitsChange={fetchParkedUnits}
+            isPrivacyMode={isPrivacyMode}
+          />
         </div>
         <div className={activeTab === AppTab.Cicles ? 'block' : 'hidden'}>
           <CiclesView parkedUnits={parkedUnits} onParkedUnitsChange={fetchParkedUnits} />
         </div>
         {showSecretMenu && (
           <div className={activeTab === AppTab.Agenda ? 'block' : 'hidden'}>
-            <AgendaView isPrivacyMode={isPrivacyMode} />
+            <AgendaView
+              isPrivacyMode={isPrivacyMode}
+              onShare={handleShare}
+            />
           </div>
         )}
       </main>

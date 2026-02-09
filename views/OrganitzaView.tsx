@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { OrganizeType, DailyAssignment } from '../types.ts';
-import { Columns, Search, Phone, User, Loader2, Clock, LayoutGrid, ArrowRight, CheckCircle2, Coffee, Info, Filter, UserCircle, ChevronDown, X, Train, Hash, RefreshCcw } from 'lucide-react';
+import { Columns, Search, Phone, User, Loader2, Clock, LayoutGrid, ArrowRight, CheckCircle2, Coffee, Info, Filter, UserCircle, ChevronDown, X, Train, Hash, RefreshCcw, Share2 } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
 import { fetchFullTurns } from '../utils/queries.ts';
 import { getShortTornId } from '../utils/fgc.ts';
@@ -9,7 +9,9 @@ import { getServiceToday } from '../utils/serviceCalendar';
 
 type DisDesFilterType = 'ALL' | 'DIS' | 'DES' | 'DIS_DES' | 'FOR' | 'VAC' | 'DAG';
 
-export const OrganitzaView: React.FC<{ isPrivacyMode: boolean }> = ({ isPrivacyMode }) => {
+export const OrganitzaView: React.FC<{
+  isPrivacyMode: boolean
+}> = ({ isPrivacyMode }) => {
   const [organizeType, setOrganizeType] = useState<OrganizeType>(OrganizeType.Comparador);
 
   const [nowMin, setNowMin] = useState<number>(0);
@@ -353,8 +355,7 @@ export const OrganitzaView: React.FC<{ isPrivacyMode: boolean }> = ({ isPrivacyM
 
                       return (
                         <div
-                          key={maquinista.id}
-                          className={`bg-white dark:bg-gray-800 rounded-[28px] p-5 border transition-all flex flex-col gap-4 group hover:shadow-xl ${isDis ? 'border-orange-200 dark:border-orange-500/20 bg-orange-50/10 dark:bg-orange-500/5 hover:border-orange-300' :
+                          className={`bg-white dark:bg-gray-800 rounded-[28px] p-5 border transition-all flex flex-col h-full gap-4 group hover:shadow-xl ${isDis ? 'border-orange-200 dark:border-orange-500/20 bg-orange-50/10 dark:bg-orange-500/5 hover:border-orange-300' :
                             isDes ? 'border-green-200 dark:border-fgc-green/20 bg-green-50/10 dark:bg-fgc-green/5 hover:border-fgc-green/30' :
                               'border-gray-100 dark:border-white/5 hover:border-fgc-green/30'
                             }`}
@@ -366,7 +367,7 @@ export const OrganitzaView: React.FC<{ isPrivacyMode: boolean }> = ({ isPrivacyM
                               }`}>
                               {maquinista.cognoms?.charAt(0) || maquinista.nom?.charAt(0)}
                             </div>
-                            <div className="min-w-0">
+                            <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2">
                                 <h3 className="text-base font-black text-fgc-grey dark:text-white leading-tight uppercase truncate">{maquinista.cognoms}, {maquinista.nom}</h3>
                                 {maquinista.tipus_torn && (
