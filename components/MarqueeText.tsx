@@ -34,6 +34,7 @@ export const MarqueeText: React.FC<MarqueeTextProps> = ({ text, className = '' }
                 ref={textRef}
                 className={`
                     ${className} 
+                    inline-block
                     whitespace-nowrap 
                     ${shouldAnimate ? 'animate-marquee' : 'truncate'}
                     transition-all
