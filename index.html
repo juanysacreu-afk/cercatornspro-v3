@@ -86,7 +86,7 @@
 
     @keyframes marquee {
       0% {
-        transform: translateX(100%);
+        transform: translateX(0);
       }
 
       100% {
@@ -97,7 +97,8 @@
     .animate-marquee {
       display: inline-block;
       white-space: nowrap;
-      animation: marquee 10s linear infinite;
+      animation: marquee 15s linear infinite;
+      padding-right: 50px;
     }
 
     .pro-badge {
