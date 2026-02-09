@@ -296,44 +296,46 @@ const App: React.FC = () => {
               </button>
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10"
+                className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-transform active:scale-90"
               >
-                {isMobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
+                <div className={`transition-all duration-500 ${isMobileMenuOpen ? 'rotate-90 scale-110' : 'rotate-0 scale-100'}`}>
+                  {isMobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
+                </div>
               </button>
             </div>
           </div>
         </div>
 
-        {/* Mobile menu */}
-        {isMobileMenuOpen && (
-          <div className="md:hidden bg-fgc-grey border-t border-white/10 px-2 pt-2 pb-3 space-y-1 shadow-2xl">
-            {navItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => {
-                  setActiveTab(item.id);
-                  setIsMobileMenuOpen(false);
-                }}
-                onDoubleClick={item.id === AppTab.Cercar ? togglePrivacyMode : undefined}
-                className={`w-full flex items-center gap-4 px-4 py-4 rounded-xl text-lg font-bold ${activeTab === item.id ? 'bg-fgc-green text-fgc-grey' : 'text-gray-300'
-                  }`}
-              >
-                {item.icon}
-                {item.label}
-              </button>
-            ))}
+        {/* Mobile menu (Notch expansion style) */}
+        <div className={`md:hidden bg-fgc-grey border-t border-white/10 px-2 pt-2 pb-6 space-y-1 shadow-2xl overflow-hidden dynamic-island-menu ${isMobileMenuOpen ? 'dynamic-island-menu-open' : ''}`}>
+          {navItems.map((item, index) => (
             <button
+              key={item.id}
               onClick={() => {
-                setShowUploadModal(true);
+                setActiveTab(item.id);
                 setIsMobileMenuOpen(false);
               }}
-              className="w-full flex items-center gap-4 px-4 py-4 text-fgc-green font-bold text-lg border-t border-white/5 mt-2"
+              onDoubleClick={item.id === AppTab.Cercar ? togglePrivacyMode : undefined}
+              className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-lg font-bold transition-all active:scale-95 menu-item-stagger ${activeTab === item.id ? 'bg-fgc-green text-fgc-grey' : 'text-gray-300 hover:bg-white/5'
+                }`}
+              style={{ transitionDelay: `${index * 50}ms` }}
             >
-              <Download size={20} />
-              Carregar PDF Diari
+              {item.icon}
+              {item.label}
             </button>
-          </div>
-        )}
+          ))}
+          <button
+            onClick={() => {
+              setShowUploadModal(true);
+              setIsMobileMenuOpen(false);
+            }}
+            className="w-full flex items-center gap-4 px-6 py-4 text-fgc-green font-bold text-lg border-t border-white/5 mt-4 menu-item-stagger"
+            style={{ transitionDelay: `${navItems.length * 50}ms` }}
+          >
+            <Download size={20} />
+            Carregar PDF Diari
+          </button>
+        </div>
       </nav>
 
       {/* Main Content: Mantenim les vistes muntades però ocultes per preservar l'estat */}
