@@ -66,7 +66,7 @@ export const StationRow: React.FC<StationRowProps> = ({
 
                 {/* Telèfon mòbil (opcional) */}
                 {circ.train && trainPhone && (
-                    <a href={isPrivacyMode ? undefined : `tel:${trainPhone}`} onClick={(e) => e.stopPropagation()} className={`md:hidden p-1.5 rounded-lg border shadow-sm transition-all active:scale-90 ${isBroken ? 'bg-red-600 text-white border-red-700' : 'bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-grey dark:text-fgc-green border-fgc-green/30 dark:border-fgc-green/20'} ${isPrivacyMode ? 'cursor-default' : ''}`}>
+                    <a href={isPrivacyMode ? undefined : `tel:${trainPhone}`} onClick={(e) => e.stopPropagation()} className={`md:hidden p-1.5 rounded-lg border shadow-sm transition-all active:scale-90 ${isBroken ? 'bg-red-600 text-white border-red-700' : 'bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-green border-fgc-green/30 dark:border-fgc-green/20'} ${isPrivacyMode ? 'cursor-default' : ''}`}>
                         <Radio size={12} />
                     </a>
                 )}
@@ -82,8 +82,8 @@ export const StationRow: React.FC<StationRowProps> = ({
                         </div>
                         {circ.train && (
                             <div className={`flex items-center gap-1.5 ml-1 pl-1.5 border-l ${isBroken ? 'border-white/30' : isViatger ? 'border-sky-200 dark:border-sky-800' : 'border-fgc-green/40 dark:border-fgc-green/20'}`}>
-                                <a href={trainPhone ? (isPrivacyMode ? undefined : `tel:${trainPhone}`) : '#'} className={`${isBroken ? 'text-white' : isViatger ? 'text-sky-600 dark:text-sky-400' : 'text-fgc-grey dark:text-gray-300'} hover:text-blue-700 transition-colors flex items-center ${isPrivacyMode ? 'cursor-default' : ''}`}>
-                                    <Radio size={8} className="opacity-50" />
+                                <a href={trainPhone ? (isPrivacyMode ? undefined : `tel:${trainPhone}`) : '#'} className={`${isBroken ? 'text-white' : isViatger ? 'text-sky-600 dark:text-sky-400' : 'text-fgc-green dark:text-fgc-green'} hover:text-blue-700 transition-colors flex items-center ${isPrivacyMode ? 'cursor-default' : ''}`}>
+                                    <Radio size={8} className="opacity-80" />
                                     <span className="text-[10px] ml-0.5">{circ.train}</span>
                                 </a>
                             </div>
