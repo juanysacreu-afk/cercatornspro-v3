@@ -31,16 +31,25 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSele
     const [animating, setAnimating] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
 
+    // Expansion coordinates
+    const cx = triggerRect ? triggerRect.left + triggerRect.width / 2 : window.innerWidth / 2;
+    const cy = triggerRect ? triggerRect.top + triggerRect.height / 2 : window.innerHeight / 2;
+
     useEffect(() => {
         if (isOpen) {
             setQuery('');
             setResults([]);
             setSelectedIndex(0);
             setAnimating(true);
-            setTimeout(() => inputRef.current?.focus(), 400);
+            // On mobile, focus might need more time or a cleaner state
+            const timer = setTimeout(() => {
+                inputRef.current?.focus();
+                setAnimating(false);
+            }, 600);
+            return () => clearTimeout(timer);
         } else {
             setAnimating(true);
-            const timer = setTimeout(() => setAnimating(false), 800);
+            const timer = setTimeout(() => setAnimating(false), 500);
             return () => clearTimeout(timer);
         }
     }, [isOpen]);
@@ -48,7 +57,6 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSele
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (!isOpen) return;
-
             if (e.key === 'Escape') onClose();
             if (e.key === 'ArrowDown') {
                 e.preventDefault();
@@ -64,7 +72,6 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSele
                 onSelect(results[selectedIndex]);
             }
         };
-
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [isOpen, results, selectedIndex, onClose, onSelect]);
@@ -75,7 +82,6 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSele
                 setResults([]);
                 return;
             }
-
             setLoading(true);
             try {
                 const searchTasks = [
@@ -83,7 +89,6 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSele
                     supabase.from('daily_assignments').select('nom, cognoms, torn, empleat_id').or(`nom.ilike.%${query}%,cognoms.ilike.%${query}%,empleat_id.ilike.%${query}%`).limit(5),
                     supabase.from('circulations').select('id, inici, final').ilike('id', `%${query}%`).limit(5)
                 ];
-
                 const [shiftsRes, driversRes, circRes] = await Promise.all(searchTasks);
                 const newResults: SearchResult[] = [];
                 const normalizedQuery = normalizeStr(query);
@@ -91,35 +96,24 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSele
                 ALL_STATIONS.filter(s => normalizeStr(s).includes(normalizedQuery)).slice(0, 3).forEach(s => {
                     newResults.push({ id: s, type: 'station', title: s, subtitle: 'Estació de la xarxa' });
                 });
-
                 shiftsRes.data?.forEach(s => {
                     newResults.push({ id: s.id, type: 'shift', title: `Torn ${s.id}`, subtitle: `Servei S-${s.servei}` });
                 });
-
                 driversRes.data?.forEach(d => {
                     const fullName = `${d.cognoms}, ${d.nom}`;
-                    newResults.push({
-                        id: `${fullName} (${d.empleat_id})`,
-                        type: 'driver',
-                        title: fullName,
-                        subtitle: `Torn ${d.torn} (Nom. ${d.empleat_id})`,
-                        metadata: { torn: d.torn, nomina: d.empleat_id }
-                    });
+                    newResults.push({ id: `${fullName} (${d.empleat_id})`, type: 'driver', title: fullName, subtitle: `Torn ${d.torn} (Nom. ${d.empleat_id})`, metadata: { torn: d.torn, nomina: d.empleat_id } });
                 });
-
                 circRes.data?.forEach(c => {
                     newResults.push({ id: c.id, type: 'circulation', title: `Circulació ${c.id}`, subtitle: `${c.inici} ➔ ${c.final}` });
                 });
-
                 setResults(newResults);
                 setSelectedIndex(0);
             } catch (err) {
-                console.error('Command Palette Search Error:', err);
+                console.error('Search error:', err);
             } finally {
                 setLoading(false);
             }
         }, 300);
-
         return () => clearTimeout(timer);
     }, [query]);
 
@@ -134,38 +128,26 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSele
         }
     };
 
-    const cx = triggerRect ? triggerRect.left + triggerRect.width / 2 : window.innerWidth / 2;
-    const cy = triggerRect ? triggerRect.top + triggerRect.height / 2 : window.innerHeight / 2;
-
     return (
-        <div className={`fixed inset-0 z-[10001] flex items-center justify-center p-4 sm:pt-[15vh] transition-all duration-500 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+        <div className={`fixed inset-0 z-[10001] flex items-start justify-center p-4 transition-all duration-300 ${isOpen ? 'bg-black/40 backdrop-blur-sm' : 'bg-transparent backdrop-blur-0 pointer-events-none'}`}>
+            {/* Morphing Container */}
             <div
-                className={`fixed inset-0 bg-black/20 dark:bg-black/40 backdrop-blur-xl transition-all duration-700 ${isOpen ? 'opacity-100' : 'opacity-0'}`}
+                className={`w-full max-w-2xl bg-white dark:bg-gray-900 rounded-[32px] shadow-2xl overflow-hidden relative transition-all duration-500 will-change-[clip-path,transform] ${isOpen ? 'mt-4 sm:mt-[10vh]' : 'mt-0'}`}
                 style={{
                     clipPath: isOpen
-                        ? 'circle(150% at ' + cx + 'px ' + cy + 'px)'
-                        : 'circle(0% at ' + cx + 'px ' + cy + 'px)',
-                    transitionTimingFunction: 'cubic-bezier(0.4, 0, 0.2, 1)'
-                }}
-                onClick={onClose}
-            />
-
-            <div
-                className={`w-full max-w-2xl bg-white/90 dark:bg-gray-900/90 backdrop-blur-2xl rounded-[32px] shadow-[0_32px_128px_-16px_rgba(0,0,0,0.3)] border border-white/20 dark:border-white/10 overflow-hidden relative transition-all duration-600 ease-[cubic-bezier(0.34,1.56,0.64,1)]`}
-                style={{
-                    clipPath: isOpen
-                        ? 'circle(150% at ' + cx + 'px ' + cy + 'px)'
-                        : 'circle(32px at ' + cx + 'px ' + cy + 'px)',
-                    transform: isOpen ? 'scale(1) translateY(0)' : 'scale(0.8) translateY(20px)',
+                        ? `circle(150% at ${cx}px ${cy}px)`
+                        : `circle(0px at ${cx}px ${cy}px)`,
+                    transform: isOpen ? 'scale(1) translateY(0)' : 'scale(0.8) translateY(40px)',
                     opacity: isOpen ? 1 : 0
                 }}
             >
+                {/* Header */}
                 <div className="relative border-b border-gray-100 dark:border-white/5">
                     <Search className="absolute left-7 top-1/2 -translate-y-1/2 text-gray-400" size={24} />
                     <input
                         ref={inputRef}
                         type="text"
-                        placeholder="Cerca qualsevol cosa (Cmd + K)..."
+                        placeholder="Cerca nòmina, torn, estació..."
                         className="w-full bg-transparent py-7 pl-16 pr-20 text-xl font-bold dark:text-white outline-none placeholder:text-gray-300 dark:placeholder:text-gray-600"
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
@@ -179,66 +161,47 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSele
                     </div>
                 </div>
 
-                <div className="max-h-[60vh] overflow-y-auto custom-scrollbar px-3 py-4">
+                {/* Results Container */}
+                <div className="max-h-[50vh] overflow-y-auto custom-scrollbar px-3 py-4">
                     {results.length > 0 ? (
                         <div className="space-y-1">
                             {results.map((result, index) => (
                                 <button
                                     key={`${result.type}-${result.id}-${index}`}
-                                    onClick={() => {
-                                        feedback.click();
-                                        onSelect(result);
-                                    }}
-                                    onMouseEnter={() => {
-                                        if (selectedIndex !== index) feedback.haptic(2);
-                                        setSelectedIndex(index);
-                                    }}
-                                    className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all text-left group ${selectedIndex === index
-                                        ? 'bg-fgc-green text-fgc-grey shadow-lg shadow-fgc-green/20 translate-x-1'
-                                        : 'hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300'
-                                        }`}
+                                    onClick={() => { feedback.click(); onSelect(result); }}
+                                    onMouseEnter={() => { if (selectedIndex !== index) feedback.haptic(2); setSelectedIndex(index); }}
+                                    className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all text-left group ${selectedIndex === index ? 'bg-fgc-green text-fgc-grey shadow-lg shadow-fgc-green/20' : 'hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300'}`}
                                 >
-                                    <div className={`p-3 rounded-xl ${selectedIndex === index ? 'bg-fgc-grey/10' : 'bg-gray-100 dark:bg-white/10'
-                                        }`}>
+                                    <div className={`p-3 rounded-xl ${selectedIndex === index ? 'bg-fgc-grey/10' : 'bg-gray-100 dark:bg-white/10'}`}>
                                         {getIcon(result.type)}
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <p className={`font-black text-base uppercase tracking-tight ${selectedIndex === index ? 'text-fgc-grey' : ''
-                                            }`}>{result.title}</p>
-                                        <p className={`text-xs font-medium truncate ${selectedIndex === index ? 'text-fgc-grey/70' : 'text-gray-400'
-                                            }`}>{result.subtitle}</p>
+                                        <p className={`font-black text-base uppercase tracking-tight ${selectedIndex === index ? 'text-fgc-grey' : ''}`}>{result.title}</p>
+                                        <p className={`text-xs font-medium truncate ${selectedIndex === index ? 'text-fgc-grey/70' : 'text-gray-400'}`}>{result.subtitle}</p>
                                     </div>
-                                    <ArrowRight
-                                        size={18}
-                                        className={`transition-all ${selectedIndex === index ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2'
-                                            }`}
-                                    />
+                                    <ArrowRight size={18} className={`transition-all ${selectedIndex === index ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-2'}`} />
                                 </button>
                             ))}
                         </div>
                     ) : query.length >= 2 ? (
                         <div className="py-20 text-center space-y-4 opacity-40">
-                            <div className="w-16 h-16 bg-gray-50 dark:bg-white/5 rounded-full flex items-center justify-center mx-auto text-gray-300 dark:text-gray-700">
-                                <Search size={32} />
-                            </div>
-                            <p className="text-sm font-bold text-gray-400 uppercase tracking-widest italic">No s'han trobat resultats per "{query}"</p>
+                            <Search size={32} className="mx-auto text-gray-300 dark:text-gray-700" />
+                            <p className="text-sm font-bold text-gray-400 uppercase tracking-widest italic">Sense resultats per "{query}"</p>
                         </div>
                     ) : (
-                        <div className="py-24 text-center space-y-4 opacity-20">
-                            <div className="w-20 h-20 bg-gray-50 dark:bg-white/5 rounded-full flex items-center justify-center mx-auto">
-                                <Command size={40} className="text-gray-400" />
-                            </div>
+                        <div className="py-20 text-center space-y-4 opacity-20">
+                            <Command size={40} className="mx-auto text-gray-400" />
                             <p className="text-xs font-black uppercase tracking-[0.4em] text-gray-400">Escriu per cercar...</p>
                         </div>
                     )}
                 </div>
 
+                {/* Footer */}
                 <div className="p-4 bg-gray-50 dark:bg-black/20 border-t border-gray-100 dark:border-white/5 flex items-center justify-between text-[10px] font-black text-gray-400 uppercase tracking-tighter">
                     <div className="flex items-center gap-4">
-                        <span className="flex items-center gap-1"><ArrowRight size={10} className="rotate-90" /> navegar</span>
-                        <span className="flex items-center gap-1"><Command size={10} className="rotate-180" /> seleccionar</span>
+                        <span>ESC per tancar</span>
                     </div>
-                    <p className="text-gray-300 dark:text-gray-700">Cercatorns PRO v3 - Smart Search</p>
+                    <p className="text-gray-300 dark:text-gray-700">Smart Search v3</p>
                 </div>
             </div>
         </div>
