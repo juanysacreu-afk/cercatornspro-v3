@@ -39,7 +39,7 @@ export const StationRow: React.FC<StationRowProps> = ({
     const isViatger = circ.id === 'Viatger';
 
     return (
-        <div id={`station-row-${itemKey}`} className={`p-2.5 sm:p-4 grid grid-cols-[auto_1fr_auto] md:grid-cols-[1fr_1.2fr_1.8fr_1fr_1.2fr] items-center gap-3 sm:gap-4 w-full relative transition-all scroll-mt-24 ${isActive ? 'bg-red-50/40 dark:bg-red-950/20 shadow-inner' : isBroken ? 'bg-red-50/20 dark:bg-red-950/10' : ''}`}>
+        <div id={`station-row-${itemKey}`} className={`p-2.5 sm:p-4 grid grid-cols-[auto_1fr_auto_auto] md:grid-cols-[1fr_1.2fr_1.8fr_1fr_1.2fr] items-center gap-2 sm:gap-4 w-full relative transition-all scroll-mt-24 ${isActive ? 'bg-red-50/40 dark:bg-red-950/20 shadow-inner' : isBroken ? 'bg-red-50/20 dark:bg-red-950/10' : ''}`}>
             {/* Torn i Linia (Mòbil: Agrupats a l'esquerra) */}
             <div className="flex flex-col justify-center items-center gap-1.5 shrink-0">
                 <button
@@ -112,25 +112,27 @@ export const StationRow: React.FC<StationRowProps> = ({
                 ))}
             </div>
 
-            {/* Hora i Accions (Mòbil: Agrupats a la dreta) */}
-            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            {/* Hora */}
+            <div className="flex justify-center items-center shrink-0">
                 <div className={`px-2 py-1.5 sm:px-4 sm:py-2 rounded-xl border transition-all tabular-nums ${isActive ? 'bg-red-600 text-white border-red-700 animate-pulse shadow-md' : isBroken ? 'bg-red-600 text-white border-red-700 shadow-sm' : 'bg-fgc-green/10 dark:bg-fgc-green/5 border-fgc-green/20 dark:border-fgc-green/10'}`}>
                     <span className={`text-xs sm:text-2xl font-black ${isActive || isBroken ? 'text-white' : 'text-fgc-grey dark:text-gray-200'}`}>
                         {(circ.stopTimeAtStation || '--:--').substring(0, 5)}
                     </span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                    <div className="hidden sm:flex items-center gap-1">
-                        {needsImages && <Camera size={14} className="text-blue-500 animate-pulse" />}
-                        {needsRecords && <FileText size={14} className="text-yellow-500 animate-pulse" />}
-                        {needsCleaning && <Brush size={14} className="text-orange-500 animate-pulse" />}
-                        {isBroken && <AlertTriangle size={14} className="text-red-600 animate-pulse" />}
-                    </div>
-                    <button onClick={() => toggleItinerari(itemKey)} className={`p-2 sm:p-3 rounded-xl shadow-md hover:shadow-xl transition-all active:scale-95 border-b-2 border-black/5 flex items-center gap-2 ${isActive || isBroken ? 'bg-red-600 text-white border-red-700' : 'bg-fgc-green text-fgc-grey'}`}>
-                        <BookOpen size={16} />
-                        <span className="hidden lg:inline text-[10px] font-black uppercase tracking-tighter">Itinerari</span>
-                    </button>
+            </div>
+
+            {/* Estat / Detalls */}
+            <div className="flex items-center justify-end gap-1.5 sm:gap-3 shrink-0">
+                <div className="flex items-center gap-1 sm:gap-1.5">
+                    {needsImages && <Camera size={14} className="text-blue-500 animate-pulse drop-shadow-sm" />}
+                    {needsRecords && <FileText size={14} className="text-yellow-500 animate-pulse drop-shadow-sm" />}
+                    {needsCleaning && <Brush size={14} className="text-orange-500 animate-pulse drop-shadow-sm" />}
+                    {isBroken && <AlertTriangle size={14} className="text-red-600 animate-pulse drop-shadow-sm" />}
                 </div>
+                <button onClick={() => toggleItinerari(itemKey)} className={`p-2 sm:p-3 rounded-xl shadow-md hover:shadow-xl transition-all active:scale-95 border-b-2 border-black/5 flex items-center gap-2 ${isActive || isBroken ? 'bg-red-600 text-white border-red-700' : 'bg-fgc-green text-fgc-grey'}`}>
+                    <BookOpen size={16} />
+                    <span className="hidden lg:inline text-[10px] font-black uppercase tracking-tighter">Itinerari</span>
+                </button>
             </div>
         </div>
     );
