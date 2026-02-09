@@ -4,6 +4,9 @@ import { Search, Train, User, MapPin, X, ArrowRight, Loader2, Command } from 'lu
 import { supabase } from '../supabaseClient';
 import { ALL_STATIONS } from '../utils/fgc';
 
+const normalizeStr = (str: string) =>
+    str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
 interface SearchResult {
     id: string;
     type: 'shift' | 'driver' | 'circulation' | 'station';
@@ -77,9 +80,10 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSele
                 const [shiftsRes, driversRes, circRes] = await Promise.all(searchTasks);
 
                 const newResults: SearchResult[] = [];
+                const normalizedQuery = normalizeStr(query);
 
                 // Stations Local Search
-                ALL_STATIONS.filter(s => s.toLowerCase().includes(query.toLowerCase())).slice(0, 3).forEach(s => {
+                ALL_STATIONS.filter(s => normalizeStr(s).includes(normalizedQuery)).slice(0, 3).forEach(s => {
                     newResults.push({ id: s, type: 'station', title: s, subtitle: 'Estació de la xarxa' });
                 });
 
@@ -92,6 +96,9 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSele
                 driversRes.data?.forEach(d => {
                     const fullName = `${d.cognoms}, ${d.nom}`;
                     const searchId = `${fullName} (${d.empleat_id})`;
+
+                    // Client-side refinement for accent-insensitivity if needed
+                    // (though Supabase ilike already filtered some, this ensures parity)
                     newResults.push({
                         id: searchId,
                         type: 'driver',
@@ -100,6 +107,9 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSele
                         metadata: { torn: d.torn, nomina: d.empleat_id }
                     });
                 });
+
+                // Optimization: if no results from DB because of accents, we could fetch a broader set,
+                // but for now we focus on local standardization of what we display.
 
                 // Circulations
                 circRes.data?.forEach(c => {

@@ -17,6 +17,9 @@ import { StationRow } from '../components/StationRow';
 import { MarqueeText } from '../components/MarqueeText';
 import { getServiceToday } from '../utils/serviceCalendar';
 
+const normalizeStr = (str: string) =>
+  (str || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
 export const CercarView: React.FC<{
   isPrivacyMode: boolean,
   externalSearch?: { type: string, query: string } | null,
@@ -59,8 +62,8 @@ export const CercarView: React.FC<{
 
       setSearchType(internalSearchType);
 
-      // Trigger search
-      executeSearch(q);
+      // Trigger search with explicit values to bypass async state update delay
+      executeSearch(q, internalSearchType);
 
       onExternalSearchHandled();
     }
@@ -305,17 +308,18 @@ export const CercarView: React.FC<{
       const { data } = await supabase.from('circulations').select('id').ilike('id', `%${val}%`).limit(8);
       if (data) { setSuggestions((data as any[]).map(item => item.id as string)); setShowSuggestions(true); }
     } else if (searchType === SearchType.Cicle) {
-      const filtered = availableCycles.filter(c => c.toLowerCase().includes(val.toLowerCase())).slice(0, 12);
+      const filtered = availableCycles.filter(c => normalizeStr(c).includes(normalizeStr(val))).slice(0, 12);
       setSuggestions(filtered); setShowSuggestions(true);
     }
   };
 
-  const executeSearch = async (overrideQuery?: string) => {
+  const executeSearch = async (overrideQuery?: string, overrideType?: SearchType) => {
     let searchVal = overrideQuery || query;
-    if (!searchVal && searchType !== SearchType.Cicle && searchType !== SearchType.Estacio) { setResults([]); return; }
+    const currentType = overrideType || searchType;
+    if (!searchVal && currentType !== SearchType.Cicle && currentType !== SearchType.Estacio) { setResults([]); return; }
     setLoading(true); setResults([]); setShowSuggestions(false);
     try {
-      if (searchType === SearchType.Cicle) {
+      if (currentType === SearchType.Cicle) {
         let q = supabase.from('shifts').select('*');
         if (selectedServei !== 'Tots') q = q.eq('servei', selectedServei);
         const [allShifts, cycleAssigRes] = await Promise.all([
@@ -339,9 +343,10 @@ export const CercarView: React.FC<{
           enrichedCircs.sort((a, b) => getFgcMinutes(a.sortida || '00:00') - getFgcMinutes(b.sortida || '00:00'));
           setResults([{ type: 'cycle_summary', cycle_id: searchVal, train: cycleAssigRes.data?.train_number || 'S/A', circulations: enrichedCircs }]);
         }
-      } else if (searchType === SearchType.Estacio) {
-        if (!selectedStation) { setLoading(false); return; }
-        const stationCode = STATION_CODE_MAP[selectedStation] || selectedStation;
+      } else if (currentType === SearchType.Estacio) {
+        if (!selectedStation && !overrideQuery) { setLoading(false); return; }
+        const stationToSearch = overrideQuery || selectedStation;
+        const stationCode = STATION_CODE_MAP[stationToSearch] || stationToSearch;
         const targetStation = stationCode.trim().toUpperCase();
 
         // Optimizació: Filtrar circulacions per estació directament en la base de dades
@@ -410,13 +415,13 @@ export const CercarView: React.FC<{
 
         setResults([{
           type: 'station_summary',
-          station: selectedStation,
+          station: overrideQuery || selectedStation,
           stationCode: stationCode,
           circulations: (finalResults as any[]).sort((a, b) => getFgcMinutes(a.stopTimeAtStation) - getFgcMinutes(b.stopTimeAtStation))
         }]);
       } else {
         let turnIds: string[] = [];
-        switch (searchType) {
+        switch (currentType) {
           case SearchType.Torn:
             let qt = supabase.from('shifts').select('id');
             const isNumeric = /^\d+$/.test(searchVal);
@@ -498,12 +503,38 @@ export const CercarView: React.FC<{
         {searchType === SearchType.Estacio ? (
           <div className="space-y-6">
             <div className="flex flex-col lg:flex-row items-stretch lg:items-end gap-6">
-              <div className="flex-1 space-y-2"><label className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-4">Selecciona Estació</label><div className="relative"><MapPin className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={24} /><select value={selectedStation} onChange={(e) => setSelectedStation(e.target.value)} className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] sm:rounded-[32px] py-4 sm:py-6 pl-16 pr-8 focus:ring-4 focus:ring-fgc-green/20 outline-none text-lg sm:text-2xl font-bold appearance-none cursor-pointer dark:text-white"><option value="" className="dark:bg-gray-900">Tria una estació...</option>{allStations.map(st => <option key={st} value={st} className="dark:bg-gray-900">{st}</option>)}</select><ChevronDown className="absolute right-8 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none" size={24} /></div></div>
-              <div className="flex-1 flex flex-row gap-4 items-end">
-                <div className="flex-1 space-y-2 relative"><label className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-4 flex items-center gap-2">De les<button onClick={() => setStartTime(getCurrentTimeStr())} className="text-fgc-green"><Clock size={12} /></button></label><input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] sm:rounded-[32px] py-4 sm:py-6 px-6 focus:ring-4 focus:ring-fgc-green/20 outline-none text-lg sm:text-2xl font-bold dark:text-white" /></div>
-                <div className="flex-1 space-y-2 relative"><label className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-4 flex items-center gap-2">A les<button onClick={() => setEndTime(getCurrentTimeStr())} className="text-fgc-green"><Clock size={12} /></button></label><input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] sm:rounded-[32px] py-4 sm:py-6 px-6 focus:ring-4 focus:ring-fgc-green/20 outline-none text-lg sm:text-2xl font-bold dark:text-white" /></div>
+              <div className="flex-1 space-y-2">
+                <label className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-4">Selecciona Estació</label>
+                <div className="relative">
+                  <MapPin className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={24} />
+                  <select
+                    value={selectedStation}
+                    onChange={(e) => { setSelectedStation(e.target.value); if (e.target.value) executeSearch(e.target.value, SearchType.Estacio); }}
+                    className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] sm:rounded-[32px] py-4 sm:py-6 pl-16 pr-8 focus:ring-4 focus:ring-fgc-green/20 outline-none text-lg sm:text-2xl font-bold appearance-none cursor-pointer dark:text-white transition-all"
+                  >
+                    <option value="" className="dark:bg-gray-900">Tria una estació...</option>
+                    {allStations.map(st => <option key={st} value={st} className="dark:bg-gray-900">{st}</option>)}
+                  </select>
+                  <ChevronDown className="absolute right-8 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none" size={24} />
+                </div>
               </div>
-              <button onClick={() => executeSearch()} className="bg-fgc-green text-fgc-grey h-[60px] sm:h-[76px] px-8 sm:px-12 rounded-[24px] sm:rounded-[32px] text-lg sm:text-xl font-black shadow-xl shadow-fgc-green/20 hover:scale-105 active:scale-95 flex items-center justify-center gap-3 shrink-0"><Search size={22} />CERCAR</button>
+              <div className="flex-1 flex flex-row gap-4 items-end">
+                <div className="flex-1 space-y-2 relative">
+                  <label className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-4 flex items-center gap-2">
+                    De les<button onClick={() => setStartTime(getCurrentTimeStr())} className="text-fgc-green"><Clock size={12} /></button>
+                  </label>
+                  <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] sm:rounded-[32px] py-4 sm:py-6 px-6 focus:ring-4 focus:ring-fgc-green/20 outline-none text-lg sm:text-2xl font-bold dark:text-white" />
+                </div>
+                <div className="flex-1 space-y-2 relative">
+                  <label className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-4 flex items-center gap-2">
+                    A les<button onClick={() => setEndTime(getCurrentTimeStr())} className="text-fgc-green"><Clock size={12} /></button>
+                  </label>
+                  <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] sm:rounded-[32px] py-4 sm:py-6 px-6 focus:ring-4 focus:ring-fgc-green/20 outline-none text-lg sm:text-2xl font-bold dark:text-white" />
+                </div>
+              </div>
+              <button onClick={() => executeSearch()} className="bg-fgc-green text-fgc-grey h-[60px] sm:h-[76px] px-8 sm:px-12 rounded-[24px] sm:rounded-[32px] text-lg sm:text-xl font-black shadow-xl shadow-fgc-green/20 hover:scale-105 active:scale-95 flex items-center justify-center gap-3 shrink-0 transition-all">
+                <Search size={22} />CERCAR
+              </button>
             </div>
           </div>
         ) : (
