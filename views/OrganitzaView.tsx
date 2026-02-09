@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { OrganizeType, DailyAssignment } from '../types.ts';
-import { Columns, Search, Phone, User, Loader2, Clock, LayoutGrid, ArrowRight, CheckCircle2, Coffee, Info, Filter, UserCircle, ChevronDown, X, Train, Hash, RefreshCcw, Share2 } from 'lucide-react';
+import { Search, Phone, User, Loader2, Clock, LayoutGrid, ArrowRight, CheckCircle2, Coffee, Info, Filter, UserCircle, ChevronDown, X, Train, Hash, RefreshCcw } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
 import { fetchFullTurns } from '../utils/queries.ts';
 import { getShortTornId } from '../utils/fgc.ts';
@@ -31,6 +31,34 @@ export const OrganitzaView: React.FC<{
 
   const filterRef = useRef<HTMLDivElement>(null);
   const serveiTypes = ['0', '100', '400', '500'];
+
+  function getFgcMinutes(timeStr: string) {
+    if (!timeStr || !timeStr.includes(':')) return 0;
+    const [h, m] = timeStr.split(':').map(Number);
+    let total = h * 60 + m;
+    if (h < 4) total += 24 * 60;
+    return total;
+  }
+
+  function formatFgcTime(totalMinutes: number) {
+    let mins = totalMinutes;
+    if (mins >= 24 * 60) mins -= 24 * 60;
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+  }
+
+  const getStatusColor = (codi: string) => {
+    const c = (codi || '').toUpperCase().trim();
+    if (c === 'PC') return 'bg-blue-400';
+    if (c === 'SR') return 'bg-purple-600';
+    if (c === 'RE') return 'bg-purple-300';
+    if (c === 'RB') return 'bg-pink-500';
+    if (c === 'NA') return 'bg-orange-500';
+    if (c === 'PN') return 'bg-[#00B140]';
+    if (c === 'TB') return 'bg-[#a67c52]';
+    return 'bg-gray-200 dark:bg-gray-700';
+  };
 
   useEffect(() => {
     const updateTime = () => {
@@ -83,49 +111,7 @@ export const OrganitzaView: React.FC<{
     }
   };
 
-  function getFgcMinutes(timeStr: string) {
-    if (!timeStr || !timeStr.includes(':')) return 0;
-    const [h, m] = timeStr.split(':').map(Number);
-    let total = h * 60 + m;
-    if (h < 4) total += 24 * 60;
-    return total;
-  }
-
-  function formatFgcTime(totalMinutes: number) {
-    let mins = totalMinutes;
-    if (mins >= 24 * 60) mins -= 24 * 60;
-    const h = Math.floor(mins / 60);
-    const m = mins % 60;
-    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-  }
-
-  const getStatusColor = (codi: string) => {
-    const c = (codi || '').toUpperCase().trim();
-    if (c === 'PC') return 'bg-blue-400';
-    if (c === 'SR') return 'bg-purple-600';
-    if (c === 'RE') return 'bg-purple-300';
-    if (c === 'RB') return 'bg-pink-500';
-    if (c === 'NA') return 'bg-orange-500';
-    if (c === 'PN') return 'bg-[#00B140]';
-    if (c === 'TB') return 'bg-[#a67c52]';
-    return 'bg-gray-200 dark:bg-gray-700';
-  };
-
-  const fetchFullTurnData = async (turnId: string) => {
-    const results = await fetchFullTurns([turnId], selectedServei === '0' ? undefined : selectedServei);
-    return results[0] || null;
-  };
-
-  const handleCompare = async () => {
-    if (!turn1Id || !turn2Id) return;
-    setLoadingComparator(true);
-    try {
-      const [d1, d2] = await Promise.all([fetchFullTurnData(turn1Id), fetchFullTurnData(turn2Id)]);
-      setTurn1Data(d1); setTurn2Data(d2);
-    } catch (e) { console.error(e); } finally { setLoadingComparator(false); }
-  };
-
-  function getSegments(turn: any) {
+  const getSegments = useCallback((turn: any) => {
     if (!turn) return [];
     const startMin = getFgcMinutes(turn.inici_torn);
     const endMin = getFgcMinutes(turn.final_torn);
@@ -147,9 +133,9 @@ export const OrganitzaView: React.FC<{
       segments.push({ start: currentPos, end: endMin, type: 'gap', codi: (lastLoc || '').trim().toUpperCase() || 'FINAL' });
     }
     return segments;
-  };
+  }, []);
 
-  const calculateCoincidences = (t1: any, t2: any) => {
+  const calculateCoincidences = useCallback((t1: any, t2: any) => {
     if (!t1 || !t2) return [];
     const segs1 = getSegments(t1).filter(s => s.type === 'gap');
     const segs2 = getSegments(t2).filter(s => s.type === 'gap');
@@ -168,7 +154,51 @@ export const OrganitzaView: React.FC<{
       });
     });
     return coincidences.sort((a, b) => a.start - b.start);
+  }, [getSegments]);
+
+  const fetchFullTurnData = async (turnId: string) => {
+    const results = await fetchFullTurns([turnId], selectedServei === '0' ? undefined : selectedServei);
+    return results[0] || null;
   };
+
+  const handleCompare = async () => {
+    if (!turn1Id || !turn2Id) return;
+    setLoadingComparator(true);
+    try {
+      const [d1, d2] = await Promise.all([fetchFullTurnData(turn1Id), fetchFullTurnData(turn2Id)]);
+      setTurn1Data(d1); setTurn2Data(d2);
+    } catch (e) { console.error(e); } finally { setLoadingComparator(false); }
+  };
+
+  const turn1Segments = useMemo(() => getSegments(turn1Data), [turn1Data, getSegments]);
+  const turn2Segments = useMemo(() => getSegments(turn2Data), [turn2Data, getSegments]);
+
+  const gr = useMemo(() => (turn1Data && turn2Data) ? {
+    min: Math.min(getFgcMinutes(turn1Data.inici_torn), getFgcMinutes(turn2Data.inici_torn)),
+    max: Math.max(getFgcMinutes(turn1Data.final_torn), getFgcMinutes(turn2Data.final_torn))
+  } : { min: 0, max: 0 }, [turn1Data, turn2Data]);
+
+  const coincidences = useMemo(() => calculateCoincidences(turn1Data, turn2Data), [turn1Data, turn2Data, calculateCoincidences]);
+
+  const filteredMaquinistes = useMemo(() => {
+    return allAssignments.filter(maquinista => {
+      const searchStr = maquinistaQuery.toLowerCase();
+      const queryMatch = (maquinista.nom || '').toLowerCase().includes(searchStr) ||
+        (maquinista.cognoms || '').toLowerCase().includes(searchStr) ||
+        maquinista.empleat_id.includes(searchStr);
+
+      if (!queryMatch) return false;
+      if (disDesFilter === 'ALL') return true;
+      if (disDesFilter === 'DIS') return maquinista.torn.startsWith('DIS');
+      if (disDesFilter === 'DES') return maquinista.torn.startsWith('DES');
+      if (disDesFilter === 'DIS_DES') return maquinista.torn.startsWith('DIS') || maquinista.torn.startsWith('DES');
+      if (disDesFilter === 'FOR') return maquinista.torn.startsWith('FOR');
+      if (disDesFilter === 'VAC') return maquinista.torn.startsWith('VAC');
+      if (disDesFilter === 'DAG') return maquinista.torn.startsWith('DAG');
+
+      return true;
+    });
+  }, [allAssignments, maquinistaQuery, disDesFilter]);
 
   const SimpleTimeline = ({ segments, label, colorMode = 'normal', turnId = '', globalMin, globalMax }: { segments: any[], label: string, colorMode?: 'normal' | 'coincidence', turnId?: string, globalMin: number, globalMax: number }) => {
     if (segments.length === 0 && colorMode !== 'coincidence') return null;
@@ -196,27 +226,6 @@ export const OrganitzaView: React.FC<{
       </div>
     );
   };
-
-  const gr = (turn1Data && turn2Data) ? { min: Math.min(getFgcMinutes(turn1Data.inici_torn), getFgcMinutes(turn2Data.inici_torn)), max: Math.max(getFgcMinutes(turn1Data.final_torn), getFgcMinutes(turn2Data.final_torn)) } : { min: 0, max: 0 };
-  const coincidences = (turn1Data && turn2Data) ? calculateCoincidences(turn1Data, turn2Data) : [];
-
-  const filteredMaquinistes = allAssignments.filter(maquinista => {
-    const searchStr = maquinistaQuery.toLowerCase();
-    const queryMatch = (maquinista.nom || '').toLowerCase().includes(searchStr) ||
-      (maquinista.cognoms || '').toLowerCase().includes(searchStr) ||
-      maquinista.empleat_id.includes(searchStr);
-
-    if (!queryMatch) return false;
-    if (disDesFilter === 'ALL') return true;
-    if (disDesFilter === 'DIS') return maquinista.torn.startsWith('DIS');
-    if (disDesFilter === 'DES') return maquinista.torn.startsWith('DES');
-    if (disDesFilter === 'DIS_DES') return maquinista.torn.startsWith('DIS') || maquinista.torn.startsWith('DES');
-    if (disDesFilter === 'FOR') return maquinista.torn.startsWith('FOR');
-    if (disDesFilter === 'VAC') return maquinista.torn.startsWith('VAC');
-    if (disDesFilter === 'DAG') return maquinista.torn.startsWith('DAG');
-
-    return true;
-  });
 
   const filterLabels: Record<DisDesFilterType, string> = {
     ALL: 'Tots',
@@ -260,8 +269,8 @@ export const OrganitzaView: React.FC<{
             {(turn1Data && turn2Data) && (
               <div className="glass-card rounded-[48px] p-8 sm:p-14 border border-gray-100 dark:border-white/5 shadow-sm space-y-16 animate-in zoom-in-95 duration-700 overflow-visible transition-all relative">
                 <div className="absolute top-0 right-0 w-96 h-96 bg-fgc-green/5 blur-[120px] -mr-48 -mt-48 pointer-events-none" />
-                <SimpleTimeline label="CRONOGRAMA TORN A" turnId={turn1Data.id} segments={getSegments(turn1Data)} globalMin={gr.min} globalMax={gr.max} />
-                <SimpleTimeline label="CRONOGRAMA TORN B" turnId={turn2Data.id} segments={getSegments(turn2Data)} globalMin={gr.min} globalMax={gr.max} />
+                <SimpleTimeline label="CRONOGRAMA TORN A" turnId={turn1Data.id} segments={turn1Segments} globalMin={gr.min} globalMax={gr.max} />
+                <SimpleTimeline label="CRONOGRAMA TORN B" turnId={turn2Data.id} segments={turn2Segments} globalMin={gr.min} globalMax={gr.max} />
                 <div className="pt-10 border-t border-dashed border-gray-200 dark:border-white/10 overflow-visible transition-colors">
                   <div className="flex items-center justify-between mb-8"><div className="flex items-center gap-4"><div className="p-3 bg-fgc-green rounded-2xl text-fgc-grey shadow-lg shadow-fgc-green/10"><LayoutGrid size={24} /></div><div><h3 className="text-xl font-black text-fgc-grey dark:text-white tracking-tight">Timeline de Coincidències</h3><p className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mt-0.5">Moments en què coincideixen a la mateixa estació</p></div></div><div className="bg-gray-50 dark:bg-black/20 px-5 py-2 rounded-2xl border border-gray-100 dark:border-white/5 flex items-center gap-3 transition-colors"><span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase">Trobades detectades:</span><span className="text-xl font-black text-fgc-green">{coincidences.length}</span></div></div>
                   <SimpleTimeline label="Mapa visual de trobades" segments={coincidences} colorMode="coincidence" globalMin={gr.min} globalMax={gr.max} />
@@ -493,7 +502,7 @@ const CompareInputSlot = ({ label, value, onChange, data, onClear, nowMin, getSe
     }
   };
 
-  const currentActivity = data ? getSegments(data).find(s => nowMin >= s.start && nowMin < s.end) : null;
+  const currentActivity = useMemo(() => data ? getSegments(data).find(s => nowMin >= s.start && nowMin < s.end) : null, [data, getSegments, nowMin]);
 
   return (
     <div className="bg-white dark:bg-gray-900 rounded-[32px] p-5 sm:p-8 border border-gray-100 dark:border-white/5 shadow-sm flex flex-col min-h-[240px] sm:min-h-[400px] transition-all relative" ref={containerRef}>

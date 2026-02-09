@@ -114,9 +114,14 @@ const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleGlobalKeys);
   }, []);
 
-  // Parallax Effect Logic
+  // Parallax Effect Logic - Optimized for Desktop, Disabled for Mobile
   useEffect(() => {
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || ('ontouchstart' in window);
+    if (isMobile) return;
+
     let ticking = false;
+    let mouseTicking = false;
+
     const handleParallax = () => {
       if (!ticking) {
         window.requestAnimationFrame(() => {
@@ -129,14 +134,20 @@ const App: React.FC = () => {
     };
 
     const handleMouseMove = (e: MouseEvent) => {
-      const x = (e.clientX / window.innerWidth - 0.5) * 2;
-      const y = (e.clientY / window.innerHeight - 0.5) * 2;
-      document.documentElement.style.setProperty('--mouse-x', x.toString());
-      document.documentElement.style.setProperty('--mouse-y', y.toString());
+      if (!mouseTicking) {
+        window.requestAnimationFrame(() => {
+          const x = (e.clientX / window.innerWidth - 0.5) * 2;
+          const y = (e.clientY / window.innerHeight - 0.5) * 2;
+          document.documentElement.style.setProperty('--mouse-x', x.toString());
+          document.documentElement.style.setProperty('--mouse-y', y.toString());
+          mouseTicking = false;
+        });
+        mouseTicking = true;
+      }
     };
 
     window.addEventListener('scroll', handleParallax, { passive: true });
-    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mousemove', handleMouseMove, { passive: true });
 
     return () => {
       window.removeEventListener('scroll', handleParallax);
