@@ -38,6 +38,8 @@ interface LivePersonnel {
   driverName?: string;
   driverSurname?: string;
   torn?: string;
+  shiftStart?: string;
+  shiftEnd?: string;
   shiftStartMin?: number;
   shiftEndMin?: number;
   shiftDep?: string;
@@ -115,7 +117,7 @@ const isServiceVisible = (val: string | undefined, f: string) => {
   if (f === '400' || f === 'S1') return s === '400' || s === 'S1' || s.includes('S1');
   if (f === '500' || f === 'S2') return s === '500' || s === 'S2' || s.includes('S2');
   if (f === '100' || f === 'L6') return s === '100' || s === 'L6' || s.includes('L6');
-  if (f === '0' || f === 'L12') return s === '0' || s === 'L12' || s.includes('L12');
+  if (f === '0' || f === 'L12' || f === '000') return s === '0' || s === '000' || s === 'L12' || s.includes('L12');
   return s === f || s.includes(f) || f.includes(s);
 };
 
@@ -257,6 +259,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
   const [isGeoTrenEnabled, setIsGeoTrenEnabled] = useState(false);
   const [geoTrenData, setGeoTrenData] = useState<any[]>([]);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [allShifts, setAllShifts] = useState<any[]>([]);
 
 
 
@@ -376,11 +379,19 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
       // Optimizació: En lloc de portar TOTS els shifts i TOTES les circulacions,
       // intentem filtrar per horari o almenys processar de forma més eficient.
 
-      // 1. Cercar shifts que podrien estar actius (aproximació per string o portar-los tots si són pocs)
-      const { data: allShifts } = await supabase.from('shifts').select('*');
-      if (!allShifts) return;
+      // 1. Cercar shifts que podrien estar actius (reutilitzant l'estat si ja el tenim)
+      let shiftsData = allShifts;
+      if (!shiftsData || shiftsData.length === 0) {
+        const { data } = await supabase.from('shifts').select('*');
+        if (data) {
+          shiftsData = data;
+          setAllShifts(data);
+        }
+      }
+      if (!shiftsData) return;
 
-      const activeShifts = allShifts.filter(s => {
+      const visibleShifts = shiftsData.filter(s => isServiceVisible(s.servei, selectedServei));
+      const activeShifts = visibleShifts.filter(s => {
         const sMin = getFgcMinutes(s.inici_torn);
         const eMin = getFgcMinutes(s.final_torn);
         return sMin !== null && eMin !== null && displayMin >= sMin && displayMin <= eMin;
@@ -427,7 +438,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
 
       const circDetailsMap = new Map<string, any>(circDetailsData.map((c: any) => [c.id.trim().toUpperCase(), c]));
 
-      allShifts.forEach(shift => {
+      activeShifts.forEach(shift => {
         const shiftService = (shift.servei || '').toString();
 
 
@@ -546,6 +557,8 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                 driver: assignment ? `${(assignment as any).cognoms}, ${(assignment as any).nom}` : 'Sense assignar',
                 driverName: (assignment as any)?.nom, driverSurname: (assignment as any)?.cognoms,
                 torn: shift?.id || '---',
+                shiftStart: shift.inici_torn,
+                shiftEnd: shift.final_torn,
                 shiftStartMin: getFgcMinutes(shift.inici_torn) || 0,
                 shiftEndMin: getFgcMinutes(shift.final_torn) || 0,
                 shiftDep: resolveStationId(shift.dependencia || '', shiftService),
@@ -571,6 +584,8 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
               driverName: (assignment as any)?.nom as string | undefined,
               driverSurname: (assignment as any)?.cognoms as string | undefined,
               torn: shift?.id || '---',
+              shiftStart: shift.inici_torn,
+              shiftEnd: shift.final_torn,
               shiftStartMin: getFgcMinutes(shift.inici_torn) || 0,
               shiftEndMin: getFgcMinutes(shift.final_torn) || 0,
               shiftDep: resolveStationId(shift.dependencia || '', shiftService),
@@ -590,7 +605,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
         });
       });
 
-      allShifts.forEach(shift => {
+      visibleShifts.forEach(shift => {
         const shiftService = (shift.servei || '').toString();
 
         const startMin = getFgcMinutes(shift.inici_torn);
@@ -612,9 +627,12 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                 driverName: (assignment as any).nom,
                 driverSurname: (assignment as any).cognoms,
                 torn: shift.id,
+                shiftStart: shift.inici_torn,
+                shiftEnd: shift.final_torn,
                 shiftStartMin: getFgcMinutes(shift.inici_torn) || 0,
                 shiftEndMin: getFgcMinutes(shift.final_torn) || 0,
                 shiftDep: resolveStationId(shift.dependencia || '', shiftService),
+                servei: shiftService,
                 phones: driverPhones,
                 inici: loc, final: loc, horaPas: formatFgcTime(displayMin),
                 x: coords.x, y: coords.y
@@ -1280,6 +1298,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
 
   const AlternativeServiceOverlay = ({ islandId }: { islandId: string }) => {
     const [viewMode, setViewMode] = useState<'RESOURCES' | 'CIRCULATIONS' | 'SHIFTS'>('RESOURCES');
+    const [lineFilter, setLineFilter] = useState<string>('Tots');
     const [generatedCircs, setGeneratedCircs] = useState<any[]>([]);
     const [generating, setGenerating] = useState(false);
 
@@ -1300,7 +1319,15 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
     const [lineCounts, setLineCounts] = useState<Record<string, number>>({
       S1: 0, S2: 0, L6: 0, L7: 0, L12: 0
     });
-    const [manualHeadway, setManualHeadway] = useState<number | null>(null);
+    const [lineHeadways, setLineHeadways] = useState<Record<string, number | null>>({
+      S1: 15, S2: 15, L6: 15, L7: 15, L12: 15
+    });
+    const [enabledLines, setEnabledLines] = useState<Record<string, boolean>>({
+      S1: true, S2: true, L6: true, L7: true, L12: true
+    });
+    const [normalLines, setNormalLines] = useState<Record<string, boolean>>({
+      S1: false, S2: false, L6: false, L7: false, L12: false
+    });
     const [isInitialized, setIsInitialized] = useState(false);
 
     // Initial calculation for reasonable defaults
@@ -1321,47 +1348,53 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
         return false;
       };
 
-      // 1. Prioritat Alta: S1 i S2 (de forma equilibrada i mateixa quantitat)
+      // 1. Assignació L12: 1 tren per defecte si està disponible
+      if (enabledLines.L12 && canSupportL12) {
+        if (avTrains > 0 && avDrivers > 0) tryInc("L12");
+      }
+
+      // 2. Assignació L7: Tots els trens que hi hagi actualment en l'illa
+      if (enabledLines.L7 && (canSupportL7Full || canSupportL7Local)) {
+        const l7TrainsInIsland = physicalTrains.filter(t => t.linia === 'L7' || t.linia === '300').length;
+        for (let i = 0; i < l7TrainsInIsland; i++) {
+          if (avTrains > 0 && avDrivers > 0) tryInc("L7");
+        }
+      }
+
+      // 3. Assignació L6: Tots els trens que hi hagi actualment en l'illa
+      if (enabledLines.L6 && canSupportL6) {
+        const l6TrainsInIsland = physicalTrains.filter(t => t.linia === 'L6').length;
+        for (let i = 0; i < l6TrainsInIsland; i++) {
+          if (avTrains > 0 && avDrivers > 0) tryInc("L6");
+        }
+      }
+
+      // 4. Assignació Restant: Repartit equitativament entre S1 i S2
       let cycle = 0;
       while (avTrains > 0 && avDrivers > 0 && cycle < 30) {
         let changed = false;
-        if (canSupportS1 && canSupportS2) {
+        if (canSupportS1 && canSupportS2 && enabledLines.S1 && enabledLines.S2) {
           if (avTrains >= 2 && avDrivers >= 2) {
             tryInc("S1");
             tryInc("S2");
             changed = true;
           }
-        } else {
-          if (canSupportS1 && tryInc("S1")) changed = true;
-          if (canSupportS2 && tryInc("S2")) changed = true;
+        } else if (canSupportS1 && enabledLines.S1) {
+          if (tryInc("S1")) changed = true;
+        } else if (canSupportS2 && enabledLines.S2) {
+          if (tryInc("S2")) changed = true;
         }
-        if (!changed) break;
-        cycle++;
-      }
-
-      // 2. Prioritat Mitja: L7
-      if (canSupportL7Full || canSupportL7Local) {
-        const l7TrainsInIsland = physicalTrains.filter(t => t.linia === 'L7' || t.linia === '300').length;
-        let l7Target = l7TrainsInIsland >= 4 ? 3 : Math.max(2, l7TrainsInIsland);
-        for (let i = 0; i < l7Target; i++) {
-          if (avTrains > 0 && avDrivers > 0) tryInc("L7");
-        }
-      }
-
-      // 3. Prioritat Baixa: L6 i L12 (de forma equilibrada)
-      cycle = 0;
-      while (avTrains > 0 && avDrivers > 0 && cycle < 30) {
-        let changed = false;
-        if (canSupportL6 && tryInc("L6")) changed = true;
-        if (canSupportL12 && tryInc("L12")) changed = true;
-
         if (!changed) break;
         cycle++;
       }
 
       // Fallback if nothing assigned but resources available
       if (Object.values(initial).reduce((a, b) => a + b, 0) === 0 && avTrains > 0 && avDrivers > 0) {
-        if (canSupportS1) initial.S1 = 1; else initial.S2 = 1;
+        if (canSupportS1 && enabledLines.S1) initial.S1 = 1;
+        else if (canSupportS2 && enabledLines.S2) initial.S2 = 1;
+        else if ((canSupportL7Full || canSupportL7Local) && enabledLines.L7) initial.L7 = 1;
+        else if (canSupportL6 && enabledLines.L6) initial.L6 = 1;
+        else if (canSupportL12 && enabledLines.L12) initial.L12 = 1;
       }
 
       setLineCounts(initial);
@@ -1372,8 +1405,8 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
       setLineCounts(prev => {
         let updates: Record<string, number> = { [linia]: Math.max(0, prev[linia] + delta) };
 
-        // Mantenir mateixa quantitat de S1 i S2 si l'illa suporta ambdues
-        if ((linia === 'S1' || linia === 'S2') && canSupportS1 && canSupportS2) {
+        // Mantenir mateixa quantitat de S1 i S2 si l'illa suporta ambdues i estan habilitades
+        if ((linia === 'S1' || linia === 'S2') && canSupportS1 && canSupportS2 && enabledLines.S1 && enabledLines.S2) {
           const val = updates[linia];
           updates = { S1: val, S2: val };
         }
@@ -1387,6 +1420,27 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
         }
         return nextState;
       });
+    };
+
+    const updateHeadway = (linia: string, delta: number) => {
+      setLineHeadways(prev => ({
+        ...prev,
+        [linia]: Math.max(1, (prev[linia] || 15) + delta)
+      }));
+    };
+
+    const toggleLine = (linia: string) => {
+      setEnabledLines(prev => {
+        const next = !prev[linia];
+        if (!next) {
+          setLineCounts(c => ({ ...c, [linia]: 0 }));
+        }
+        return { ...prev, [linia]: next };
+      });
+    };
+
+    const toggleNormal = (linia: string) => {
+      setNormalLines(prev => ({ ...prev, [linia]: !prev[linia] }));
     };
 
     const shuttlePlan = useMemo(() => {
@@ -1455,6 +1509,21 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
         const liniaPrefixes: Record<string, string> = { 'S1': 'D', 'S2': 'F', 'L6': 'A', 'L7': 'B', 'L12': 'L' };
         const liniaStationsRef: Record<string, string[]> = { 'S1': S1_STATIONS, 'S2': S2_STATIONS, 'L6': L6_STATIONS, 'L7': L7_STATIONS, 'L12': L12_STATIONS };
 
+        // NORMATIVA LABORAL BV
+        const N_LABORAL = {
+          CAB_CHANGE: 3,
+          TRAIN_CHANGE: 6,
+          HANDOVER: 7,
+          MAX_DRIVE: 120, // 2h
+          MIN_BREAK: 10,
+          MAIN_BREAK: 35,
+          SETUP_GENERAL: 7,
+          SETUP_COTXERA_MAX: 30, // Reina Elisenda
+          WALK_RUBI_COR: 12,
+          WALK_NA_DEPOT: 11,
+          WALK_PN_DEPOT: 6
+        };
+
         const getEndpoints = (lineStations: string[]) => {
           const present = lineStations.filter(s => islandStations.has(s));
           if (present.length < 2) return null;
@@ -1472,246 +1541,402 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
         });
 
         const activeSimultaneous = Math.min(physicalTrains.length, allDrivers.length);
-        const LINE_ORDER = ['S1', 'S2', 'L7', 'L6', 'L12'];
 
-        // Initialize Driver Pool with current personnel
-        let driverPool: any[] = allDrivers.map(d => ({
-          ...d,
-          currentStation: d.stationId,
-          availableAt: displayMin,
-          activeShiftEnd: d.shiftEndMin || 1620,
-          activeShiftDep: d.shiftDep || d.stationId,
-          tripCount: 0
-        }));
+        // Initialize Driver Pool with current personnel and shift extension logic
+        let driverPool: any[] = allDrivers.map(d => {
+          const shiftNum = parseInt(d.torn?.replace(/\D/g, '') || '0');
+          let homeStation = 'PC'; // Default
+          if (shiftNum >= 100 && shiftNum < 200) homeStation = 'SR';
+          else if (shiftNum >= 200 && shiftNum < 300) homeStation = 'RB';
+          else if (shiftNum >= 300 && shiftNum < 400) homeStation = 'NA';
+          else if (shiftNum >= 400 && shiftNum < 500) homeStation = 'PN';
 
+          const startMin = getFgcMinutes(d.shiftStart) || displayMin;
+          const endMin = getFgcMinutes(d.shiftEnd) || 1620;
 
+          // REGLA: Pestaña de extensión hasta 8h 45min (525 min)
+          const extensionLimit = startMin + 525;
+
+          return {
+            ...d,
+            currentStation: d.stationId || 'PC',
+            availableAt: d.type === 'TRAIN' ? displayMin : (getFgcMinutes(d.shiftStart) || displayMin),
+            activeShiftEnd: endMin,
+            shiftExtensionLimit: extensionLimit,
+            activeShiftStart: startMin,
+            activeShiftDep: homeStation,
+            tripCount: 0,
+            contDrive: 0,
+            mainBreakTaken: false,
+            lastArrival: displayMin,
+            currentTrain: null
+          };
+        });
 
         const DEPOT_NODES = ['PC', 'RE', 'COR', 'NA', 'PN', 'RB', 'SC', 'GR'];
         const islandDepots = DEPOT_NODES.filter(d => islandStations.has(d));
 
-        for (const liniaCode of LINE_ORDER) {
-          const count = lineCounts[liniaCode];
-          if (count === 0) continue;
+        const LINE_ORDER = ['S1', 'S2', 'L7', 'L6', 'L12'];
 
+        // Helper to find next maneuver number for maneuvers (V, T or X) (800-999)
+        let lastManeuverNum = 799;
+        (theoryCircs as any[]).forEach(c => {
+          if (c.id.startsWith('V') || c.id.startsWith('T') || c.id.startsWith('X')) {
+            const n = parseInt(c.id.replace(/\D/g, ''));
+            if (n >= 800 && n <= 999 && n > lastManeuverNum) lastManeuverNum = n;
+          }
+        });
+
+        // 0. Process Normal Mode Lines (Including maneuvers and passenger-only trips)
+        const shiftsToIncludeNorm = new Set<string>();
+        LINE_ORDER.forEach(liniaCode => {
+          if (!normalLines[liniaCode] || !enabledLines[liniaCode]) return;
+          (theoryCircs as any[]).forEach(c => {
+            if (c.linia === liniaCode) {
+              const shift = allShifts.find(s => s.circulations.some((cId: any) => (typeof cId === 'string' ? cId : cId.codi) === c.id));
+              if (shift) shiftsToIncludeNorm.add(shift.id);
+            }
+          });
+        });
+
+        shiftsToIncludeNorm.forEach(shiftId => {
+          const shift = allShifts.find(s => s.id === shiftId);
+          if (!shift) return;
+          const shiftService = (shift.servei || '').toString();
+          const assignedD = driverPool.find(dp => dp.torn === shift.id);
+
+          (shift.circulations as any[]).forEach(cRef => {
+            const codi = (typeof cRef === 'string' ? cRef : cRef.codi) || '';
+            if (!codi) return;
+
+            let circ = (theoryCircs as any[]).find(tc => tc.id === codi);
+            if (!circ && codi === 'VIATGER' && typeof cRef === 'object') {
+              circ = { ...cRef, id: 'VIATGER', linia: 'V' };
+            }
+            if (!circ) return;
+
+            const mStart = getFgcMinutes(circ.sortida);
+            const mEnd = getFgcMinutes(circ.arribada);
+            if (mStart === null || mStart < displayMin) return;
+
+            const hasTouch = [circ.inici, circ.final, ...(circ.estacions?.map((s: any) => s.nom) || [])].some(st => islandStations.has(st));
+            if (!hasTouch) return;
+
+            const isManeuver = circ.id.startsWith('V') || circ.id.startsWith('T') || circ.id.startsWith('X');
+            const isViatger = circ.id === 'VIATGER';
+
+            plan.push({
+              id: circ.id,
+              servei: shiftService,
+              linia: circ.linia || '---',
+              train: 'TREN GRÀFIC',
+              driver: assignedD ? assignedD.driver : 'SENSE MAQUINISTA (NORMAL)',
+              torn: shift.id,
+              shiftStart: assignedD?.shiftStart || '--:--',
+              shiftEnd: assignedD?.shiftEnd || '--:--',
+              sortida: circ.sortida,
+              arribada: circ.arribada,
+              route: (circ as any).route || `${circ.inici} → ${circ.final}`,
+              direction: isManeuver ? 'MANIOBRA' : (isViatger ? 'VIATGER' : (parseInt(circ.id.replace(/\D/g, '') || '1') % 2 === 0 ? 'DESCENDENT' : 'ASCENDENT')),
+              startTimeMinutes: mStart,
+              numValue: parseInt(circ.id.replace(/\D/g, '') || '0') || 900,
+              isNormal: true,
+              delay: 0,
+              prevId: 'GRÀFIC',
+              nextId: 'GRÀFIC'
+            });
+
+            if (assignedD && mEnd !== null) {
+              assignedD.availableAt = Math.max(assignedD.availableAt, mEnd + 2);
+              assignedD.currentStation = circ.final;
+              assignedD.tripCount++;
+            }
+          });
+        });
+
+        const lineContexts: Record<string, any> = {};
+
+        // 1. Prepare data for each line (Only alternative ones)
+        LINE_ORDER.forEach(liniaCode => {
+          if (!enabledLines[liniaCode] || normalLines[liniaCode]) return;
+          const count = lineCounts[liniaCode];
+          if (count === 0) return;
           const eps = getEndpoints(liniaStationsRef[liniaCode]);
-          if (!eps) continue;
+          if (!eps) return;
 
           const prefix = liniaPrefixes[liniaCode];
           const areaTheory = (theoryCircs as any[]).filter(c => c.linia === liniaCode);
+          let maxAscStartedNum = 0, maxDescStartedNum = 0, maxServiceTime = displayMin + 180;
 
-          const lineTheory = (theoryCircs as any[]).filter(c => c.linia === liniaCode);
-          let maxAscStartedNum = 0;
-          let maxDescStartedNum = 0;
-          let maxServiceTime = displayMin + 180; // Default buffer (3h)
-
-          lineTheory.forEach(c => {
-            const numPart = c.id.replace(/\D/g, '');
-            const n = parseInt(numPart);
+          areaTheory.forEach(c => {
+            const n = parseInt(c.id.replace(/\D/g, ''));
             const m = getFgcMinutes(c.sortida);
-
-            // 1. Tracks latest standard started trains (0xx/1xx) for numbering
             if (m !== null && m <= displayMin) {
-              if (!isNaN(n) && (numPart[0] === '0' || numPart[0] === '1')) {
-                if (n % 2 !== 0) { // ODD = ASC
-                  if (n > maxAscStartedNum) maxAscStartedNum = n;
-                } else { // EVEN = DESC
-                  if (n > maxDescStartedNum) maxDescStartedNum = n;
-                }
-              }
+              if (n % 2 !== 0 && n > maxAscStartedNum) maxAscStartedNum = n;
+              else if (n % 2 === 0 && n > maxDescStartedNum) maxDescStartedNum = n;
             }
-
-            // 2. Tracks end of service in the island
             const hasTouch = [c.inici, c.final, ...(c.estacions?.map((s: any) => s.nom) || [])].some(st => islandStations.has(st));
-            if (hasTouch && m !== null && m > maxServiceTime) {
-              maxServiceTime = m;
-            }
+            if (hasTouch && m !== null && m > maxServiceTime) maxServiceTime = m;
           });
 
-          let nextAscNum = maxAscStartedNum + 2;
-          let nextDescNum = maxDescStartedNum + 2;
-
           let refTravelTime = 15;
-          const sample = areaTheory
-            .filter(c => {
-              const stops = [c.inici, ...(c.estacions?.map((s: any) => s.nom) || []), c.final];
-              return stops.includes(eps.start) && stops.includes(eps.end);
-            })
-            .sort((a, b) => (getFgcMinutes(b.sortida) || 0) - (getFgcMinutes(a.sortida) || 0))[0];
+          const sample = areaTheory.filter(c => {
+            const stops = [c.inici, ...(c.estacions?.map((s: any) => s.nom) || []), c.final];
+            return stops.includes(eps.start) && stops.includes(eps.end);
+          }).sort((a, b) => (getFgcMinutes(b.sortida) || 0) - (getFgcMinutes(a.sortida) || 0))[0];
 
           if (sample) {
             const stops = [sample.inici, ...(sample.estacions?.map((s: any) => s.nom) || []), sample.final];
             const times = [sample.sortida, ...(sample.estacions?.map((s: any) => s.hora || s.sortida) || []), sample.arribada];
-            const i1 = stops.indexOf(eps.start);
-            const i2 = stops.indexOf(eps.end);
-            const t1 = getFgcMinutes(times[i1]);
-            const t2 = getFgcMinutes(times[i2]);
+            const t1 = getFgcMinutes(times[stops.indexOf(eps.start)]), t2 = getFgcMinutes(times[stops.indexOf(eps.end)]);
             if (t1 !== null && t2 !== null) refTravelTime = Math.abs(t2 - t1);
           } else {
-            const fullPath = getFullPath(eps.start, eps.end);
-            refTravelTime = Math.max(8, (fullPath.length - 1) * 3);
+            refTravelTime = Math.max(8, (getFullPath(eps.start, eps.end).length - 1) * 3);
           }
 
-          // NEW: Penalty for Single Track Working (Via Única)
           const shuttlePath = getFullPath(eps.start, eps.end);
           let vuPenalty = 0;
           for (let i = 0; i < shuttlePath.length - 1; i++) {
-            const u = shuttlePath[i];
-            const v = shuttlePath[i + 1];
-            const v1b = selectedCutSegments.has(`${u}-${v}-V1`) || selectedCutSegments.has(`${v}-${u}-V1`);
-            const v2b = selectedCutSegments.has(`${u}-${v}-V2`) || selectedCutSegments.has(`${v}-${u}-V2`);
-            // Exactly one blocked = Single Track Working
-            if ((v1b && !v2b) || (!v1b && v2b)) {
-              vuPenalty += 5; // 5 mins extra for wait/shuttle in VU
-            }
+            const u = shuttlePath[i], v = shuttlePath[i + 1];
+            if ((selectedCutSegments.has(`${u}-${v}-V1`) || selectedCutSegments.has(`${v}-${u}-V1`)) !== (selectedCutSegments.has(`${u}-${v}-V2`) || selectedCutSegments.has(`${v}-${u}-V2`))) vuPenalty += 5;
           }
           refTravelTime += vuPenalty;
 
-          const branchUnits = (resourcesByLinia[liniaCode] || []).map(u => ({
-            ...u,
-            currentDriverId: u.driver.torn,
-            nextAvail: displayMin
-          }));
-          const numUnits = branchUnits.length;
-          if (numUnits === 0) continue;
-
-          const ratio = numUnits / (physicalTrains.length || 1);
-          const activeOnThisBranch = Math.max(1, Math.floor(activeSimultaneous * ratio));
+          const branchUnits = (resourcesByLinia[liniaCode] || []).map(u => ({ ...u, currentDriverId: u.driver.torn }));
+          const activeOnThisBranch = Math.max(1, Math.floor(activeSimultaneous * (branchUnits.length / (physicalTrains.length || 1))));
           const cycleTime = (refTravelTime * 2) + 12;
-          // Use manualHeadway if set, otherwise calculate.
-          const headway = manualHeadway || Math.max(10, Math.floor(cycleTime / activeOnThisBranch));
+          const headway = lineHeadways[liniaCode] || Math.max(10, Math.floor(cycleTime / activeOnThisBranch));
 
-          let nextStartTimeAsc = displayMin + 2;
-          let nextStartTimeDesc = displayMin + 2 + Math.floor(headway / 2);
+          lineContexts[liniaCode] = {
+            eps, prefix, refTravelTime, headway, maxServiceTime,
+            nextAscNum: maxAscStartedNum + 2, nextDescNum: maxDescStartedNum + 2,
+            branchUnits, nextStartTimeAsc: displayMin + 2, nextStartTimeDesc: displayMin + 2 + Math.floor(headway / 2)
+          };
+        });
 
-          // We generate trips by alternating directions and units
-          let step = 0;
-          while (nextStartTimeAsc < maxServiceTime || nextStartTimeDesc < maxServiceTime) {
-            const canGoAsc = nextStartTimeAsc < maxServiceTime;
-            const canGoDesc = nextStartTimeDesc < maxServiceTime;
-
+        // 2. Create trip slots for all lines
+        const tripSlots: any[] = [];
+        Object.entries(lineContexts).forEach(([liniaCode, ctx]) => {
+          let step = 0, curAsc = ctx.nextStartTimeAsc, curDesc = ctx.nextStartTimeDesc;
+          while (curAsc < ctx.maxServiceTime || curDesc < ctx.maxServiceTime) {
+            const canGoAsc = curAsc < ctx.maxServiceTime, canGoDesc = curDesc < ctx.maxServiceTime;
             let isAsc = (step % 2 === 0);
-            if (isAsc && !canGoAsc) isAsc = false;
-            else if (!isAsc && !canGoDesc) isAsc = true;
-
-            let startTime = isAsc ? nextStartTimeAsc : nextStartTimeDesc;
-            const originalStart = startTime;
-            let endTime = startTime + refTravelTime;
+            if (isAsc && !canGoAsc) isAsc = false; else if (!isAsc && !canGoDesc) isAsc = true;
+            const startTime = isAsc ? curAsc : curDesc;
             if (startTime > 1620) break;
-
-            const unitIdx = step % numUnits;
-            const unitObj = branchUnits[unitIdx];
-
-            const origin = isAsc ? eps.start : eps.end;
-            const dest = isAsc ? eps.end : eps.start;
-
-            const isValidForTrip = (d: any, tEnd: number) => {
-              if (!d) return false;
-              if (tEnd > d.activeShiftEnd) return false;
-
-              // Calculate specific return time to driver's base
-              const returnPath = getFullPath(dest, d.activeShiftDep || 'PC');
-              const returnDuration = Math.max(0, (returnPath.length - 1) * 3);
-
-              if (tEnd + returnDuration > d.activeShiftEnd) return false;
-              return true;
-            };
-
-            // 1. Unified Global Candidate Search: Look at ALL drivers in the pool
-            const candidateList = driverPool.map(d => {
-              const pathToOrigin = getFullPath(d.currentStation, origin);
-              const travelTime = Math.max(0, (pathToOrigin.length - 1) * 3);
-              const earliestArrival = Math.max(d.availableAt, displayMin + travelTime);
-
-              const potentialStart = Math.max(startTime, earliestArrival);
-              const potentialEnd = potentialStart + refTravelTime;
-
-              return {
-                driver: d,
-                earliestArrival,
-                potentialStart,
-                potentialEnd,
-                isValid: isValidForTrip(d, potentialEnd)
-              };
-            }).filter(c => c.isValid);
-
-            let selectedCandidate = candidateList.sort((a, b) => {
-              // Priority 1: Fewest trips (Essential for "Distribute among all")
-              const countDiff = (a.driver.tripCount || 0) - (b.driver.tripCount || 0);
-              if (countDiff !== 0) return countDiff;
-
-              // Priority 2: Minimize delay (Earliest potential start)
-              const timeDiff = a.potentialStart - b.potentialStart;
-              if (timeDiff !== 0) return timeDiff;
-
-              // Priority 3: Prefer those already at the station to avoid unnecessary travel
-              if (a.driver.currentStation === origin && b.driver.currentStation !== origin) return -1;
-              if (a.driver.currentStation !== origin && b.driver.currentStation === origin) return 1;
-
-              // Priority 4: Tie-breaker - prefer current driver to minimize swaps if everything else is equal
-              if (a.driver.torn === unitObj.currentDriverId) return -1;
-              if (b.driver.torn === unitObj.currentDriverId) return 1;
-
-              return 0;
-            })[0];
-
-            let selectedDriver = null;
-            if (selectedCandidate) {
-              // Update trip times based on when the selected driver can actually arrive
-              startTime = selectedCandidate.potentialStart;
-              endTime = selectedCandidate.potentialEnd;
-              selectedDriver = selectedCandidate.driver;
-
-              // Ensure subsequent trips in this direction are pushed back if we delayed this one
-              if (isAsc) nextStartTimeAsc = startTime;
-              else nextStartTimeDesc = startTime;
-
-              unitObj.currentDriverId = selectedDriver.torn;
-            }
-
-            const activeDriver = selectedDriver || { driver: 'SENSE MAQUINISTA', torn: '---' };
-
-            let tripNum = isAsc ? nextAscNum : nextDescNum;
-            if (isAsc) nextAscNum += 2; else nextDescNum += 2;
-
-            plan.push({
-              id: `${prefix}A${tripNum.toString().padStart(3, '0')}`,
-              delay: startTime - originalStart,
-              servei: (activeDriver as any).servei,
-              linia: liniaCode,
-              train: unitObj.train.id,
-              driver: activeDriver.driver || (activeDriver as any).driverName,
-              torn: activeDriver.torn,
-              shiftStart: (activeDriver as any).shiftStartMin !== undefined ? formatFgcTime((activeDriver as any).shiftStartMin) : '---',
-              shiftEnd: (activeDriver as any).activeShiftEnd !== undefined ? formatFgcTime((activeDriver as any).activeShiftEnd) : '---',
-              sortida: formatFgcTime(startTime),
-              arribada: formatFgcTime(endTime),
-              route: `${origin} → ${dest}`,
-              direction: isAsc ? 'ASCENDENT' : 'DESCENDENT',
-              startTimeMinutes: startTime,
-              numValue: tripNum
+            tripSlots.push({
+              liniaCode, isAsc, idealStartTime: startTime,
+              origin: isAsc ? ctx.eps.start : ctx.eps.end,
+              dest: isAsc ? ctx.eps.end : ctx.eps.start,
+              unitIdx: step % ctx.branchUnits.length
             });
-
-            if (selectedDriver) {
-              selectedDriver.currentStation = dest;
-              selectedDriver.availableAt = endTime + 4; // Turnaround
-              selectedDriver.tripCount = (selectedDriver.tripCount || 0) + 1;
-            }
-
-            if (isAsc) nextStartTimeAsc += headway;
-            else nextStartTimeDesc += headway;
+            if (isAsc) curAsc += ctx.headway; else curDesc += ctx.headway;
             step++;
           }
+        });
 
-          // --- NEW: Append Retirement (Retiro) Trips based on proximity ---
-          branchUnits.forEach(u => {
-            const lastTripOfUnit = plan.filter(p => p.train === u.train.id).sort((a, b) => b.startTimeMinutes - a.startTimeMinutes)[0];
-            const fromStation = lastTripOfUnit ? lastTripOfUnit.route.split(' → ')[1] : u.train.stationId;
-            const arrivalAtFrom = lastTripOfUnit ? getFgcMinutes(lastTripOfUnit.arribada) || displayMin : displayMin;
+        // 3. Ensure S1/S2 trip parity (Equal quantity of trips)
+        if (canSupportS1 && canSupportS2) {
+          const s1Count = tripSlots.filter(s => s.liniaCode === 'S1').length;
+          const s2Count = tripSlots.filter(s => s.liniaCode === 'S2').length;
+          const target = Math.min(s1Count, s2Count);
+          let cS1 = 0, cS2 = 0;
+          const filtered = [];
+          for (const s of tripSlots) {
+            if (s.liniaCode === 'S1') { if (cS1 < target) { filtered.push(s); cS1++; } }
+            else if (s.liniaCode === 'S2') { if (cS2 < target) { filtered.push(s); cS2++; } }
+            else filtered.push(s);
+          }
+          tripSlots.length = 0; tripSlots.push(...filtered);
+        }
 
-            // Find nearest depot in the island
-            let targetDepot = '';
-            let minDistance = 999;
+        // 4. Assign drivers chronologically
+        tripSlots.sort((a, b) => a.idealStartTime - b.idealStartTime);
+        tripSlots.forEach(slot => {
+          const ctx = lineContexts[slot.liniaCode], unitObj = ctx.branchUnits[slot.unitIdx];
+          const originalStart = slot.idealStartTime;
+          let startTime = originalStart, endTime = startTime + ctx.refTravelTime;
 
+          const selectedCandidate = driverPool.map(d => {
+            const isAtStation = d.currentStation === slot.origin;
+            const isSameUnit = unitObj.currentDriverId === d.torn;
+
+            // 1. Càlcul de Tiempos Técnicos (Norma 6)
+            let techTime = 0;
+            if (isSameUnit) {
+              techTime = N_LABORAL.CAB_CHANGE; // Canvi de cabina
+            } else if (isAtStation) {
+              techTime = N_LABORAL.TRAIN_CHANGE; // Canvi de material
+            } else {
+              // Walking times específicos
+              if (d.currentStation === 'RB' && slot.origin === 'COR') techTime = N_LABORAL.WALK_RUBI_COR;
+              else if (d.currentStation === 'NA' && slot.origin === 'TNU') techTime = N_LABORAL.WALK_NA_DEPOT;
+              else if (d.currentStation === 'PN' && slot.origin === 'SPN') techTime = N_LABORAL.WALK_PN_DEPOT;
+              else techTime = Math.max(10, (getFullPath(d.currentStation, slot.origin).length - 1) * 4); // General walking
+            }
+
+            // 2. Restricció de Conducció Continuada (Norma 5)
+            let drivingLimitMet = false;
+            if (d.contDrive + ctx.refTravelTime > N_LABORAL.MAX_DRIVE) {
+              drivingLimitMet = true; // Necessita descans mínim 10 min
+            }
+
+            // 3. Ventana de Descans Principal (Norma 2)
+            const hoursInShift = (startTime - d.activeShiftStart) / 60;
+            const isMainBreakWindow = hoursInShift >= 2.5 && hoursInShift <= 5.5;
+            let needsMainBreak = !d.mainBreakTaken && isMainBreakWindow;
+
+            // 4. Disponibilitat horària amb increments per normativa
+            let readyTime = d.availableAt + techTime;
+            if (drivingLimitMet) readyTime += N_LABORAL.MIN_BREAK;
+            if (needsMainBreak) readyTime += N_LABORAL.MAIN_BREAK;
+
+            const eStart = Math.max(startTime, readyTime);
+            const pEnd = eStart + ctx.refTravelTime;
+            const returnDuration = Math.max(0, (getFullPath(slot.dest, d.activeShiftDep || 'PC').length - 1) * 3);
+
+            // REGLA ESTRICTA TELETRANSPORT
+            let canPerform = true;
+            if (!isAtStation && d.tripCount > 0) canPerform = false;
+
+            // VALIDACIÓ AMB EXTENSIÓ DE TORN (Fins a 8h 45min)
+            const isValid = (d && pEnd + returnDuration <= Math.max(d.activeShiftEnd, d.shiftExtensionLimit || 0) && canPerform);
+
+            return { driver: d, pStart: eStart, pEnd, isValid, isAtStation, isSameUnit, needsMainBreak, drivingLimitMet };
+          })
+            .filter(c => c.isValid)
+            .sort((a, b) => {
+              if (a.isSameUnit !== b.isSameUnit) return a.isSameUnit ? -1 : 1;
+              if (a.isAtStation !== b.isAtStation) return a.isAtStation ? -1 : 1;
+              if ((a.driver.tripCount || 0) !== (b.driver.tripCount || 0)) return (a.driver.tripCount || 0) - (b.driver.tripCount || 0);
+              return a.pStart - b.pStart;
+            })[0];
+
+          let selectedDriver = null;
+          if (selectedCandidate) { startTime = selectedCandidate.pStart; endTime = selectedCandidate.pEnd; selectedDriver = selectedCandidate.driver; unitObj.currentDriverId = selectedDriver.torn; }
+          const activeDriver = selectedDriver || { driver: 'SENSE MAQUINISTA (AVÍS)', torn: '---' };
+          const tripNum = slot.isAsc ? ctx.nextAscNum : ctx.nextDescNum;
+          if (slot.isAsc) ctx.nextAscNum += 2; else ctx.nextDescNum += 2;
+
+          plan.push({
+            id: `${ctx.prefix}A${tripNum.toString().padStart(3, '0')}`, delay: startTime - originalStart,
+            servei: (activeDriver as any).servei, linia: slot.liniaCode, train: unitObj.train.id,
+            driver: activeDriver.driver || (activeDriver as any).driverName, torn: activeDriver.torn,
+            shiftStart: activeDriver.shiftStart || activeDriver.sortida || '--:--',
+            shiftEnd: activeDriver.shiftEnd || activeDriver.arribada || '--:--',
+            sortida: formatFgcTime(startTime), arribada: formatFgcTime(endTime),
+            route: `${slot.origin} → ${slot.dest}`, direction: slot.isAsc ? 'ASCENDENT' : 'DESCENDENT',
+            startTimeMinutes: startTime, numValue: tripNum
+          });
+
+          if (selectedDriver) {
+            selectedDriver.currentStation = slot.dest;
+            selectedDriver.availableAt = endTime;
+            selectedDriver.tripCount = (selectedDriver.tripCount || 0) + 1;
+
+            // Actualització de mètriques laborals
+            if (selectedCandidate.drivingLimitMet) selectedDriver.contDrive = 0;
+            selectedDriver.contDrive += ctx.refTravelTime;
+            if (selectedCandidate.needsMainBreak) {
+              selectedDriver.mainBreakTaken = true;
+              selectedDriver.contDrive = 0;
+            }
+
+            // L6 MANEUVER LOGIC AT SR
+            if (slot.liniaCode === 'L6' && slot.isAsc && slot.dest === 'SR') {
+              // 1. Maniobra SR v1 -> SR v0 (Impar/Odd)
+              lastManeuverNum++;
+              if (lastManeuverNum > 999) lastManeuverNum = 801;
+              if (lastManeuverNum % 2 === 0) lastManeuverNum++;
+              if (lastManeuverNum > 999) lastManeuverNum = 801;
+
+              const m1Start = endTime + 2;
+              const m1End = m1Start + 3;
+              plan.push({
+                id: `VA${lastManeuverNum}`, servei: (activeDriver as any).servei, linia: 'L6', train: unitObj.train.id,
+                driver: activeDriver.driver || (activeDriver as any).driverName, torn: activeDriver.torn,
+                sortida: formatFgcTime(m1Start), arribada: formatFgcTime(m1End),
+                route: 'SR Via 1 → SR Via 0', direction: 'MANIOBRA', startTimeMinutes: m1Start, numValue: lastManeuverNum
+              });
+
+              // 2. Maniobra SR v0 -> SR v2 (Parell/Even)
+              lastManeuverNum++;
+              if (lastManeuverNum > 999) lastManeuverNum = 801;
+              if (lastManeuverNum % 2 !== 0) lastManeuverNum++;
+              if (lastManeuverNum > 999) lastManeuverNum = 802;
+
+              const m2Start = m1End + 4;
+              const m2End = m2Start + 3;
+              plan.push({
+                id: `VA${lastManeuverNum}`, servei: (activeDriver as any).servei, linia: 'L6', train: unitObj.train.id,
+                driver: activeDriver.driver || (activeDriver as any).driverName, torn: activeDriver.torn,
+                sortida: formatFgcTime(m2Start), arribada: formatFgcTime(m2End),
+                route: 'SR Via 0 → SR Via 2', direction: 'MANIOBRA', startTimeMinutes: m2Start, numValue: lastManeuverNum
+              });
+
+              selectedDriver.availableAt = m2End;
+              selectedDriver.currentStation = 'SR'; // Now at v2
+            }
+
+            // S1 MANEUVER LOGIC AT TERMINUS (NA)
+            if (slot.liniaCode === 'S1' && slot.dest === 'NA') {
+              // 1. NA v1 -> Zona Maniobres (Impar)
+              lastManeuverNum++;
+              if (lastManeuverNum > 999) lastManeuverNum = 801;
+              if (lastManeuverNum % 2 === 0) lastManeuverNum++;
+              if (lastManeuverNum > 999) lastManeuverNum = 801;
+
+              const m1Start = endTime + 2;
+              const m1End = m1Start + 3;
+              plan.push({
+                id: `TA${lastManeuverNum}`, servei: (activeDriver as any).servei, linia: 'S1', train: unitObj.train.id,
+                driver: activeDriver.driver || (activeDriver as any).driverName, torn: activeDriver.torn,
+                sortida: formatFgcTime(m1Start), arribada: formatFgcTime(m1End),
+                route: 'NA Via 1 → Zona Maniobres', direction: 'MANIOBRA', startTimeMinutes: m1Start, numValue: lastManeuverNum
+              });
+
+              // 2. Zona Maniobres -> NA v2 (Parell)
+              lastManeuverNum++;
+              if (lastManeuverNum > 999) lastManeuverNum = 801;
+              if (lastManeuverNum % 2 !== 0) lastManeuverNum++;
+              if (lastManeuverNum > 999) lastManeuverNum = 802;
+
+              const m2Start = m1End + 4;
+              const m2End = m2Start + 3;
+              plan.push({
+                id: `TA${lastManeuverNum}`, servei: (activeDriver as any).servei, linia: 'S1', train: unitObj.train.id,
+                driver: activeDriver.driver || (activeDriver as any).driverName, torn: activeDriver.torn,
+                sortida: formatFgcTime(m2Start), arribada: formatFgcTime(m2End),
+                route: 'Zona Maniobres → NA Via 2', direction: 'MANIOBRA', startTimeMinutes: m2Start, numValue: lastManeuverNum
+              });
+              selectedDriver.availableAt = m2End;
+              selectedDriver.currentStation = 'NA';
+            } else if (slot.liniaCode === 'S1' && (slot.dest === 'TR' || slot.dest === 'EN')) {
+              // Single TA maneuver for other terminals
+              lastManeuverNum++;
+              if (lastManeuverNum > 999) lastManeuverNum = 801;
+              const mStart = endTime + 2;
+              const mEnd = mStart + 4;
+              plan.push({
+                id: `TA${lastManeuverNum}`, servei: (activeDriver as any).servei, linia: 'S1', train: unitObj.train.id,
+                driver: activeDriver.driver || (activeDriver as any).driverName, torn: activeDriver.torn,
+                sortida: formatFgcTime(mStart), arribada: formatFgcTime(mEnd),
+                route: `${slot.dest} → ${slot.dest}`, direction: 'MANIOBRA', startTimeMinutes: mStart, numValue: lastManeuverNum
+              });
+              selectedDriver.availableAt = mEnd;
+            }
+          }
+        });
+
+        // 5. Retirement/Retiro trips with assigned driver (only if matched with home base)
+        Object.entries(lineContexts).forEach(([liniaCode, ctx]) => {
+          const islandDepots = ['PC', 'RE', 'COR', 'NA', 'PN', 'RB', 'SC', 'GR'].filter(d => islandStations.has(d));
+          ctx.branchUnits.forEach((u: any) => {
+            const lastTrip = plan.filter(p => p.train === u.train.id).sort((a, b) => b.startTimeMinutes - a.startTimeMinutes)[0];
+            const fromStation = lastTrip ? lastTrip.route.split(' → ')[1] : u.train.stationId;
+            const arrival = lastTrip ? getFgcMinutes(lastTrip.arribada) || displayMin : displayMin;
+
+            let targetDepot = '', minDistance = 999;
             islandDepots.forEach(dep => {
               const path = getFullPath(fromStation, dep);
               if (path.length > 0 && path.length < minDistance) {
@@ -1721,37 +1946,69 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
             });
 
             if (targetDepot && fromStation !== targetDepot) {
-              const startTime = Math.max(arrivalAtFrom + 5, maxServiceTime);
-              const travelTime = Math.max(5, (minDistance - 1) * 3);
+              const rStart = Math.max(arrival + 5, ctx.maxServiceTime);
+              const rTravel = Math.max(5, (minDistance - 1) * 3);
+              const rEnd = rStart + rTravel;
+
+              // Check if the last driver is from this home base
+              let assignedDriver = 'MAQUINISTA DE RETIR';
+              let assignedTorn = '---';
+              let sStart = '--:--', sEnd = '--:--';
+
+              if (lastTrip && lastTrip.torn) {
+                const shiftNum = parseInt(lastTrip.torn.replace(/\D/g, '') || '0');
+                let homeStation = 'PC';
+                if (shiftNum >= 100 && shiftNum < 200) homeStation = 'SR';
+                else if (shiftNum >= 200 && shiftNum < 300) homeStation = 'RB';
+                else if (shiftNum >= 300 && shiftNum < 400) homeStation = 'NA';
+                else if (shiftNum >= 400 && shiftNum < 500) homeStation = 'PN';
+
+                // Only assign original driver if depot is home base and has shift time left (including extension)
+                const limit = Math.max(getFgcMinutes(lastTrip.shiftEnd) || 1620, (getFgcMinutes(lastTrip.shiftStart) || 0) + 525);
+                if (targetDepot === homeStation && rEnd <= limit) {
+                  assignedDriver = lastTrip.driver;
+                  assignedTorn = lastTrip.torn;
+                  sStart = lastTrip.shiftStart;
+                  sEnd = lastTrip.shiftEnd;
+                }
+              }
+
+              let retireId = `V${u.train.id.replace(/\./g, '')}`;
+              if (liniaCode === 'S1') {
+                lastManeuverNum++;
+                if (lastManeuverNum > 999) lastManeuverNum = 801;
+                // Retiro a deposito (XA + impar)
+                if (lastManeuverNum % 2 === 0) lastManeuverNum++;
+                if (lastManeuverNum > 999) lastManeuverNum = 801;
+
+                const prefix = targetDepot === 'NA' ? 'XA' : 'TA';
+                retireId = `${prefix}${lastManeuverNum}`;
+              }
+
               plan.push({
-                id: `V${u.train.id.replace(/\./g, '')}`,
+                id: retireId,
                 linia: liniaCode,
                 train: u.train.id,
-                driver: 'RETIR A DIPÒSIT',
-                torn: '---',
-                sortida: formatFgcTime(startTime),
-                arribada: formatFgcTime(startTime + travelTime),
+                driver: assignedDriver,
+                torn: assignedTorn,
+                shiftStart: sStart,
+                shiftEnd: sEnd,
+                sortida: formatFgcTime(rStart),
+                arribada: formatFgcTime(rEnd),
                 route: `${fromStation} → ${targetDepot}`,
                 direction: 'RETIR',
-                startTimeMinutes: startTime,
+                startTimeMinutes: rStart,
                 numValue: 999
               });
             }
           });
-        }
-
-        const finalPlan = Array.from(new Map(plan.map(p => [p.id, p])).values());
-
-        // Sorting by time to process sequences
-        const sortedByTime = finalPlan.sort((a, b) => a.startTimeMinutes - b.startTimeMinutes);
-
-        // Group by unit to track transitions
-        const unitSequences: Record<string, any[]> = {};
-        sortedByTime.forEach(trip => {
-          if (!unitSequences[trip.train]) unitSequences[trip.train] = [];
-          unitSequences[trip.train].push(trip);
         });
 
+        const sortedPlan = plan.sort((a, b) => a.startTimeMinutes - b.startTimeMinutes || a.numValue - b.numValue);
+
+        // Track transitions
+        const unitSequences: Record<string, any[]> = {};
+        sortedPlan.forEach(trip => { if (!unitSequences[trip.train]) unitSequences[trip.train] = []; unitSequences[trip.train].push(trip); });
         Object.values(unitSequences).forEach(trips => {
           for (let i = 0; i < trips.length; i++) {
             trips[i].prevId = i === 0 ? 'En circulació' : trips[i - 1].id;
@@ -1759,11 +2016,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
           }
         });
 
-        setGeneratedCircs(sortedByTime.sort((a, b) => {
-          const lineDiff = LINE_ORDER.indexOf(a.linia) - LINE_ORDER.indexOf(b.linia);
-          if (lineDiff !== 0) return lineDiff;
-          return a.startTimeMinutes - b.startTimeMinutes || a.numValue - b.numValue;
-        }));
+        setGeneratedCircs(sortedPlan);
       } catch (e) { console.error(e); } finally { setGenerating(false); }
     };
 
@@ -1784,48 +2037,14 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
             </div>
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-3 bg-white dark:bg-gray-800 px-3 py-2 rounded-xl border border-gray-100 dark:border-white/10 shadow-sm">
-                <div className="flex items-center gap-2 mr-2 border-r border-gray-100 dark:border-white/10 pr-3">
-                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Freq.</span>
-                  <button
-                    onClick={() => {
-                      if (!manualHeadway) setManualHeadway(15);
-                      else setManualHeadway(Math.max(1, manualHeadway - 1));
-                    }}
-                    className="w-6 h-6 flex items-center justify-center bg-gray-100 dark:bg-white/5 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 text-gray-500 transition-colors"
-                  >
-                    <Minus size={12} />
-                  </button>
-                  <div className="flex flex-col items-center w-12">
-                    <span className="text-sm font-black text-fgc-grey dark:text-gray-200 leading-none">{manualHeadway || '--'}</span>
-                    <span className="text-[8px] font-bold text-gray-400 leading-none">min</span>
-                  </div>
-                  <button
-                    onClick={() => {
-                      if (!manualHeadway) setManualHeadway(15);
-                      else setManualHeadway(manualHeadway + 1);
-                    }}
-                    className="w-6 h-6 flex items-center justify-center bg-gray-100 dark:bg-white/5 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 text-gray-500 transition-colors"
-                  >
-                    <Plus size={12} />
-                  </button>
-                </div>
-
                 <button
                   onClick={async () => {
-                    // AUTO CALCULATION LOGIC
                     const { data: theoryCircs } = await supabase.from('circulations').select('*');
                     if (!theoryCircs) return;
                     const liniaStationsRef: Record<string, string[]> = { 'S1': S1_STATIONS, 'S2': S2_STATIONS, 'L6': L6_STATIONS, 'L7': L7_STATIONS, 'L12': L12_STATIONS };
 
-                    let maxTravelTime = 0;
-                    let totalUnits = Object.values(lineCounts).reduce((a, b) => a + b, 0);
-                    if (totalUnits === 0) return;
-
-                    // Find longest route in island
-                    // We iterate over LINES assigned
                     Object.entries(lineCounts).forEach(([linia, count]) => {
-                      if (count === 0) return;
-                      // Get endpoints for this line within island
+                      if (count === 0 || !enabledLines[linia]) return;
                       const lineStops = liniaStationsRef[linia];
                       if (!lineStops) return;
                       const islandLineStops = lineStops.filter(s => islandStations.has(s));
@@ -1834,52 +2053,28 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                       const start = islandLineStops[0];
                       const end = islandLineStops[islandLineStops.length - 1];
 
-                      // Find reference trip time
                       const sample = (theoryCircs as any[])
                         .filter(c => c.linia === linia && getFgcMinutes(c.sortida) <= displayMin)
                         .sort((a, b) => getFgcMinutes(b.sortida) - getFgcMinutes(a.sortida))[0]
-                        || (theoryCircs as any[]).find(c => c.linia === linia); // Fallback to any
+                        || (theoryCircs as any[]).find(c => c.linia === linia);
 
                       if (sample) {
-                        // Calculate time between start and end
                         const stops = [sample.inici, ...(sample.estacions?.map((s: any) => s.nom) || []), sample.final];
                         const times = [sample.sortida, ...(sample.estacions?.map((s: any) => s.hora || s.sortida) || []), sample.arribada];
-
-                        const idx1 = stops.indexOf(start);
-                        const idx2 = stops.indexOf(end);
-
+                        const idx1 = stops.indexOf(start), idx2 = stops.indexOf(end);
                         if (idx1 !== -1 && idx2 !== -1) {
-                          const t1 = getFgcMinutes(times[idx1]);
-                          const t2 = getFgcMinutes(times[idx2]);
-                          const duration = Math.abs(t2 - t1);
-                          if (duration > maxTravelTime) maxTravelTime = duration;
+                          const duration = Math.abs(getFgcMinutes(times[idx1]) - getFgcMinutes(times[idx2]));
+                          const optimal = Math.round((duration * 2 + 6) / count);
+                          setLineHeadways(h => ({ ...h, [linia]: Math.max(1, optimal) }));
                         }
-                      } else {
-                        // Fallback generic calculation
-                        const dist = Math.abs(islandLineStops.indexOf(start) - islandLineStops.indexOf(end));
-                        const duration = dist * 3; // Approx 3 min per station
-                        if (duration > maxTravelTime) maxTravelTime = duration;
                       }
                     });
-
-                    if (maxTravelTime > 0) {
-                      // Formula: (RoundTrip + Turnaround*2) / Units
-                      const roundTrip = maxTravelTime * 2;
-                      const turnaround = 6; // 3 min each end
-                      const totalLoop = roundTrip + turnaround;
-                      const optimalFreq = Math.round((totalLoop / totalUnits) * 10) / 10; // 1 decimal
-
-                      // User requested minute by minute, so lets round to nearest minute or 0.5? 
-                      // Input handles integers usually, but exact calc is better. Steps are 1.
-                      // Let's round to nearest minute for simplicity in integer input
-                      setManualHeadway(Math.max(1, Math.round(optimalFreq)));
-                    }
                   }}
                   className="group flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
-                  title="Calcular freqüència automàtica òptima"
+                  title="Recalcular totes les freqüències automàticament"
                 >
                   <Wand2 size={14} className="group-hover:rotate-12 transition-transform" />
-                  <span className="text-[10px] font-black uppercase tracking-wider">AUTO</span>
+                  <span className="text-[10px] font-black uppercase tracking-wider">AUTO FREQ</span>
                 </button>
               </div>
               <button
@@ -1922,50 +2117,103 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                   </div>
 
                   {/* S1 + S2 */}
-                  <div className="bg-orange-50/30 dark:bg-orange-950/10 p-6 rounded-[32px] border border-orange-100 dark:border-orange-900/30 flex flex-col items-center justify-between">
-                    <div className="flex items-center gap-2 mb-4">
-                      <span className="text-xs font-black text-orange-600">S1</span>
-                      <span className="text-gray-300 text-xs font-black">+</span>
-                      <span className="text-xs font-black text-green-600">S2</span>
+                  <div className={`bg-orange-50/30 dark:bg-orange-950/10 p-6 rounded-[32px] border border-orange-100 dark:border-orange-900/30 flex flex-col items-center justify-between transition-opacity ${(!enabledLines.S1 && !enabledLines.S2) ? 'opacity-40' : 'opacity-100'}`}>
+                    <div className="flex items-center justify-between w-full mb-4">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black text-orange-600">S1</span>
+                        <span className="text-gray-300 text-xs font-black">+</span>
+                        <span className="text-xs font-black text-green-600">S2</span>
+                      </div>
+                      <div className="flex gap-1.5 items-center">
+                        <button
+                          onClick={() => { toggleLine('S1'); toggleLine('S2'); }}
+                          className={`px-1.5 py-0.5 rounded text-[7px] font-black uppercase transition-colors ${enabledLines.S1 ? 'bg-fgc-green text-fgc-grey' : 'bg-gray-200 text-gray-400'}`}
+                        >
+                          {enabledLines.S1 ? 'ON' : 'OFF'}
+                        </button>
+                        <button
+                          onClick={() => { toggleNormal('S1'); toggleNormal('S2'); }}
+                          className={`px-1.5 py-0.5 rounded text-[7px] font-black uppercase transition-colors ${normalLines.S1 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-400'}`}
+                        >
+                          {normalLines.S1 ? 'NORMAL' : 'ALTER.'}
+                        </button>
+                      </div>
                     </div>
                     <div className="flex w-full justify-around items-center">
                       {/* S1 */}
-                      <div className="flex flex-col items-center gap-2">
+                      <div className={`flex flex-col items-center gap-2 ${!enabledLines.S1 ? 'grayscale' : ''}`}>
                         <span className="text-[8px] font-black text-orange-400 uppercase">S1</span>
                         <div className="flex items-center gap-2">
-                          <button onClick={() => updateCount('S1', -1)} className="p-1 hover:bg-orange-100 dark:hover:bg-white/5 rounded-lg text-orange-500 transition-colors"><Minus size={14} /></button>
+                          <button onClick={() => updateCount('S1', -1)} disabled={!enabledLines.S1} className="p-1 hover:bg-orange-100 dark:hover:bg-white/5 rounded-lg text-orange-500 transition-colors disabled:opacity-20"><Minus size={14} /></button>
                           <span className="text-2xl font-black text-fgc-grey dark:text-white leading-none">{lineCounts.S1}</span>
-                          <button onClick={() => updateCount('S1', 1)} className="p-1 hover:bg-orange-100 dark:hover:bg-white/5 rounded-lg text-orange-500 transition-colors"><Plus size={14} /></button>
+                          <button onClick={() => updateCount('S1', 1)} disabled={!enabledLines.S1} className="p-1 hover:bg-orange-100 dark:hover:bg-white/5 rounded-lg text-orange-500 transition-colors disabled:opacity-20"><Plus size={14} /></button>
+                        </div>
+                        <div className="flex items-center gap-1 bg-white dark:bg-black/20 px-2 py-1 rounded-lg border border-black/5 mt-1">
+                          <button onClick={() => updateHeadway('S1', -1)} disabled={!enabledLines.S1} className="text-orange-400 disabled:opacity-20"><Minus size={10} /></button>
+                          <div className="flex flex-col items-center">
+                            <span className="text-[10px] font-black text-fgc-grey dark:text-white leading-none">{lineHeadways.S1 || 15}</span>
+                            <span className="text-[6px] font-bold text-gray-400 uppercase">min</span>
+                          </div>
+                          <button onClick={() => updateHeadway('S1', 1)} disabled={!enabledLines.S1} className="text-orange-400 disabled:opacity-20"><Plus size={10} /></button>
                         </div>
                       </div>
                       <div className="w-px h-8 bg-orange-100 dark:bg-white/10" />
                       {/* S2 */}
-                      <div className="flex flex-col items-center gap-2">
+                      <div className={`flex flex-col items-center gap-2 ${!enabledLines.S2 ? 'grayscale' : ''}`}>
                         <span className="text-[8px] font-black text-green-500 uppercase">S2</span>
                         <div className="flex items-center gap-2">
-                          <button onClick={() => updateCount('S2', -1)} className="p-1 hover:bg-green-100 dark:hover:bg-white/5 rounded-lg text-green-500 transition-colors"><Minus size={14} /></button>
+                          <button onClick={() => updateCount('S2', -1)} disabled={!enabledLines.S2} className="p-1 hover:bg-green-100 dark:hover:bg-white/5 rounded-lg text-green-500 transition-colors disabled:opacity-20"><Minus size={14} /></button>
                           <span className="text-2xl font-black text-fgc-grey dark:text-white leading-none">{lineCounts.S2}</span>
-                          <button onClick={() => updateCount('S2', 1)} className="p-1 hover:bg-green-100 dark:hover:bg-white/5 rounded-lg text-green-500 transition-colors"><Plus size={14} /></button>
+                          <button onClick={() => updateCount('S2', 1)} disabled={!enabledLines.S2} className="p-1 hover:bg-green-100 dark:hover:bg-white/5 rounded-lg text-green-500 transition-colors disabled:opacity-20"><Plus size={14} /></button>
+                        </div>
+                        <div className="flex items-center gap-1 bg-white dark:bg-black/20 px-2 py-1 rounded-lg border border-black/5 mt-1">
+                          <button onClick={() => updateHeadway('S2', -1)} disabled={!enabledLines.S2} className="text-green-500 disabled:opacity-20"><Minus size={10} /></button>
+                          <div className="flex flex-col items-center">
+                            <span className="text-[10px] font-black text-fgc-grey dark:text-white leading-none">{lineHeadways.S2 || 15}</span>
+                            <span className="text-[6px] font-bold text-gray-400 uppercase">min</span>
+                          </div>
+                          <button onClick={() => updateHeadway('S2', 1)} disabled={!enabledLines.S2} className="text-green-500 disabled:opacity-20"><Plus size={10} /></button>
                         </div>
                       </div>
                     </div>
                   </div>
 
                   {/* L6 */}
-                  <div className="bg-purple-50/50 dark:bg-purple-900/10 p-6 rounded-[32px] border border-purple-100 dark:border-purple-900/30 flex flex-col items-center justify-between">
-                    <span className="text-xs font-black text-purple-600 uppercase mb-4 tracking-widest">L6</span>
-                    <div className="flex items-center gap-4">
-                      <button onClick={() => updateCount('L6', -1)} className="p-1 hover:bg-purple-100 dark:hover:bg-white/5 rounded-lg text-purple-500 transition-colors"><Minus size={16} /></button>
-                      <span className="text-3xl font-black text-fgc-grey dark:text-white leading-none">{lineCounts.L6}</span>
-                      <button onClick={() => updateCount('L6', 1)} className="p-1 hover:bg-purple-100 dark:hover:bg-white/5 rounded-lg text-purple-500 transition-colors"><Plus size={16} /></button>
+                  <div className={`bg-purple-50/50 dark:bg-purple-900/10 p-6 rounded-[32px] border border-purple-100 dark:border-purple-900/30 flex flex-col items-center justify-between transition-opacity ${!enabledLines.L6 ? 'opacity-40' : 'opacity-100'}`}>
+                    <div className="flex items-center justify-between w-full mb-4">
+                      <span className="text-xs font-black text-purple-600 uppercase tracking-widest">L6</span>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => toggleLine('L6')}
+                          className={`px-1.5 py-0.5 rounded text-[7px] font-black uppercase transition-colors ${enabledLines.L6 ? 'bg-fgc-green text-fgc-grey' : 'bg-gray-200 text-gray-400'}`}
+                        >
+                          {enabledLines.L6 ? 'ON' : 'OFF'}
+                        </button>
+                        <button
+                          onClick={() => toggleNormal('L6')}
+                          className={`px-1.5 py-0.5 rounded text-[7px] font-black uppercase transition-colors ${normalLines.L6 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-400'}`}
+                        >
+                          {normalLines.L6 ? 'NORMAL' : 'ALTER.'}
+                        </button>
+                      </div>
                     </div>
-                    <div className="mt-4 bg-purple-100 dark:bg-purple-900/30 w-full h-1 rounded-full overflow-hidden">
-                      <div className="h-full bg-purple-500" style={{ width: `${(lineCounts.L6 / (physicalTrains.length || 1)) * 100}%` }} />
+                    <div className="flex items-center gap-4">
+                      <button onClick={() => updateCount('L6', -1)} disabled={!enabledLines.L6} className="p-1 hover:bg-purple-100 dark:hover:bg-white/5 rounded-lg text-purple-500 transition-colors disabled:opacity-20"><Minus size={16} /></button>
+                      <span className="text-3xl font-black text-fgc-grey dark:text-white leading-none">{lineCounts.L6}</span>
+                      <button onClick={() => updateCount('L6', 1)} disabled={!enabledLines.L6} className="p-1 hover:bg-purple-100 dark:hover:bg-white/5 rounded-lg text-purple-500 transition-colors disabled:opacity-20"><Plus size={16} /></button>
+                    </div>
+                    <div className="flex items-center gap-2 bg-white dark:bg-black/20 px-3 py-1 rounded-xl border border-black/5 mt-4">
+                      <button onClick={() => updateHeadway('L6', -1)} disabled={!enabledLines.L6} className="text-purple-400 disabled:opacity-20"><Minus size={12} /></button>
+                      <div className="flex flex-col items-center w-10">
+                        <span className="text-[12px] font-black text-fgc-grey dark:text-white leading-none">{lineHeadways.L6 || 15}</span>
+                        <span className="text-[7px] font-black text-gray-400 uppercase tracking-tighter">min</span>
+                      </div>
+                      <button onClick={() => updateHeadway('L6', 1)} disabled={!enabledLines.L6} className="text-purple-400 disabled:opacity-20"><Plus size={12} /></button>
                     </div>
                   </div>
 
                   {/* L7 & L12 */}
-                  <div className="bg-amber-50/30 dark:bg-amber-950/10 p-6 rounded-[32px] border border-amber-100 dark:border-amber-900/30 flex flex-col items-center justify-between">
+                  <div className={`bg-amber-50/30 dark:bg-amber-950/10 p-6 rounded-[32px] border border-amber-100 dark:border-amber-900/30 flex flex-col items-center justify-between transition-opacity ${(!enabledLines.L7 && !enabledLines.L12) ? 'opacity-40' : 'opacity-100'}`}>
                     <div className="flex items-center gap-2 mb-4">
                       <span className="text-xs font-black text-amber-700">L7</span>
                       <span className="text-gray-300 text-xs font-black">&</span>
@@ -1973,22 +2221,58 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                     </div>
                     <div className="flex w-full justify-around items-center">
                       {/* L7 */}
-                      <div className="flex flex-col items-center gap-2">
-                        <span className="text-[8px] font-black text-amber-600 uppercase">L7</span>
+                      <div className={`flex flex-col items-center gap-2 ${!enabledLines.L7 ? 'grayscale' : ''}`}>
+                        <div className="flex gap-1 mb-1">
+                          <button
+                            onClick={() => toggleLine('L7')}
+                            className={`px-1.5 py-0.5 rounded text-[7px] font-black uppercase transition-colors ${enabledLines.L7 ? 'bg-fgc-green text-fgc-grey' : 'bg-gray-200 text-gray-400'}`}
+                          >
+                            {enabledLines.L7 ? 'ON' : 'OFF'}
+                          </button>
+                          <button
+                            onClick={() => toggleNormal('L7')}
+                            className={`px-1.5 py-0.5 rounded text-[7px] font-black uppercase transition-colors ${normalLines.L7 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-400'}`}
+                          >
+                            {normalLines.L7 ? 'NORM' : 'ALT'}
+                          </button>
+                        </div>
                         <div className="flex items-center gap-2">
-                          <button onClick={() => updateCount('L7', -1)} className="p-1 hover:bg-amber-100 dark:hover:bg-white/5 rounded-lg text-amber-600 transition-colors"><Minus size={14} /></button>
+                          <button onClick={() => updateCount('L7', -1)} disabled={!enabledLines.L7 || normalLines.L7} className="p-1 hover:bg-amber-100 dark:hover:bg-white/5 rounded-lg text-amber-600 transition-colors disabled:opacity-20"><Minus size={14} /></button>
                           <span className="text-2xl font-black text-fgc-grey dark:text-white leading-none">{lineCounts.L7}</span>
-                          <button onClick={() => updateCount('L7', 1)} className="p-1 hover:bg-amber-100 dark:hover:bg-white/5 rounded-lg text-amber-600 transition-colors"><Plus size={14} /></button>
+                          <button onClick={() => updateCount('L7', 1)} disabled={!enabledLines.L7 || normalLines.L7} className="p-1 hover:bg-amber-100 dark:hover:bg-white/5 rounded-lg text-amber-600 transition-colors disabled:opacity-20"><Plus size={14} /></button>
+                        </div>
+                        <div className="flex items-center gap-1 bg-white dark:bg-black/20 px-2 py-1 rounded-lg border border-black/5 mt-1">
+                          <button onClick={() => updateHeadway('L7', -1)} disabled={!enabledLines.L7 || normalLines.L7} className="text-amber-500 disabled:opacity-20"><Minus size={10} /></button>
+                          <span className="text-[10px] font-black text-fgc-grey dark:text-white">{lineHeadways.L7 || 15}</span>
+                          <button onClick={() => updateHeadway('L7', 1)} disabled={!enabledLines.L7 || normalLines.L7} className="text-amber-500 disabled:opacity-20"><Plus size={10} /></button>
                         </div>
                       </div>
                       <div className="w-px h-8 bg-amber-100 dark:bg-white/10" />
                       {/* L12 */}
-                      <div className="flex flex-col items-center gap-2">
-                        <span className="text-[8px] font-black text-purple-400 uppercase">L12</span>
+                      <div className={`flex flex-col items-center gap-2 ${!enabledLines.L12 ? 'grayscale' : ''}`}>
+                        <div className="flex gap-1 mb-1">
+                          <button
+                            onClick={() => toggleLine('L12')}
+                            className={`px-1.5 py-0.5 rounded text-[7px] font-black uppercase transition-colors ${enabledLines.L12 ? 'bg-fgc-green text-fgc-grey' : 'bg-gray-200 text-gray-400'}`}
+                          >
+                            {enabledLines.L12 ? 'ON' : 'OFF'}
+                          </button>
+                          <button
+                            onClick={() => toggleNormal('L12')}
+                            className={`px-1.5 py-0.5 rounded text-[7px] font-black uppercase transition-colors ${normalLines.L12 ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-400'}`}
+                          >
+                            {normalLines.L12 ? 'NORM' : 'ALT'}
+                          </button>
+                        </div>
                         <div className="flex items-center gap-2">
-                          <button onClick={() => updateCount('L12', -1)} className="p-1 hover:bg-purple-100 dark:hover:bg-white/5 rounded-lg text-purple-400 transition-colors"><Minus size={14} /></button>
+                          <button onClick={() => updateCount('L12', -1)} disabled={!enabledLines.L12 || normalLines.L12} className="p-1 hover:bg-purple-100 dark:hover:bg-white/5 rounded-lg text-purple-400 transition-colors disabled:opacity-20"><Minus size={14} /></button>
                           <span className="text-2xl font-black text-fgc-grey dark:text-white leading-none">{lineCounts.L12}</span>
-                          <button onClick={() => updateCount('L12', 1)} className="p-1 hover:bg-purple-100 dark:hover:bg-white/5 rounded-lg text-purple-400 transition-colors"><Plus size={14} /></button>
+                          <button onClick={() => updateCount('L12', 1)} disabled={!enabledLines.L12 || normalLines.L12} className="p-1 hover:bg-purple-100 dark:hover:bg-white/5 rounded-lg text-purple-400 transition-colors disabled:opacity-20"><Plus size={14} /></button>
+                        </div>
+                        <div className="flex items-center gap-1 bg-white dark:bg-black/20 px-2 py-1 rounded-lg border border-black/5 mt-1">
+                          <button onClick={() => updateHeadway('L12', -1)} disabled={!enabledLines.L12 || normalLines.L12} className="text-purple-400 disabled:opacity-20"><Minus size={10} /></button>
+                          <span className="text-[10px] font-black text-fgc-grey dark:text-white">{lineHeadways.L12 || 15}</span>
+                          <button onClick={() => updateHeadway('L12', 1)} disabled={!enabledLines.L12 || normalLines.L12} className="text-purple-400 disabled:opacity-20"><Plus size={10} /></button>
                         </div>
                       </div>
                     </div>
@@ -2049,7 +2333,23 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
               <div className="space-y-6 animate-in slide-in-from-right duration-500">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 px-2"><LayoutGrid size={16} className="text-blue-500" /><h4 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Escaleta de Circulacions d'Emergència</h4></div>
-                  <button onClick={() => setViewMode('RESOURCES')} className="text-[10px] font-black text-blue-500 hover:underline">← Tornar a recursos</button>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center bg-gray-100 dark:bg-white/5 p-1 rounded-2xl border border-gray-200 dark:border-white/10">
+                      {['Tots', 'S1', 'S2', 'L6', 'L7', 'L12'].map(ln => (
+                        <button
+                          key={ln}
+                          onClick={() => setLineFilter(ln)}
+                          className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase transition-all ${lineFilter === ln
+                            ? 'bg-white dark:bg-gray-700 text-fgc-grey dark:text-white shadow-sm'
+                            : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
+                            }`}
+                        >
+                          {ln}
+                        </button>
+                      ))}
+                    </div>
+                    <button onClick={() => setViewMode('RESOURCES')} className="text-[10px] font-black text-blue-500 hover:underline ml-4">← Tornar a recursos</button>
+                  </div>
                 </div>
                 {generating ? (
                   <div className="py-20 flex flex-col items-center gap-4 opacity-30"><Loader2 className="animate-spin text-blue-500" size={48} /><p className="text-xs font-black uppercase tracking-widest">Sincronitzant malla teòrica...</p></div>
@@ -2059,27 +2359,29 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                       <div>Codi</div><div>Tren Anterior</div><div>Torn Maquinista</div><div>Sortida</div><div>Arribada</div><div className="col-span-1">Ruta</div><div>Següent Circulació</div><div>Direcció</div>
                     </div>
                     <div className="divide-y divide-gray-100 dark:divide-white/5">
-                      {generatedCircs.map((c, idx) => (
-                        <div key={idx} className="grid grid-cols-8 p-4 items-center hover:bg-white dark:hover:bg-white/5 transition-colors">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: getLiniaColorHex(c.linia) }} />
-                            <span className="font-black text-lg text-fgc-grey dark:text-white">{c.id}</span>
+                      {generatedCircs
+                        .filter(c => lineFilter === 'Tots' || c.linia === lineFilter)
+                        .map((c, idx) => (
+                          <div key={idx} className="grid grid-cols-8 p-4 items-center hover:bg-white dark:hover:bg-white/5 transition-colors">
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: getLiniaColorHex(c.linia) }} />
+                              <span className="font-black text-lg text-fgc-grey dark:text-white">{c.id}</span>
+                            </div>
+                            <div className="font-bold text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-tight">{c.prevId}</div>
+                            <div className="flex flex-col">
+                              <span className="font-black text-xs text-fgc-grey dark:text-white uppercase">{c.torn || '---'}</span>
+                              <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 truncate">{c.driver}</span>
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="font-black text-sm text-orange-600 dark:text-orange-400 leading-none">{c.sortida}</span>
+                              {c.delay > 0 && <span className="text-[9px] font-black text-red-500 animate-pulse">+{c.delay} min</span>}
+                            </div>
+                            <div className="font-black text-sm text-blue-600 dark:text-blue-400">{c.arribada}</div>
+                            <div className="text-[10px] font-bold text-fgc-grey dark:text-gray-300 truncate">{c.route}</div>
+                            <div className="font-bold text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-tight">{c.nextId}</div>
+                            <div><span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border ${c.direction === 'ASCENDENT' ? 'bg-orange-50 text-orange-600 border-orange-100' : 'bg-green-50 text-green-600 border-green-100'}`}>{c.direction}</span></div>
                           </div>
-                          <div className="font-bold text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-tight">{c.prevId}</div>
-                          <div className="flex flex-col">
-                            <span className="font-black text-xs text-fgc-grey dark:text-white uppercase">{c.torn || '---'}</span>
-                            <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 truncate">{c.driver}</span>
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="font-black text-sm text-orange-600 dark:text-orange-400 leading-none">{c.sortida}</span>
-                            {c.delay > 0 && <span className="text-[9px] font-black text-red-500 animate-pulse">+{c.delay} min</span>}
-                          </div>
-                          <div className="font-black text-sm text-blue-600 dark:text-blue-400">{c.arribada}</div>
-                          <div className="text-[10px] font-bold text-fgc-grey dark:text-gray-300 truncate">{c.route}</div>
-                          <div className="font-bold text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-tight">{c.nextId}</div>
-                          <div><span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border ${c.direction === 'ASCENDENT' ? 'bg-orange-50 text-orange-600 border-orange-100' : 'bg-green-50 text-green-600 border-green-100'}`}>{c.direction}</span></div>
-                        </div>
-                      ))}
+                        ))}
                     </div>
                   </div>
                 )}
@@ -2088,7 +2390,23 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
               <div className="space-y-6 animate-in slide-in-from-right duration-500">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 px-2"><Users size={16} className="text-purple-500" /><h4 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Pla d'Assignació per Torn de Maquinista</h4></div>
-                  <button onClick={() => setViewMode('RESOURCES')} className="text-[10px] font-black text-blue-500 hover:underline">← Tornar a recursos</button>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center bg-gray-100 dark:bg-white/5 p-1 rounded-2xl border border-gray-200 dark:border-white/10">
+                      {['Tots', 'S1', 'S2', 'L6', 'L7', 'L12'].map(ln => (
+                        <button
+                          key={ln}
+                          onClick={() => setLineFilter(ln)}
+                          className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase transition-all ${lineFilter === ln
+                            ? 'bg-white dark:bg-gray-700 text-fgc-grey dark:text-white shadow-sm'
+                            : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
+                            }`}
+                        >
+                          {ln}
+                        </button>
+                      ))}
+                    </div>
+                    <button onClick={() => setViewMode('RESOURCES')} className="text-[10px] font-black text-blue-500 hover:underline ml-4">← Tornar a recursos</button>
+                  </div>
                 </div>
 
                 {generating ? (
@@ -2097,39 +2415,41 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {(() => {
                       const groups: Record<string, any> = {};
-                      generatedCircs.forEach(c => {
-                        if (!c.torn || c.torn === '---') return;
+                      generatedCircs
+                        .filter(c => lineFilter === 'Tots' || c.linia === lineFilter)
+                        .forEach(c => {
+                          if (!c.torn || c.torn === '---') return;
 
-                        let isShiftVisible = false;
-                        if (selectedServei === 'Tots') {
-                          isShiftVisible = true;
-                        } else {
-                          const s = (c as any).servei || '';
-                          const t = c.linia || '';
-                          const f = selectedServei;
+                          let isShiftVisible = false;
+                          if (selectedServei === 'Tots') {
+                            isShiftVisible = true;
+                          } else {
+                            const s = (c as any).servei || '';
+                            const t = c.linia || '';
+                            const f = selectedServei;
 
-                          const check = (val: string) => {
-                            if (f === '400' || f === 'S1') return val === '400' || val === 'S1' || val.includes('S1');
-                            if (f === '500' || f === 'S2') return val === '500' || val === 'S2' || val.includes('S2');
-                            if (f === '100' || f === 'L6') return val === '100' || val === 'L6' || val.includes('L6');
-                            if (f === '0' || f === 'L12') return val === '0' || val === 'L12' || val.includes('L12');
-                            return val === f || val.includes(f) || f.includes(val);
-                          };
+                            const check = (val: string) => {
+                              if (f === '400' || f === 'S1') return val === '400' || val === 'S1' || val.includes('S1');
+                              if (f === '500' || f === 'S2') return val === '500' || val === 'S2' || val.includes('S2');
+                              if (f === '100' || f === 'L6') return val === '100' || val === 'L6' || val.includes('L6');
+                              if (f === '0' || f === 'L12') return val === '0' || val === 'L12' || val.includes('L12');
+                              return val === f || val.includes(f) || f.includes(val);
+                            };
 
-                          isShiftVisible = check(s) || check(t);
-                        }
-                        if (!isShiftVisible) return;
-                        if (!groups[c.torn]) {
-                          groups[c.torn] = {
-                            id: c.torn,
-                            driver: c.driver,
-                            start: c.shiftStart,
-                            end: c.shiftEnd,
-                            trips: []
-                          };
-                        }
-                        groups[c.torn].trips.push(c);
-                      });
+                            isShiftVisible = check(s) || check(t);
+                          }
+                          if (!isShiftVisible) return;
+                          if (!groups[c.torn]) {
+                            groups[c.torn] = {
+                              id: c.torn,
+                              driver: c.driver,
+                              start: c.shiftStart,
+                              end: c.shiftEnd,
+                              trips: []
+                            };
+                          }
+                          groups[c.torn].trips.push(c);
+                        });
 
                       return Object.values(groups).sort((a, b) => a.id.localeCompare(b.id)).map((g: any) => (
                         <div key={g.id} className="bg-white dark:bg-gray-800 rounded-[32px] border border-gray-100 dark:border-white/5 shadow-sm overflow-hidden flex flex-col">
@@ -2183,7 +2503,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                     });
                     return (
                       <>
-                        Les circulacions es generen amb una cadència de {manualHeadway || '15'} minuts, alternant sentits.
+                        Les circulacions es generen amb una cadència personalitzada per línia, alternant sentits segons els recursos assignats.
                         {hasVU && <span className="text-orange-600 dark:text-orange-400 block mt-1">⚠️ S'han detectat trams en Via Única: S'ha aplicat un increment de temps de viatge de +5 min per tram afectat.</span>}
                       </>
                     );
