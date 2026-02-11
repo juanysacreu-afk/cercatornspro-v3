@@ -41,7 +41,7 @@ export async function fetchFullTurns(turnIds: string[], selectedServei?: string)
     ];
 
     // If we have Viatgers, we might need more data to resolve their cycle/train
-    if (viatgerRealIds.size > 0 && selectedServei) {
+    if (viatgerRealIds.size > 0 && selectedServei && selectedServei !== 'Tots') {
         queries.push(supabase.from('shifts').select('circulations').eq('servei', selectedServei));
     } else {
         queries.push(Promise.resolve({ data: [] }));

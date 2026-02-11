@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, ShieldAlert, Loader2, UserCheck, Clock, MapPin, AlertCircle, Phone, Info, Users, Zap, User, Train, Map as MapIcon, X, Timer, Scissors, ArrowDownToLine, ArrowUpToLine, ArrowLeftToLine, ArrowRightToLine, Coffee, Layers, Trash2, Repeat, Rewind, FastForward, RotateCcw, RefreshCw, LayoutGrid, CheckCircle2, Activity, FilePlus, ArrowRight, Move, Plus, Minus, Bell, Construction, Warehouse, ZoomIn, ZoomOut, Maximize, Wand2 } from 'lucide-react';
+import { Search, ShieldAlert, Loader2, UserCheck, Clock, MapPin, AlertCircle, Phone, Info, Users, Zap, User, Train, Map as MapIcon, X, Timer, Scissors, ArrowDownToLine, ArrowUpToLine, ArrowLeftToLine, ArrowRightToLine, Coffee, Layers, Trash2, Repeat, Rewind, FastForward, RotateCcw, RefreshCw, LayoutGrid, CheckCircle2, Activity, FilePlus, ArrowRight, Move, Plus, Minus, Bell, Construction, Warehouse, ZoomIn, ZoomOut, Maximize, Wand2, TrendingUp } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
 import { fetchFullTurns } from '../utils/queries.ts';
 import { getStatusColor } from '../utils/fgc.ts';
@@ -65,49 +65,37 @@ interface IncidenciaViewProps {
 }
 
 const resolveStationId = (name: string, linia: string = '') => {
-  const n = (name || '').toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+  if (!name) return '';
+  const n = name.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
+  // Exact mapping table
+  const stationMap: Record<string, string> = {
+    'CATALUNYA': 'PC', 'PROVENCA': 'PR', 'GRACIA': 'GR', 'SANT GERVASI': 'SG', 'MUNTANER': 'MN',
+    'LA BONANOVA': 'BN', 'LES TRES TORRES': 'TT', 'SARRIA': 'SR', 'REINA ELISENDA': 'RE', 'AV. TIBIDABO': 'TB',
+    'PEU DEL FUNICULAR': 'PF', 'BAIXADOR DE VALLVIDRERA': 'VL', 'VALLVIDRERA': 'VL', 'LES PLANES': 'LP', 'LA FLORESTA': 'LF',
+    'VALLDOREIX': 'VD', 'SANT CUGAT': 'SC', 'MIRA-SOL': 'MS', 'HOSPITAL GENERAL': 'HG', 'RUBI': 'RB',
+    'LES FONTS': 'FN', 'TERRASSA RAMBLA': 'TR', 'VALLPARADIS': 'VP', 'ESTACIO DEL NORD': 'EN', 'NACIONS UNIDES': 'NA',
+    'VOLPALLERES': 'VO', 'SANT JOAN': 'SJ', 'BELLATERRA': 'BT', 'UNIVERSITAT AUTONOMA': 'UN', 'UAB': 'UN', 'SANT QUIRZE': 'SQ',
+    'CAN FEU': 'CF', 'PL. MAJOR': 'PJ', 'LA CREU ALTA': 'CT', 'SABADELL NORD': 'NO', 'PARC DEL NORD': 'PN', 'PL. MOLINA': 'PM', 'PADUA': 'PD', 'EL PUTXET': 'EP',
+    'AV Tibidabo': 'TB', 'Plaça Molina': 'PM', 'Pàdua': 'PD', 'El Putxet': 'EP'
+  };
+
+  if (stationMap[n]) return stationMap[n];
+
+  // Terminal and critical station shortcuts
   if (n.includes('CATALUNYA') || n === 'PC') return 'PC';
-  if (n.includes('PROVEN') || n === 'PR') return 'PR';
-  if (n.includes('GRACIA') || n === 'GR') return 'GR';
-  if (n.includes('GERVASI') || n === 'SG') return 'SG';
-  if (n.includes('MUNTANER') || n === 'MN') return 'MN';
-  if (n.includes('BONANOVA') || n === 'BN') return 'BN';
-  if (n.includes('TRES TORRES') || n === 'TT') return 'TT';
   if (n.includes('SARRIA') || n === 'SR') return 'SR';
   if (n.includes('ELISENDA') || n === 'RE') return 'RE';
   if (n.includes('TIBIDABO') || n === 'TB') return 'TB';
-  if (n.includes('CUGAT') || n === 'SC') return 'SC';
+  if (n.includes('NACIONS') || n === 'NA') return 'NA';
+  if (n.includes('PARC DEL NORD') || n === 'PN') return 'PN';
+  if (n.includes('NORD') && n.includes('SABADELL')) return 'NO';
+  if (n.includes('NORD') && n.includes('TERRASSA')) return 'EN';
 
-  if (n.includes('RUBI') || n.includes('TALLER') || n.includes('COTXERA') || n.includes('MERCADERIES') || n.includes('RAMAL') || n.includes('APARTADOR') || n === 'RB') return 'RB';
-  if (n.includes('RAMBLA') || n === 'TR') return 'TR';
-  if (n.includes('NACIO') || n.includes('UNIDES') || n === 'NA') return 'NA';
-  if (n.includes('FONTS') || n === 'FN') return 'FN';
-  if (n.includes('HOSP') || n.includes('GENERAL') || n === 'HG') return 'HG';
-  if (n.includes('MIRA') || n === 'MS') return 'MS';
-  if (n.includes('VALLPARADIS') || n === 'VP') return 'VP';
-  if (n.includes('NORD') && n.includes('ESTACIO') || n === 'EN') return 'EN';
-
-  if (n.includes('VOLPALLERES') || n === 'VO') return 'VO';
-  if (n.includes('JOAN') || n === 'SJ') return 'SJ';
-  if (n.includes('BELLATERRA') || n === 'BT') return 'BT';
-  if (n.includes('AUTONOMA') || n.includes('UAB') || n.includes('UNIVERSITAT') || n === 'UN') return 'UN';
-  if (n.includes('QUIRZE') || n === 'SQ') return 'SQ';
-  if (n.includes('FEU') || n.includes('CF') || n === 'CF') return 'CF';
-  if (n.includes('MAJOR') || n === 'PJ') return 'PJ';
-  if (n.includes('CREU') || n === 'CT') return 'CT';
-  if (n.includes('SABADELL NORD') || n === 'NO') return 'NO';
-  if (n.includes('PARC') || n === 'PN') return 'PN';
-
-  if (n.includes('MOLINA') || n === 'PM') return 'PM';
-  if (n.includes('PADUA') || n === 'PD') return 'PD';
-  if (n.includes('PUTXET') || n === 'EP') return 'EP';
-
-  if (n.includes('FLORESTA') || n === 'LF') return 'LF';
-  if (n.includes('VALLDOREIX') || n === 'VD') return 'VD';
-  if (n.includes('PLANES') || n === 'LP') return 'LP';
-  if (n.includes('PEU') || n === 'PF') return 'PF';
-  if (n.includes('BAIXADOR') || n === 'VL') return 'VL';
+  // Iterate over map keys for partial matches
+  for (const key of Object.keys(stationMap)) {
+    if (n.includes(key)) return stationMap[key];
+  }
 
   return n.length > 2 ? n.substring(0, 2) : n;
 };
@@ -292,6 +280,10 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
   const [searchedCircData, setSearchedCircData] = useState<any>(null);
   const [selectedTrain, setSelectedTrain] = useState<LivePersonnel | null>(null);
   const [mainDriverInfo, setMainDriverInfo] = useState<any>(null);
+
+  const [isRealMallaOpen, setIsRealMallaOpen] = useState(false);
+  const [theoryCircsLocal, setTheoryCircsLocal] = useState<any[]>([]);
+  const [realMallaCircs, setRealMallaCircs] = useState<any[]>([]);
 
   const serveiTypes = ['0', '100', '400', '500'];
 
@@ -1297,8 +1289,21 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
   };
 
   const AlternativeServiceOverlay = ({ islandId }: { islandId: string }) => {
-    const [viewMode, setViewMode] = useState<'RESOURCES' | 'CIRCULATIONS' | 'SHIFTS'>('RESOURCES');
-    const [lineFilter, setLineFilter] = useState<string>('Tots');
+    const [viewMode, setViewMode] = useState<'RESOURCES' | 'CIRCULATIONS' | 'SHIFTS' | 'GRAPH'>('RESOURCES');
+    const [lineFilters, setLineFilters] = useState<string[]>(['Tots']);
+
+    const toggleLineFilter = (ln: string) => {
+      if (ln === 'Tots') {
+        setLineFilters(['Tots']);
+        return;
+      }
+      setLineFilters(prev => {
+        const next = prev.includes(ln)
+          ? prev.filter(x => x !== ln)
+          : [...prev.filter(x => x !== 'Tots'), ln];
+        return next.length === 0 ? ['Tots'] : next;
+      });
+    };
     const [generatedCircs, setGeneratedCircs] = useState<any[]>([]);
     const [generating, setGenerating] = useState(false);
 
@@ -1456,7 +1461,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
           return true;
         }
         return false;
-      };
+      }
 
       const getRouteForLinia = (linia: string) => {
         switch (linia) {
@@ -1503,8 +1508,16 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
       const REST_STATIONS = ['PC', 'SR', 'RE', 'TB', 'NA', 'PN', 'RB'];
 
       try {
-        const { data: theoryCircs } = await supabase.from('circulations').select('*');
-        if (!theoryCircs) return;
+        let theoryCircs: any[] = [];
+        let fromIdx = 0;
+        while (true) {
+          const { data: batch } = await supabase.from('circulations').select('*').range(fromIdx, fromIdx + 999);
+          if (!batch || batch.length === 0) break;
+          theoryCircs = theoryCircs.concat(batch);
+          if (batch.length < 1000) break;
+          fromIdx += 1000;
+        }
+        if (theoryCircs.length === 0) return;
 
         const liniaPrefixes: Record<string, string> = { 'S1': 'D', 'S2': 'F', 'L6': 'A', 'L7': 'B', 'L12': 'L' };
         const liniaStationsRef: Record<string, string[]> = { 'S1': S1_STATIONS, 'S2': S2_STATIONS, 'L6': L6_STATIONS, 'L7': L7_STATIONS, 'L12': L12_STATIONS };
@@ -1686,7 +1699,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
           }).sort((a, b) => (getFgcMinutes(b.sortida) || 0) - (getFgcMinutes(a.sortida) || 0))[0];
 
           if (sample) {
-            const stops = [sample.inici, ...(sample.estacions?.map((s: any) => s.nom) || []), sample.final];
+            const stops = [sample.inici, ...(sample.estacions?.map((s: any) => s.nom) || []), sample.arribada];
             const times = [sample.sortida, ...(sample.estacions?.map((s: any) => s.hora || s.sortida) || []), sample.arribada];
             const t1 = getFgcMinutes(times[stops.indexOf(eps.start)]), t2 = getFgcMinutes(times[stops.indexOf(eps.end)]);
             if (t1 !== null && t2 !== null) refTravelTime = Math.abs(t2 - t1);
@@ -1750,7 +1763,8 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
           tripSlots.length = 0; tripSlots.push(...filtered);
         }
 
-        // 4. Assign drivers chronologically
+        // 4. Assign drivers chronologically preserving cadence
+        const lastActualStart: Record<string, { ASCENDENT: number; DESCENDENT: number }> = {};
         tripSlots.sort((a, b) => a.idealStartTime - b.idealStartTime);
         tripSlots.forEach(slot => {
           const ctx = lineContexts[slot.liniaCode], unitObj = ctx.branchUnits[slot.unitIdx];
@@ -1813,7 +1827,22 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
             })[0];
 
           let selectedDriver = null;
-          if (selectedCandidate) { startTime = selectedCandidate.pStart; endTime = selectedCandidate.pEnd; selectedDriver = selectedCandidate.driver; unitObj.currentDriverId = selectedDriver.torn; }
+          if (selectedCandidate) {
+            startTime = selectedCandidate.pStart;
+            selectedDriver = selectedCandidate.driver;
+            unitObj.currentDriverId = selectedDriver.torn;
+          }
+
+          // Enforce minimum headway from previous trip of same line & direction to avoid overlaps and preserves numbering order
+          const dirChar = slot.isAsc ? 'ASCENDENT' : 'DESCENDENT';
+          if (!lastActualStart[slot.liniaCode]) lastActualStart[slot.liniaCode] = { ASCENDENT: 0, DESCENDENT: 0 };
+          const minTimeFromPrev = (lastActualStart[slot.liniaCode][dirChar] || 0) + ctx.headway;
+          if (startTime < minTimeFromPrev && lastActualStart[slot.liniaCode][dirChar] > 0) {
+            startTime = minTimeFromPrev;
+          }
+          endTime = startTime + ctx.refTravelTime;
+          lastActualStart[slot.liniaCode][dirChar] = startTime;
+
           const activeDriver = selectedDriver || { driver: 'SENSE MAQUINISTA (AVÍS)', torn: '---' };
           const tripNum = slot.isAsc ? ctx.nextAscNum : ctx.nextDescNum;
           if (slot.isAsc) ctx.nextAscNum += 2; else ctx.nextDescNum += 2;
@@ -2020,6 +2049,280 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
       } catch (e) { console.error(e); } finally { setGenerating(false); }
     };
 
+    const renderAlternativeServiceGraph = () => {
+      const masterOrder = [
+        'PC', 'PR', 'GR', 'PM', 'PD', 'EP', 'TB',
+        'SG', 'MN', 'BN', 'TT', 'SR', 'RE',
+        'PF', 'VL', 'LP', 'LF', 'VD', 'SC',
+        'MS', 'HG', 'RB', 'FN', 'TR', 'VP', 'EN', 'NA',
+        'VO', 'SJ', 'BT', 'UN', 'SQ', 'CF', 'PJ', 'CT', 'NO', 'PN'
+      ];
+
+      const liniaStationsMap: Record<string, string[]> = {
+        'S1': ['PC', 'PR', 'GR', 'SG', 'MN', 'BN', 'TT', 'SR', 'PF', 'VL', 'LP', 'LF', 'VD', 'SC', 'MS', 'HG', 'RB', 'FN', 'TR', 'VP', 'EN', 'NA'],
+        'S2': ['PC', 'PR', 'GR', 'SG', 'MN', 'BN', 'TT', 'SR', 'PF', 'VL', 'LP', 'LF', 'VD', 'SC', 'VO', 'SJ', 'BT', 'UN', 'SQ', 'CF', 'PJ', 'CT', 'NO', 'PN'],
+        'L6': ['PC', 'PR', 'GR', 'SG', 'MN', 'BN', 'TT', 'SR'],
+        'L7': ['PC', 'PR', 'GR', 'PM', 'PD', 'EP', 'TB'],
+        'L12': ['SR', 'RE'],
+      };
+
+      const colorMap = (linia: string) => {
+        const l = (linia || '').toUpperCase().trim();
+        if (l.startsWith('F') || l === 'ES2') return '#22c55e';
+        if (l === 'L7' || l === 'ML7' || l === '300') return '#8B4513';
+        if (l === 'L6' || l === 'L66' || l === 'ML6' || l === '100') return '#9333ea';
+        if (l === 'L12') return '#d8b4fe';
+        if (l === 'S1' || l === 'MS1' || l === '400') return '#f97316';
+        if (l === 'S2' || l === 'MS2' || l === '500') return '#22c55e';
+        if (l.startsWith('M')) return '#6b7280';
+        return '#53565A';
+      };
+
+      const mainLiniaForFilter = (linia: string) => {
+        const l = (linia || '').toUpperCase().trim();
+        if (l === 'S1' || l === 'MS1') return 'S1';
+        if (l === 'S2' || l === 'MS2' || l === 'ES2') return 'S2';
+        if (l === 'L6' || l === 'L66' || l === 'ML6') return 'L6';
+        if (l === 'L7' || l === 'ML7') return 'L7';
+        if (l === 'L12') return 'L12';
+        return l;
+      };
+
+      const filteredCircs = generatedCircs.filter(c => lineFilters.includes('Tots') || lineFilters.includes(c.linia));
+
+      // Build station set: include ALL stations from each visible line
+      const foundStations = new Set<string>();
+      const visibleLines = new Set<string>();
+      filteredCircs.forEach(c => {
+        const ml = mainLiniaForFilter(c.linia);
+        visibleLines.add(ml);
+        const routeParts = c.route.split(' → ');
+        if (routeParts.length >= 2) {
+          const sOrigin = resolveStationId(routeParts[0].trim(), c.linia);
+          const sDest = resolveStationId(routeParts[1].trim(), c.linia);
+          if (masterOrder.includes(sOrigin)) foundStations.add(sOrigin);
+          if (masterOrder.includes(sDest)) foundStations.add(sDest);
+        }
+      });
+      visibleLines.forEach(line => {
+        const stations = liniaStationsMap[line];
+        if (stations) stations.forEach(s => foundStations.add(s));
+      });
+
+      const sortedStations = masterOrder.filter(s => foundStations.has(s)).reverse();
+      if (sortedStations.length === 0) return <div className="flex items-center justify-center h-full text-gray-400 font-bold text-sm uppercase">No hi ha circulacions disponibles per mostrar.</div>;
+
+      const timeScale = 4;
+      const startTime = displayMin;
+      const hoursToShow = Math.min(22, Math.ceil((24 * 60 + 240 - displayMin) / 60));
+      const width = hoursToShow * 60 * timeScale;
+      const height = Math.max(600, sortedStations.length * 50);
+
+      const getFgcMin = (t: string) => {
+        if (!t || !t.includes(':')) return null;
+        const p = t.split(':');
+        const h = parseInt(p[0]), m = parseInt(p[1]);
+        if (isNaN(h) || isNaN(m)) return null;
+        let total = h * 60 + m;
+        if (h < 4) total += 24 * 60;
+        return total;
+      };
+
+      const formatTime = (mins: number) => {
+        let m = mins;
+        if (m >= 24 * 60) m -= 24 * 60;
+        return `${Math.floor(m / 60).toString().padStart(2, '0')}:${(m % 60).toString().padStart(2, '0')}`;
+      };
+
+      // Group by unit/torn
+      const groups: Record<string, any[]> = {};
+      filteredCircs.forEach((c, idx) => {
+        const routeParts = c.route.split(' → ');
+        if (routeParts.length < 2) return;
+        const sOrigin = resolveStationId(routeParts[0].trim(), c.linia);
+        const sDest = resolveStationId(routeParts[1].trim(), c.linia);
+        const y1Index = sortedStations.indexOf(sOrigin);
+        const y2Index = sortedStations.indexOf(sDest);
+        if (y1Index === -1 || y2Index === -1) return;
+        if (y1Index === y2Index) return;
+
+        const uId = c.train && c.train !== 'TREN GRÀFIC' ? c.train : `GRAFIC-${c.torn || idx}`;
+        if (!groups[uId]) groups[uId] = [];
+        groups[uId].push({ ...c, originId: sOrigin, destId: sDest, y1: y1Index * 50, y2: y2Index * 50 });
+      });
+
+      const terminalOvershoots: Record<string, number> = { 'PC': 40, 'NA': -40, 'PN': -40, 'TB': -40, 'RE': -40, 'SR': 40 };
+
+      return (
+        <div className="space-y-4 animate-in slide-in-from-right duration-500 overflow-hidden flex flex-col" style={{ minHeight: '700px' }}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 px-2"><TrendingUp size={16} className="text-orange-500" /><h4 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Malla Ferroviària d'Emergència</h4></div>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                <span>{filteredCircs.length} circulacions</span>
+                <span>{Object.keys(groups).length} unitats</span>
+              </div>
+              <div className="flex items-center bg-gray-100 dark:bg-white/5 p-1 rounded-2xl border border-gray-200 dark:border-white/10">
+                {['Tots', 'S1', 'S2', 'L6', 'L7', 'L12'].map(ln => (
+                  <button
+                    key={ln}
+                    onClick={() => toggleLineFilter(ln)}
+                    className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase transition-all ${lineFilters.includes(ln)
+                      ? 'bg-white dark:bg-gray-700 text-fgc-grey dark:text-white shadow-sm'
+                      : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
+                      }`}
+                  >
+                    {ln}
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => setViewMode('RESOURCES')} className="text-[10px] font-black text-blue-500 hover:underline ml-4">← Tornar a recursos</button>
+            </div>
+          </div>
+
+          <div className="flex-1 bg-white dark:bg-gray-950 rounded-[32px] border border-gray-100 dark:border-white/5 overflow-hidden shadow-inner relative" style={{ minHeight: '550px' }}>
+            <TransformWrapper initialScale={0.5} minScale={0.1} maxScale={4} centerOnInit={false}>
+              {({ zoomIn, zoomOut, resetTransform }) => (
+                <>
+                  <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
+                    <button onClick={() => zoomIn()} className="p-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur rounded-full shadow border border-black/5 text-fgc-grey dark:text-white"><ZoomIn size={16} /></button>
+                    <button onClick={() => zoomOut()} className="p-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur rounded-full shadow border border-black/5 text-fgc-grey dark:text-white"><ZoomOut size={16} /></button>
+                    <button onClick={() => resetTransform()} className="p-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur rounded-full shadow border border-black/5 text-fgc-grey dark:text-white"><RotateCcw size={16} /></button>
+                  </div>
+                  <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }}>
+                    <div className="relative p-20 select-none">
+                      <svg width={width} height={height} className="overflow-visible">
+                        {/* Time grid */}
+                        {Array.from({ length: hoursToShow * 4 + 1 }).map((_, i) => {
+                          const m = i * 15;
+                          const x = m * timeScale;
+                          const isHour = i % 4 === 0;
+                          return (
+                            <g key={i}>
+                              <line x1={x} y1={-20} x2={x} y2={height + 20} stroke="currentColor" strokeDasharray={isHour ? "" : "2,2"} className={isHour ? 'text-gray-200 dark:text-white/10' : 'text-gray-100 dark:text-white/5'} />
+                              {isHour && (
+                                <text x={x} y={-30} className="text-[10px] font-black fill-gray-400 dark:fill-gray-500 uppercase" textAnchor="middle">
+                                  {formatTime(startTime + m)}
+                                </text>
+                              )}
+                            </g>
+                          );
+                        })}
+
+                        {/* Station axes */}
+                        {sortedStations.map((st, i) => {
+                          const y = i * 50;
+                          return (
+                            <g key={st}>
+                              <line x1={-20} y1={y} x2={width + 20} y2={y} stroke="currentColor" className="text-gray-100 dark:text-white/5" />
+                              <text x={-30} y={y + 4} className="text-[11px] font-black fill-fgc-grey dark:fill-gray-400 uppercase" textAnchor="end">{st}</text>
+                            </g>
+                          );
+                        })}
+
+                        {/* Circulation lines */}
+                        {Object.entries(groups).map(([uId, trips]) => {
+                          const sorted = trips.sort((a, b) => (getFgcMin(a.sortida) || 0) - (getFgcMin(b.sortida) || 0));
+                          return (
+                            <g key={uId}>
+                              {/* Layer 1: Transitions/Loops */}
+                              {sorted.map((c, i) => {
+                                const next = sorted[i + 1];
+                                if (!next) return null;
+                                const endM = getFgcMin(c.arribada);
+                                const nextStartM = getFgcMin(next.sortida);
+                                if (endM === null || nextStartM === null) return null;
+                                if (nextStartM - endM > 60 || nextStartM < endM) return null;
+
+                                const x2 = (endM - startTime) * timeScale;
+                                const nx1 = (nextStartM - startTime) * timeScale;
+                                const color = colorMap(c.linia);
+                                const ny1 = next.y1;
+
+                                const yDir = terminalOvershoots[c.destId];
+                                if (yDir !== undefined && c.destId === next.originId) {
+                                  return (
+                                    <path
+                                      key={`loop-${uId}-${i}`}
+                                      d={`M ${x2} ${c.y2} C ${x2 + 15} ${c.y2 + yDir}, ${nx1 - 15} ${ny1 + yDir}, ${nx1} ${ny1}`}
+                                      fill="none" stroke={color} strokeWidth={2} strokeDasharray="5,3" className="opacity-50"
+                                    />
+                                  );
+                                } else {
+                                  return (
+                                    <path
+                                      key={`trans-${uId}-${i}`}
+                                      d={`M ${x2} ${c.y2} C ${x2 + (nx1 - x2) / 2} ${c.y2}, ${x2 + (nx1 - x2) / 2} ${ny1}, ${nx1} ${ny1}`}
+                                      fill="none" stroke={color} strokeWidth={1} strokeDasharray="4,2" className="opacity-30"
+                                    />
+                                  );
+                                }
+                              })}
+
+                              {/* Layer 2: Main circulation lines */}
+                              {sorted.map((c, i) => {
+                                const sM = getFgcMin(c.sortida);
+                                const eM = getFgcMin(c.arribada);
+                                if (sM === null || eM === null) return null;
+                                const x1 = (sM - startTime) * timeScale;
+                                const x2 = (eM - startTime) * timeScale;
+                                const color = colorMap(c.linia);
+                                const isManiobra = (c.linia || '').toUpperCase().startsWith('M') && c.linia !== 'ML6' && c.linia !== 'ML7';
+                                const isSenseMaquinista = c.torn === '---';
+
+                                return (
+                                  <g key={`trip-${uId}-${i}`} className="group cursor-pointer">
+                                    <line
+                                      x1={x1} y1={c.y1} x2={x2} y2={c.y2}
+                                      stroke={color}
+                                      strokeWidth={isManiobra ? 2 : isSenseMaquinista ? 2.5 : 4}
+                                      strokeDasharray={isManiobra ? "4,2" : isSenseMaquinista ? "4,2" : ""}
+                                      className="transition-all group-hover:stroke-blue-500 group-hover:[stroke-width:8px] drop-shadow-sm"
+                                    />
+                                    <circle cx={x1} cy={c.y1} r={4} fill={color} className="transition-all group-hover:r-6" />
+                                    <circle cx={x2} cy={c.y2} r={4} fill={color} className="transition-all group-hover:r-6" />
+
+                                    {/* Hover tooltip */}
+                                    <g className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                                      <rect x={Math.min(x1, x2)} y={Math.min(c.y1, c.y2) - 70} width={200} height={60} rx={14} className="fill-fgc-grey/95 dark:fill-black/95 shadow-2xl" />
+                                      <text x={Math.min(x1, x2) + 14} y={Math.min(c.y1, c.y2) - 50} className="fill-white text-[11px] font-black uppercase">{c.id} — {c.torn}</text>
+                                      <text x={Math.min(x1, x2) + 14} y={Math.min(c.y1, c.y2) - 35} className="fill-white/70 text-[9px] font-bold uppercase">{c.sortida} → {c.arribada}</text>
+                                      <text x={Math.min(x1, x2) + 14} y={Math.min(c.y1, c.y2) - 20} className="text-[9px] font-black uppercase" fill={color}>{c.linia} · {c.originId} → {c.destId}</text>
+                                    </g>
+                                  </g>
+                                );
+                              })}
+                            </g>
+                          );
+                        })}
+                      </svg>
+                    </div>
+                  </TransformComponent>
+                </>
+              )}
+            </TransformWrapper>
+          </div>
+
+          {/* Legend - same as MallaVisualizer */}
+          <div className="flex flex-wrap items-center gap-6 px-4 bg-gray-50 dark:bg-black/20 p-4 rounded-[24px] border border-gray-100 dark:border-white/5">
+            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: '#f97316' }} /> <span className="text-[10px] font-black uppercase text-gray-500">S1 Terrassa</span></div>
+            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: '#22c55e' }} /> <span className="text-[10px] font-black uppercase text-gray-500">S2 Sabadell</span></div>
+            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: '#9333ea' }} /> <span className="text-[10px] font-black uppercase text-gray-500">L6</span></div>
+            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: '#8B4513' }} /> <span className="text-[10px] font-black uppercase text-gray-500">L7</span></div>
+            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: '#d8b4fe' }} /> <span className="text-[10px] font-black uppercase text-gray-500">L12</span></div>
+            <div className="flex items-center gap-2"><div className="w-8 h-0 border-t-2 border-dashed border-gray-400" /> <span className="text-[10px] font-black uppercase text-gray-500">Maniobres</span></div>
+            <div className="flex items-center gap-2"><div className="w-8 h-0 border-t-2 border-dashed border-orange-400" /> <span className="text-[10px] font-black uppercase text-orange-400">Sense Maquinista</span></div>
+            <div className="flex-1 min-w-[100px]" />
+            <div className="flex items-center gap-4 text-[10px] font-black text-gray-400 uppercase tracking-widest italic">
+              <div className="flex items-center gap-1"><Move size={12} /> Arrossega</div>
+              <div className="flex items-center gap-1"><ZoomIn size={12} /> Zoom</div>
+              <div className="flex items-center gap-1"><Activity size={12} /> Hover per detalls</div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
     const islandLabel = dividedPersonnel[islandId].label.replace("Illa ", "");
     const totalAssigned = Object.values(lineCounts).reduce((a, b) => a + b, 0);
 
@@ -2039,8 +2342,16 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
               <div className="flex items-center gap-3 bg-white dark:bg-gray-800 px-3 py-2 rounded-xl border border-gray-100 dark:border-white/10 shadow-sm">
                 <button
                   onClick={async () => {
-                    const { data: theoryCircs } = await supabase.from('circulations').select('*');
-                    if (!theoryCircs) return;
+                    let theoryCircs: any[] = [];
+                    let fromIdx2 = 0;
+                    while (true) {
+                      const { data: batch } = await supabase.from('circulations').select('*').range(fromIdx2, fromIdx2 + 999);
+                      if (!batch || batch.length === 0) break;
+                      theoryCircs = theoryCircs.concat(batch);
+                      if (batch.length < 1000) break;
+                      fromIdx2 += 1000;
+                    }
+                    if (theoryCircs.length === 0) return;
                     const liniaStationsRef: Record<string, string[]> = { 'S1': S1_STATIONS, 'S2': S2_STATIONS, 'L6': L6_STATIONS, 'L7': L7_STATIONS, 'L12': L12_STATIONS };
 
                     Object.entries(lineCounts).forEach(([linia, count]) => {
@@ -2081,7 +2392,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                 onClick={handleGenerateCirculations}
                 className={`flex items-center gap-2 px-6 py-4 rounded-2xl font-black text-sm transition-all shadow-xl active:scale-95 bg-blue-600 text-white hover:bg-blue-700`}
               >
-                <FilePlus size={18} /> GENERAR MALLA
+                <FilePlus size={18} /> GENERAR CIRCULACIONS
               </button>
               <button
                 onClick={async () => {
@@ -2091,6 +2402,15 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                 className={`flex items-center gap-2 px-6 py-4 rounded-2xl font-black text-sm transition-all shadow-xl active:scale-95 bg-purple-600 text-white hover:bg-purple-700`}
               >
                 <Users size={18} /> GENERAR TORNS
+              </button>
+              <button
+                onClick={async () => {
+                  if (generatedCircs.length === 0) await handleGenerateCirculations();
+                  setViewMode('GRAPH');
+                }}
+                className={`flex items-center gap-2 px-6 py-4 rounded-2xl font-black text-sm transition-all shadow-xl active:scale-95 bg-orange-600 text-white hover:bg-orange-700`}
+              >
+                <TrendingUp size={18} /> GENERAR MALLA
               </button>
               <button onClick={() => setAltServiceIsland(null)} className="p-3 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-500 rounded-full transition-colors"><X size={28} /></button>
             </div>
@@ -2338,8 +2658,8 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                       {['Tots', 'S1', 'S2', 'L6', 'L7', 'L12'].map(ln => (
                         <button
                           key={ln}
-                          onClick={() => setLineFilter(ln)}
-                          className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase transition-all ${lineFilter === ln
+                          onClick={() => toggleLineFilter(ln)}
+                          className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase transition-all ${lineFilters.includes(ln)
                             ? 'bg-white dark:bg-gray-700 text-fgc-grey dark:text-white shadow-sm'
                             : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
                             }`}
@@ -2360,9 +2680,9 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                     </div>
                     <div className="divide-y divide-gray-100 dark:divide-white/5">
                       {generatedCircs
-                        .filter(c => lineFilter === 'Tots' || c.linia === lineFilter)
+                        .filter(c => lineFilters.includes('Tots') || lineFilters.includes(c.linia))
                         .map((c, idx) => (
-                          <div key={idx} className="grid grid-cols-8 p-4 items-center hover:bg-white dark:hover:bg-white/5 transition-colors">
+                          <div key={idx} className={`grid grid-cols-8 p-4 items-center transition-colors ${c.torn === '---' ? 'bg-orange-50 dark:bg-orange-900/10 hover:bg-orange-100 dark:hover:bg-orange-900/20 pulse-orange' : 'hover:bg-white dark:hover:bg-white/5'}`}>
                             <div className="flex items-center gap-2">
                               <div className="w-2 h-2 rounded-full" style={{ backgroundColor: getLiniaColorHex(c.linia) }} />
                               <span className="font-black text-lg text-fgc-grey dark:text-white">{c.id}</span>
@@ -2386,7 +2706,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                   </div>
                 )}
               </div>
-            ) : (
+            ) : viewMode === 'SHIFTS' ? (
               <div className="space-y-6 animate-in slide-in-from-right duration-500">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 px-2"><Users size={16} className="text-purple-500" /><h4 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Pla d'Assignació per Torn de Maquinista</h4></div>
@@ -2395,8 +2715,8 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                       {['Tots', 'S1', 'S2', 'L6', 'L7', 'L12'].map(ln => (
                         <button
                           key={ln}
-                          onClick={() => setLineFilter(ln)}
-                          className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase transition-all ${lineFilter === ln
+                          onClick={() => toggleLineFilter(ln)}
+                          className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase transition-all ${lineFilters.includes(ln)
                             ? 'bg-white dark:bg-gray-700 text-fgc-grey dark:text-white shadow-sm'
                             : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
                             }`}
@@ -2416,28 +2736,11 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                     {(() => {
                       const groups: Record<string, any> = {};
                       generatedCircs
-                        .filter(c => lineFilter === 'Tots' || c.linia === lineFilter)
+                        .filter(c => lineFilters.includes('Tots') || lineFilters.includes(c.linia))
                         .forEach(c => {
-                          if (!c.torn || c.torn === '---') return;
+                          if (!c.torn) return;
 
-                          let isShiftVisible = false;
-                          if (selectedServei === 'Tots') {
-                            isShiftVisible = true;
-                          } else {
-                            const s = (c as any).servei || '';
-                            const t = c.linia || '';
-                            const f = selectedServei;
-
-                            const check = (val: string) => {
-                              if (f === '400' || f === 'S1') return val === '400' || val === 'S1' || val.includes('S1');
-                              if (f === '500' || f === 'S2') return val === '500' || val === 'S2' || val.includes('S2');
-                              if (f === '100' || f === 'L6') return val === '100' || val === 'L6' || val.includes('L6');
-                              if (f === '0' || f === 'L12') return val === '0' || val === 'L12' || val.includes('L12');
-                              return val === f || val.includes(f) || f.includes(val);
-                            };
-
-                            isShiftVisible = check(s) || check(t);
-                          }
+                          let isShiftVisible = isServiceVisible((c as any).servei, selectedServei) || isServiceVisible(c.linia, selectedServei);
                           if (!isShiftVisible) return;
                           if (!groups[c.torn]) {
                             groups[c.torn] = {
@@ -2452,16 +2755,16 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                         });
 
                       return Object.values(groups).sort((a, b) => a.id.localeCompare(b.id)).map((g: any) => (
-                        <div key={g.id} className="bg-white dark:bg-gray-800 rounded-[32px] border border-gray-100 dark:border-white/5 shadow-sm overflow-hidden flex flex-col">
+                        <div key={g.id} className={`rounded-[32px] border shadow-sm overflow-hidden flex flex-col ${g.id === '---' ? 'bg-orange-50/50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-500/20 pulse-orange' : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-white/5'}`}>
                           <div className="p-6 bg-gray-50/50 dark:bg-black/20 border-b border-gray-100 dark:border-white/5 flex items-center justify-between">
                             <div className="flex items-center gap-4">
-                              <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/40 text-purple-600 rounded-2xl flex items-center justify-center font-black text-sm">{g.id}</div>
+                              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-sm ${g.id === '---' ? 'bg-orange-500 text-white' : 'bg-purple-100 dark:bg-purple-900/40 text-purple-600'}`}>{g.id}</div>
                               <div>
-                                <p className="text-sm font-black text-fgc-grey dark:text-white uppercase truncate">{g.driver}</p>
+                                <p className={`text-sm font-black uppercase truncate ${g.id === '---' ? 'text-orange-700 dark:text-orange-400' : 'text-fgc-grey dark:text-white'}`}>{g.driver}</p>
                                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Horari: {g.start} - {g.end}</p>
                               </div>
                             </div>
-                            <span className="text-[10px] font-black bg-purple-50 dark:bg-purple-900/20 text-purple-600 px-3 py-1 rounded-full uppercase">{g.trips.length} SERVEIS</span>
+                            <span className={`text-[10px] font-black px-3 py-1 rounded-full uppercase ${g.id === '---' ? 'bg-orange-500 text-white' : 'bg-purple-50 dark:bg-purple-900/20 text-purple-600'}`}>{g.trips.length} SERVEIS</span>
                           </div>
                           <div className="p-4 space-y-2">
                             {g.trips.map((t: any, idx: number) => (
@@ -2486,6 +2789,8 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                   </div>
                 )}
               </div>
+            ) : (
+              renderAlternativeServiceGraph()
             )}
           </div>
 
@@ -2671,6 +2976,93 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
             </div>
 
             <div className="flex flex-wrap items-center gap-3 bg-gray-50 dark:bg-black/20 p-2 rounded-[24px] border border-gray-100 dark:border-white/5">
+              <button
+                onClick={async () => {
+                  setLoading(true);
+
+                  // 1. Load ALL circulations from DB using pagination to bypass 1000-row server limit
+                  let theory = theoryCircsLocal;
+                  if (theory.length === 0 || theory.length === 1000) {
+                    let allCircs: any[] = [];
+                    let from = 0;
+                    const batchSize = 1000;
+                    while (true) {
+                      const { data: batch } = await supabase.from('circulations').select('*').range(from, from + batchSize - 1);
+                      if (!batch || batch.length === 0) break;
+                      allCircs = allCircs.concat(batch);
+                      if (batch.length < batchSize) break; // last page
+                      from += batchSize;
+                    }
+                    if (allCircs.length > 0) {
+                      theory = allCircs;
+                      setTheoryCircsLocal(allCircs);
+                    }
+                  }
+
+                  // 2. Load ALL shifts
+                  let shifts = allShifts;
+                  if (!shifts || shifts.length === 0) {
+                    const { data } = await supabase.from('shifts').select('*');
+                    if (data) {
+                      shifts = data;
+                      setAllShifts(data);
+                    }
+                  }
+                  setLoading(false);
+
+                  if (theory.length === 0) {
+                    setRealMallaCircs([]);
+                    setIsRealMallaOpen(true);
+                    return;
+                  }
+
+                  // 3. Build set of circulation IDs for selected servei
+                  const visibleShifts = (shifts || []).filter(s => isServiceVisible(s.servei, selectedServei));
+                  const circIdInServei = new Set<string>();
+                  const circToShift: Record<string, { torn: string; train: string }> = {};
+                  visibleShifts.forEach(shift => {
+                    const shiftCircs = Array.isArray(shift.circulations) ? shift.circulations : [];
+                    shiftCircs.forEach((cRef: any) => {
+                      const codi = typeof cRef === 'string' ? cRef : cRef.codi;
+                      if (!codi || codi === '-' || codi === 'Viatger' || codi === 'VIATGER') return;
+                      circIdInServei.add(codi);
+                      if (!circToShift[codi]) {
+                        circToShift[codi] = { torn: shift.id, train: shift.train || '---' };
+                      }
+                    });
+                  });
+
+                  // 4. Process ALL circulations, filtered by service
+                  const res: any[] = [];
+                  theory.forEach(tc => {
+                    // If a servei filter is active, only include circs referenced by that service's shifts
+                    if (selectedServei !== 'Tots' && !circIdInServei.has(tc.id)) return;
+
+                    const originId = resolveStationId(tc.inici || '', tc.linia || '');
+                    const destId = resolveStationId(tc.final || '', tc.linia || '');
+                    // Normalise L66 → L6
+                    const normLinia = tc.linia === 'L66' ? 'L6' : tc.linia;
+                    const shiftInfo = circToShift[tc.id] || { torn: '---', train: '---' };
+                    res.push({
+                      ...tc,
+                      linia: normLinia,
+                      liniaOriginal: tc.linia,
+                      torn: shiftInfo.torn,
+                      train: shiftInfo.train,
+                      route: `${originId} → ${destId}`,
+                      originId,
+                      destId,
+                    });
+                  });
+                  setRealMallaCircs(res);
+                  setIsRealMallaOpen(true);
+                }}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all bg-orange-500 text-white shadow-md hover:bg-orange-600`}
+                title="Veure la malla real teòrica del servei seleccionat"
+              >
+                <TrendingUp size={14} /> Malla Real
+              </button>
+              <div className="w-px h-6 bg-gray-200 dark:bg-white/10 mx-1 hidden sm:block"></div>
               <button onClick={() => setIsGeoTrenEnabled(!isGeoTrenEnabled)} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${isGeoTrenEnabled ? 'bg-blue-500 text-white shadow-md' : 'text-gray-400 hover:text-fgc-grey'}`} title="Activar posicionament real GPS (GeoTren)"><Activity size={14} className={isGeoTrenEnabled ? 'animate-pulse' : ''} /> GeoTren</button>
               <div className="w-px h-6 bg-gray-200 dark:bg-white/10 mx-1 hidden sm:block"></div>
               <button onClick={() => { setIsRealTime(true); setIsPaused(false); setIsGeoTrenEnabled(false); }} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${isRealTime && !isGeoTrenEnabled ? 'bg-fgc-grey dark:bg-fgc-green text-white dark:text-fgc-grey shadow-md' : 'text-gray-400 hover:text-fgc-grey'}`}>Live</button>
@@ -4439,7 +4831,284 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
       }
 
       {altServiceIsland && <AlternativeServiceOverlay islandId={altServiceIsland} />}
+      {isRealMallaOpen && (
+        <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-900 w-full max-w-7xl h-[90vh] rounded-[48px] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
+            <div className="p-6 border-b border-gray-100 dark:border-white/5 flex items-center justify-between bg-gray-50/50 dark:bg-black/20">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-orange-500 rounded-2xl text-white shadow-lg"><TrendingUp size={24} /></div>
+                <div>
+                  <h3 className="text-xl font-black text-fgc-grey dark:text-white uppercase tracking-tight">Malla Real Interactiva</h3>
+                  <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Servei Seleccionat: S-{selectedServei}</p>
+                </div>
+              </div>
+              <button onClick={() => setIsRealMallaOpen(false)} className="p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded-full transition-colors"><X size={24} /></button>
+            </div>
+            <div className="flex-1 overflow-hidden p-6">
+              <MallaVisualizer circs={realMallaCircs} />
+            </div>
+          </div>
+        </div>
+      )}
     </>
+  );
+};
+
+const MallaVisualizer = ({ circs }: { circs: any[] }) => {
+  const [lineFilter, setLineFilter] = useState('Tots');
+  const masterOrder = [
+    'PC', 'PR', 'GR', 'PM', 'PD', 'EP', 'TB',
+    'SG', 'MN', 'BN', 'TT', 'SR', 'RE',
+    'PF', 'VL', 'LP', 'LF', 'VD', 'SC',
+    'MS', 'HG', 'RB', 'FN', 'TR', 'VP', 'EN', 'NA',
+    'VO', 'SJ', 'BT', 'UN', 'SQ', 'CF', 'PJ', 'CT', 'NO', 'PN'
+  ];
+
+  const colorMap = (linia: string) => {
+    const l = (linia || '').toUpperCase().trim();
+    if (l.startsWith('F') || l === 'ES2') return '#22c55e';
+    if (l === 'L7' || l === 'ML7' || l === '300') return '#8B4513';
+    if (l === 'L6' || l === 'L66' || l === 'ML6' || l === '100') return '#9333ea';
+    if (l === 'L12') return '#d8b4fe';
+    if (l === 'S1' || l === 'MS1' || l === '400') return '#f97316';
+    if (l === 'S2' || l === 'MS2' || l === '500') return '#22c55e';
+    if (l.startsWith('M')) return '#6b7280'; // Maniobres
+    return '#53565A';
+  };
+
+  const mainLiniaForFilter = (linia: string) => {
+    const l = (linia || '').toUpperCase().trim();
+    if (l === 'S1' || l === 'MS1') return 'S1';
+    if (l === 'S2' || l === 'MS2' || l === 'ES2') return 'S2';
+    if (l === 'L6' || l === 'L66' || l === 'ML6') return 'L6';
+    if (l === 'L7' || l === 'ML7') return 'L7';
+    if (l === 'L12') return 'L12';
+    return l;
+  };
+
+  const filtered = circs.filter(c => {
+    if (lineFilter === 'Tots') return true;
+    return mainLiniaForFilter(c.linia) === lineFilter;
+  });
+
+  const getFgcMin = (t: string) => {
+    if (!t || !t.includes(':')) return null;
+    const p = t.split(':');
+    const h = parseInt(p[0]), m = parseInt(p[1]);
+    if (isNaN(h) || isNaN(m)) return null;
+    let total = h * 60 + m;
+    if (h < 4) total += 24 * 60;
+    return total;
+  };
+
+  const formatTime = (mins: number) => {
+    let m = mins;
+    if (m >= 24 * 60) m -= 24 * 60;
+    return `${Math.floor(m / 60).toString().padStart(2, '0')}:${(m % 60).toString().padStart(2, '0')}`;
+  };
+
+  // Map each main line to its full station list
+  const liniaStations: Record<string, string[]> = {
+    'S1': ['PC', 'PR', 'GR', 'SG', 'MN', 'BN', 'TT', 'SR', 'PF', 'VL', 'LP', 'LF', 'VD', 'SC', 'MS', 'HG', 'RB', 'FN', 'TR', 'VP', 'EN', 'NA'],
+    'S2': ['PC', 'PR', 'GR', 'SG', 'MN', 'BN', 'TT', 'SR', 'PF', 'VL', 'LP', 'LF', 'VD', 'SC', 'VO', 'SJ', 'BT', 'UN', 'SQ', 'CF', 'PJ', 'CT', 'NO', 'PN'],
+    'L6': ['PC', 'PR', 'GR', 'SG', 'MN', 'BN', 'TT', 'SR'],
+    'L7': ['PC', 'PR', 'GR', 'PM', 'PD', 'EP', 'TB'],
+    'L12': ['SR', 'RE'],
+  };
+
+  // Build station set: include ALL stations from each line that has visible circulations
+  const foundStations = new Set<string>();
+  const visibleLines = new Set<string>();
+  filtered.forEach(c => {
+    const ml = mainLiniaForFilter(c.linia);
+    visibleLines.add(ml);
+    // Also keep origin/dest for maniobres or unrecognized lines
+    if (c.originId && masterOrder.includes(c.originId)) foundStations.add(c.originId);
+    if (c.destId && masterOrder.includes(c.destId)) foundStations.add(c.destId);
+  });
+  // Add all stations for each visible line
+  visibleLines.forEach(line => {
+    const stations = liniaStations[line];
+    if (stations) stations.forEach(s => foundStations.add(s));
+  });
+
+  const sortedStations = masterOrder.filter(s => foundStations.has(s)).reverse();
+  if (sortedStations.length === 0) return <div className="flex items-center justify-center h-full text-gray-400 font-bold text-sm uppercase">No hi ha circulacions disponibles per mostrar.</div>;
+
+  const timeScale = 4;
+  const startTime = 240; // 4:00 AM
+  const hoursToShow = 22;
+  const width = hoursToShow * 60 * timeScale;
+  const height = Math.max(600, sortedStations.length * 50);
+
+  // Group by unit/torn
+  const groups: Record<string, any[]> = {};
+  filtered.forEach(c => {
+    const oid = c.originId;
+    const did = c.destId;
+    if (!oid || !did || !foundStations.has(oid) || !foundStations.has(did)) return;
+    if (oid === did) return; // Skip same-station
+    const y1 = sortedStations.indexOf(oid) * 50;
+    const y2 = sortedStations.indexOf(did) * 50;
+    const uId = c.train && c.train !== '---' ? c.train : `TORN-${c.torn}`;
+    if (!groups[uId]) groups[uId] = [];
+    groups[uId].push({ ...c, y1, y2 });
+  });
+
+  const terminalOvershoots: Record<string, number> = { 'PC': 40, 'NA': -40, 'PN': -40, 'TB': -40, 'RE': -40, 'SR': 40 };
+
+  return (
+    <div className="h-full flex flex-col space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 bg-gray-100 dark:bg-white/5 p-1 rounded-2xl border border-gray-200 dark:border-white/10">
+          {['Tots', 'S1', 'S2', 'L6', 'L7', 'L12'].map(ln => (
+            <button key={ln} onClick={() => setLineFilter(ln)} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${lineFilter === ln ? 'bg-white dark:bg-gray-700 text-fgc-grey dark:text-white shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>
+              {ln}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+          <span>{filtered.length} circulacions</span>
+          <span>{Object.keys(groups).length} unitats</span>
+        </div>
+      </div>
+      <div className="flex-1 bg-white dark:bg-gray-950 rounded-[32px] border border-gray-100 dark:border-white/5 overflow-hidden shadow-inner relative">
+        <TransformWrapper initialScale={0.5} minScale={0.1} maxScale={4} centerOnInit={false}>
+          {({ zoomIn, zoomOut, resetTransform }) => (
+            <>
+              <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
+                <button onClick={() => zoomIn()} className="p-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur rounded-full shadow border border-black/5 text-fgc-grey dark:text-white"><ZoomIn size={16} /></button>
+                <button onClick={() => zoomOut()} className="p-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur rounded-full shadow border border-black/5 text-fgc-grey dark:text-white"><ZoomOut size={16} /></button>
+                <button onClick={() => resetTransform()} className="p-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur rounded-full shadow border border-black/5 text-fgc-grey dark:text-white"><RotateCcw size={16} /></button>
+              </div>
+              <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }}>
+                <div className="relative p-20 select-none">
+                  <svg width={width} height={height} className="overflow-visible">
+                    {/* Time grid */}
+                    {Array.from({ length: hoursToShow * 4 + 1 }).map((_, i) => {
+                      const m = i * 15;
+                      const x = m * timeScale;
+                      const isHour = i % 4 === 0;
+                      return (
+                        <g key={i}>
+                          <line x1={x} y1={-20} x2={x} y2={height + 20} stroke="currentColor" strokeDasharray={isHour ? "" : "2,2"} className={isHour ? 'text-gray-200 dark:text-white/10' : 'text-gray-100 dark:text-white/5'} />
+                          {isHour && (
+                            <text x={x} y={-30} className="text-[10px] font-black fill-gray-400 dark:fill-gray-500 uppercase" textAnchor="middle">
+                              {formatTime(startTime + m)}
+                            </text>
+                          )}
+                        </g>
+                      );
+                    })}
+
+                    {/* Station axes */}
+                    {sortedStations.map((st, i) => {
+                      const y = i * 50;
+                      return (
+                        <g key={st}>
+                          <line x1={-20} y1={y} x2={width + 20} y2={y} stroke="currentColor" className="text-gray-100 dark:text-white/5" />
+                          <text x={-30} y={y + 4} className="text-[11px] font-black fill-fgc-grey dark:fill-gray-400 uppercase" textAnchor="end">{st}</text>
+                        </g>
+                      );
+                    })}
+
+                    {/* Circulation lines */}
+                    {Object.entries(groups).map(([uId, trips]) => {
+                      const sorted = trips.sort((a, b) => (getFgcMin(a.sortida) || 0) - (getFgcMin(b.sortida) || 0));
+                      return (
+                        <g key={uId}>
+                          {/* Layer 1: Transitions/Loops between consecutive trips */}
+                          {sorted.map((c, i) => {
+                            const next = sorted[i + 1];
+                            if (!next) return null;
+                            const endM = getFgcMin(c.arribada);
+                            const nextStartM = getFgcMin(next.sortida);
+                            if (endM === null || nextStartM === null) return null;
+                            if (nextStartM - endM > 60 || nextStartM < endM) return null;
+
+                            const x2 = (endM - startTime) * timeScale;
+                            const nx1 = (nextStartM - startTime) * timeScale;
+                            const color = colorMap(c.linia);
+                            const ny1 = next.y1;
+
+                            const yDir = terminalOvershoots[c.destId];
+                            if (yDir !== undefined && c.destId === next.originId) {
+                              return (
+                                <path
+                                  key={`loop-${uId}-${i}`}
+                                  d={`M ${x2} ${c.y2} C ${x2 + 15} ${c.y2 + yDir}, ${nx1 - 15} ${ny1 + yDir}, ${nx1} ${ny1}`}
+                                  fill="none" stroke={color} strokeWidth={2} strokeDasharray="5,3" className="opacity-50"
+                                />
+                              );
+                            } else {
+                              return (
+                                <path
+                                  key={`trans-${uId}-${i}`}
+                                  d={`M ${x2} ${c.y2} C ${x2 + (nx1 - x2) / 2} ${c.y2}, ${x2 + (nx1 - x2) / 2} ${ny1}, ${nx1} ${ny1}`}
+                                  fill="none" stroke={color} strokeWidth={1} strokeDasharray="4,2" className="opacity-30"
+                                />
+                              );
+                            }
+                          })}
+
+                          {/* Layer 2: Main circulation lines */}
+                          {sorted.map((c, i) => {
+                            const sM = getFgcMin(c.sortida);
+                            const eM = getFgcMin(c.arribada);
+                            if (sM === null || eM === null) return null;
+                            const x1 = (sM - startTime) * timeScale;
+                            const x2 = (eM - startTime) * timeScale;
+                            const color = colorMap(c.linia);
+                            const isManiobra = (c.linia || '').toUpperCase().startsWith('M') && c.linia !== 'ML6' && c.linia !== 'ML7';
+
+                            return (
+                              <g key={`trip-${uId}-${i}`} className="group cursor-pointer">
+                                <line
+                                  x1={x1} y1={c.y1} x2={x2} y2={c.y2}
+                                  stroke={color}
+                                  strokeWidth={isManiobra ? 2 : 4}
+                                  strokeDasharray={isManiobra ? "4,2" : ""}
+                                  className="transition-all group-hover:stroke-blue-500 group-hover:[stroke-width:8px] drop-shadow-sm"
+                                />
+                                <circle cx={x1} cy={c.y1} r={4} fill={color} className="transition-all group-hover:r-6" />
+                                <circle cx={x2} cy={c.y2} r={4} fill={color} className="transition-all group-hover:r-6" />
+
+                                {/* Hover tooltip */}
+                                <g className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                                  <rect x={Math.min(x1, x2)} y={Math.min(c.y1, c.y2) - 70} width={200} height={60} rx={14} className="fill-fgc-grey/95 dark:fill-black/95 shadow-2xl" />
+                                  <text x={Math.min(x1, x2) + 14} y={Math.min(c.y1, c.y2) - 50} className="fill-white text-[11px] font-black uppercase">{c.id} — {c.torn}</text>
+                                  <text x={Math.min(x1, x2) + 14} y={Math.min(c.y1, c.y2) - 35} className="fill-white/70 text-[9px] font-bold uppercase">{c.sortida} → {c.arribada}</text>
+                                  <text x={Math.min(x1, x2) + 14} y={Math.min(c.y1, c.y2) - 20} className="text-[9px] font-black uppercase" fill={color}>{c.linia} · {c.originId} → {c.destId}</text>
+                                </g>
+                              </g>
+                            );
+                          })}
+                        </g>
+                      );
+                    })}
+                  </svg>
+                </div>
+              </TransformComponent>
+            </>
+          )}
+        </TransformWrapper>
+      </div>
+      {/* Legend */}
+      <div className="flex flex-wrap items-center gap-6 px-4 bg-gray-50 dark:bg-black/20 p-4 rounded-[24px] border border-gray-100 dark:border-white/5">
+        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: '#f97316' }} /> <span className="text-[10px] font-black uppercase text-gray-500">S1 Terrassa</span></div>
+        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: '#22c55e' }} /> <span className="text-[10px] font-black uppercase text-gray-500">S2 Sabadell</span></div>
+        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: '#9333ea' }} /> <span className="text-[10px] font-black uppercase text-gray-500">L6</span></div>
+        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: '#8B4513' }} /> <span className="text-[10px] font-black uppercase text-gray-500">L7</span></div>
+        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: '#d8b4fe' }} /> <span className="text-[10px] font-black uppercase text-gray-500">L12</span></div>
+        <div className="flex items-center gap-2"><div className="w-8 h-0 border-t-2 border-dashed border-gray-400" /> <span className="text-[10px] font-black uppercase text-gray-500">Maniobres</span></div>
+        <div className="flex-1 min-w-[100px]" />
+        <div className="flex items-center gap-4 text-[10px] font-black text-gray-400 uppercase tracking-widest italic">
+          <div className="flex items-center gap-1"><Move size={12} /> Arrossega</div>
+          <div className="flex items-center gap-1"><ZoomIn size={12} /> Zoom</div>
+          <div className="flex items-center gap-1"><Activity size={12} /> Hover per detalls</div>
+        </div>
+      </div>
+    </div>
   );
 };
 
