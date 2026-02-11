@@ -1,19 +1,16 @@
+/**
+ * Time Utilities - Re-exports from stations.ts for backward compatibility.
+ * New code should import directly from '../utils/stations'.
+ */
+import { getFgcMinutes as getFgcMinutesBase, formatFgcTime } from './stations';
 
+// CercarView & ShiftTimeline expect getFgcMinutes to return number (not null),
+// so we provide a zero-fallback wrapper here for backward compatibility.
 export function getFgcMinutes(timeStr: string): number {
-  if (!timeStr || !timeStr.includes(':')) return 0;
-  const [h, m] = timeStr.split(':').map(Number);
-  let total = h * 60 + m;
-  if (h < 4) total += 24 * 60;
-  return total;
+  return getFgcMinutesBase(timeStr) ?? 0;
 }
 
-export function formatFgcTime(totalMinutes: number): string {
-  let mins = totalMinutes;
-  if (mins >= 24 * 60) mins -= 24 * 60;
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-}
+export { formatFgcTime };
 
 export function calculateGap(from: string, to: string): number {
   if (!from || !to) return 0;

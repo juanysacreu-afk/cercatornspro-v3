@@ -1,6 +1,14 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Search, Loader2, Clock, Phone, Info, Users, RotateCcw, ArrowRight, MapPin, Coffee, CheckCircle2, AlertTriangle, TrainFront, Footprints, ShieldAlert, UserX, UserCheck, X, ArrowRightLeft, Target, Zap, ArrowUpRight, History, MessageSquareQuote, Scale } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
+import {
+  resolveStationId, getTravelTime, getShortTornId,
+  getFgcMinutes as getFgcMinutesRaw, formatFgcTime,
+} from '../utils/stations';
+
+// Thin wrapper: shared getFgcMinutes returns null for invalid input,
+// but this component's callers expect 0
+const getFgcMinutes = (t: string): number => getFgcMinutesRaw(t) ?? 0;
 
 interface Props {
   selectedServei: string;
@@ -16,70 +24,7 @@ const RESERVE_SHIFTS_LIST = [
   'QRR1', 'QRR2', 'QRR0', 'QRR4'
 ];
 
-const TRAVEL_TIMES: Record<string, number> = {
-  'PC-SR': 10, 'SR-PC': 10,
-  'SR-SC': 15, 'SC-SR': 15,
-  'SC-RB': 8, 'RB-SC': 8,
-  'RB-TR': 10, 'TR-RB': 10,
-  'TR-NA': 5, 'NA-TR': 5,
-  'SC-PN': 15, 'PN-SC': 15,
-  'PC-SC': 25, 'SC-PC': 25,
-  'SR-RE': 5, 'RE-SR': 5,
-  'GR-TB': 8, 'TB-GR': 8,
-};
-
-const resolveStationId = (name: string) => {
-  const n = (name || '').toUpperCase().trim();
-  if (n.includes('CATALUNYA') || n === 'PC') return 'PC';
-  if (n.includes('PROVEN') || n === 'PR') return 'PR';
-  if (n.includes('GRACIA') || n.includes('GRÀCIA') || n === 'GR') return 'GR';
-  if (n.includes('GERVASI') || n === 'SG') return 'SG';
-  if (n.includes('MUNTANER') || n === 'MN') return 'MN';
-  if (n.includes('BONANOVA') || n === 'BN') return 'BN';
-  if (n.includes('TRES TORRES') || n === 'TT') return 'TT';
-  if (n.includes('SARRIA') || n.includes('SARRIÀ') || n === 'SR') return 'SR';
-  if (n.includes('ELISENDA') || n === 'RE') return 'RE';
-  if (n.includes('AV. TIBIDABO') || n.includes('TIBIDABO') || n === 'TB') return 'TB';
-  if (n.includes('ST. CUGAT') || n.includes('SANT CUGAT') || n === 'SC') return 'SC';
-  if (n.includes('RUBI') || n.includes('RUBÍ') || n === 'RB') return 'RB';
-  if (n.includes('TERRASSA RAMBLA') || n.includes('T.RAMBLA') || n === 'TR') return 'TR';
-  if (n.includes('NACIÓ') || n.includes('NACIONS') || n.includes('UNIDES') || n.includes('T.NACIONS') || n === 'NA') return 'NA';
-  if (n.includes('SABADELL NORD') || n === 'NO') return 'NO';
-  if (n.includes('PARC DEL NORD') || n === 'PN') return 'PN';
-  if (n.includes('LES FONTS') || n === 'FN') return 'FN';
-  if (n.includes('LA FLORESTA') || n === 'LF') return 'LF';
-  if (n.includes('VALLDOREIX') || n === 'VD') return 'VD';
-  if (n.includes('PLANES') || n === 'LP') return 'LP';
-  if (n.includes('PEU DEL FUN') || n === 'PF') return 'PF';
-  if (n.includes('BAIXADOR') || n === 'VL') return 'VL';
-  if (n.includes('SANT JOAN') || n === 'SJ') return 'SJ';
-  if (n.includes('BELLATERRA') || n === 'BT') return 'BT';
-  if (n.includes('AUTÒNOMA') || n === 'UN') return 'UN';
-  if (n.includes('SANT QUIRZE') || n === 'SQ') return 'SQ';
-  if (n.includes('MIRA-SOL') || n === 'MS') return 'MS';
-  if (n.includes('HOSP. GENERAL') || n === 'HG') return 'HG';
-  if (n.includes('VALLPARADÍS') || n === 'VP') return 'VP';
-  if (n.includes('ESTACIÓ DEL NORD') || n === 'EN') return 'EN';
-  if (n.includes('VOLPALLERES') || n === 'VO') return 'VO';
-  if (n.includes('CAN FEU') || n === 'CF') return 'CF';
-  if (n.includes('PL. MAJOR') || n === 'PJ') return 'PJ';
-  if (n.includes('LA CREU ALTA') || n === 'CT') return 'CT';
-  return n.length > 2 ? n.substring(0, 2) : n;
-};
-
-const getTravelTime = (from: string, to: string): number => {
-  const f = resolveStationId(from);
-  const t = resolveStationId(to);
-  if (!f || !t || f === t) return 0;
-  if (TRAVEL_TIMES[`${f}-${t}`]) return TRAVEL_TIMES[`${f}-${t}`];
-  if (TRAVEL_TIMES[`${t}-${f}`]) return TRAVEL_TIMES[`${t}-${f}`];
-  if ((f === 'PC' && t === 'RB') || (f === 'RB' && t === 'PC')) return 35;
-  if ((f === 'PC' && t === 'PN') || (f === 'PN' && t === 'PC')) return 40;
-  if ((f === 'PC' && t === 'NA') || (f === 'NA' && t === 'PC')) return 45;
-  if ((f === 'SR' && t === 'RB') || (f === 'RB' && t === 'SR')) return 25;
-  if ((f === 'SR' && t === 'PN') || (f === 'PN' && t === 'SR')) return 30;
-  return 15;
-};
+// resolveStationId, TRAVEL_TIMES, getTravelTime imported from utils/stations.ts
 
 const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu, isPrivacyMode }) => {
   const [uncoveredShiftId, setUncoveredShiftId] = useState('');
@@ -92,21 +37,7 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu, is
 
   const containerRef = useRef<HTMLDivElement>(null);
 
-  function getFgcMinutes(timeStr: string) {
-    if (!timeStr || !timeStr.includes(':')) return 0;
-    const [h, m] = timeStr.split(':').map(Number);
-    let total = h * 60 + m;
-    if (h < 4) total += 24 * 60;
-    return total;
-  }
-
-  function formatFgcTime(totalMinutes: number) {
-    let mins = totalMinutes;
-    if (mins >= 24 * 60) mins -= 24 * 60;
-    const h = Math.floor(mins / 60);
-    const m = mins % 60;
-    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-  }
+  // getFgcMinutes and formatFgcTime imported from utils/stations.ts
 
   const handleInputChange = async (val: string) => {
     setUncoveredShiftId(val.toUpperCase());
@@ -130,11 +61,7 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu, is
     });
   };
 
-  const getShortTornId = (id: string) => {
-    const trimmed = id.trim();
-    if (trimmed.startsWith('Q') && !trimmed.startsWith('QR') && trimmed.length === 5) return trimmed[0] + trimmed.slice(2);
-    return trimmed;
-  };
+  // getShortTornId imported from utils/stations.ts
 
   const fetchFullShift = async (id: string) => {
     const { data: shift } = await supabase.from('shifts').select('*').eq('id', id).single();

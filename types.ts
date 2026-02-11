@@ -93,3 +93,163 @@ export enum OrganizeType {
   Maquinista = 'maquinista',
   Incidencia = 'incidencia'
 }
+
+// ──────────────────────────────────────────────
+// Map & Live Data
+// ──────────────────────────────────────────────
+
+/** Mapa interactivo: personal (maquinista en tren o reposo) */
+export interface LivePersonnel {
+  type: 'TRAIN' | 'REST';
+  id: string;
+  linia: string;
+  stationId: string;
+  color: string;
+  driver?: string;
+  driverName?: string;
+  driverSurname?: string;
+  torn?: string;
+  shiftStart?: string;
+  shiftEnd?: string;
+  shiftStartMin?: number;
+  shiftEndMin?: number;
+  shiftDep?: string;
+  servei?: string;
+  phones?: string[];
+  inici?: string;
+  final?: string;
+  via_inici?: string;
+  via_final?: string;
+  horaPas?: string;
+  x: number;
+  y: number;
+  visualOffset?: number;
+  nextStationId?: string;
+  isMoving?: boolean;
+}
+
+/** Nodo de estación para el mapa SVG */
+export interface MapStation {
+  id: string;
+  label: string;
+  x: number;
+  y: number;
+  type?: 'depot' | 'station';
+}
+
+/** Segmento entre dos estaciones en el mapa SVG */
+export interface MapSegment {
+  from: string;
+  to: string;
+  path: string;
+}
+
+// ──────────────────────────────────────────────
+// GeoTren (posiciones en tiempo real desde SIRTRAN)
+// ──────────────────────────────────────────────
+
+export interface GeoTrenPoint {
+  id: string;
+  lin: string;
+  estacionat_a?: string;
+  proper_parades?: Array<{
+    parada: string;
+    hora_prevista?: string;
+  }>;
+  retard?: number;
+}
+
+// ──────────────────────────────────────────────
+// Malla Real (gráfico de circulaciones)
+// ──────────────────────────────────────────────
+
+export interface MallaCirculation {
+  id: string;
+  torn: string;
+  linia: string;
+  sortida: string;
+  arribada: string;
+  inici?: string;
+  final?: string;
+  originId: string;
+  destId: string;
+  train?: string;
+  servei?: string;
+}
+
+// ──────────────────────────────────────────────
+// Pla de Servei Alternatiu
+// ──────────────────────────────────────────────
+
+/** Resultado de detección de islas/ramas tras cortes */
+export interface IslandResult {
+  id: string;
+  stations: Set<string>;
+  supportedLines: string[];
+  personnel: LivePersonnel[];
+}
+
+/** Circulación generada del servei alternatiu */
+export interface AltServiceCirculation {
+  id: string;
+  linia: string;
+  sortida: string;
+  arribada: string;
+  origin: string;
+  dest: string;
+  originId: string;
+  destId: string;
+  train?: string;
+  torn?: string;
+  servei?: string;
+}
+
+// ──────────────────────────────────────────────
+// Dipòsits
+// ──────────────────────────────────────────────
+
+export interface DepotCapacity {
+  u4: number;
+  u3: number;
+  total: number;
+  label: string;
+}
+
+export interface ParkedUnit {
+  id?: string;
+  depot_id: string;
+  track: string;
+  position?: number;
+  unit_type?: 'u4' | 'u3';
+  unit_number: string;
+  label?: string;
+}
+
+// ──────────────────────────────────────────────
+// Reserves
+// ──────────────────────────────────────────────
+
+export interface ReserveShift {
+  id: string;
+  loc: string;
+  start: string;
+  end: string;
+}
+
+// ──────────────────────────────────────────────
+// Vista d'Incidència
+// ──────────────────────────────────────────────
+
+export interface IncidenciaViewProps {
+  showSecretMenu: boolean;
+  parkedUnits: ParkedUnit[];
+  onParkedUnitsChange: () => Promise<void>;
+  isPrivacyMode: boolean;
+}
+
+export type IncidenciaMode = 'INIT' | 'MAQUINISTA' | 'LINIA' | 'PER_TORN';
+
+/** IDs de diagramas de estaciones/depósitos */
+export type DiagramId =
+  | 'PC' | 'PR' | 'GR' | 'PM' | 'BN' | 'TB' | 'SR'
+  | 'RE_ST' | 'RE_DEPOT' | 'RB_DEPOT' | 'NA_DEPOT' | 'PN_DEPOT';

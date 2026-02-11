@@ -1,11 +1,19 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Search, ShieldAlert, Loader2, UserCheck, Clock, MapPin, AlertCircle, Phone, Info, Users, Zap, User, Train, Map as MapIcon, X, Timer, Scissors, ArrowDownToLine, ArrowUpToLine, ArrowLeftToLine, ArrowRightToLine, Coffee, Layers, Trash2, Repeat, Rewind, FastForward, RotateCcw, RefreshCw, LayoutGrid, CheckCircle2, Activity, FilePlus, ArrowRight, Move, Plus, Minus, Bell, Construction, Warehouse, ZoomIn, ZoomOut, Maximize, Wand2, TrendingUp } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
 import { fetchFullTurns } from '../utils/queries.ts';
 import { getStatusColor } from '../utils/fgc.ts';
 import { getServiceToday } from '../utils/serviceCalendar';
+import {
+  resolveStationId, isServiceVisible, normalizeStr,
+  S1_STATIONS, S2_STATIONS, L6_STATIONS, L7_STATIONS, L12_STATIONS, LINIA_STATIONS,
+  getLiniaColorHex, getFgcMinutes, formatFgcTime, getShortTornId,
+} from '../utils/stations';
+import type { LivePersonnel, IncidenciaViewProps, IncidenciaMode, DiagramId, ReserveShift } from '../types';
 import IncidenciaPerTorn from '../components/IncidenciaPerTorn.tsx';
 import DepotModal from '../components/DepotModal.tsx';
+import MallaVisualizer from '../components/MallaVisualizer.tsx';
+import TrainInspectorPopup from '../components/TrainInspectorPopup.tsx';
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import { feedback } from '../utils/feedback';
 import { useToast } from '../components/ToastProvider';
@@ -22,92 +30,7 @@ const RESERVAS_DATA = [
   { id: 'QRR1', loc: 'RB', start: '06:00', end: '14:00' },
   { id: 'QRR2', loc: 'RB', start: '14:00', end: '22:00' },
 ];
-
-const normalizeStr = (str: string) => str ? str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase() : "";
-
-
-type IncidenciaMode = 'INIT' | 'MAQUINISTA' | 'LINIA' | 'PER_TORN';
-
-interface LivePersonnel {
-  type: 'TRAIN' | 'REST';
-  id: string;
-  linia: string;
-  stationId: string;
-  color: string;
-  driver?: string;
-  driverName?: string;
-  driverSurname?: string;
-  torn?: string;
-  shiftStart?: string;
-  shiftEnd?: string;
-  shiftStartMin?: number;
-  shiftEndMin?: number;
-  shiftDep?: string;
-  servei?: string;
-  phones?: string[];
-  inici?: string;
-  final?: string;
-  via_inici?: string;
-  via_final?: string;
-  horaPas?: string;
-  x: number;
-  y: number;
-  visualOffset?: number;
-  nextStationId?: string; // New field for segment tracking
-  isMoving?: boolean;     // New field
-}
-
-interface IncidenciaViewProps {
-  showSecretMenu: boolean;
-  parkedUnits: any[];
-  onParkedUnitsChange: () => Promise<void>;
-  isPrivacyMode: boolean;
-}
-
-const resolveStationId = (name: string, linia: string = '') => {
-  if (!name) return '';
-  const n = name.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-
-  // Exact mapping table
-  const stationMap: Record<string, string> = {
-    'CATALUNYA': 'PC', 'PROVENCA': 'PR', 'GRACIA': 'GR', 'SANT GERVASI': 'SG', 'MUNTANER': 'MN',
-    'LA BONANOVA': 'BN', 'LES TRES TORRES': 'TT', 'SARRIA': 'SR', 'REINA ELISENDA': 'RE', 'AV. TIBIDABO': 'TB',
-    'PEU DEL FUNICULAR': 'PF', 'BAIXADOR DE VALLVIDRERA': 'VL', 'VALLVIDRERA': 'VL', 'LES PLANES': 'LP', 'LA FLORESTA': 'LF',
-    'VALLDOREIX': 'VD', 'SANT CUGAT': 'SC', 'MIRA-SOL': 'MS', 'HOSPITAL GENERAL': 'HG', 'RUBI': 'RB',
-    'LES FONTS': 'FN', 'TERRASSA RAMBLA': 'TR', 'VALLPARADIS': 'VP', 'ESTACIO DEL NORD': 'EN', 'NACIONS UNIDES': 'NA',
-    'VOLPALLERES': 'VO', 'SANT JOAN': 'SJ', 'BELLATERRA': 'BT', 'UNIVERSITAT AUTONOMA': 'UN', 'UAB': 'UN', 'SANT QUIRZE': 'SQ',
-    'CAN FEU': 'CF', 'PL. MAJOR': 'PJ', 'LA CREU ALTA': 'CT', 'SABADELL NORD': 'NO', 'PARC DEL NORD': 'PN', 'PL. MOLINA': 'PM', 'PADUA': 'PD', 'EL PUTXET': 'EP',
-    'AV Tibidabo': 'TB', 'Plaça Molina': 'PM', 'Pàdua': 'PD', 'El Putxet': 'EP'
-  };
-
-  if (stationMap[n]) return stationMap[n];
-
-  // Terminal and critical station shortcuts
-  if (n.includes('CATALUNYA') || n === 'PC') return 'PC';
-  if (n.includes('SARRIA') || n === 'SR') return 'SR';
-  if (n.includes('ELISENDA') || n === 'RE') return 'RE';
-  if (n.includes('TIBIDABO') || n === 'TB') return 'TB';
-  if (n.includes('NACIONS') || n === 'NA') return 'NA';
-  if (n.includes('PARC DEL NORD') || n === 'PN') return 'PN';
-  if (n.includes('NORD') && n.includes('SABADELL')) return 'NO';
-  if (n.includes('NORD') && n.includes('TERRASSA')) return 'EN';
-
-  // Iterate over map keys for partial matches
-  for (const key of Object.keys(stationMap)) {
-    if (n.includes(key)) return stationMap[key];
-  }
-
-  return n.length > 2 ? n.substring(0, 2) : n;
-};
-const isServiceVisible = (val: string | undefined, f: string) => {
-  if (f === 'Tots') return true;
-  const s = (val || '').toString();
-  if (f === '400' || f === 'S1') return s === '400' || s === 'S1' || s.includes('S1');
-  if (f === '500' || f === 'S2') return s === '500' || s === 'S2' || s.includes('S2');
-  if (f === '100' || f === 'L6') return s === '100' || s === 'L6' || s.includes('L6');
-  if (f === '0' || f === 'L12' || f === '000') return s === '0' || s === '000' || s === 'L12' || s.includes('L12');
-  return s === f || s.includes(f) || f.includes(s);
-};
+// Interfaces imported from types.ts (LivePersonnel, IncidenciaViewProps, IncidenciaMode, DiagramId, ReserveShift)
 
 const MAP_STATIONS = [
   { id: 'PC', label: 'Pl. Catalunya', x: 20, y: 100, type: 'depot' }, { id: 'PR', label: 'Provença', x: 50, y: 100 }, { id: 'GR', label: 'Gràcia', x: 80, y: 100 }, { id: 'SG', label: 'Sant Gervasi', x: 110, y: 100 }, { id: 'MN', label: 'Muntaner', x: 140, y: 100 }, { id: 'BN', label: 'La Bonanova', x: 170, y: 100 }, { id: 'TT', label: 'Les Tres Torres', x: 200, y: 100 }, { id: 'SR', label: 'Sarrià', x: 230, y: 100 }, { id: 'PF', label: 'Peu del Funicular', x: 260, y: 100 }, { id: 'VL', label: 'B. Vallvidrera', x: 290, y: 100 }, { id: 'LP', label: 'Les Planes', x: 320, y: 100 }, { id: 'LF', label: 'La Floresta', x: 350, y: 100 }, { id: 'VD', label: 'Valldoreix', x: 380, y: 100 }, { id: 'SC', label: 'Sant Cugat', x: 410, y: 100 }, { id: 'PM', label: 'Pl. Molina', x: 100, y: 160 }, { id: 'PD', label: 'Pàdua', x: 130, y: 160 }, { id: 'EP', label: 'El Putxet', x: 160, y: 160 }, { id: 'TB', label: 'Av. Tibidabo', x: 190, y: 160 }, { id: 'RE', label: 'R. Elisenda', x: 260, y: 40 }, { id: 'MS', label: 'Mira-Sol', x: 440, y: 40 }, { id: 'HG', label: 'Hosp. General', x: 470, y: 40 }, { id: 'RB', label: 'Rubí Centre', x: 500, y: 40 }, { id: 'FN', label: 'Les Fonts', x: 530, y: 40 }, { id: 'TR', label: 'Terrassa Rambla', x: 560, y: 40 }, { id: 'VP', label: 'Vallparadís', x: 590, y: 40 }, { id: 'EN', label: 'Estació del Nord', x: 620, y: 40 }, { id: 'NA', label: 'Nacions Unides', x: 650, y: 40 }, { id: 'VO', label: 'Volpalleres', x: 440, y: 160 }, { id: 'SJ', label: 'Sant Joan', x: 470, y: 160 }, { id: 'BT', label: 'Bellaterra', x: 500, y: 160 }, { id: 'UN', label: 'U. Autònoma', x: 530, y: 160 }, { id: 'SQ', label: 'Sant Quirze', x: 560, y: 160 }, { id: 'CF', label: 'Can Feu', x: 590, y: 160 }, { id: 'PJ', label: 'Pl. Major', x: 620, y: 160 }, { id: 'CT', label: 'La Creu Alta', x: 650, y: 160 }, { id: 'NO', label: 'Sabadell Nord', x: 680, y: 160 }, { id: 'PN', label: 'Parc del Nord', x: 710, y: 160 },
@@ -155,11 +78,7 @@ const DEPOT_CAPACITIES: Record<string, { u4: number; u3: number; total: number; 
   'DPN': { u4: 8, u3: 0, total: 8, label: 'Dipòsit Sabadell (Ca N\'Oriach)' },
 };
 
-const S1_STATIONS = ['PC', 'PR', 'GR', 'SG', 'MN', 'BN', 'TT', 'SR', 'PF', 'VL', 'LP', 'LF', 'VD', 'SC', 'MS', 'HG', 'RB', 'FN', 'TR', 'VP', 'EN', 'NA'];
-const S2_STATIONS = ['PC', 'PR', 'GR', 'SG', 'MN', 'BN', 'TT', 'SR', 'PF', 'VL', 'LP', 'LF', 'VD', 'SC', 'VO', 'SJ', 'BT', 'UN', 'SQ', 'CF', 'PJ', 'CT', 'NO', 'PN'];
-const L6_STATIONS = ['PC', 'PR', 'GR', 'SG', 'MN', 'BN', 'TT', 'SR'];
-const L7_STATIONS = ['PC', 'PR', 'GR', 'PM', 'PD', 'EP', 'TB'];
-const L12_STATIONS = ['SR', 'RE'];
+// S1_STATIONS, S2_STATIONS, L6_STATIONS, L7_STATIONS, L12_STATIONS imported from utils/stations.ts
 
 const getFullPath = (start: string, end: string): string[] => {
   if (start === end) return [start];
@@ -248,6 +167,11 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
   const [geoTrenData, setGeoTrenData] = useState<any[]>([]);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [allShifts, setAllShifts] = useState<any[]>([]);
+  const [hoveredTrain, setHoveredTrain] = useState<string | null>(null);
+  // Position history: map of train ID -> last N positions { x, y, time }
+  const positionHistoryRef = useRef<Record<string, Array<{ x: number; y: number; time: number }>>>({});
+  // 2.4: Track map transform state for mini-map and counter-scaling
+  const [mapTransform, setMapTransform] = useState({ scale: 1, posX: 0, posY: 0 });
 
 
 
@@ -255,20 +179,8 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
   const [selectedCutSegments, setSelectedCutSegments] = useState<Set<string>>(new Set());
   const [selectedRestLocation, setSelectedRestLocation] = useState<string | null>(null);
   const [altServiceIsland, setAltServiceIsland] = useState<string | null>(null);
-  const [isPCDiagramOpen, setIsPCDiagramOpen] = useState(false);
-  const [isPRDiagramOpen, setIsPRDiagramOpen] = useState(false);
-  const [isGRDiagramOpen, setIsGRDiagramOpen] = useState(false);
-  const [isPMDiagramOpen, setIsPMDiagramOpen] = useState(false);
-  const [isBNDiagramOpen, setIsBNDiagramOpen] = useState(false);
-  const [isTBDiagramOpen, setIsTBDiagramOpen] = useState(false);
-  const [isSRDiagramOpen, setIsSRDiagramOpen] = useState(false);
-
-  // New Depot Diagrams
-  const [isREStationDiagramOpen, setIsREStationDiagramOpen] = useState(false);
-  const [isREDiagramOpen, setIsREDiagramOpen] = useState(false);
-  const [isRBDiagramOpen, setIsRBDiagramOpen] = useState(false);
-  const [isNADiagramOpen, setIsNADiagramOpen] = useState(false);
-  const [isPNDiagramOpen, setIsPNDiagramOpen] = useState(false);
+  // Consolidated diagram state: null = closed, string = which diagram is open
+  const [openDiagram, setOpenDiagram] = useState<string | null>(null);
 
   const [depotSyncing, setDepotSyncing] = useState(false);
 
@@ -287,35 +199,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
 
   const serveiTypes = ['0', '100', '400', '500'];
 
-  function getFgcMinutes(timeStr: string | undefined): number | null {
-    if (!timeStr || typeof timeStr !== 'string' || !timeStr.includes(':')) return null;
-    const parts = timeStr.split(':');
-    const h = parseInt(parts[0], 10);
-    const m = parseInt(parts[1], 10);
-    if (isNaN(h) || isNaN(m)) return null;
-    let total = h * 60 + m;
-    if (h < 4) total += 24 * 60;
-    return total;
-  }
-
-  function formatFgcTime(totalMinutes: number) {
-    let mins = totalMinutes;
-    if (mins >= 24 * 60) mins -= 24 * 60;
-    const h = Math.floor(mins / 60);
-    const m = mins % 60;
-    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-  }
-
-  const getLiniaColorHex = (linia: string) => {
-    const l = linia?.toUpperCase().trim() || '';
-    if (l.startsWith('F')) return '#22c55e';
-    if (l === 'L7' || l === '300') return '#8B4513';
-    if (l === 'L6' || l === '100') return '#9333ea';
-    if (l === 'L12') return '#d8b4fe';
-    if (l === 'S1' || l === '400') return '#f97316';
-    if (l === 'S2' || l === '500') return '#22c55e';
-    return '#6b7280';
-  };
+  // getFgcMinutes, formatFgcTime, getLiniaColorHex imported from utils/stations.ts
 
   useEffect(() => {
     if (isRealTime && !isPaused) {
@@ -327,7 +211,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
         if (m !== null) setDisplayMin(m);
       };
       updateTime();
-      const interval = setInterval(updateTime, 30000);
+      const interval = setInterval(updateTime, 10000); // 2.1: Reducido de 30s a 10s para mayor responsividad
       return () => clearInterval(interval);
     }
   }, [isRealTime, isPaused]);
@@ -647,11 +531,28 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
 
   useEffect(() => { if (mode === 'LINIA') fetchLiveMapData(); }, [mode, displayMin, selectedServei, manualOverrides]);
 
-  const getShortTornId = (id: string) => {
-    const trimmed = id.trim();
-    if (trimmed.startsWith('Q') && !trimmed.startsWith('QR') && trimmed.length === 5) return trimmed[0] + trimmed.slice(2);
-    return trimmed;
-  };
+  // 2.5: Guardar historial de posiciones de cada tren (últimas 8 posiciones)
+  const MAX_TRAIL_POINTS = 8;
+  useEffect(() => {
+    if (liveData.length === 0) return;
+    const history = positionHistoryRef.current;
+    const now = Date.now();
+    liveData.forEach(p => {
+      if (p.type !== 'TRAIN') return;
+      const key = p.id;
+      if (!history[key]) history[key] = [];
+      const last = history[key][history[key].length - 1];
+      // Solo guardar si la posición cambió significativamente
+      if (!last || Math.abs(last.x - p.x) > 0.5 || Math.abs(last.y - p.y) > 0.5) {
+        history[key].push({ x: p.x, y: p.y, time: now });
+        if (history[key].length > MAX_TRAIL_POINTS) {
+          history[key] = history[key].slice(-MAX_TRAIL_POINTS);
+        }
+      }
+    });
+  }, [liveData]);
+
+  // getShortTornId imported from utils/stations.ts
 
   const fetchFullTurnData = async (turnId: string) => {
     const results = await fetchFullTurns([turnId], selectedServei === 'Tots' ? undefined : selectedServei);
@@ -1449,7 +1350,40 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
     };
 
     const shuttlePlan = useMemo(() => {
+      // 4.5: Integrar parked_units y control de flota
       const availableTrains = [...physicalTrains];
+
+      // Añadir trenes estacionados en los depósitos de la isla
+      if (parkedUnits && parkedUnits.length > 0) {
+        const relevantDepots = new Set(['PC', 'RE', 'COR', 'NA', 'PN', 'RB', 'SC', 'GR'].filter(d => islandStations.has(d)));
+        parkedUnits.forEach(u => {
+          if (relevantDepots.has(u.depot_id)) {
+            // Verificar que no esté ya en physicalTrains (aunque parkedUnits deberían ser solo estacionados)
+            if (!availableTrains.some(t => t.id === u.unit_number.toString())) {
+              availableTrains.push({
+                type: 'TRAIN',
+                id: u.unit_number.toString(),
+                linia: 'S/L',
+                stationId: u.depot_id,
+                color: '#9ca3af', // Gris claro para material en reserva
+                driver: 'SENSE MAQUINISTA',
+                torn: '---',
+                shiftStart: '--:--', shiftEnd: '--:--',
+                shiftStartMin: 0, shiftEndMin: 0,
+                shiftDep: u.depot_id,
+                servei: '0',
+                phones: [],
+                inici: u.depot_id, final: u.depot_id,
+                via_inici: u.track.toString(), via_final: u.track.toString(),
+                horaPas: '--:--',
+                x: 0, y: 0, // No importa para el plan
+                isMoving: false
+              });
+            }
+          }
+        });
+      }
+
       const availableDrivers = [...allDrivers];
       const formedServices: any[] = [];
 
@@ -1520,7 +1454,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
         if (theoryCircs.length === 0) return;
 
         const liniaPrefixes: Record<string, string> = { 'S1': 'D', 'S2': 'F', 'L6': 'A', 'L7': 'B', 'L12': 'L' };
-        const liniaStationsRef: Record<string, string[]> = { 'S1': S1_STATIONS, 'S2': S2_STATIONS, 'L6': L6_STATIONS, 'L7': L7_STATIONS, 'L12': L12_STATIONS };
+        const liniaStationsRef = LINIA_STATIONS;
 
         // NORMATIVA LABORAL BV
         const N_LABORAL = {
@@ -1698,12 +1632,40 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
             return stops.includes(eps.start) && stops.includes(eps.end);
           }).sort((a, b) => (getFgcMinutes(b.sortida) || 0) - (getFgcMinutes(a.sortida) || 0))[0];
 
-          if (sample) {
+          // 4.3: Cálculo preciso de tiempos de viaje usando promedios reales de la malla
+          let totalTravelMins = 0;
+          let countValid = 0;
+
+          areaTheory.forEach(c => {
+            const stops = [c.inici, ...(c.estacions?.map((s: any) => s.nom) || []), c.final];
+            const idx1 = stops.indexOf(eps.start);
+            const idx2 = stops.indexOf(eps.end);
+
+            if (idx1 !== -1 && idx2 !== -1) {
+              const times = [c.sortida, ...(c.estacions?.map((s: any) => s.hora || s.sortida) || []), c.arribada];
+              const t1 = getFgcMinutes(times[idx1]);
+              const t2 = getFgcMinutes(times[idx2]);
+
+              if (t1 !== null && t2 !== null) {
+                const diff = Math.abs(t2 - t1);
+                // Filtrar outliers obvios (ej. menos de 2 min para tramos largos o mas de 60)
+                if (diff > 2 && diff < 60) {
+                  totalTravelMins += diff;
+                  countValid++;
+                }
+              }
+            }
+          });
+
+          if (countValid > 0) {
+            refTravelTime = Math.ceil(totalTravelMins / countValid);
+          } else if (sample) {
             const stops = [sample.inici, ...(sample.estacions?.map((s: any) => s.nom) || []), sample.arribada];
             const times = [sample.sortida, ...(sample.estacions?.map((s: any) => s.hora || s.sortida) || []), sample.arribada];
             const t1 = getFgcMinutes(times[stops.indexOf(eps.start)]), t2 = getFgcMinutes(times[stops.indexOf(eps.end)]);
             if (t1 !== null && t2 !== null) refTravelTime = Math.abs(t2 - t1);
           } else {
+            // Fallback: Interpolación lineal basada en distancia (nodos) * 3 min
             refTravelTime = Math.max(8, (getFullPath(eps.start, eps.end).length - 1) * 3);
           }
 
@@ -2352,7 +2314,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                       fromIdx2 += 1000;
                     }
                     if (theoryCircs.length === 0) return;
-                    const liniaStationsRef: Record<string, string[]> = { 'S1': S1_STATIONS, 'S2': S2_STATIONS, 'L6': L6_STATIONS, 'L7': L7_STATIONS, 'L12': L12_STATIONS };
+                    const liniaStationsRef = LINIA_STATIONS;
 
                     Object.entries(lineCounts).forEach(([linia, count]) => {
                       if (count === 0 || !enabledLines[linia]) return;
@@ -2828,125 +2790,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
     );
   };
 
-  const TrainInspectorPopup = ({ train, onClose }: { train: LivePersonnel, onClose: () => void }) => {
-    if (!train) return null;
-    const isWorking = train.type === 'TRAIN';
-    const liniaColor = train.color;
-
-    return (
-      <div className="z-[300] animate-in zoom-in-95 fade-in duration-300 pointer-events-auto">
-        <div
-          className="w-80 overflow-hidden relative group"
-          style={{
-            background: 'rgba(255, 255, 255, 0.05)',
-            backdropFilter: 'blur(20px) saturate(180%)',
-            WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: '32px',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.05)'
-          }}
-        >
-          {/* Animated Glow Background */}
-          <div
-            className="absolute -top-10 -right-10 w-32 h-32 blur-[50px] transition-all duration-700 opacity-30"
-            style={{ backgroundColor: liniaColor }}
-          />
-
-          {/* Header */}
-          <div className="p-6 border-b border-white/10 flex justify-between items-start">
-            <div>
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] mb-1">Inspector d'Unitat</p>
-              <h3 className="text-3xl font-black text-white font-mono tracking-tighter flex items-center gap-2">
-                {train.id}
-                <span className="w-2 h-2 rounded-full bg-fgc-green animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.8)]" />
-              </h3>
-            </div>
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onClose();
-              }}
-              className="p-2 hover:bg-white/10 rounded-full text-gray-400 hover:text-white transition-all transition-colors relative z-[10]"
-            >
-              <X size={20} />
-            </button>
-          </div>
-
-          <div className="p-6 space-y-6">
-            {/* Operator Info */}
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center border border-white/10 group-hover:border-fgc-green/30 transition-all">
-                <User size={24} className="text-gray-400 group-hover:text-fgc-green transition-colors" />
-              </div>
-              <div>
-                <p className="text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest leading-none mb-1">Maquinista</p>
-                <p className="text-sm font-black text-white dark:text-gray-200 uppercase">{train.driver}</p>
-                <p className="text-[10px] font-bold text-fgc-green mt-1 tracking-widest uppercase">Torn {train.torn}</p>
-              </div>
-            </div>
-
-            {/* Route Progress */}
-            <div className="space-y-3">
-              <div className="flex justify-between items-end">
-                <div className="flex flex-col">
-                  <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Origen</span>
-                  <span className="text-[11px] font-black text-white dark:text-gray-200 uppercase">{train.inici || '---'}</span>
-                </div>
-                <div className="flex-1 flex items-center justify-center px-4">
-                  <ArrowRight size={14} className="text-gray-600 animate-pulse" />
-                </div>
-                <div className="flex flex-col items-end">
-                  <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">Destinació</span>
-                  <span className="text-[11px] font-black text-white dark:text-gray-200 uppercase">{train.final || '---'}</span>
-                </div>
-              </div>
-
-              <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden p-[2px] border border-white/5">
-                <div
-                  className="h-full rounded-full transition-all duration-1000 origin-left"
-                  style={{
-                    width: '65%',
-                    background: `linear-gradient(90deg, #3b82f6, ${liniaColor})`,
-                    boxShadow: `0 0 10px ${liniaColor}66`
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Telemetry Footer */}
-            <div className="pt-4 border-t border-white/10 grid grid-cols-2 gap-4">
-              <div className="bg-white/5 p-3 rounded-2xl border border-white/5">
-                <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-1">Última Estació</p>
-                <p className="text-xs font-black text-white dark:text-gray-200 uppercase">{train.stationId}</p>
-              </div>
-              <div className="bg-white/5 p-3 rounded-2xl border border-white/5">
-                <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-1">Estat</p>
-                <p className="text-[10px] font-black text-fgc-green uppercase flex items-center gap-1.5 leading-none">
-                  <div className="w-1 h-1 rounded-full bg-fgc-green" />
-                  PUNTUAL
-                </p>
-              </div>
-            </div>
-
-            {/* Action Button */}
-            <button
-              onClick={() => {
-                setQuery(train.id);
-                handleSearchCirculation();
-                setSelectedTrain(null);
-                // Optional: scroll to search results if needed
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className="w-full bg-white dark:bg-white/10 hover:bg-fgc-green hover:text-fgc-grey py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border border-white/10 shadow-lg active:scale-95"
-            >
-              Obrir Detalls Ruta
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
+  // TrainInspectorPopup extracted to components/TrainInspectorPopup.tsx
 
   const renderInteractiveMap = () => {
     const trains = liveData.filter(p => p.type === 'TRAIN' && isServiceVisible(p.servei, selectedServei));
@@ -3080,9 +2924,12 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
             initialScale={1}
             minScale={0.5}
             maxScale={4}
-            centerOnInit={false} // We want to control initial view manually or let it be 0,0
+            centerOnInit={false}
             limitToBounds={false}
             doubleClick={{ disabled: true }}
+            onTransformed={(_ref, state) => {
+              setMapTransform({ scale: state.scale, posX: state.positionX, posY: state.positionY });
+            }}
           >
             {({ zoomIn, zoomOut, resetTransform }) => (
               <>
@@ -3175,21 +3022,11 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                               x={st.x - ((st as any).type === 'depot' ? 6 : 3)} y={st.y - 11} width={(st as any).type === 'depot' ? "12" : "6"} height="22" rx="3"
                               fill={(st as any).type === 'depot' ? "#f3f4f6" : "white"} stroke={isCut ? "#ef4444" : "#53565A"} strokeWidth="1.5"
                               onClick={() => {
-                                if (st.id === 'PC') setIsPCDiagramOpen(true);
-                                if (st.id === 'PR') setIsPRDiagramOpen(true);
-                                if (st.id === 'GR') setIsGRDiagramOpen(true);
-                                if (st.id === 'PM') setIsPMDiagramOpen(true);
-                                if (st.id === 'BN') setIsBNDiagramOpen(true);
-                                if (st.id === 'TB') setIsTBDiagramOpen(true);
-                                if (st.id === 'SR') setIsSRDiagramOpen(true);
-                                if (st.id === 'RE') setIsREStationDiagramOpen(true);
-
-                                // New handlers for Depots - ONLY actual Depot Nodes
-                                if (st.id === 'DRE') setIsREDiagramOpen(true);
-                                if (st.id === 'COR') setIsRBDiagramOpen(true);
-                                if (st.id === 'DNA') setIsNADiagramOpen(true);
-                                if (st.id === 'DPN') setIsPNDiagramOpen(true);
-
+                                const diagramMap: Record<string, string> = {
+                                  'PC': 'PC', 'PR': 'PR', 'GR': 'GR', 'PM': 'PM', 'BN': 'BN', 'TB': 'TB', 'SR': 'SR',
+                                  'RE': 'RE_ST', 'DRE': 'RE_DEPOT', 'COR': 'RB_DEPOT', 'DNA': 'NA_DEPOT', 'DPN': 'PN_DEPOT'
+                                };
+                                if (diagramMap[st.id]) setOpenDiagram(diagramMap[st.id]);
                               }}
                               className={`transition-all duration-300 ${['PC', 'PR', 'GR', 'PM', 'BN', 'TB', 'SR', 'RE', 'DRE', 'COR', 'DNA', 'DPN'].includes(st.id) ? 'cursor-pointer hover:stroke-blue-500' : ''}`}
                               style={{ pointerEvents: 'auto' }}
@@ -3294,7 +3131,6 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
 
                         if (p.stationId === 'PC') {
                           const targetViaStr = (p.final === 'PC' ? p.via_final : p.via_inici) || '';
-                          // Extract number from string like "4", "V4", "Via 4"
                           const viaMatch = targetViaStr.match(/(\d+)/);
                           if (viaMatch) {
                             const via = parseInt(viaMatch[1]);
@@ -3302,28 +3138,104 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                               finalX = -30;
                               const yCoords = [84, 92, 100, 108, 116];
                               finalY = yCoords[via - 1];
-                              useStandardOffset = false; // Disable standard offset for terminal tracks
+                              useStandardOffset = false;
                             }
                           }
                         }
+
+                        const isMoving = !!(p as any).isMoving;
+                        const nextStation = (p as any).nextStationId;
+                        const isHovered = hoveredTrain === p.id;
+                        const trailPoints = positionHistoryRef.current[p.id] || [];
+
+                        // Calculate direction arrow for moving trains
+                        let arrowAngle = 0;
+                        if (isMoving && nextStation) {
+                          const nextCoords = MAP_STATIONS.find(s => s.id === nextStation);
+                          if (nextCoords) {
+                            const dx = nextCoords.x - finalX;
+                            const dy = nextCoords.y - finalY;
+                            arrowAngle = Math.atan2(dy, dx) * (180 / Math.PI);
+                          }
+                        }
+
+                        const baseTransform = useStandardOffset ? { transform: `translate(${offset * 4}px, ${trackOffset}px)` } : {};
+
+                        // 2.4: Counter-scaling — mantener tamaño constante de marcadores al hacer zoom
+                        const counterScale = mapTransform.scale > 1.5 ? 1 / mapTransform.scale : 1;
+                        const effectiveX = useStandardOffset ? finalX + offset * 4 : finalX;
+                        const effectiveY = useStandardOffset ? finalY + trackOffset : finalY;
 
                         return (
                           <g
                             key={`${p.id}-${p.torn}-${idx}`}
                             className="transition-all duration-1000 ease-linear cursor-pointer"
                             onClick={() => setSelectedTrain(p)}
+                            onMouseEnter={() => setHoveredTrain(p.id)}
+                            onMouseLeave={() => setHoveredTrain(null)}
                             style={{ pointerEvents: 'auto' }}
+                            transform={counterScale < 1 ? `translate(${effectiveX}, ${effectiveY}) scale(${counterScale}) translate(${-effectiveX}, ${-effectiveY})` : undefined}
                           >
+                            {/* 2.5: Trail/rastro al hover — muestra posiciones anteriores */}
+                            {isHovered && trailPoints.length > 1 && trailPoints.slice(0, -1).map((pt, ti) => {
+                              const opacity = 0.15 + (ti / trailPoints.length) * 0.35;
+                              const r = 1.5 + (ti / trailPoints.length) * 1.5;
+                              return (
+                                <circle
+                                  key={`trail-${p.id}-${ti}`}
+                                  cx={pt.x} cy={pt.y} r={r}
+                                  fill={p.color} opacity={opacity}
+                                  style={baseTransform}
+                                />
+                              );
+                            })}
+                            {/* Trail connecting line on hover */}
+                            {isHovered && trailPoints.length > 1 && (
+                              <polyline
+                                points={trailPoints.map(pt => `${pt.x},${pt.y}`).join(' ')}
+                                fill="none" stroke={p.color} strokeWidth="1" strokeDasharray="3,2"
+                                opacity={0.3}
+                                style={baseTransform}
+                              />
+                            )}
+
+                            {/* 2.2: Anillo de pulso para trenes en movimiento */}
+                            {isMoving && (
+                              <circle
+                                cx={finalX} cy={finalY} r={9}
+                                fill="none" stroke={p.color} strokeWidth="1.5"
+                                opacity={0.6}
+                                style={{
+                                  ...baseTransform,
+                                  animation: 'train-pulse-ring 2s ease-out infinite',
+                                  filter: `drop-shadow(0 0 4px ${p.color})`
+                                }}
+                              />
+                            )}
+
+                            {/* Main circle */}
                             <circle
                               cx={finalX} cy={finalY} r={5.5} fill={p.color}
                               className={`${isAffected ? "stroke-red-500 stroke-2" : "stroke-white dark:stroke-black stroke-[1.5]"} hover:stroke-fgc-green transition-all`}
-                              style={useStandardOffset ? { transform: `translate(${offset * 4}px, ${trackOffset}px)`, filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.3))' } : { filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.3))' }}
+                              style={{ ...baseTransform, filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.3))' }}
                             >
-                              <title>{p.id} - Torn {p.torn} (Via {isAsc ? '1' : '2'})</title>
+                              <title>{p.id} - Torn {p.torn} (Via {isAsc ? '1' : '2'}){isMoving ? ' ▶ EN MOVIMENT' : ''}</title>
                             </circle>
 
-                            {/* New Label Pill Design */}
-                            <g className="drop-shadow-md" style={useStandardOffset ? { transform: `translate(${offset * 4}px, ${trackOffset}px)` } : {}}>
+                            {/* 2.2: Flecha de dirección para trenes en movimiento */}
+                            {isMoving && (
+                              <g style={{ ...baseTransform, transformOrigin: `${finalX}px ${finalY}px` }}>
+                                <polygon
+                                  points={`${finalX + 10},${finalY} ${finalX + 7},${finalY - 2.5} ${finalX + 7},${finalY + 2.5}`}
+                                  fill={p.color}
+                                  stroke="white" strokeWidth="0.5"
+                                  style={{ transform: `rotate(${arrowAngle}deg)`, transformOrigin: `${finalX}px ${finalY}px` }}
+                                />
+                              </g>
+                            )}
+
+                            {/* Label Pill Design */}
+                            <g className="drop-shadow-md" style={baseTransform}>
                               <rect
                                 x={finalX - (labelWidth / 2)}
                                 y={finalY - 16}
@@ -3341,6 +3253,12 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                               >
                                 {p.id}
                               </text>
+                              {/* Indicador de movimiento en la etiqueta */}
+                              {isMoving && (
+                                <circle cx={finalX + labelWidth / 2 - 2} cy={finalY - 10} r={1.5} fill="#22c55e">
+                                  <animate attributeName="opacity" values="1;0.3;1" dur="1.5s" repeatCount="indefinite" />
+                                </circle>
+                              )}
                             </g>
                           </g>
                         );
@@ -3535,6 +3453,35 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
               </>
             )}
           </TransformWrapper>
+
+          {/* 2.4: Mini-mapa de contexto — visible solo con zoom > 1.2x */}
+          {mapTransform.scale > 1.2 && (
+            <div className="minimap-container">
+              <svg viewBox="-40 -30 790 250" className="w-full h-full">
+                {/* Líneas esquemáticas del mapa */}
+                <line x1={20} y1={100} x2={410} y2={100} stroke="#666" strokeWidth="1.5" opacity="0.5" />
+                <line x1={100} y1={160} x2={190} y2={160} stroke="#8B5CF6" strokeWidth="1.5" opacity="0.5" />
+                <line x1={230} y1={100} x2={260} y2={40} stroke="#22c55e" strokeWidth="1.5" opacity="0.5" />
+                <line x1={410} y1={100} x2={410} y2={40} stroke="#ef4444" strokeWidth="1" opacity="0.3" />
+                <line x1={410} y1={40} x2={650} y2={40} stroke="#ef4444" strokeWidth="1.5" opacity="0.5" />
+                <line x1={410} y1={100} x2={410} y2={160} stroke="#3b82f6" strokeWidth="1" opacity="0.3" />
+                <line x1={410} y1={160} x2={710} y2={160} stroke="#3b82f6" strokeWidth="1.5" opacity="0.5" />
+                {/* Estaciones terminales */}
+                <circle cx={20} cy={100} r={3} fill="#ef4444" opacity="0.7" />
+                <circle cx={650} cy={40} r={3} fill="#ef4444" opacity="0.7" />
+                <circle cx={710} cy={160} r={3} fill="#3b82f6" opacity="0.7" />
+                {/* Viewport rectangle */}
+                <rect
+                  x={(-mapTransform.posX / mapTransform.scale) * (790 / 1000) - 40}
+                  y={(-mapTransform.posY / mapTransform.scale) * (250 / 500) - 30}
+                  width={790 / mapTransform.scale}
+                  height={250 / mapTransform.scale}
+                  className="minimap-viewport"
+                  fill="none"
+                />
+              </svg>
+            </div>
+          )}
         </div>
 
         {/* Train Inspector Overlay */}
@@ -3544,16 +3491,21 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
             onClick={() => setSelectedTrain(null)}
           >
             <div onClick={(e) => e.stopPropagation()}>
-              <TrainInspectorPopup train={selectedTrain} onClose={() => setSelectedTrain(null)} />
+              <TrainInspectorPopup train={selectedTrain} onClose={() => setSelectedTrain(null)} onOpenRoute={(trainId) => {
+                setQuery(trainId);
+                handleSearchCirculation();
+                setSelectedTrain(null);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }} />
             </div>
           </div>
         )}
 
         {/* Modal Diagrama SR (Sarrià) */}
-        {isSRDiagramOpen && (
+        {openDiagram === 'SR' && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
             <div className="bg-[#121212] p-8 rounded-[40px] border border-white/10 shadow-2xl max-w-5xl w-full relative overflow-hidden ring-1 ring-white/20">
-              <button onClick={() => setIsSRDiagramOpen(false)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-white transition-colors bg-white/5 rounded-full">
+              <button onClick={() => setOpenDiagram(null)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-white transition-colors bg-white/5 rounded-full">
                 <X size={20} />
               </button>
               <div className="flex items-center gap-4 mb-4">
@@ -3674,17 +3626,17 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
               </div>
 
               <div className="mt-8 flex justify-end">
-                <button onClick={() => setIsSRDiagramOpen(false)} className="px-12 py-5 bg-white/5 hover:bg-white/10 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/10 hover:border-white/20 shadow-xl ring-1 ring-white/5">Tancar Esquema</button>
+                <button onClick={() => setOpenDiagram(null)} className="px-12 py-5 bg-white/5 hover:bg-white/10 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/10 hover:border-white/20 shadow-xl ring-1 ring-white/5">Tancar Esquema</button>
               </div>
             </div>
           </div>
         )}
 
         {/* Modal Diagrama TB (Av. Tibidabo) */}
-        {isTBDiagramOpen && (
+        {openDiagram === 'TB' && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
             <div className="bg-[#121212] p-8 rounded-[40px] border border-white/10 shadow-2xl max-w-4xl w-full relative overflow-hidden ring-1 ring-white/20">
-              <button onClick={() => setIsTBDiagramOpen(false)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-white transition-colors bg-white/5 rounded-full">
+              <button onClick={() => setOpenDiagram(null)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-white transition-colors bg-white/5 rounded-full">
                 <X size={20} />
               </button>
               <div className="flex items-center gap-4 mb-4">
@@ -3746,17 +3698,17 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
               </div>
 
               <div className="mt-8 flex justify-end">
-                <button onClick={() => setIsTBDiagramOpen(false)} className="px-10 py-4 bg-white/5 hover:bg-white/10 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/10 hover:border-white/20 shadow-xl">Tancar Esquema</button>
+                <button onClick={() => setOpenDiagram(null)} className="px-10 py-4 bg-white/5 hover:bg-white/10 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/10 hover:border-white/20 shadow-xl">Tancar Esquema</button>
               </div>
             </div>
           </div>
         )}
 
         {/* Modal Diagrama BN (La Bonanova) */}
-        {isBNDiagramOpen && (
+        {openDiagram === 'BN' && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
             <div className="bg-[#121212] p-8 rounded-[40px] border border-white/10 shadow-2xl max-w-4xl w-full relative overflow-hidden ring-1 ring-white/20">
-              <button onClick={() => setIsBNDiagramOpen(false)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-white transition-colors bg-white/5 rounded-full">
+              <button onClick={() => setOpenDiagram(null)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-white transition-colors bg-white/5 rounded-full">
                 <X size={20} />
               </button>
               <div className="flex items-center gap-4 mb-8">
@@ -3813,17 +3765,17 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
               </div>
 
               <div className="mt-8 flex justify-end">
-                <button onClick={() => setIsBNDiagramOpen(false)} className="px-10 py-4 bg-white/5 hover:bg-white/10 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/10 hover:border-white/20 shadow-xl">Tancar Esquema</button>
+                <button onClick={() => setOpenDiagram(null)} className="px-10 py-4 bg-white/5 hover:bg-white/10 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/10 hover:border-white/20 shadow-xl">Tancar Esquema</button>
               </div>
             </div>
           </div>
         )}
 
         {/* Modal Diagrama PM (Pl. Molina) */}
-        {isPMDiagramOpen && (
+        {openDiagram === 'PM' && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
             <div className="bg-[#121212] p-8 rounded-[40px] border border-white/10 shadow-2xl max-w-4xl w-full relative overflow-hidden ring-1 ring-white/20">
-              <button onClick={() => setIsPMDiagramOpen(false)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-white transition-colors bg-white/5 rounded-full">
+              <button onClick={() => setOpenDiagram(null)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-white transition-colors bg-white/5 rounded-full">
                 <X size={20} />
               </button>
               <div className="flex items-center gap-4 mb-8">
@@ -3885,17 +3837,17 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
               </div>
 
               <div className="mt-8 flex justify-end">
-                <button onClick={() => setIsPMDiagramOpen(false)} className="px-10 py-4 bg-white/5 hover:bg-white/10 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/10 hover:border-white/20 shadow-xl">Tancar Esquema</button>
+                <button onClick={() => setOpenDiagram(null)} className="px-10 py-4 bg-white/5 hover:bg-white/10 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/10 hover:border-white/20 shadow-xl">Tancar Esquema</button>
               </div>
             </div>
           </div>
         )}
 
         {/* Modal Diagrama GR (Gràcia) */}
-        {isGRDiagramOpen && (
+        {openDiagram === 'GR' && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
             <div className="bg-[#121212] p-8 rounded-[40px] border border-white/10 shadow-2xl max-w-5xl w-full relative overflow-hidden ring-1 ring-white/20">
-              <button onClick={() => setIsGRDiagramOpen(false)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-white transition-colors bg-white/5 rounded-full">
+              <button onClick={() => setOpenDiagram(null)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-white transition-colors bg-white/5 rounded-full">
                 <X size={20} />
               </button>
               <div className="flex items-center gap-4 mb-8">
@@ -3982,17 +3934,17 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
               </div>
 
               <div className="mt-8 flex justify-end">
-                <button onClick={() => setIsGRDiagramOpen(false)} className="px-10 py-4 bg-white/5 hover:bg-white/10 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/10 hover:border-white/20 shadow-xl">Tancar Esquema</button>
+                <button onClick={() => setOpenDiagram(null)} className="px-10 py-4 bg-white/5 hover:bg-white/10 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/10 hover:border-white/20 shadow-xl">Tancar Esquema</button>
               </div>
             </div>
           </div>
         )}
 
         {/* Modal Diagrama PR (Provença) */}
-        {isPRDiagramOpen && (
+        {openDiagram === 'PR' && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
             <div className="bg-[#121212] p-8 rounded-[40px] border border-white/10 shadow-2xl max-w-4xl w-full relative overflow-hidden ring-1 ring-white/20">
-              <button onClick={() => setIsPRDiagramOpen(false)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-white transition-colors bg-white/5 rounded-full">
+              <button onClick={() => setOpenDiagram(null)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-white transition-colors bg-white/5 rounded-full">
                 <X size={20} />
               </button>
               <div className="flex items-center gap-4 mb-8">
@@ -4066,17 +4018,17 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
               </div>
 
               <div className="mt-8 flex justify-end">
-                <button onClick={() => setIsPRDiagramOpen(false)} className="px-10 py-4 bg-white/5 hover:bg-white/10 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/10 hover:border-white/20 shadow-xl">Tancar Esquema</button>
+                <button onClick={() => setOpenDiagram(null)} className="px-10 py-4 bg-white/5 hover:bg-white/10 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/10 hover:border-white/20 shadow-xl">Tancar Esquema</button>
               </div>
             </div>
           </div>
         )}
 
         {/* Modal Diagrama PC */}
-        {isPCDiagramOpen && (
+        {openDiagram === 'PC' && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
             <div className="bg-[#121212] p-8 rounded-[40px] border border-white/10 shadow-2xl max-w-4xl w-full relative overflow-hidden ring-1 ring-white/20">
-              <button onClick={() => setIsPCDiagramOpen(false)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-white transition-colors bg-white/5 rounded-full">
+              <button onClick={() => setOpenDiagram(null)} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-white transition-colors bg-white/5 rounded-full">
                 <X size={20} />
               </button>
               <div className="flex items-center gap-4 mb-8">
@@ -4376,7 +4328,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
               </div>
 
               <div className="mt-8 flex justify-end">
-                <button onClick={() => setIsPCDiagramOpen(false)} className="px-10 py-4 bg-white/5 hover:bg-white/10 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/10 hover:border-white/20 shadow-xl">Tancar Esquema</button>
+                <button onClick={() => setOpenDiagram(null)} className="px-10 py-4 bg-white/5 hover:bg-white/10 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border border-white/10 hover:border-white/20 shadow-xl">Tancar Esquema</button>
               </div>
             </div>
           </div>
@@ -4386,8 +4338,8 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
 
         {/* RE Station Diagram */}
         <DepotModal
-          isOpen={isREStationDiagramOpen}
-          onClose={() => setIsREStationDiagramOpen(false)}
+          isOpen={openDiagram === 'RE_ST'}
+          onClose={() => setOpenDiagram(null)}
           title="Estació Reina Elisenda"
           depotId="RE_ST"
           tracks={[1, 2]}
@@ -4400,8 +4352,8 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
 
         {/* RE Diagram (Reina Elisenda - DIPÒSIT) */}
         <DepotModal
-          isOpen={isREDiagramOpen}
-          onClose={() => setIsREDiagramOpen(false)}
+          isOpen={openDiagram === 'RE_DEPOT'}
+          onClose={() => setOpenDiagram(null)}
           title="Dipòsit Reina Elisenda"
           depotId="RE"
           tracks={[1, 2]}
@@ -4414,8 +4366,8 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
 
         {/* RB Diagram (Rubí COR) */}
         <DepotModal
-          isOpen={isRBDiagramOpen}
-          onClose={() => setIsRBDiagramOpen(false)}
+          isOpen={openDiagram === 'RB_DEPOT'}
+          onClose={() => setOpenDiagram(null)}
           title="Centre d'Operacions de Rubí (COR)"
           depotId="RB"
           tracks={[4, 6, 8, 10]}
@@ -4428,8 +4380,8 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
 
         {/* NA Diagram (Terrassa) */}
         <DepotModal
-          isOpen={isNADiagramOpen}
-          onClose={() => setIsNADiagramOpen(false)}
+          isOpen={openDiagram === 'NA_DEPOT'}
+          onClose={() => setOpenDiagram(null)}
           title="Estació i Dipòsit Terrassa Nacions Unides"
           depotId="NA"
           tracks={[1, 2, 3, 4]}
@@ -4442,8 +4394,8 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
 
         {/* PN Diagram (Sabadell) */}
         <DepotModal
-          isOpen={isPNDiagramOpen}
-          onClose={() => setIsPNDiagramOpen(false)}
+          isOpen={openDiagram === 'PN_DEPOT'}
+          onClose={() => setOpenDiagram(null)}
           title="Estació i Dipòsit Sabadell Parc del Nord"
           depotId="PN"
           tracks={[1, 2, 3]}
@@ -4851,264 +4803,6 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
         </div>
       )}
     </>
-  );
-};
-
-const MallaVisualizer = ({ circs }: { circs: any[] }) => {
-  const [lineFilter, setLineFilter] = useState('Tots');
-  const masterOrder = [
-    'PC', 'PR', 'GR', 'PM', 'PD', 'EP', 'TB',
-    'SG', 'MN', 'BN', 'TT', 'SR', 'RE',
-    'PF', 'VL', 'LP', 'LF', 'VD', 'SC',
-    'MS', 'HG', 'RB', 'FN', 'TR', 'VP', 'EN', 'NA',
-    'VO', 'SJ', 'BT', 'UN', 'SQ', 'CF', 'PJ', 'CT', 'NO', 'PN'
-  ];
-
-  const colorMap = (linia: string) => {
-    const l = (linia || '').toUpperCase().trim();
-    if (l.startsWith('F') || l === 'ES2') return '#22c55e';
-    if (l === 'L7' || l === 'ML7' || l === '300') return '#8B4513';
-    if (l === 'L6' || l === 'L66' || l === 'ML6' || l === '100') return '#9333ea';
-    if (l === 'L12') return '#d8b4fe';
-    if (l === 'S1' || l === 'MS1' || l === '400') return '#f97316';
-    if (l === 'S2' || l === 'MS2' || l === '500') return '#22c55e';
-    if (l.startsWith('M')) return '#6b7280'; // Maniobres
-    return '#53565A';
-  };
-
-  const mainLiniaForFilter = (linia: string) => {
-    const l = (linia || '').toUpperCase().trim();
-    if (l === 'S1' || l === 'MS1') return 'S1';
-    if (l === 'S2' || l === 'MS2' || l === 'ES2') return 'S2';
-    if (l === 'L6' || l === 'L66' || l === 'ML6') return 'L6';
-    if (l === 'L7' || l === 'ML7') return 'L7';
-    if (l === 'L12') return 'L12';
-    return l;
-  };
-
-  const filtered = circs.filter(c => {
-    if (lineFilter === 'Tots') return true;
-    return mainLiniaForFilter(c.linia) === lineFilter;
-  });
-
-  const getFgcMin = (t: string) => {
-    if (!t || !t.includes(':')) return null;
-    const p = t.split(':');
-    const h = parseInt(p[0]), m = parseInt(p[1]);
-    if (isNaN(h) || isNaN(m)) return null;
-    let total = h * 60 + m;
-    if (h < 4) total += 24 * 60;
-    return total;
-  };
-
-  const formatTime = (mins: number) => {
-    let m = mins;
-    if (m >= 24 * 60) m -= 24 * 60;
-    return `${Math.floor(m / 60).toString().padStart(2, '0')}:${(m % 60).toString().padStart(2, '0')}`;
-  };
-
-  // Map each main line to its full station list
-  const liniaStations: Record<string, string[]> = {
-    'S1': ['PC', 'PR', 'GR', 'SG', 'MN', 'BN', 'TT', 'SR', 'PF', 'VL', 'LP', 'LF', 'VD', 'SC', 'MS', 'HG', 'RB', 'FN', 'TR', 'VP', 'EN', 'NA'],
-    'S2': ['PC', 'PR', 'GR', 'SG', 'MN', 'BN', 'TT', 'SR', 'PF', 'VL', 'LP', 'LF', 'VD', 'SC', 'VO', 'SJ', 'BT', 'UN', 'SQ', 'CF', 'PJ', 'CT', 'NO', 'PN'],
-    'L6': ['PC', 'PR', 'GR', 'SG', 'MN', 'BN', 'TT', 'SR'],
-    'L7': ['PC', 'PR', 'GR', 'PM', 'PD', 'EP', 'TB'],
-    'L12': ['SR', 'RE'],
-  };
-
-  // Build station set: include ALL stations from each line that has visible circulations
-  const foundStations = new Set<string>();
-  const visibleLines = new Set<string>();
-  filtered.forEach(c => {
-    const ml = mainLiniaForFilter(c.linia);
-    visibleLines.add(ml);
-    // Also keep origin/dest for maniobres or unrecognized lines
-    if (c.originId && masterOrder.includes(c.originId)) foundStations.add(c.originId);
-    if (c.destId && masterOrder.includes(c.destId)) foundStations.add(c.destId);
-  });
-  // Add all stations for each visible line
-  visibleLines.forEach(line => {
-    const stations = liniaStations[line];
-    if (stations) stations.forEach(s => foundStations.add(s));
-  });
-
-  const sortedStations = masterOrder.filter(s => foundStations.has(s)).reverse();
-  if (sortedStations.length === 0) return <div className="flex items-center justify-center h-full text-gray-400 font-bold text-sm uppercase">No hi ha circulacions disponibles per mostrar.</div>;
-
-  const timeScale = 4;
-  const startTime = 240; // 4:00 AM
-  const hoursToShow = 22;
-  const width = hoursToShow * 60 * timeScale;
-  const height = Math.max(600, sortedStations.length * 50);
-
-  // Group by unit/torn
-  const groups: Record<string, any[]> = {};
-  filtered.forEach(c => {
-    const oid = c.originId;
-    const did = c.destId;
-    if (!oid || !did || !foundStations.has(oid) || !foundStations.has(did)) return;
-    if (oid === did) return; // Skip same-station
-    const y1 = sortedStations.indexOf(oid) * 50;
-    const y2 = sortedStations.indexOf(did) * 50;
-    const uId = c.train && c.train !== '---' ? c.train : `TORN-${c.torn}`;
-    if (!groups[uId]) groups[uId] = [];
-    groups[uId].push({ ...c, y1, y2 });
-  });
-
-  const terminalOvershoots: Record<string, number> = { 'PC': 40, 'NA': -40, 'PN': -40, 'TB': -40, 'RE': -40, 'SR': 40 };
-
-  return (
-    <div className="h-full flex flex-col space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 bg-gray-100 dark:bg-white/5 p-1 rounded-2xl border border-gray-200 dark:border-white/10">
-          {['Tots', 'S1', 'S2', 'L6', 'L7', 'L12'].map(ln => (
-            <button key={ln} onClick={() => setLineFilter(ln)} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${lineFilter === ln ? 'bg-white dark:bg-gray-700 text-fgc-grey dark:text-white shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>
-              {ln}
-            </button>
-          ))}
-        </div>
-        <div className="flex items-center gap-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">
-          <span>{filtered.length} circulacions</span>
-          <span>{Object.keys(groups).length} unitats</span>
-        </div>
-      </div>
-      <div className="flex-1 bg-white dark:bg-gray-950 rounded-[32px] border border-gray-100 dark:border-white/5 overflow-hidden shadow-inner relative">
-        <TransformWrapper initialScale={0.5} minScale={0.1} maxScale={4} centerOnInit={false}>
-          {({ zoomIn, zoomOut, resetTransform }) => (
-            <>
-              <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
-                <button onClick={() => zoomIn()} className="p-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur rounded-full shadow border border-black/5 text-fgc-grey dark:text-white"><ZoomIn size={16} /></button>
-                <button onClick={() => zoomOut()} className="p-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur rounded-full shadow border border-black/5 text-fgc-grey dark:text-white"><ZoomOut size={16} /></button>
-                <button onClick={() => resetTransform()} className="p-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur rounded-full shadow border border-black/5 text-fgc-grey dark:text-white"><RotateCcw size={16} /></button>
-              </div>
-              <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }}>
-                <div className="relative p-20 select-none">
-                  <svg width={width} height={height} className="overflow-visible">
-                    {/* Time grid */}
-                    {Array.from({ length: hoursToShow * 4 + 1 }).map((_, i) => {
-                      const m = i * 15;
-                      const x = m * timeScale;
-                      const isHour = i % 4 === 0;
-                      return (
-                        <g key={i}>
-                          <line x1={x} y1={-20} x2={x} y2={height + 20} stroke="currentColor" strokeDasharray={isHour ? "" : "2,2"} className={isHour ? 'text-gray-200 dark:text-white/10' : 'text-gray-100 dark:text-white/5'} />
-                          {isHour && (
-                            <text x={x} y={-30} className="text-[10px] font-black fill-gray-400 dark:fill-gray-500 uppercase" textAnchor="middle">
-                              {formatTime(startTime + m)}
-                            </text>
-                          )}
-                        </g>
-                      );
-                    })}
-
-                    {/* Station axes */}
-                    {sortedStations.map((st, i) => {
-                      const y = i * 50;
-                      return (
-                        <g key={st}>
-                          <line x1={-20} y1={y} x2={width + 20} y2={y} stroke="currentColor" className="text-gray-100 dark:text-white/5" />
-                          <text x={-30} y={y + 4} className="text-[11px] font-black fill-fgc-grey dark:fill-gray-400 uppercase" textAnchor="end">{st}</text>
-                        </g>
-                      );
-                    })}
-
-                    {/* Circulation lines */}
-                    {Object.entries(groups).map(([uId, trips]) => {
-                      const sorted = trips.sort((a, b) => (getFgcMin(a.sortida) || 0) - (getFgcMin(b.sortida) || 0));
-                      return (
-                        <g key={uId}>
-                          {/* Layer 1: Transitions/Loops between consecutive trips */}
-                          {sorted.map((c, i) => {
-                            const next = sorted[i + 1];
-                            if (!next) return null;
-                            const endM = getFgcMin(c.arribada);
-                            const nextStartM = getFgcMin(next.sortida);
-                            if (endM === null || nextStartM === null) return null;
-                            if (nextStartM - endM > 60 || nextStartM < endM) return null;
-
-                            const x2 = (endM - startTime) * timeScale;
-                            const nx1 = (nextStartM - startTime) * timeScale;
-                            const color = colorMap(c.linia);
-                            const ny1 = next.y1;
-
-                            const yDir = terminalOvershoots[c.destId];
-                            if (yDir !== undefined && c.destId === next.originId) {
-                              return (
-                                <path
-                                  key={`loop-${uId}-${i}`}
-                                  d={`M ${x2} ${c.y2} C ${x2 + 15} ${c.y2 + yDir}, ${nx1 - 15} ${ny1 + yDir}, ${nx1} ${ny1}`}
-                                  fill="none" stroke={color} strokeWidth={2} strokeDasharray="5,3" className="opacity-50"
-                                />
-                              );
-                            } else {
-                              return (
-                                <path
-                                  key={`trans-${uId}-${i}`}
-                                  d={`M ${x2} ${c.y2} C ${x2 + (nx1 - x2) / 2} ${c.y2}, ${x2 + (nx1 - x2) / 2} ${ny1}, ${nx1} ${ny1}`}
-                                  fill="none" stroke={color} strokeWidth={1} strokeDasharray="4,2" className="opacity-30"
-                                />
-                              );
-                            }
-                          })}
-
-                          {/* Layer 2: Main circulation lines */}
-                          {sorted.map((c, i) => {
-                            const sM = getFgcMin(c.sortida);
-                            const eM = getFgcMin(c.arribada);
-                            if (sM === null || eM === null) return null;
-                            const x1 = (sM - startTime) * timeScale;
-                            const x2 = (eM - startTime) * timeScale;
-                            const color = colorMap(c.linia);
-                            const isManiobra = (c.linia || '').toUpperCase().startsWith('M') && c.linia !== 'ML6' && c.linia !== 'ML7';
-
-                            return (
-                              <g key={`trip-${uId}-${i}`} className="group cursor-pointer">
-                                <line
-                                  x1={x1} y1={c.y1} x2={x2} y2={c.y2}
-                                  stroke={color}
-                                  strokeWidth={isManiobra ? 2 : 4}
-                                  strokeDasharray={isManiobra ? "4,2" : ""}
-                                  className="transition-all group-hover:stroke-blue-500 group-hover:[stroke-width:8px] drop-shadow-sm"
-                                />
-                                <circle cx={x1} cy={c.y1} r={4} fill={color} className="transition-all group-hover:r-6" />
-                                <circle cx={x2} cy={c.y2} r={4} fill={color} className="transition-all group-hover:r-6" />
-
-                                {/* Hover tooltip */}
-                                <g className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                                  <rect x={Math.min(x1, x2)} y={Math.min(c.y1, c.y2) - 70} width={200} height={60} rx={14} className="fill-fgc-grey/95 dark:fill-black/95 shadow-2xl" />
-                                  <text x={Math.min(x1, x2) + 14} y={Math.min(c.y1, c.y2) - 50} className="fill-white text-[11px] font-black uppercase">{c.id} — {c.torn}</text>
-                                  <text x={Math.min(x1, x2) + 14} y={Math.min(c.y1, c.y2) - 35} className="fill-white/70 text-[9px] font-bold uppercase">{c.sortida} → {c.arribada}</text>
-                                  <text x={Math.min(x1, x2) + 14} y={Math.min(c.y1, c.y2) - 20} className="text-[9px] font-black uppercase" fill={color}>{c.linia} · {c.originId} → {c.destId}</text>
-                                </g>
-                              </g>
-                            );
-                          })}
-                        </g>
-                      );
-                    })}
-                  </svg>
-                </div>
-              </TransformComponent>
-            </>
-          )}
-        </TransformWrapper>
-      </div>
-      {/* Legend */}
-      <div className="flex flex-wrap items-center gap-6 px-4 bg-gray-50 dark:bg-black/20 p-4 rounded-[24px] border border-gray-100 dark:border-white/5">
-        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: '#f97316' }} /> <span className="text-[10px] font-black uppercase text-gray-500">S1 Terrassa</span></div>
-        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: '#22c55e' }} /> <span className="text-[10px] font-black uppercase text-gray-500">S2 Sabadell</span></div>
-        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: '#9333ea' }} /> <span className="text-[10px] font-black uppercase text-gray-500">L6</span></div>
-        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: '#8B4513' }} /> <span className="text-[10px] font-black uppercase text-gray-500">L7</span></div>
-        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: '#d8b4fe' }} /> <span className="text-[10px] font-black uppercase text-gray-500">L12</span></div>
-        <div className="flex items-center gap-2"><div className="w-8 h-0 border-t-2 border-dashed border-gray-400" /> <span className="text-[10px] font-black uppercase text-gray-500">Maniobres</span></div>
-        <div className="flex-1 min-w-[100px]" />
-        <div className="flex items-center gap-4 text-[10px] font-black text-gray-400 uppercase tracking-widest italic">
-          <div className="flex items-center gap-1"><Move size={12} /> Arrossega</div>
-          <div className="flex items-center gap-1"><ZoomIn size={12} /> Zoom</div>
-          <div className="flex items-center gap-1"><Activity size={12} /> Hover per detalls</div>
-        </div>
-      </div>
-    </div>
   );
 };
 
