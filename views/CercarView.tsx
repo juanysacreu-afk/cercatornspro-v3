@@ -18,6 +18,8 @@ import { MarqueeText } from '../components/MarqueeText';
 import { getServiceToday } from '../utils/serviceCalendar';
 import { feedback } from '../utils/feedback';
 import { useToast } from '../components/ToastProvider';
+import GlassPanel from '../components/common/GlassPanel';
+import { Skeleton, CardSkeleton, ListSkeleton } from '../components/common/Skeleton';
 
 const normalizeStr = (str: string) =>
   (str || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -516,7 +518,7 @@ export const CercarView: React.FC<{
         <div className="flex flex-col gap-2"><span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Filtre de Servei</span><div className="inline-flex glass-card p-1 rounded-2xl shadow-sm border border-gray-100 dark:border-white/5">{['Tots', ...serveiTypes].map(s => (<button key={s} onClick={() => setSelectedServei(s)} className={`px-3 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-black transition-all ${selectedServei === s ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5'}`}>{s === 'Tots' ? 'Tots' : `S-${s}`}</button>))}</div></div>
       </header>
 
-      <div className="glass-card rounded-[32px] sm:rounded-[40px] p-6 sm:p-8 shadow-sm border border-gray-100 dark:border-white/5 relative">
+      <GlassPanel className="p-6 sm:p-8 relative overflow-hidden">
         <div className="absolute inset-0 rounded-[32px] sm:rounded-[40px] overflow-hidden pointer-events-none">
           <div className="absolute top-0 right-0 w-64 h-64 bg-fgc-green/5 blur-3xl -mr-32 -mt-32" />
         </div>
@@ -620,30 +622,20 @@ export const CercarView: React.FC<{
             )}
           </div>
         )}
-      </div>
+      </GlassPanel>
 
       <div className="space-y-12 sm:space-y-16 mt-8">
         {loading ? (
           <div className="space-y-12 animate-in fade-in duration-500">
-            {[...Array(2)].map((_, i) => (
-              <div key={i} className="glass-card p-4 sm:p-10 rounded-[40px] sm:rounded-[56px] border border-gray-100 dark:border-white/5 shadow-sm space-y-8">
-                <div className="flex items-center gap-6">
-                  <div className="skeleton-item h-20 w-20 rounded-[28px]" />
-                  <div className="space-y-3">
-                    <div className="skeleton-item h-8 w-64" />
-                    <div className="skeleton-item h-4 w-40" />
-                  </div>
-                </div>
-                <div className="skeleton-item h-48 w-full rounded-3xl" />
-              </div>
-            ))}
+            <CardSkeleton />
+            <ListSkeleton items={5} />
           </div>
         ) : results.length > 0 ? (
           results.map((group, idx) => {
             if (group.type === 'cycle_summary' || group.type === 'station_summary') {
               const isStationGroup = group.type === 'station_summary';
               return (
-                <div key={idx} className="glass-card p-4 sm:p-10 rounded-[40px] sm:rounded-[56px] border border-gray-100 dark:border-white/5 shadow-sm animate-in fade-in slide-in-from-bottom-12 duration-700 relative overflow-hidden group">
+                <GlassPanel key={idx} className="p-4 sm:p-10 !rounded-[40px] sm:!rounded-[56px] animate-in fade-in slide-in-from-bottom-12 duration-700 relative overflow-hidden group">
                   <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-fgc-green/5 to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-8 mb-6 sm:mb-12">
                     <div className="flex items-center gap-4 sm:gap-6">
@@ -715,13 +707,13 @@ export const CercarView: React.FC<{
                         })}
                     </div>
                   </div>
-                </div>
+                </GlassPanel>
               );
             }
             const currentStatus = getShiftCurrentStatus(group, idx);
             return (
               <div key={idx} className="flex flex-col gap-1 group animate-in fade-in slide-in-from-bottom-12 duration-700">
-                <div className="glass-card p-6 sm:p-10 rounded-t-[32px] sm:rounded-t-[48px] border-x border-t border-gray-100 dark:border-white/5 shadow-sm relative overflow-hidden">
+                <GlassPanel className="p-6 sm:p-10 !rounded-t-[32px] sm:!rounded-t-[48px] !rounded-b-none relative overflow-hidden">
                   <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-fgc-green/30 to-transparent shimmer" />
                   <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                     <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 flex-1">
@@ -745,7 +737,7 @@ export const CercarView: React.FC<{
                       <button onClick={() => scrollToElement(currentStatus.targetId)} className={`px-5 py-2.5 rounded-2xl text-[10px] sm:text-xs font-black shadow-md border-b-4 border-black/10 transition-all ${currentStatus.color}`}>{currentStatus.label}</button>
                     </div>
                   </div>
-                </div>
+                </GlassPanel>
                 <div className="bg-fgc-green divide-y divide-white/20 border-x border-fgc-green/20 shadow-sm overflow-hidden">
                   {group.drivers.map((driver: any, dIdx: number) => {
                     const isWorking = group.drivers.length > 1 && isDriverWorkingNow(driver.observacions);
@@ -770,7 +762,7 @@ export const CercarView: React.FC<{
                     );
                   })}
                 </div>
-                <div className="glass-card p-4 sm:p-10 rounded-b-[32px] sm:rounded-b-[48px] border-x border-b border-gray-100 dark:border-white/5 shadow-sm overflow-hidden relative">
+                <GlassPanel className="p-4 sm:p-10 !rounded-b-[32px] sm:!rounded-b-[48px] !rounded-t-none overflow-hidden relative">
                   <ShiftTimeline turn={group} nowMin={nowMin} trainStatuses={trainStatuses} getLiniaColor={getLiniaColor} openUnitMenu={openUnitMenu} getStatusColor={getStatusColor} />
                   <div className="border border-gray-100 dark:border-white/5 rounded-[32px] overflow-hidden bg-white dark:bg-black/20 shadow-sm mb-4">
                     <CirculationHeader />
@@ -800,7 +792,7 @@ export const CercarView: React.FC<{
                       })}
                     </div>
                   </div>
-                </div>
+                </GlassPanel>
               </div>
             );
           })

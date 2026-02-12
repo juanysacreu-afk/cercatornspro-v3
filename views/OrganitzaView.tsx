@@ -16,10 +16,8 @@ export const OrganitzaView: React.FC<{
   const [nowMin, setNowMin] = useState<number>(0);
   const [selectedServei, setSelectedServei] = useState<string>(getServiceToday());
 
-  const [turn1Id, setTurn1Id] = useState('');
-  const [turn2Id, setTurn2Id] = useState('');
-  const [turn1Data, setTurn1Data] = useState<any>(null);
-  const [turn2Data, setTurn2Data] = useState<any>(null);
+  const [turnIds, setTurnIds] = useState<string[]>(['', '', '', '']);
+  const [turnsData, setTurnsData] = useState<(any | null)[]>([null, null, null, null]);
   const [loadingComparator, setLoadingComparator] = useState(false);
 
   const [maquinistaQuery, setMaquinistaQuery] = useState('');
@@ -135,24 +133,48 @@ export const OrganitzaView: React.FC<{
     return segments;
   }, []);
 
-  const calculateCoincidences = useCallback((t1: any, t2: any) => {
-    if (!t1 || !t2) return [];
-    const segs1 = getSegments(t1).filter(s => s.type === 'gap');
-    const segs2 = getSegments(t2).filter(s => s.type === 'gap');
+  const calculateCoincidences = useCallback((turns: any[]) => {
+    const validTurns = turns.filter(t => t !== null);
+    if (validTurns.length < 2) return [];
+
     const coincidences: any[] = [];
-    segs1.forEach(s1 => {
-      segs2.forEach(s2 => {
-        const c1 = s1.codi.toUpperCase(); const c2 = s2.codi.toUpperCase();
-        if (c1 === c2 && c1 !== 'DESCANS' && c1 !== 'FINAL' && c1 !== '') {
-          const overlapStart = Math.max(s1.start, s2.start); const overlapEnd = Math.min(s1.end, s2.end);
-          if (overlapStart < overlapEnd) {
-            if (!coincidences.some(c => c.codi === c1 && c.start === overlapStart && c.end === overlapEnd)) {
-              coincidences.push({ codi: c1, start: overlapStart, end: overlapEnd, duration: overlapEnd - overlapStart, driver1: t1.drivers[0].nom, driver2: t2.drivers[0].nom, turn1: t1.id, turn2: t2.id });
+
+    // Comparem cada parell de torns (Combinatòria)
+    for (let i = 0; i < validTurns.length; i++) {
+      for (let j = i + 1; j < validTurns.length; j++) {
+        const t1 = validTurns[i];
+        const t2 = validTurns[j];
+
+        const segs1 = getSegments(t1).filter(s => s.type === 'gap');
+        const segs2 = getSegments(t2).filter(s => s.type === 'gap');
+
+        segs1.forEach(s1 => {
+          segs2.forEach(s2 => {
+            const c1 = s1.codi.toUpperCase();
+            const c2 = s2.codi.toUpperCase();
+            if (c1 === c2 && c1 !== 'DESCANS' && c1 !== 'FINAL' && c1 !== '') {
+              const overlapStart = Math.max(s1.start, s2.start);
+              const overlapEnd = Math.min(s1.end, s2.end);
+              if (overlapStart < overlapEnd) {
+                // Evitem duplicats exactes però permetem la mateixa estació per parells diferents
+                if (!coincidences.some(c => c.codi === c1 && c.start === overlapStart && c.end === overlapEnd && ((c.turn1 === t1.id && c.turn2 === t2.id) || (c.turn1 === t2.id && c.turn2 === t1.id)))) {
+                  coincidences.push({
+                    codi: c1,
+                    start: overlapStart,
+                    end: overlapEnd,
+                    duration: overlapEnd - overlapStart,
+                    driver1: t1.drivers[0]?.nom || '?',
+                    driver2: t2.drivers[0]?.nom || '?',
+                    turn1: t1.id,
+                    turn2: t2.id
+                  });
+                }
+              }
             }
-          }
-        }
-      });
-    });
+          });
+        });
+      }
+    }
     return coincidences.sort((a, b) => a.start - b.start);
   }, [getSegments]);
 
@@ -162,23 +184,40 @@ export const OrganitzaView: React.FC<{
   };
 
   const handleCompare = async () => {
-    if (!turn1Id || !turn2Id) return;
+    const activeTurnIds = turnIds.filter(id => id.trim() !== '');
+    if (activeTurnIds.length < 2) return;
+
     setLoadingComparator(true);
     try {
-      const [d1, d2] = await Promise.all([fetchFullTurnData(turn1Id), fetchFullTurnData(turn2Id)]);
-      setTurn1Data(d1); setTurn2Data(d2);
-    } catch (e) { console.error(e); } finally { setLoadingComparator(false); }
+      const results = await fetchFullTurns(activeTurnIds, selectedServei === '0' ? undefined : selectedServei);
+
+      // Mantenim l'ordre original dels IDs en els fills
+      const newTurnsData = turnIds.map(id => {
+        if (!id) return null;
+        return results.find(r => r.id === id) || null;
+      });
+
+      setTurnsData(newTurnsData);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingComparator(false);
+    }
   };
 
-  const turn1Segments = useMemo(() => getSegments(turn1Data), [turn1Data, getSegments]);
-  const turn2Segments = useMemo(() => getSegments(turn2Data), [turn2Data, getSegments]);
+  const turnsSegments = useMemo(() => turnsData.map(d => getSegments(d)), [turnsData, getSegments]);
 
-  const gr = useMemo(() => (turn1Data && turn2Data) ? {
-    min: Math.min(getFgcMinutes(turn1Data.inici_torn), getFgcMinutes(turn2Data.inici_torn)),
-    max: Math.max(getFgcMinutes(turn1Data.final_torn), getFgcMinutes(turn2Data.final_torn))
-  } : { min: 0, max: 0 }, [turn1Data, turn2Data]);
+  const gr = useMemo(() => {
+    const validData = turnsData.filter(d => d !== null);
+    if (validData.length === 0) return { min: 0, max: 0 };
 
-  const coincidences = useMemo(() => calculateCoincidences(turn1Data, turn2Data), [turn1Data, turn2Data, calculateCoincidences]);
+    return {
+      min: Math.min(...validData.map(d => getFgcMinutes(d.inici_torn))),
+      max: Math.max(...validData.map(d => getFgcMinutes(d.final_torn)))
+    };
+  }, [turnsData]);
+
+  const coincidences = useMemo(() => calculateCoincidences(turnsData), [turnsData, calculateCoincidences]);
 
   const filteredMaquinistes = useMemo(() => {
     return allAssignments.filter(maquinista => {
@@ -250,15 +289,38 @@ export const OrganitzaView: React.FC<{
       <div className="relative overflow-hidden min-h-[600px]">
         {organizeType === OrganizeType.Comparador ? (
           <div key="comparador-view" className="space-y-8 animate-in fade-in slide-in-from-right-8 duration-700 ease-out-expo">
-            <div className="flex justify-center"><div className="inline-flex bg-white dark:bg-gray-900 p-1 rounded-2xl shadow-sm border border-gray-100 dark:border-white/5 transition-colors">{serveiTypes.map(s => (<button key={s} onClick={() => { setSelectedServei(s); setTurn1Data(null); setTurn2Data(null); setTurn1Id(''); setTurn2Id(''); }} className={`px-6 py-2 rounded-xl text-sm font-black transition-all ${selectedServei === s ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5'}`}>S-{s}</button>))}</div></div>
+            <div className="flex justify-center"><div className="inline-flex bg-white dark:bg-gray-900 p-1 rounded-2xl shadow-sm border border-gray-100 dark:border-white/5 transition-colors">{serveiTypes.map(s => (<button key={s} onClick={() => { setSelectedServei(s); setTurnsData([null, null, null, null]); setTurnIds(['', '', '', '']); }} className={`px-6 py-2 rounded-xl text-sm font-black transition-all ${selectedServei === s ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5'}`}>S-{s}</button>))}</div></div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-              <CompareInputSlot label="Primer Torn" value={turn1Id} onChange={setTurn1Id} data={turn1Data} nowMin={nowMin} getSegments={getSegments} onClear={() => { setTurn1Id(''); setTurn1Data(null); }} selectedServei={selectedServei} isPrivacyMode={isPrivacyMode} />
-              <CompareInputSlot label="Segon Torn" value={turn2Id} onChange={setTurn2Id} data={turn2Data} nowMin={nowMin} getSegments={getSegments} onClear={() => { setTurn2Id(''); setTurn2Data(null); }} selectedServei={selectedServei} isPrivacyMode={isPrivacyMode} />
+              {turnIds.map((id, index) => (
+                <CompareInputSlot
+                  key={index}
+                  label={index < 2 ? (index === 0 ? "Primer Torn" : "Segon Torn") : (index === 2 ? "Tercer Torn" : "Quart Torn")}
+                  value={id}
+                  onChange={(val) => {
+                    const newIds = [...turnIds];
+                    newIds[index] = val;
+                    setTurnIds(newIds);
+                  }}
+                  data={turnsData[index]}
+                  nowMin={nowMin}
+                  getSegments={getSegments}
+                  onClear={() => {
+                    const newIds = [...turnIds];
+                    const newData = [...turnsData];
+                    newIds[index] = '';
+                    newData[index] = null;
+                    setTurnIds(newIds);
+                    setTurnsData(newData);
+                  }}
+                  selectedServei={selectedServei}
+                  isPrivacyMode={isPrivacyMode}
+                />
+              ))}
             </div>
             <div className="flex justify-center">
               <button
                 onClick={handleCompare}
-                disabled={!turn1Id || !turn2Id || loadingComparator}
+                disabled={turnIds.filter(id => id.trim() !== '').length < 2 || loadingComparator}
                 className="bg-fgc-green text-fgc-grey w-full sm:w-auto px-12 py-4 sm:py-5 rounded-[24px] sm:rounded-[28px] font-black text-base sm:text-lg shadow-xl shadow-fgc-green/20 hover:scale-[1.02] sm:hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:scale-100 group relative overflow-hidden"
               >
                 <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
@@ -266,11 +328,25 @@ export const OrganitzaView: React.FC<{
                 COMPARAR
               </button>
             </div>
-            {(turn1Data && turn2Data) && (
+            {turnsData.some(d => d !== null) && (
               <div className="glass-card rounded-[48px] p-8 sm:p-14 border border-gray-100 dark:border-white/5 shadow-sm space-y-16 animate-in zoom-in-95 duration-700 overflow-visible transition-all relative">
                 <div className="absolute top-0 right-0 w-96 h-96 bg-fgc-green/5 blur-[120px] -mr-48 -mt-48 pointer-events-none" />
-                <SimpleTimeline label="CRONOGRAMA TORN A" turnId={turn1Data.id} segments={turn1Segments} globalMin={gr.min} globalMax={gr.max} />
-                <SimpleTimeline label="CRONOGRAMA TORN B" turnId={turn2Data.id} segments={turn2Segments} globalMin={gr.min} globalMax={gr.max} />
+                <div className="space-y-12">
+                  {turnsData.map((data, index) => {
+                    if (!data) return null;
+                    const labels = ["A", "B", "C", "D"];
+                    return (
+                      <SimpleTimeline
+                        key={data.id}
+                        label={`CRONOGRAMA TORN ${labels[index]}`}
+                        turnId={data.id}
+                        segments={turnsSegments[index]}
+                        globalMin={gr.min}
+                        globalMax={gr.max}
+                      />
+                    );
+                  })}
+                </div>
                 <div className="pt-10 border-t border-dashed border-gray-200 dark:border-white/10 overflow-visible transition-colors">
                   <div className="flex items-center justify-between mb-8"><div className="flex items-center gap-4"><div className="p-3 bg-fgc-green rounded-2xl text-fgc-grey shadow-lg shadow-fgc-green/10"><LayoutGrid size={24} /></div><div><h3 className="text-xl font-black text-fgc-grey dark:text-white tracking-tight">Timeline de Coincidències</h3><p className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mt-0.5">Moments en què coincideixen a la mateixa estació</p></div></div><div className="bg-gray-50 dark:bg-black/20 px-5 py-2 rounded-2xl border border-gray-100 dark:border-white/5 flex items-center gap-3 transition-colors"><span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase">Trobades detectades:</span><span className="text-xl font-black text-fgc-green">{coincidences.length}</span></div></div>
                   <SimpleTimeline label="Mapa visual de trobades" segments={coincidences} colorMode="coincidence" globalMin={gr.min} globalMax={gr.max} />
@@ -505,12 +581,12 @@ const CompareInputSlot = ({ label, value, onChange, data, onClear, nowMin, getSe
   const currentActivity = useMemo(() => data ? getSegments(data).find(s => nowMin >= s.start && nowMin < s.end) : null, [data, getSegments, nowMin]);
 
   return (
-    <div className="bg-white dark:bg-gray-900 rounded-[32px] p-5 sm:p-8 border border-gray-100 dark:border-white/5 shadow-sm flex flex-col min-h-[240px] sm:min-h-[400px] transition-all relative" ref={containerRef}>
-      <div className="flex items-center justify-between mb-4 sm:mb-6">
-        <h3 className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">{label}</h3>
+    <div className={`bg-white dark:bg-gray-900 rounded-[32px] p-5 border border-gray-100 dark:border-white/5 shadow-sm flex flex-col transition-all relative ${data ? 'sm:p-8 min-h-[320px] sm:min-h-[400px]' : 'sm:p-6 min-h-[160px] sm:min-h-[200px]'}`} ref={containerRef}>
+      <div className={`flex items-center justify-between ${data ? 'mb-4 sm:mb-6' : 'mb-3'}`}>
+        <h3 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">{label}</h3>
         {data && (
-          <button onClick={onClear} className="p-2.5 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-500 rounded-full transition-colors bg-red-50/10">
-            <X size={18} />
+          <button onClick={onClear} className="p-2 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-500 rounded-full transition-colors bg-red-50/10">
+            <X size={16} />
           </button>
         )}
       </div>
@@ -604,22 +680,19 @@ const CompareInputSlot = ({ label, value, onChange, data, onClear, nowMin, getSe
         </div>
       ) : (
         <div className="flex-1 flex flex-col items-center justify-center text-center px-2 sm:px-4">
-          <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gray-50 dark:bg-black/20 rounded-full flex items-center justify-center mb-4 sm:mb-6 text-gray-300 dark:text-gray-700 transition-colors">
-            <Hash size={30} />
-          </div>
-          <p className="text-xs sm:text-sm text-gray-400 dark:text-gray-500 mb-6 sm:mb-8 max-w-[240px] font-medium leading-relaxed">
-            Cerca un codi de torn.
+          <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 mb-4 uppercase tracking-[0.1em]">
+            Cerca un codi de torn
           </p>
           <div className="w-full relative">
             <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-600" size={18} />
             <input
               type="text"
-              placeholder="Ex: Q002, Q004..."
+              placeholder="Q002, Q004..."
               value={value}
               onChange={(e) => handleInputChange(e.target.value.toUpperCase())}
               onKeyDown={handleKeyDown}
               onFocus={() => value.length > 0 && setShowSug(true)}
-              className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[20px] sm:rounded-[24px] py-4 sm:py-5 pl-14 pr-8 focus:ring-4 focus:ring-fgc-green/20 outline-none font-black text-lg transition-all placeholder:text-gray-300 dark:text-white dark:placeholder:text-gray-700 shadow-inner"
+              className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[16px] sm:rounded-[20px] py-3.5 sm:py-4 pl-12 pr-6 focus:ring-4 focus:ring-fgc-green/20 outline-none font-black text-base transition-all placeholder:text-gray-300 dark:text-white dark:placeholder:text-gray-700 shadow-inner"
             />
             {showSug && suggestions.length > 0 && (
               <div className="absolute top-full left-0 right-0 mt-3 bg-white dark:bg-gray-800 rounded-[24px] shadow-2xl border border-gray-100 dark:border-white/10 z-[100] overflow-hidden overflow-y-auto max-h-56 animate-in slide-in-from-top-2 transition-colors">

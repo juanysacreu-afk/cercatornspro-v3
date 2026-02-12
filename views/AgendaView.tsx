@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Search, User, Phone, Hash, Loader2, ArrowRight, X, UserCircle, CalendarDays, Share2 } from 'lucide-react';
+import { Search, User, Phone, Hash, Loader2, ArrowRight, X, UserCircle, CalendarDays, Share2, MessageCircle, Download } from 'lucide-react';
 import { MarqueeText } from '../components/MarqueeText';
 import { supabase } from '../supabaseClient.ts';
 import { PhonebookEntry, DailyAssignment } from '../types.ts';
@@ -181,27 +181,61 @@ export const AgendaView: React.FC<{
           <p className="font-black uppercase tracking-widest text-xs">Precarregant dades...</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-20">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pb-20">
           {filteredAgents.length > 0 ? (
             filteredAgents.map(agent => {
               const shift = getAgentShift(agent.nomina);
               return (
                 <div
                   key={agent.nomina}
-                  className="bg-white dark:bg-gray-900 rounded-[32px] p-8 border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-xl hover:border-fgc-green/30 transition-all group relative overflow-hidden flex flex-col h-full"
+                  className="bg-white dark:bg-gray-900 rounded-[24px] p-4 sm:p-6 border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-xl hover:border-fgc-green/30 transition-all group relative overflow-hidden flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6"
                 >
-                  <div className="absolute top-0 right-0 w-24 h-24 bg-fgc-green/5 -mr-8 -mt-8 rounded-full blur-2xl group-hover:bg-fgc-green/10 transition-colors" />
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-fgc-green/5 -mr-12 -mt-12 rounded-full blur-3xl group-hover:bg-fgc-green/10 transition-colors" />
 
-                  <div className="flex items-center gap-5 mb-8 relative z-10">
-                    <div className="w-16 h-16 bg-fgc-grey dark:bg-black text-white rounded-2xl flex items-center justify-center font-black text-2xl shadow-lg shrink-0">
+                  {/* Avatar Section */}
+                  <div className="relative shrink-0">
+                    <div className="w-14 h-14 sm:w-20 sm:h-20 bg-fgc-grey dark:bg-black text-white rounded-2xl flex items-center justify-center font-black text-xl sm:text-3xl shadow-lg relative z-10 group-hover:scale-105 transition-transform duration-500">
                       {(agent.cognom1 || agent.nom).charAt(0)}
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <MarqueeText
-                          text={`${agent.cognom1} ${agent.cognom2 || ''}, ${agent.nom}`}
-                          className="text-xl font-black text-fgc-grey dark:text-white leading-tight uppercase"
-                        />
+                    <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-fgc-green rounded-lg flex items-center justify-center shadow-md z-20">
+                      <Hash size={12} className="text-fgc-grey" />
+                    </div>
+                  </div>
+
+                  {/* Info Section */}
+                  <div className="min-w-0 flex-1 relative z-10 space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <MarqueeText
+                        text={`${agent.cognom1} ${agent.cognom2 || ''}, ${agent.nom}`}
+                        className="text-lg sm:text-2xl font-black text-fgc-grey dark:text-white leading-tight uppercase"
+                      />
+                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const vcard = [
+                              'BEGIN:VCARD',
+                              'VERSION:3.0',
+                              `FN:${agent.nom} ${agent.cognom1} ${agent.cognom2}`,
+                              `N:${agent.cognom1} ${agent.cognom2};${agent.nom};;;`,
+                              ...(agent.phones ? agent.phones.map(p => `TEL;TYPE=CELL:${p}`) : []),
+                              `NOTE:Nòmina ${agent.nomina}`,
+                              'END:VCARD'
+                            ].join('\n');
+                            const blob = new Blob([vcard], { type: 'text/vcard' });
+                            const url = window.URL.createObjectURL(blob);
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.setAttribute('download', `${agent.cognom1 || agent.nom}_${agent.nomina}.vcf`);
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                          }}
+                          className="p-1.5 text-gray-300 hover:text-blue-500 transition-colors"
+                          title="Descarregar VCF"
+                        >
+                          <Download size={14} />
+                        </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -217,72 +251,66 @@ export const AgendaView: React.FC<{
                             const file = new File([vcard], `${agent.cognom1 || agent.nom}_${agent.nomina}.vcf`, { type: 'text/vcard' });
                             onShare(`${agent.cognom1}, ${agent.nom}`, `Contacte de l'agent nòmina ${agent.nomina}`, undefined, [file]);
                           }}
-                          className="p-2 text-gray-300 hover:text-fgc-green transition-colors"
-                          title="Compartir Contacte"
+                          className="p-1.5 text-gray-300 hover:text-fgc-green transition-colors"
+                          title="Compartir"
                         >
-                          <Share2 size={16} />
+                          <Share2 size={14} />
                         </button>
                       </div>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Hash size={12} className="text-gray-400 dark:text-gray-500" />
-                        <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">{agent.nomina}</span>
-                      </div>
                     </div>
-                  </div>
-
-                  <div className="flex-1 space-y-6 relative z-10">
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2 px-1">
-                        <Phone size={12} className="text-fgc-green" />
-                        <span className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Contacte</span>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {agent.phones && agent.phones.length > 0 ? (
-                          agent.phones.map((p, idx) => (
-                            <a
-                              key={idx}
-                              href={isPrivacyMode ? undefined : `tel:${p}`}
-                              className={`flex items-center gap-2.5 bg-gray-50 dark:bg-gray-800 text-fgc-grey dark:text-gray-300 px-4 py-2 rounded-xl text-sm font-black hover:bg-fgc-green dark:hover:bg-fgc-green dark:hover:text-fgc-grey transition-all shadow-sm border border-gray-100 dark:border-white/5 ${isPrivacyMode ? 'cursor-default' : ''}`}
-                            >
-                              <Phone size={14} />
-                              {isPrivacyMode ? '*** ** ** **' : p}
-                            </a>
-                          ))
-                        ) : (
-                          <span className="text-xs font-bold text-gray-300 dark:text-gray-700 italic px-1">Sense telèfons</span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="pt-6 border-t border-gray-100 dark:border-white/5 space-y-3">
-                      <div className="flex items-center gap-2 px-1">
-                        <CalendarDays size={12} className="text-blue-500" />
-                        <span className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Assignació Diària</span>
-                      </div>
-                      {shift ? (
-                        <div className="bg-blue-50/50 dark:bg-blue-900/10 rounded-2xl p-4 border border-blue-100 dark:border-blue-900/30 flex items-center justify-between group/shift">
-                          <div className="flex items-center gap-3">
-                            <div className="w-12 h-10 bg-fgc-grey dark:bg-black text-white rounded-lg flex items-center justify-center font-black text-sm shadow-md">
-                              {shift.torn}
-                            </div>
-                            <div>
-                              <p className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-tighter leading-none mb-1">Horari</p>
-                              <p className="text-base font-black text-fgc-grey dark:text-gray-200 leading-none">
-                                {shift.hora_inici} — {shift.hora_fi}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="p-2 bg-white dark:bg-gray-800 rounded-lg opacity-0 group-hover/shift:opacity-100 transition-opacity shadow-sm">
-                            <ArrowRight size={14} className="text-blue-500" />
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="bg-gray-50/50 dark:bg-gray-800/30 rounded-2xl p-4 border border-dashed border-gray-200 dark:border-white/5 text-center">
-                          <p className="text-xs font-bold text-gray-300 dark:text-gray-700 italic">Sense torn assignat avui</p>
+                    <div className="flex items-center gap-3">
+                      <span className="text-[10px] sm:text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">{agent.nomina}</span>
+                      {shift && (
+                        <div className="flex items-center gap-1 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded-full border border-blue-100 dark:border-blue-800/30">
+                          <CalendarDays size={10} className="text-blue-500" />
+                          <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 capitalize">{shift.torn}</span>
                         </div>
                       )}
                     </div>
+
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      {agent.phones && agent.phones.length > 0 ? (
+                        agent.phones.map((p, idx) => {
+                          const cleanPhone = p.replace(/\s+/g, '').replace('+', '');
+                          const isLandline = cleanPhone.startsWith('9');
+                          const waUrl = `https://wa.me/34${cleanPhone}`;
+                          return (
+                            <div key={idx} className="flex items-center gap-1.5 group/phone">
+                              <a
+                                href={isPrivacyMode ? undefined : `tel:${p}`}
+                                className={`flex-1 flex items-center gap-2 bg-gray-50/50 dark:bg-gray-800/50 text-fgc-grey dark:text-gray-300 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black hover:bg-fgc-green dark:hover:bg-fgc-green dark:hover:text-fgc-grey transition-all border border-gray-100 dark:border-white/5 ${isPrivacyMode ? 'cursor-default' : ''}`}
+                              >
+                                <Phone size={12} className="text-fgc-green" />
+                                {isPrivacyMode ? '*** ** ** **' : p}
+                              </a>
+                              {!isPrivacyMode && !isLandline && (
+                                <a
+                                  href={waUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-1.5 bg-green-500/10 text-green-600 dark:text-green-500 rounded-xl hover:bg-green-500 hover:text-white transition-all border border-green-500/10"
+                                >
+                                  <MessageCircle size={16} />
+                                </a>
+                              )}
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <span className="text-[10px] font-bold text-gray-300 dark:text-gray-700 italic">Sense contacte</span>
+                      )}
+                    </div>
                   </div>
+
+                  {/* Shift Summary (Desktop wide) */}
+                  {shift && (
+                    <div className="hidden sm:flex flex-col items-end gap-1 shrink-0 border-l border-gray-100 dark:border-white/5 pl-6 relative z-10">
+                      <p className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-tighter">Horari Avui</p>
+                      <p className="text-lg font-black text-fgc-grey dark:text-gray-200 tabular-nums">
+                        {shift.hora_inici}—{shift.hora_fi}
+                      </p>
+                    </div>
+                  )}
                 </div>
               );
             })

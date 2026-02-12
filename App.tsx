@@ -18,14 +18,37 @@ interface ParkedUnit {
   track: string;
 }
 
+import SplashScreen from './components/common/SplashScreen.tsx';
+
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AppTab>(AppTab.Cercar);
+  const [prevTab, setPrevTab] = useState<AppTab | null>(null);
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [initProgress, setInitProgress] = useState(0);
   const { showToast } = useToast();
 
   const handleTabChange = (tab: AppTab) => {
+    if (tab === activeTab) return;
     feedback.click();
+    setPrevTab(activeTab);
     setActiveTab(tab);
   };
+
+  useEffect(() => {
+    // Simulació de càrrega de dades inicials
+    const interval = setInterval(() => {
+      setInitProgress(prev => {
+        if (prev >= 100) {
+          clearInterval(interval);
+          return 100;
+        }
+        return prev + Math.random() * 20;
+      });
+    }, 200);
+
+    return () => clearInterval(interval);
+  }, []);
+
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showSecretMenu, setShowSecretMenu] = useState(false);
@@ -190,6 +213,8 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-transparent flex flex-col transition-colors duration-300">
+      <SplashScreen progress={initProgress} onComplete={() => setIsInitializing(false)} />
+
       {/* High-Fidelity Mesh Background Global with Parallax */}
       <div className="mesh-bg">
         <div className="blob blob-1 parallax-blob" data-speed="0.05" />
@@ -197,7 +222,7 @@ const App: React.FC = () => {
         <div className="blob blob-3 parallax-blob" data-speed="0.03" />
       </div>
       {/* Top Navigation Bar con soporte para Safe Areas */}
-      <nav className="sticky top-0 z-50 bg-fgc-grey dark:bg-black/80 dark:backdrop-blur-md text-white shadow-md safe-top border-b border-white/5">
+      <nav className="sticky top-0 z-40 bg-fgc-grey dark:bg-black/80 dark:backdrop-blur-md text-white shadow-md safe-top border-b border-white/5 transition-all">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-20 sm:h-24">
             {/* Logo & Title */}
@@ -223,7 +248,7 @@ const App: React.FC = () => {
                   key={item.id}
                   onClick={() => handleTabChange(item.id)}
                   onDoubleClick={item.id === AppTab.Cercar ? togglePrivacyMode : undefined}
-                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-base font-semibold transition-all ${activeTab === item.id
+                  className={`relative flex items-center gap-2 px-5 py-2.5 rounded-xl text-base font-semibold transition-all group/nav ${activeTab === item.id
                     ? 'bg-fgc-green text-fgc-grey shadow-lg shadow-fgc-green/20'
                     : 'text-gray-300 hover:bg-white/10 hover:text-white'
                     }`}
@@ -235,7 +260,7 @@ const App: React.FC = () => {
 
               <div className="w-px h-8 bg-white/10 mx-3" />
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <button
                   onClick={() => setShowUploadModal(true)}
                   title="Carregar PDF Diari"
@@ -323,10 +348,7 @@ const App: React.FC = () => {
           {navItems.map((item, index) => (
             <button
               key={item.id}
-              onClick={() => {
-                setActiveTab(item.id);
-                setIsMobileMenuOpen(false);
-              }}
+              onClick={() => handleTabChange(item.id)}
               onDoubleClick={item.id === AppTab.Cercar ? togglePrivacyMode : undefined}
               className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-lg font-bold transition-all active:scale-95 menu-item-stagger ${activeTab === item.id ? 'bg-fgc-green text-fgc-grey' : 'text-fgc-grey/70 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5'
                 }`}
@@ -351,20 +373,20 @@ const App: React.FC = () => {
       </nav>
 
       {/* Main Content: Mantenim les vistes muntades però ocultes per preservar l'estat */}
-      <main className="flex-1 w-full py-8 safe-bottom max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className={activeTab === AppTab.Cercar ? 'block' : 'hidden'}>
+      <main className="flex-1 w-full py-8 safe-bottom max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 overflow-x-hidden">
+        <div className={`${activeTab === AppTab.Cercar ? 'block animate-in fade-in slide-in-from-right-8 duration-500' : 'hidden'}`}>
           <CercarView
             isPrivacyMode={isPrivacyMode}
             externalSearch={globalSearch}
             onExternalSearchHandled={() => setGlobalSearch(null)}
           />
         </div>
-        <div className={activeTab === AppTab.Organitza ? 'block' : 'hidden'}>
+        <div className={`${activeTab === AppTab.Organitza ? 'block animate-in fade-in slide-in-from-right-8 duration-500' : 'hidden'}`}>
           <OrganitzaView
             isPrivacyMode={isPrivacyMode}
           />
         </div>
-        <div className={activeTab === AppTab.Incidencia ? 'block' : 'hidden'}>
+        <div className={`${activeTab === AppTab.Incidencia ? 'block animate-in fade-in slide-in-from-right-8 duration-500' : 'hidden'}`}>
           <IncidenciaView
             showSecretMenu={showSecretMenu}
             parkedUnits={parkedUnits}
@@ -372,11 +394,11 @@ const App: React.FC = () => {
             isPrivacyMode={isPrivacyMode}
           />
         </div>
-        <div className={activeTab === AppTab.Cicles ? 'block' : 'hidden'}>
+        <div className={`${activeTab === AppTab.Cicles ? 'block animate-in fade-in slide-in-from-right-8 duration-500' : 'hidden'}`}>
           <CiclesView parkedUnits={parkedUnits} onParkedUnitsChange={fetchParkedUnits} />
         </div>
         {showSecretMenu && (
-          <div className={activeTab === AppTab.Agenda ? 'block' : 'hidden'}>
+          <div className={`${activeTab === AppTab.Agenda ? 'block animate-in fade-in slide-in-from-right-8 duration-500' : 'hidden'}`}>
             <AgendaView
               isPrivacyMode={isPrivacyMode}
               onShare={handleShare}

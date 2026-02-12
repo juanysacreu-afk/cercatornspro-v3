@@ -77,29 +77,34 @@ export const resolveStationId = (name: string, _linia: string = ''): string => {
 };
 
 // ──────────────────────────────────────────────
-// Line Color Utilities
+// Line Color Constants
 // ──────────────────────────────────────────────
+
+export const LINE_COLORS: Record<string, { hex: string; tailwind: string; label: string }> = {
+    'S1': { hex: '#f97316', tailwind: 'bg-orange-500', label: 'S1 Terrassa' },
+    'S2': { hex: '#22c55e', tailwind: 'bg-green-500', label: 'S2 Sabadell' },
+    'L6': { hex: '#9333ea', tailwind: 'bg-purple-600', label: 'L6' },
+    'L7': { hex: '#8B4513', tailwind: 'bg-[#8B4513]', label: 'L7' },
+    'L12': { hex: '#d8b4fe', tailwind: 'bg-purple-300', label: 'L12' },
+    'M': { hex: '#6b7280', tailwind: 'bg-gray-500', label: 'Maniobres' },
+};
 
 /** Returns hex color for a line code (for SVG and inline styles) */
 export const getLiniaColorHex = (linia: string): string => {
-    const l = (linia || '').toUpperCase().trim();
-    if (l === 'S1' || l === 'MS1' || l === '400') return '#f97316';
-    if (l === 'S2' || l === 'MS2' || l === 'ES2' || l === '500' || l.startsWith('F')) return '#22c55e';
-    if (l === 'L6' || l === 'L66' || l === 'ML6' || l === '100') return '#9333ea';
-    if (l === 'L7' || l === 'ML7' || l === '300') return '#8B4513';
-    if (l === 'L12') return '#d8b4fe';
-    if (l.startsWith('M')) return '#6b7280'; // Maniobres
-    return '#53565A';
+    const l = mainLiniaForFilter(linia);
+    if (l.startsWith('M')) return LINE_COLORS['M'].hex;
+    return LINE_COLORS[l]?.hex || '#53565A';
 };
 
 /** Returns the main line identifier for filter grouping */
 export const mainLiniaForFilter = (linia: string): string => {
     const l = (linia || '').toUpperCase().trim();
-    if (l === 'S1' || l === 'MS1') return 'S1';
-    if (l === 'S2' || l === 'MS2' || l === 'ES2') return 'S2';
-    if (l === 'L6' || l === 'L66' || l === 'ML6') return 'L6';
-    if (l === 'L7' || l === 'ML7') return 'L7';
+    if (l === 'S1' || l === 'MS1' || l === '400') return 'S1';
+    if (l === 'S2' || l === 'MS2' || l === 'ES2' || l === '500' || l.startsWith('F')) return 'S2';
+    if (l === 'L6' || l === 'L66' || l === 'ML6' || l === '100') return 'L6';
+    if (l === 'L7' || l === 'ML7' || l === '300') return 'L7';
     if (l === 'L12') return 'L12';
+    if (l.startsWith('M')) return 'M';
     return l;
 };
 

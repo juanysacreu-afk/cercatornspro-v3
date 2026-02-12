@@ -7,7 +7,7 @@ import { getServiceToday } from '../utils/serviceCalendar';
 import {
   resolveStationId, isServiceVisible, normalizeStr,
   S1_STATIONS, S2_STATIONS, L6_STATIONS, L7_STATIONS, L12_STATIONS, LINIA_STATIONS,
-  getLiniaColorHex, getFgcMinutes, formatFgcTime, getShortTornId,
+  getLiniaColorHex, getFgcMinutes, formatFgcTime, getShortTornId, LINE_COLORS
 } from '../utils/stations';
 import type { LivePersonnel, IncidenciaViewProps, IncidenciaMode, DiagramId, ReserveShift } from '../types';
 import IncidenciaPerTorn from '../components/IncidenciaPerTorn.tsx';
@@ -17,6 +17,8 @@ import TrainInspectorPopup from '../components/TrainInspectorPopup.tsx';
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import { feedback } from '../utils/feedback';
 import { useToast } from '../components/ToastProvider';
+import GlassPanel from '../components/common/GlassPanel';
+import { CardSkeleton, ListSkeleton } from '../components/common/Skeleton';
 
 const RESERVAS_DATA = [
   { id: 'QRS1', loc: 'SR', start: '06:00', end: '14:00' },
@@ -2267,11 +2269,11 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
 
           {/* Legend - same as MallaVisualizer */}
           <div className="flex flex-wrap items-center gap-6 px-4 bg-gray-50 dark:bg-black/20 p-4 rounded-[24px] border border-gray-100 dark:border-white/5">
-            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: '#f97316' }} /> <span className="text-[10px] font-black uppercase text-gray-500">S1 Terrassa</span></div>
-            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: '#22c55e' }} /> <span className="text-[10px] font-black uppercase text-gray-500">S2 Sabadell</span></div>
-            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: '#9333ea' }} /> <span className="text-[10px] font-black uppercase text-gray-500">L6</span></div>
-            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: '#8B4513' }} /> <span className="text-[10px] font-black uppercase text-gray-500">L7</span></div>
-            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: '#d8b4fe' }} /> <span className="text-[10px] font-black uppercase text-gray-500">L12</span></div>
+            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: LINE_COLORS['S1'].hex }} /> <span className="text-[10px] font-black uppercase text-gray-500">{LINE_COLORS['S1'].label}</span></div>
+            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: LINE_COLORS['S2'].hex }} /> <span className="text-[10px] font-black uppercase text-gray-500">{LINE_COLORS['S2'].label}</span></div>
+            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: LINE_COLORS['L6'].hex }} /> <span className="text-[10px] font-black uppercase text-gray-500">{LINE_COLORS['L6'].label}</span></div>
+            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: LINE_COLORS['L7'].hex }} /> <span className="text-[10px] font-black uppercase text-gray-500">{LINE_COLORS['L7'].label}</span></div>
+            <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: LINE_COLORS['L12'].hex }} /> <span className="text-[10px] font-black uppercase text-gray-500">{LINE_COLORS['L12'].label}</span></div>
             <div className="flex items-center gap-2"><div className="w-8 h-0 border-t-2 border-dashed border-gray-400" /> <span className="text-[10px] font-black uppercase text-gray-500">Maniobres</span></div>
             <div className="flex items-center gap-2"><div className="w-8 h-0 border-t-2 border-dashed border-orange-400" /> <span className="text-[10px] font-black uppercase text-orange-400">Sense Maquinista</span></div>
             <div className="flex-1 min-w-[100px]" />
@@ -2290,7 +2292,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
 
     return (
       <div className="fixed bottom-0 left-0 right-0 top-20 sm:top-24 z-40 flex items-start justify-center p-4 sm:p-6 bg-black/40 dark:bg-black/60 backdrop-blur-md animate-in slide-in-from-bottom-8 duration-500 overflow-y-auto">
-        <div className="bg-white dark:bg-gray-900 w-full max-w-6xl rounded-[40px] sm:rounded-[56px] shadow-[0_32px_128px_-16px_rgba(0,0,0,0.5)] border border-gray-100 dark:border-white/5 overflow-hidden flex flex-col mb-12 relative animate-in zoom-in-95 duration-500">
+        <GlassPanel className="w-full max-w-6xl !rounded-[40px] sm:!rounded-[56px] shadow-[0_32px_128px_-16px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col mb-12 relative animate-in zoom-in-95 duration-500">
           {/* Header */}
           <div className="p-8 border-b border-gray-100 dark:border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-6 bg-gray-50/50 dark:bg-black/20">
             <div className="flex items-center gap-4">
@@ -2785,7 +2787,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
               </div>
             </div>
           </div>
-        </div>
+        </GlassPanel>
       </div>
     );
   };
@@ -2795,7 +2797,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
   const renderInteractiveMap = () => {
     const trains = liveData.filter(p => p.type === 'TRAIN' && isServiceVisible(p.servei, selectedServei));
     return (
-      <div className="bg-white dark:bg-black/40 rounded-[40px] p-4 sm:p-6 border border-gray-100 dark:border-white/5 relative flex flex-col transition-colors shadow-sm">
+      <GlassPanel className="p-4 sm:p-6 relative flex flex-col">
         {/* Zoom Controls */}
         <div className="flex flex-col sm:flex-row md:items-center justify-between gap-6 mb-6">
           <div className="flex flex-col gap-2">
@@ -2919,7 +2921,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
 
         {(selectedCutStations.size > 0 || selectedCutSegments.size > 0) && (<button onClick={clearAllCuts} className="text-[10px] font-black text-red-500 uppercase flex items-center gap-2 bg-red-50 dark:bg-red-950/30 px-4 py-2.5 rounded-xl hover:scale-105 transition-all shadow-sm border border-red-100 dark:border-red-900/40 animate-in fade-in zoom-in-95 self-start mb-4"><Trash2 size={14} /> Anul·lar Talls ({selectedCutStations.size + selectedCutSegments.size})</button>)}
 
-        <div className="w-full h-[500px] bg-gray-50/30 dark:bg-black/20 rounded-3xl overflow-hidden border border-black/5 dark:border-white/5 relative">
+        <div className="w-full h-[550px] sm:h-[650px] md:h-[750px] lg:h-[850px] bg-gray-50/30 dark:bg-black/20 rounded-3xl overflow-hidden border border-black/5 dark:border-white/5 relative">
           <TransformWrapper
             initialScale={1}
             minScale={0.5}
@@ -3482,6 +3484,30 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
               </svg>
             </div>
           )}
+        </div>
+
+        {/* Legend */}
+        <div className="flex flex-wrap items-center gap-x-8 gap-y-4 px-2 mt-6 pt-6 border-t border-gray-100 dark:border-white/5">
+          {Object.entries(LINE_COLORS).filter(([k]) => k !== 'M').map(([key, config]) => (
+            <div key={key} className="flex items-center gap-3 group cursor-default">
+              <div className="w-3.5 h-3.5 rounded-full shadow-lg shadow-black/5" style={{ backgroundColor: config.hex }} />
+              <span className="text-[10px] font-black uppercase text-gray-500 dark:text-gray-400 tracking-widest group-hover:text-fgc-grey dark:group-hover:text-white transition-colors">
+                {config.label}
+              </span>
+            </div>
+          ))}
+          <div className="flex items-center gap-3 group cursor-default">
+            <div className="w-8 h-1 rounded-full border-t-2 border-dashed border-gray-200 dark:border-white/10" />
+            <span className="text-[10px] font-black uppercase text-gray-500 dark:text-gray-400 tracking-widest group-hover:text-fgc-grey dark:group-hover:text-white transition-colors">
+              Maniobres
+            </span>
+          </div>
+          <div className="flex-1 min-w-[40px]" />
+          <div className="flex items-center gap-6 text-[9px] font-black text-gray-300 dark:text-gray-600 uppercase tracking-[0.15em] italic">
+            <div className="flex items-center gap-2"><Move size={12} /> Arrossega</div>
+            <div className="flex items-center gap-2"><ZoomIn size={12} /> Zoom</div>
+            <div className="flex items-center gap-2"><Activity size={12} /> Detalls</div>
+          </div>
         </div>
 
         {/* Train Inspector Overlay */}
@@ -4494,7 +4520,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
             </div>
           )
         }
-      </div >
+      </GlassPanel>
     );
   };
 
@@ -4523,7 +4549,7 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
             <div className="flex justify-start"><button onClick={resetAllModeData} className="text-[10px] font-black text-fgc-green hover:underline uppercase tracking-[0.2em] flex items-center gap-2">← Tornar al selector</button></div>
             {mode === 'MAQUINISTA' && (
               <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <div className="bg-white dark:bg-gray-900 rounded-[32px] p-8 shadow-sm border border-gray-100 dark:border-white/5 transition-colors">
+                <GlassPanel className="p-8">
                   <div className="max-w-2xl mx-auto space-y-6 text-center w-full">
                     <h3 className="text-sm font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Identifica el Tren afectat</h3>
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 relative">
@@ -4547,22 +4573,13 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
                       </button>
                     </div>
                   </div>
-                </div>
+                </GlassPanel>
 
                 {loading ? (
                   <div className="space-y-10 animate-in fade-in duration-500">
-                    <div className="space-y-4">
-                      <div className="skeleton-item h-4 w-32 ml-2" />
-                      <div className="skeleton-item h-40 w-full rounded-[24px]" />
-                    </div>
-                    <div className="space-y-4">
-                      <div className="skeleton-item h-4 w-48 ml-2" />
-                      <div className="grid grid-cols-1 gap-2">
-                        {[...Array(3)].map((_, i) => (
-                          <div key={i} className="skeleton-item h-24 w-full rounded-2xl" />
-                        ))}
-                      </div>
-                    </div>
+                    <CardSkeleton />
+                    <ListSkeleton items={5} />
+                    <ListSkeleton items={3} />
                   </div>
                 ) : searchedCircData && (
                   <div className="grid grid-cols-1 gap-8">
@@ -4775,33 +4792,38 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
             {mode === 'PER_TORN' && (<IncidenciaPerTorn selectedServei={selectedServei} showSecretMenu={showSecretMenu} isPrivacyMode={isPrivacyMode} />)}
 
           </div>
-        )
-        }
+        )}
+      </div>
 
-      </div >
-      {mode === 'INIT' && !loading && (<div className="py-32 text-center opacity-10 flex flex-col items-center"><ShieldAlert size={100} className="text-fgc-grey mb-8" /><p className="text-xl font-black uppercase tracking-[0.4em] text-fgc-grey">Centre de Gestió Operativa</p></div>)
-      }
-
-      {altServiceIsland && <AlternativeServiceOverlay islandId={altServiceIsland} />}
-      {isRealMallaOpen && (
-        <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-900 w-full max-w-7xl h-[90vh] rounded-[48px] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
-            <div className="p-6 border-b border-gray-100 dark:border-white/5 flex items-center justify-between bg-gray-50/50 dark:bg-black/20">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-orange-500 rounded-2xl text-white shadow-lg"><TrendingUp size={24} /></div>
-                <div>
-                  <h3 className="text-xl font-black text-fgc-grey dark:text-white uppercase tracking-tight">Malla Real Interactiva</h3>
-                  <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Servei Seleccionat: S-{selectedServei}</p>
-                </div>
-              </div>
-              <button onClick={() => setIsRealMallaOpen(false)} className="p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded-full transition-colors"><X size={24} /></button>
-            </div>
-            <div className="flex-1 overflow-hidden p-6">
-              <MallaVisualizer circs={realMallaCircs} />
-            </div>
-          </div>
+      {mode === 'INIT' && !loading && (
+        <div className="py-32 text-center opacity-10 flex flex-col items-center">
+          <ShieldAlert size={100} className="text-fgc-grey mb-8" />
+          <p className="text-xl font-black uppercase tracking-[0.4em] text-fgc-grey">Centre de Gestió Operativa</p>
         </div>
       )}
+
+      {altServiceIsland && <AlternativeServiceOverlay islandId={altServiceIsland} />}
+      {
+        isRealMallaOpen && (
+          <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-gray-900 w-full max-w-7xl h-[90vh] rounded-[48px] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
+              <div className="p-6 border-b border-gray-100 dark:border-white/5 flex items-center justify-between bg-gray-50/50 dark:bg-black/20">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-orange-500 rounded-2xl text-white shadow-lg"><TrendingUp size={24} /></div>
+                  <div>
+                    <h3 className="text-xl font-black text-fgc-grey dark:text-white uppercase tracking-tight">Malla Real Interactiva</h3>
+                    <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Servei Seleccionat: S-{selectedServei}</p>
+                  </div>
+                </div>
+                <button onClick={() => setIsRealMallaOpen(false)} className="p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded-full transition-colors"><X size={24} /></button>
+              </div>
+              <div className="flex-1 overflow-hidden p-6">
+                <MallaVisualizer circs={realMallaCircs} />
+              </div>
+            </div>
+          </div>
+        )
+      }
     </>
   );
 };

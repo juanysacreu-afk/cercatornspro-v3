@@ -1,3 +1,4 @@
+import { LINE_COLORS, mainLiniaForFilter } from './stations';
 
 export const getStatusColor = (codi: string) => {
     const c = (codi || '').toUpperCase().trim();
@@ -13,13 +14,8 @@ export const getStatusColor = (codi: string) => {
 };
 
 export const getLiniaColor = (linia: string) => {
-    const l = linia?.toUpperCase().trim() || '';
-    if (l === 'L6') return 'bg-purple-600';
-    if (l === 'L7') return 'bg-[#8B4513]';
-    if (l === 'L12') return 'bg-purple-300';
-    if (l === 'S1') return 'bg-orange-500';
-    if (l === 'S2') return 'bg-[#00B140]';
-    return 'bg-fgc-grey dark:bg-gray-800';
+    const l = mainLiniaForFilter(linia);
+    return LINE_COLORS[l]?.tailwind || 'bg-fgc-grey dark:bg-gray-800';
 };
 
 export const getShortTornId = (id: string) => {
