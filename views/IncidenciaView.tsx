@@ -151,7 +151,7 @@ const CompactViatgerRow: React.FC<{
   );
 };
 
-const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedUnits, onParkedUnitsChange, isPrivacyMode }) => {
+const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedUnits, onParkedUnitsChange, isPrivacyMode }) => {
   const [mode, setMode] = useState<IncidenciaMode>('INIT');
   const { showToast } = useToast();
   const [selectedServei, setSelectedServei] = useState<string>(getServiceToday());
@@ -4828,4 +4828,5 @@ const IncidenciaView: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedU
   );
 };
 
+export const IncidenciaView = React.memo(IncidenciaViewComponent);
 export default IncidenciaView;

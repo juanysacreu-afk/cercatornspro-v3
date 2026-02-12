@@ -115,8 +115,11 @@ export const StationRow: React.FC<StationRowProps> = ({
             {/* Hora */}
             <div className="flex justify-center items-center shrink-0">
                 <div className={`px-2 py-1.5 sm:px-4 sm:py-2 rounded-xl border transition-all tabular-nums ${isActive ? 'bg-red-600 text-white border-red-700 animate-pulse shadow-md' : isBroken ? 'bg-red-600 text-white border-red-700 shadow-sm' : 'bg-fgc-green/10 dark:bg-fgc-green/5 border-fgc-green/20 dark:border-fgc-green/10'}`}>
-                    <span className={`text-xs sm:text-2xl font-black ${isActive || isBroken ? 'text-white' : 'text-fgc-grey dark:text-gray-200'}`}>
+                    <span className={`text-xs sm:hidden font-black ${isActive || isBroken ? 'text-white' : 'text-fgc-grey dark:text-gray-200'}`}>
                         {(circ.stopTimeAtStation || '--:--').substring(0, 5)}
+                    </span>
+                    <span className={`hidden sm:inline sm:text-2xl font-black ${isActive || isBroken ? 'text-white' : 'text-fgc-grey dark:text-gray-200'}`}>
+                        {circ.stopTimeAtStation || '--:--:--'}
                     </span>
                 </div>
             </div>

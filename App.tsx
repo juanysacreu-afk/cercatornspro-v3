@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, RefreshCcw, Train, Menu, X, Download, BookOpen, Settings, Moon, Sun, ShieldAlert } from 'lucide-react';
 import { AppTab } from './types.ts';
 import { CercarView } from './views/CercarView.tsx';
@@ -27,12 +27,12 @@ const App: React.FC = () => {
   const [initProgress, setInitProgress] = useState(0);
   const { showToast } = useToast();
 
-  const handleTabChange = (tab: AppTab) => {
+  const handleTabChange = useCallback((tab: AppTab) => {
     if (tab === activeTab) return;
     feedback.click();
     setPrevTab(activeTab);
     setActiveTab(tab);
-  };
+  }, [activeTab]);
 
   useEffect(() => {
     // Simulació de càrrega de dades inicials
@@ -66,7 +66,7 @@ const App: React.FC = () => {
 
   const [parkedUnits, setParkedUnits] = useState<ParkedUnit[]>([]);
 
-  const handleShare = async (title: string, text: string, url: string = window.location.href, files?: File[]) => {
+  const handleShare = useCallback(async (title: string, text: string, url: string = window.location.href, files?: File[]) => {
     feedback.click();
     if (navigator.share) {
       try {
@@ -84,15 +84,17 @@ const App: React.FC = () => {
       navigator.clipboard.writeText(`${title}\n${text}\n${url}`);
       showToast('Enllaç copiat al portapapers', 'success');
     }
-  };
+  }, [showToast]);
 
   const [searchTriggerRect, setSearchTriggerRect] = useState<DOMRect | null>(null);
   const searchButtonRef = useRef<HTMLButtonElement>(null);
 
-  const fetchParkedUnits = async () => {
+  const fetchParkedUnits = useCallback(async () => {
     const { data } = await supabase.from('parked_units').select('*');
     if (data) setParkedUnits(data);
-  };
+  }, []);
+
+  const onExternalSearchHandled = useCallback(() => setGlobalSearch(null), []);
 
   useEffect(() => {
     fetchParkedUnits();

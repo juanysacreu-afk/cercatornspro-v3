@@ -5,7 +5,7 @@ import { MarqueeText } from '../components/MarqueeText';
 import { supabase } from '../supabaseClient.ts';
 import { PhonebookEntry, DailyAssignment } from '../types.ts';
 
-export const AgendaView: React.FC<{
+const AgendaViewComponent: React.FC<{
   isPrivacyMode: boolean,
   onShare: (title: string, text: string, url?: string, files?: File[]) => void
 }> = ({ isPrivacyMode, onShare }) => {
@@ -57,6 +57,13 @@ export const AgendaView: React.FC<{
     }
   };
 
+  // Optimize assignments lookup with a Map
+  const assignmentsMap = useMemo(() => {
+    const map = new Map<string, DailyAssignment>();
+    assignments.forEach(a => map.set(a.empleat_id, a));
+    return map;
+  }, [assignments]);
+
   const suggestions = useMemo(() => {
     if (!query || query.length < 1) return [];
     const lowerQuery = query.toLowerCase();
@@ -89,10 +96,6 @@ export const AgendaView: React.FC<{
     setQuery(agent.nomina);
     setSelectedLetter(null);
     setShowSuggestions(false);
-  };
-
-  const getAgentShift = (nomina: string) => {
-    return assignments.find(a => a.empleat_id === nomina);
   };
 
   return (
@@ -184,7 +187,7 @@ export const AgendaView: React.FC<{
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pb-20">
           {filteredAgents.length > 0 ? (
             filteredAgents.map(agent => {
-              const shift = getAgentShift(agent.nomina);
+              const shift = assignmentsMap.get(agent.nomina);
               return (
                 <div
                   key={agent.nomina}
@@ -329,4 +332,5 @@ export const AgendaView: React.FC<{
   );
 };
 
+export const AgendaView = React.memo(AgendaViewComponent);
 export default AgendaView;

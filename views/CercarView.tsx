@@ -24,7 +24,7 @@ import { Skeleton, CardSkeleton, ListSkeleton } from '../components/common/Skele
 const normalizeStr = (str: string) =>
   (str || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
-export const CercarView: React.FC<{
+const CercarViewComponent: React.FC<{
   isPrivacyMode: boolean,
   externalSearch?: { type: string, query: string } | null,
   onExternalSearchHandled?: () => void
@@ -518,7 +518,7 @@ export const CercarView: React.FC<{
         <div className="flex flex-col gap-2"><span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Filtre de Servei</span><div className="inline-flex glass-card p-1 rounded-2xl shadow-sm border border-gray-100 dark:border-white/5">{['Tots', ...serveiTypes].map(s => (<button key={s} onClick={() => setSelectedServei(s)} className={`px-3 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-black transition-all ${selectedServei === s ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5'}`}>{s === 'Tots' ? 'Tots' : `S-${s}`}</button>))}</div></div>
       </header>
 
-      <GlassPanel className="p-6 sm:p-8 relative overflow-hidden">
+      <GlassPanel className="p-6 sm:p-8 relative z-30">
         <div className="absolute inset-0 rounded-[32px] sm:rounded-[40px] overflow-hidden pointer-events-none">
           <div className="absolute top-0 right-0 w-64 h-64 bg-fgc-green/5 blur-3xl -mr-32 -mt-32" />
         </div>
@@ -582,7 +582,7 @@ export const CercarView: React.FC<{
               <div className="relative flex-1">
                 <div className="absolute inset-y-0 left-6 flex items-center pointer-events-none text-gray-400 dark:text-gray-500">{loading ? <Loader2 className="animate-spin" size={24} /> : <Search size={24} />}</div>
                 <input type="text" placeholder={`Cerca per ${searchType.toUpperCase()}...`} className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] sm:rounded-[32px] py-4 sm:py-6 pl-14 sm:pl-16 pr-6 sm:pr-8 focus:ring-4 focus:ring-fgc-green/20 outline-none text-lg sm:text-2xl font-bold placeholder:text-gray-300 dark:text-white dark:placeholder:text-gray-600" value={query} onChange={(e) => handleInputChange(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && executeSearch()} onFocus={() => query.length >= 1 && setShowSuggestions(true)} />
-                {showSuggestions && suggestions.length > 0 && (<div className="absolute top-full left-2 right-2 mt-2 bg-white dark:bg-gray-800 rounded-[24px] shadow-2xl border border-gray-100 dark:border-white/10 z-[200] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">{suggestions.map((id, sIdx) => (<button key={sIdx} onClick={() => handleSuggestionClick(id)} className="w-full text-left px-6 sm:px-8 py-3 sm:py-4 text-base sm:text-xl font-bold text-fgc-grey dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-fgc-green transition-colors flex items-center justify-between group"><span>{id}</span><ArrowRight size={18} className="opacity-0 group-hover:opacity-100 transition-all scale-110" /></button>))}</div>)}
+                {showSuggestions && suggestions.length > 0 && (<div className="absolute top-full left-2 right-2 mt-2 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md rounded-[24px] shadow-2xl border border-gray-100 dark:border-white/10 z-[200] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">{suggestions.map((id, sIdx) => (<button key={sIdx} onClick={() => handleSuggestionClick(id)} className="w-full text-left px-6 sm:px-8 py-3 sm:py-4 text-base sm:text-xl font-bold text-fgc-grey dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-fgc-green transition-colors flex items-center justify-between group"><span>{id}</span><ArrowRight size={18} className="opacity-0 group-hover:opacity-100 transition-all scale-110" /></button>))}</div>)}
               </div>
               <button onClick={() => executeSearch()} className="bg-fgc-green text-fgc-grey h-[60px] sm:h-[76px] px-8 sm:px-10 rounded-[24px] sm:rounded-[32px] text-lg sm:text-xl font-black shadow-xl shadow-fgc-green/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3"><Search size={22} />CERCAR</button>
             </div>
@@ -677,7 +677,7 @@ export const CercarView: React.FC<{
                         ))}
                       </div>
                     )}
-                    <CirculationHeader />
+                    <CirculationHeader isStationView={isStationGroup} />
                     <div className="grid grid-cols-1 divide-y divide-gray-100 dark:divide-white/5">
                       {group.circulations
                         .filter((c: any) => selectedVia === 'Tot' || (c.viaAtStation?.includes(selectedVia.replace('V', '')) && c.viaAtStation.length > 0))
@@ -828,4 +828,5 @@ export const CercarView: React.FC<{
   );
 };
 
+export const CercarView = React.memo(CercarViewComponent);
 export default CercarView;

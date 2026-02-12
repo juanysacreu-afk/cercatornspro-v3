@@ -23,7 +23,7 @@ interface CommandPaletteProps {
     triggerRect?: DOMRect | null;
 }
 
-const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSelect, triggerRect }) => {
+const CommandPaletteComponent: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSelect, triggerRect }) => {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<SearchResult[]>([]);
     const [loading, setLoading] = useState(false);
@@ -224,4 +224,5 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onSele
     );
 };
 
+export const CommandPalette = React.memo(CommandPaletteComponent);
 export default CommandPalette;

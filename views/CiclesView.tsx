@@ -138,7 +138,7 @@ const DroppableTrack = ({ track, units, onDropUnit, onRemoveUnit, brokenTrains, 
   );
 };
 
-const CiclesView: React.FC<CiclesViewProps> = ({ parkedUnits, onParkedUnitsChange }) => {
+const CiclesViewComponent: React.FC<CiclesViewProps> = ({ parkedUnits, onParkedUnitsChange }) => {
   const [newCycleId, setNewCycleId] = useState('');
   const [newTrainId, setNewTrainId] = useState('');
   const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -811,4 +811,5 @@ const CiclesView: React.FC<CiclesViewProps> = ({ parkedUnits, onParkedUnitsChang
   );
 };
 
+export const CiclesView = React.memo(CiclesViewComponent);
 export default CiclesView;
