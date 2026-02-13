@@ -82,20 +82,20 @@ const DraggableUnit = ({ unit, isBroken, needsImages, needsRecords, needsCleanin
   return (
     <div
       ref={(el) => { if (el) drag(el); }}
-      className={`min-w-[120px] sm:min-w-[140px] p-3 rounded-2xl border flex items-center gap-3 cursor-grab active:cursor-grabbing shadow-md hover:shadow-xl transition-shadow ${isDragging ? 'opacity-40' : 'opacity-100'} ${isBroken
+      className={`min-w-[90px] sm:min-w-[100px] p-2 rounded-xl border flex items-center gap-2 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md transition-all ${isDragging ? 'opacity-40' : 'opacity-100'} ${isBroken
         ? 'bg-red-50/50 dark:bg-red-900/10 border-red-100 dark:border-red-900/30'
         : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-white/10'
         }`}
     >
-      <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${isBroken ? 'bg-red-500 text-white' : 'bg-blue-50 dark:bg-blue-900/30 text-blue-600'}`}>
-        {isBroken ? <AlertTriangle size={16} /> : <Train size={16} />}
+      <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${isBroken ? 'bg-red-500 text-white' : 'bg-blue-50 dark:bg-blue-900/30 text-blue-600'}`}>
+        {isBroken ? <AlertTriangle size={12} /> : <Train size={12} />}
       </div>
       <div className="min-w-0 font-black">
-        <p className={`text-xs truncate ${isBroken ? 'text-red-700 dark:text-red-400' : 'text-fgc-grey dark:text-white'}`}>{unit}</p>
-        <div className="flex gap-1 mt-0.5">
-          {needsImages && <Camera size={10} className="text-blue-500" />}
-          {needsRecords && <FileText size={10} className="text-yellow-500" />}
-          {needsCleaning && <Brush size={10} className="text-orange-500" />}
+        <p className={`text-[10px] truncate leading-none ${isBroken ? 'text-red-700 dark:text-red-400' : 'text-fgc-grey dark:text-white'}`}>{unit}</p>
+        <div className="flex gap-0.5 mt-1">
+          {needsImages && <Camera size={8} className="text-blue-500" />}
+          {needsRecords && <FileText size={8} className="text-yellow-500" />}
+          {needsCleaning && <Brush size={8} className="text-orange-500" />}
         </div>
       </div>
     </div>
@@ -112,16 +112,16 @@ const DroppableTrack = ({ track, units, onDropUnit, onRemoveUnit, brokenTrains, 
   return (
     <div
       ref={(el) => { if (el) drop(el); }}
-      className={`relative p-4 rounded-3xl border-2 border-dashed transition-all min-h-[100px] flex items-center gap-4 ${isOver ? 'bg-blue-500/10 border-blue-500 scale-[1.01]' : canDrop ? 'bg-blue-500/5 border-blue-500/30' : 'bg-gray-50/50 dark:bg-black/20 border-gray-100 dark:border-white/5'}`}
+      className={`relative p-3 rounded-2xl border-2 border-dashed transition-all min-h-[80px] flex items-center gap-3 ${isOver ? 'bg-blue-500/10 border-blue-500 scale-[1.01]' : canDrop ? 'bg-blue-500/5 border-blue-500/30' : 'bg-gray-50/50 dark:bg-black/20 border-gray-100 dark:border-white/5'}`}
     >
-      <div className="w-16 h-12 bg-white dark:bg-gray-800 border border-gray-100 dark:border-white/5 rounded-2xl flex flex-col items-center justify-center shadow-sm shrink-0">
-        <span className="text-[8px] font-black text-gray-400 uppercase tracking-tighter leading-none mb-1">VIA</span>
-        <span className="text-sm font-black text-blue-600 leading-none">{track.id}</span>
-        <div className={`mt-1 py-0.5 px-2 rounded-full text-[8px] font-black ${units.length >= capacity ? 'bg-red-500 text-white' : 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'}`}>
+      <div className="w-14 h-10 bg-white dark:bg-gray-800 border border-gray-100 dark:border-white/5 rounded-xl flex flex-col items-center justify-center shadow-sm shrink-0">
+        <span className="text-[7px] font-black text-gray-400 uppercase tracking-tighter leading-none mb-0.5">VIA</span>
+        <span className="text-xs font-black text-blue-600 leading-none">{track.id}</span>
+        <div className={`mt-0.5 py-0.5 px-1.5 rounded-full text-[7px] font-black ${units.length >= capacity ? 'bg-red-500 text-white' : 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'}`}>
           {units.length}/{capacity}
         </div>
       </div>
-      <div className="flex-1 flex gap-3 overflow-x-auto py-8 px-4 no-scrollbar">
+      <div className="flex-1 flex flex-wrap gap-2 py-2">
         {units.length > 0 ? units.map((u: any, i: number) => (
           <div key={i} className="relative group/unit">
             <DraggableUnit
@@ -131,9 +131,9 @@ const DroppableTrack = ({ track, units, onDropUnit, onRemoveUnit, brokenTrains, 
               needsRecords={recordTrains.has(u.unit_number)}
               needsCleaning={cleaningTrains.has(u.unit_number)}
             />
-            <button onClick={() => onRemoveUnit(u.unit_number)} className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover/unit:opacity-100 transition-all shadow-lg z-10"><X size={10} /></button>
+            <button onClick={() => onRemoveUnit(u.unit_number)} className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover/unit:opacity-100 transition-all shadow-lg z-10"><X size={8} /></button>
           </div>
-        )) : <div className="text-[10px] font-bold text-gray-300 dark:text-gray-700 uppercase tracking-widest italic ml-4">Lliure (Arrossega aquí)</div>}
+        )) : <div className="text-[9px] font-bold text-gray-300 dark:text-gray-700 uppercase tracking-widest italic ml-2">Lliure</div>}
       </div>
     </div>
   );
@@ -165,6 +165,7 @@ const CiclesViewComponent: React.FC<CiclesViewProps> = ({ parkedUnits, onParkedU
   const [fleetFilter, setFleetFilter] = useState<'ALL' | 'BROKEN' | 'CLEANING' | 'RECORDS' | 'IMAGES'>('ALL');
   const [selectedUnitDetail, setSelectedUnitDetail] = useState<string | null>(null);
   const [kmFilterSerie, setKmFilterSerie] = useState<string>('ALL');
+  const [depotFleetFilter, setDepotFleetFilter] = useState<string>('ALL');
   const [notifications, setNotifications] = useState<any[]>([]);
 
   const cycleSuggestionsRef = useRef<HTMLDivElement>(null);
@@ -413,12 +414,62 @@ const CiclesViewComponent: React.FC<CiclesViewProps> = ({ parkedUnits, onParkedU
                   <div><h2 className="text-xl font-black uppercase tracking-tight">Dipòsits</h2><p className="text-sm text-gray-400">Arrossega trens per organitzar-los.</p></div>
                   <div className="flex flex-wrap gap-2">{Object.keys(DEPOT_CAPACITIES_LOCAL).map(id => <button key={id} onClick={() => setSelectedDepot(id)} className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${selectedDepot === id ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-100 dark:bg-white/5 text-gray-400 hover:text-fgc-grey'}`}>{id}</button>)}</div>
                 </div>
-                <div className="p-8 grid grid-cols-1 lg:grid-cols-4 gap-8">
-                  <div className="lg:col-span-1 space-y-4">
-                    <h3 className="text-[10px] font-black text-gray-400 uppercase">Unitats Lliures</h3>
-                    <div className="flex flex-wrap lg:flex-col gap-2 max-h-[400px] overflow-y-auto pr-2">{allFleetTrains.filter(t => !parkedUnits.some(p => p.unit_number === t)).map(t => <DraggableUnit key={t} unit={t} isBroken={brokenTrains.has(t)} needsImages={imageTrains.has(t)} needsRecords={recordTrains.has(t)} needsCleaning={cleaningTrains.has(t)} />)}</div>
+                <div className="p-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+                  <div className="lg:col-span-3 flex flex-col gap-6">
+                    <div className="flex flex-col gap-4 px-1">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Unitats Lliures</h3>
+                        <div className="bg-blue-500/10 text-blue-600 dark:text-blue-400 px-3 py-1 rounded-full text-[10px] font-black border border-blue-500/20">
+                          {allFleetTrains.filter(t => !parkedUnits.some(p => p.unit_number === t)).length} disp.
+                        </div>
+                      </div>
+
+                      <div className="flex bg-white dark:bg-black/20 p-1 rounded-2xl border border-gray-100 dark:border-white/5 shadow-sm">
+                        {['ALL', '112', '113', '114', '115'].map(serie => (
+                          <button
+                            key={serie}
+                            onClick={() => setDepotFleetFilter(serie)}
+                            className={`flex-1 py-2 rounded-xl text-[10px] font-black transition-all ${depotFleetFilter === serie
+                              ? 'bg-fgc-grey text-white shadow-md scale-[1.02]'
+                              : 'text-gray-400 hover:text-fgc-grey dark:hover:text-white'
+                              }`}
+                          >
+                            {serie === 'ALL' ? 'TOTES' : serie}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-50/50 dark:bg-black/20 rounded-[32px] p-4 border border-gray-100 dark:border-white/5 h-[700px] flex flex-col">
+                      <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar">
+                        <div className="grid grid-cols-2 gap-2">
+                          {allFleetTrains
+                            .filter(t => !parkedUnits.some(p => p.unit_number === t))
+                            .filter(t => depotFleetFilter === 'ALL' || t.startsWith(depotFleetFilter))
+                            .map(t => (
+                              <div key={t} className="flex justify-center">
+                                <DraggableUnit
+                                  unit={t}
+                                  isBroken={brokenTrains.has(t)}
+                                  needsImages={imageTrains.has(t)}
+                                  needsRecords={recordTrains.has(t)}
+                                  needsCleaning={cleaningTrains.has(t)}
+                                />
+                              </div>
+                            ))}
+                        </div>
+                        {allFleetTrains.filter(t => !parkedUnits.some(p => p.unit_number === t)).length === 0 && (
+                          <div className="h-full flex flex-col items-center justify-center p-10 text-center space-y-4">
+                            <div className="w-16 h-16 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center shadow-sm">
+                              <CheckCircle2 size={24} className="text-gray-300 dark:text-gray-600" />
+                            </div>
+                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-relaxed">No hi ha més unitats lliures per estacionar</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <div className="lg:col-span-3 space-y-8">
+                  <div className="lg:col-span-9 space-y-8">
                     {DEPOT_LAYOUTS[selectedDepot].sections.map((s, idx) => (
                       <div key={idx} className="space-y-4">
                         <div className="flex items-center gap-4"><span className="text-[10px] font-black text-blue-500 uppercase">{s.name}</span><div className="h-px flex-1 bg-gray-100 dark:bg-white/5" /></div>
