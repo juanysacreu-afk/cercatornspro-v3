@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, ShieldAlert, Loader2, UserCheck, Clock, MapPin, AlertCircle, Phone, Info, Users, Zap, User, Train, Map as MapIcon, X, Timer, Scissors, ArrowDownToLine, ArrowUpToLine, ArrowLeftToLine, ArrowRightToLine, Coffee, Layers, Trash2, Repeat, Rewind, FastForward, RotateCcw, RefreshCw, LayoutGrid, CheckCircle2, Activity, FilePlus, ArrowRight, Move, Plus, Minus, Bell, Construction, Warehouse, ZoomIn, ZoomOut, Maximize, Wand2, TrendingUp } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
 import { fetchFullTurns } from '../utils/queries.ts';
 import { getStatusColor } from '../utils/fgc.ts';
 import { getServiceToday } from '../utils/serviceCalendar';
 import {
-  resolveStationId, isServiceVisible, normalizeStr,
+  resolveStationId, isServiceVisible, normalizeStr, mainLiniaForFilter,
   S1_STATIONS, S2_STATIONS, L6_STATIONS, L7_STATIONS, L12_STATIONS, LINIA_STATIONS,
-  getLiniaColorHex, getFgcMinutes, formatFgcTime, getShortTornId, LINE_COLORS
+  getLiniaColorHex, getFgcMinutes, formatFgcTime, getShortTornId, LINE_COLORS, getTravelTime
 } from '../utils/stations';
 import type { LivePersonnel, IncidenciaViewProps, IncidenciaMode, DiagramId, ReserveShift } from '../types';
 import IncidenciaPerTorn from '../components/IncidenciaPerTorn.tsx';
@@ -1031,46 +1032,25 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
     };
 
     liveData.forEach(p => {
-      const st = p.stationId.toUpperCase();
+      const st = (p.stationId || '').toUpperCase().trim();
+      const code = MAP_STATIONS.find(ms => ms.id === st || ms.label.toUpperCase() === st)?.id || st;
+
       let isAffected = false;
-
-      // 1. Check Stations (Effective Range)
-      if (effectiveCutStations.has(st) && !p.isMoving) {
-        isAffected = true;
-      }
-
-      // 2. Check Segments (Moving Trains)
+      if (effectiveCutStations.has(code) && !p.isMoving) isAffected = true;
       if (!isAffected && p.isMoving && p.nextStationId) {
-        // Construct segment ID potentially blocked
-        // ID format: FROM-TO-VX
-        // We check both V1 and V2 for simplicity of "Cut Zone", or match specifically?
-        // User request: "appear if I select a section between stations and there are trains in that concrete section"
-
-        // We check if the segment we are on is cut.
-        // Since we don't track V1/V2 perfectly in liveData without deep logic, we check if ANY track is cut?
-        // Or we rely on the Segment ID check.
-        const segIdV1 = `${st}-${p.nextStationId}-V1`;
-        const segIdV2 = `${st}-${p.nextStationId}-V2`;
-        const segIdV1Rev = `${p.nextStationId}-${st}-V1`;
-        const segIdV2Rev = `${p.nextStationId}-${st}-V2`;
-
-        if (selectedCutSegments.has(segIdV1) || selectedCutSegments.has(segIdV2) || selectedCutSegments.has(segIdV1Rev) || selectedCutSegments.has(segIdV2Rev)) {
-          isAffected = true;
-        }
-      }
-
-      // Also catch trains that are STATIONED but the user selected 2 stations including this one (covered by effectiveCutStations)
-      if (!isAffected && effectiveCutStations.has(st)) {
-        isAffected = true;
+        const nextCode = MAP_STATIONS.find(ms => ms.id === p.nextStationId?.toUpperCase() || ms.label.toUpperCase() === p.nextStationId?.toUpperCase())?.id || p.nextStationId;
+        const s1 = `${code}-${nextCode}-V1`, s2 = `${code}-${nextCode}-V2`;
+        const s1r = `${nextCode}-${code}-V1`, s2r = `${nextCode}-${code}-V2`;
+        if (selectedCutSegments.has(s1) || selectedCutSegments.has(s2) || selectedCutSegments.has(s1r) || selectedCutSegments.has(s2r)) isAffected = true;
       }
 
       if (isAffected) result.AFFECTED.list.push(p);
-      else if (islands.BCN.has(st)) result.BCN.list.push(p);
-      else if (vallesUnified && (islands.S1.has(st) || islands.S2.has(st))) result.VALLES.list.push(p);
-      else if (islands.S1.has(st)) result.S1.list.push(p);
-      else if (islands.S2.has(st)) result.S2.list.push(p);
-      else if (islands.L6.has(st)) result.L6.list.push(p);
-      else if (islands.L7.has(st)) result.L7.list.push(p);
+      else if (islands.BCN.has(code)) result.BCN.list.push(p);
+      else if (vallesUnified && (islands.S1.has(code) || islands.S2.has(code))) result.VALLES.list.push(p);
+      else if (islands.S1.has(code)) result.S1.list.push(p);
+      else if (islands.S2.has(code)) result.S2.list.push(p);
+      else if (islands.L6.has(code)) result.L6.list.push(p);
+      else if (islands.L7.has(code)) result.L7.list.push(p);
       else result.ISOLATED.list.push(p);
     });
     return result;
@@ -1236,11 +1216,11 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
     const [normalLines, setNormalLines] = useState<Record<string, boolean>>({
       S1: false, S2: false, L6: false, L7: false, L12: false
     });
-    const [isInitialized, setIsInitialized] = useState(false);
+    const [isInitializedFor, setIsInitializedFor] = useState<string | null>(null);
 
     // Initial calculation for reasonable defaults
     useEffect(() => {
-      if (isInitialized) return;
+      if (isInitializedFor === islandId) return;
 
       const initial = { S1: 0, S2: 0, L6: 0, L7: 0, L12: 0 };
       let avTrains = physicalTrains.length;
@@ -1306,8 +1286,8 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
       }
 
       setLineCounts(initial);
-      setIsInitialized(true);
-    }, [islandId, physicalTrains.length, allDrivers.length, isInitialized]);
+      setIsInitializedFor(islandId);
+    }, [islandId, physicalTrains.length, allDrivers.length, isInitializedFor]);
 
     const updateCount = (linia: string, delta: number) => {
       setLineCounts(prev => {
@@ -1453,7 +1433,10 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
           if (batch.length < 1000) break;
           fromIdx += 1000;
         }
-        if (theoryCircs.length === 0) return;
+        if (theoryCircs.length === 0) {
+          showToast("No s'han pogut carregar circulacions teòriques", "error");
+          return;
+        }
 
         const liniaPrefixes: Record<string, string> = { 'S1': 'D', 'S2': 'F', 'L6': 'A', 'L7': 'B', 'L12': 'L' };
         const liniaStationsRef = LINIA_STATIONS;
@@ -1614,8 +1597,8 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
           if (!eps) return;
 
           const prefix = liniaPrefixes[liniaCode];
-          const areaTheory = (theoryCircs as any[]).filter(c => c.linia === liniaCode);
-          let maxAscStartedNum = 0, maxDescStartedNum = 0, maxServiceTime = displayMin + 180;
+          const areaTheory = (theoryCircs as any[]).filter(c => mainLiniaForFilter(c.linia) === liniaCode);
+          let maxAscStartedNum = 0, maxDescStartedNum = 0, maxServiceTime = 1620;
 
           areaTheory.forEach(c => {
             const n = parseInt(c.id.replace(/\D/g, ''));
@@ -1630,7 +1613,7 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
 
           let refTravelTime = 15;
           const sample = areaTheory.filter(c => {
-            const stops = [c.inici, ...(c.estacions?.map((s: any) => s.nom) || []), c.final];
+            const stops = [c.inici, ...(c.estacions?.map((s: any) => s.nom) || []), c.final].map(s => resolveStationId(s));
             return stops.includes(eps.start) && stops.includes(eps.end);
           }).sort((a, b) => (getFgcMinutes(b.sortida) || 0) - (getFgcMinutes(a.sortida) || 0))[0];
 
@@ -1639,7 +1622,7 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
           let countValid = 0;
 
           areaTheory.forEach(c => {
-            const stops = [c.inici, ...(c.estacions?.map((s: any) => s.nom) || []), c.final];
+            const stops = [c.inici, ...(c.estacions?.map((s: any) => s.nom) || []), c.final].map(s => resolveStationId(s));
             const idx1 = stops.indexOf(eps.start);
             const idx2 = stops.indexOf(eps.end);
 
@@ -1679,13 +1662,19 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
           }
           refTravelTime += vuPenalty;
 
-          const branchUnits = (resourcesByLinia[liniaCode] || []).map(u => ({ ...u, currentDriverId: u.driver.torn }));
-          const activeOnThisBranch = Math.max(1, Math.floor(activeSimultaneous * (branchUnits.length / (physicalTrains.length || 1))));
+          const branchUnits = (resourcesByLinia[liniaCode] || []).map(u => ({
+            ...u,
+            currentDriverId: u.driver ? u.driver.torn : null,
+            availableAt: displayMin, // Disponibilitat inicial
+            currentStation: u.driver ? (u.driver.stationId || 'PC') : 'PC' // Estació inicial
+          }));
+
+          const activeOnThisBranch = Math.max(1, branchUnits.length);
           const cycleTime = (refTravelTime * 2) + 12;
           const headway = lineHeadways[liniaCode] || Math.max(10, Math.floor(cycleTime / activeOnThisBranch));
 
           lineContexts[liniaCode] = {
-            eps, prefix, refTravelTime, headway, maxServiceTime,
+            eps, prefix, refTravelTime: Math.min(60, Math.max(5, refTravelTime)), headway, maxServiceTime,
             nextAscNum: maxAscStartedNum + 2, nextDescNum: maxDescStartedNum + 2,
             branchUnits, nextStartTimeAsc: displayMin + 2, nextStartTimeDesc: displayMin + 2 + Math.floor(headway / 2)
           };
@@ -1701,12 +1690,14 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
             if (isAsc && !canGoAsc) isAsc = false; else if (!isAsc && !canGoDesc) isAsc = true;
             const startTime = isAsc ? curAsc : curDesc;
             if (startTime > 1620) break;
-            tripSlots.push({
-              liniaCode, isAsc, idealStartTime: startTime,
-              origin: isAsc ? ctx.eps.start : ctx.eps.end,
-              dest: isAsc ? ctx.eps.end : ctx.eps.start,
-              unitIdx: step % ctx.branchUnits.length
-            });
+            if (ctx.branchUnits.length > 0) {
+              tripSlots.push({
+                liniaCode, isAsc, idealStartTime: startTime,
+                origin: isAsc ? ctx.eps.start : ctx.eps.end,
+                dest: isAsc ? ctx.eps.end : ctx.eps.start,
+                unitIdx: step % ctx.branchUnits.length
+              });
+            }
             if (isAsc) curAsc += ctx.headway; else curDesc += ctx.headway;
             step++;
           }
@@ -1731,9 +1722,27 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
         const lastActualStart: Record<string, { ASCENDENT: number; DESCENDENT: number }> = {};
         tripSlots.sort((a, b) => a.idealStartTime - b.idealStartTime);
         tripSlots.forEach(slot => {
-          const ctx = lineContexts[slot.liniaCode], unitObj = ctx.branchUnits[slot.unitIdx];
+          const ctx = lineContexts[slot.liniaCode];
+          const unitObj = ctx.branchUnits[slot.unitIdx];
           const originalStart = slot.idealStartTime;
-          let startTime = originalStart, endTime = startTime + ctx.refTravelTime;
+
+          // 1. Calcular quan està realment disponible la UNITAT a l'origen
+          const turnAround = 4; // Temps mínim per canvi de sentit/preparació
+          let unitReadyAt = unitObj.availableAt;
+
+          if (unitObj.currentStation !== slot.origin) {
+            // Si la unitat no és on ha de començar, ha de fer un recorregut en buit
+            const travel = getTravelTime(unitObj.currentStation, slot.origin);
+            unitReadyAt += travel + 2;
+          } else {
+            // Si ja és a l'estació, només necessita el temps de canvi
+            if (unitObj.availableAt > displayMin) {
+              unitReadyAt += turnAround;
+            }
+          }
+
+          let startTime = Math.max(originalStart, unitReadyAt);
+          let endTime = startTime + ctx.refTravelTime;
 
           const selectedCandidate = driverPool.map(d => {
             const isAtStation = d.currentStation === slot.origin;
@@ -1827,6 +1836,11 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
             selectedDriver.availableAt = endTime;
             selectedDriver.tripCount = (selectedDriver.tripCount || 0) + 1;
 
+            // Actualitzar estat de la unitat
+            unitObj.availableAt = endTime;
+            unitObj.currentStation = slot.dest;
+            unitObj.currentDriverId = selectedDriver.torn;
+
             // Actualització de mètriques laborals
             if (selectedCandidate.drivingLimitMet) selectedDriver.contDrive = 0;
             selectedDriver.contDrive += ctx.refTravelTime;
@@ -1834,90 +1848,106 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
               selectedDriver.mainBreakTaken = true;
               selectedDriver.contDrive = 0;
             }
+          } else {
+            // Encara que no hi hagi maquinista assignat, la unitat s'ha mogut físicament
+            unitObj.availableAt = endTime;
+            unitObj.currentStation = slot.dest;
+            unitObj.currentDriverId = '---';
+          }
 
-            // L6 MANEUVER LOGIC AT SR
-            if (slot.liniaCode === 'L6' && slot.isAsc && slot.dest === 'SR') {
-              // 1. Maniobra SR v1 -> SR v0 (Impar/Odd)
-              lastManeuverNum++;
-              if (lastManeuverNum > 999) lastManeuverNum = 801;
-              if (lastManeuverNum % 2 === 0) lastManeuverNum++;
-              if (lastManeuverNum > 999) lastManeuverNum = 801;
+          // L6 MANEUVER LOGIC AT SR
+          if (slot.liniaCode === 'L6' && slot.isAsc && slot.dest === 'SR') {
+            // 1. Maniobra SR v1 -> SR v0 (Impar/Odd)
+            lastManeuverNum++;
+            if (lastManeuverNum > 999) lastManeuverNum = 801;
+            if (lastManeuverNum % 2 === 0) lastManeuverNum++;
+            if (lastManeuverNum > 999) lastManeuverNum = 801;
 
-              const m1Start = endTime + 2;
-              const m1End = m1Start + 3;
-              plan.push({
-                id: `VA${lastManeuverNum}`, servei: (activeDriver as any).servei, linia: 'L6', train: unitObj.train.id,
-                driver: activeDriver.driver || (activeDriver as any).driverName, torn: activeDriver.torn,
-                sortida: formatFgcTime(m1Start), arribada: formatFgcTime(m1End),
-                route: 'SR Via 1 → SR Via 0', direction: 'MANIOBRA', startTimeMinutes: m1Start, numValue: lastManeuverNum
-              });
+            const m1Start = endTime + 2;
+            const m1End = m1Start + 3;
+            plan.push({
+              id: `VA${lastManeuverNum}`, servei: (activeDriver as any).servei, linia: 'L6', train: unitObj.train.id,
+              driver: activeDriver.driver || (activeDriver as any).driverName, torn: activeDriver.torn,
+              sortida: formatFgcTime(m1Start), arribada: formatFgcTime(m1End),
+              route: 'SR Via 1 → SR Via 0', direction: 'MANIOBRA', startTimeMinutes: m1Start, numValue: lastManeuverNum
+            });
 
-              // 2. Maniobra SR v0 -> SR v2 (Parell/Even)
-              lastManeuverNum++;
-              if (lastManeuverNum > 999) lastManeuverNum = 801;
-              if (lastManeuverNum % 2 !== 0) lastManeuverNum++;
-              if (lastManeuverNum > 999) lastManeuverNum = 802;
+            // 2. Maniobra SR v0 -> SR v2 (Parell/Even)
+            lastManeuverNum++;
+            if (lastManeuverNum > 999) lastManeuverNum = 801;
+            if (lastManeuverNum % 2 !== 0) lastManeuverNum++;
+            if (lastManeuverNum > 999) lastManeuverNum = 802;
 
-              const m2Start = m1End + 4;
-              const m2End = m2Start + 3;
-              plan.push({
-                id: `VA${lastManeuverNum}`, servei: (activeDriver as any).servei, linia: 'L6', train: unitObj.train.id,
-                driver: activeDriver.driver || (activeDriver as any).driverName, torn: activeDriver.torn,
-                sortida: formatFgcTime(m2Start), arribada: formatFgcTime(m2End),
-                route: 'SR Via 0 → SR Via 2', direction: 'MANIOBRA', startTimeMinutes: m2Start, numValue: lastManeuverNum
-              });
+            const m2Start = m1End + 4;
+            const m2End = m2Start + 3;
+            plan.push({
+              id: `VA${lastManeuverNum}`, servei: (activeDriver as any).servei, linia: 'L6', train: unitObj.train.id,
+              driver: activeDriver.driver || (activeDriver as any).driverName, torn: activeDriver.torn,
+              sortida: formatFgcTime(m2Start), arribada: formatFgcTime(m2End),
+              route: 'SR Via 0 → SR Via 2', direction: 'MANIOBRA', startTimeMinutes: m2Start, numValue: lastManeuverNum
+            });
 
+            if (selectedDriver) {
               selectedDriver.availableAt = m2End;
               selectedDriver.currentStation = 'SR'; // Now at v2
             }
+            unitObj.availableAt = m2End;
+            unitObj.currentStation = 'SR';
+          }
 
-            // S1 MANEUVER LOGIC AT TERMINUS (NA)
-            if (slot.liniaCode === 'S1' && slot.dest === 'NA') {
-              // 1. NA v1 -> Zona Maniobres (Impar)
-              lastManeuverNum++;
-              if (lastManeuverNum > 999) lastManeuverNum = 801;
-              if (lastManeuverNum % 2 === 0) lastManeuverNum++;
-              if (lastManeuverNum > 999) lastManeuverNum = 801;
+          // S1 MANEUVER LOGIC AT TERMINUS (NA)
+          if (slot.liniaCode === 'S1' && slot.dest === 'NA') {
+            // 1. NA v1 -> Zona Maniobres (Impar)
+            lastManeuverNum++;
+            if (lastManeuverNum > 999) lastManeuverNum = 801;
+            if (lastManeuverNum % 2 === 0) lastManeuverNum++;
+            if (lastManeuverNum > 999) lastManeuverNum = 801;
 
-              const m1Start = endTime + 2;
-              const m1End = m1Start + 3;
-              plan.push({
-                id: `TA${lastManeuverNum}`, servei: (activeDriver as any).servei, linia: 'S1', train: unitObj.train.id,
-                driver: activeDriver.driver || (activeDriver as any).driverName, torn: activeDriver.torn,
-                sortida: formatFgcTime(m1Start), arribada: formatFgcTime(m1End),
-                route: 'NA Via 1 → Zona Maniobres', direction: 'MANIOBRA', startTimeMinutes: m1Start, numValue: lastManeuverNum
-              });
+            const m1Start = endTime + 2;
+            const m1End = m1Start + 3;
+            plan.push({
+              id: `TA${lastManeuverNum}`, servei: (activeDriver as any).servei, linia: 'S1', train: unitObj.train.id,
+              driver: activeDriver.driver || (activeDriver as any).driverName, torn: activeDriver.torn,
+              sortida: formatFgcTime(m1Start), arribada: formatFgcTime(m1End),
+              route: 'NA Via 1 → Zona Maniobres', direction: 'MANIOBRA', startTimeMinutes: m1Start, numValue: lastManeuverNum
+            });
 
-              // 2. Zona Maniobres -> NA v2 (Parell)
-              lastManeuverNum++;
-              if (lastManeuverNum > 999) lastManeuverNum = 801;
-              if (lastManeuverNum % 2 !== 0) lastManeuverNum++;
-              if (lastManeuverNum > 999) lastManeuverNum = 802;
+            // 2. Zona Maniobres -> NA v2 (Parell)
+            lastManeuverNum++;
+            if (lastManeuverNum > 999) lastManeuverNum = 801;
+            if (lastManeuverNum % 2 !== 0) lastManeuverNum++;
+            if (lastManeuverNum > 999) lastManeuverNum = 802;
 
-              const m2Start = m1End + 4;
-              const m2End = m2Start + 3;
-              plan.push({
-                id: `TA${lastManeuverNum}`, servei: (activeDriver as any).servei, linia: 'S1', train: unitObj.train.id,
-                driver: activeDriver.driver || (activeDriver as any).driverName, torn: activeDriver.torn,
-                sortida: formatFgcTime(m2Start), arribada: formatFgcTime(m2End),
-                route: 'Zona Maniobres → NA Via 2', direction: 'MANIOBRA', startTimeMinutes: m2Start, numValue: lastManeuverNum
-              });
+            const m2Start = m1End + 4;
+            const m2End = m2Start + 3;
+            plan.push({
+              id: `TA${lastManeuverNum}`, servei: (activeDriver as any).servei, linia: 'S1', train: unitObj.train.id,
+              driver: activeDriver.driver || (activeDriver as any).driverName, torn: activeDriver.torn,
+              sortida: formatFgcTime(m2Start), arribada: formatFgcTime(m2End),
+              route: 'Zona Maniobres → NA Via 2', direction: 'MANIOBRA', startTimeMinutes: m2Start, numValue: lastManeuverNum
+            });
+            if (selectedDriver) {
               selectedDriver.availableAt = m2End;
               selectedDriver.currentStation = 'NA';
-            } else if (slot.liniaCode === 'S1' && (slot.dest === 'TR' || slot.dest === 'EN')) {
-              // Single TA maneuver for other terminals
-              lastManeuverNum++;
-              if (lastManeuverNum > 999) lastManeuverNum = 801;
-              const mStart = endTime + 2;
-              const mEnd = mStart + 4;
-              plan.push({
-                id: `TA${lastManeuverNum}`, servei: (activeDriver as any).servei, linia: 'S1', train: unitObj.train.id,
-                driver: activeDriver.driver || (activeDriver as any).driverName, torn: activeDriver.torn,
-                sortida: formatFgcTime(mStart), arribada: formatFgcTime(mEnd),
-                route: `${slot.dest} → ${slot.dest}`, direction: 'MANIOBRA', startTimeMinutes: mStart, numValue: lastManeuverNum
-              });
+            }
+            unitObj.availableAt = m2End;
+            unitObj.currentStation = 'NA';
+          } else if (slot.liniaCode === 'S1' && (slot.dest === 'TR' || slot.dest === 'EN')) {
+            // Single TA maneuver for other terminals
+            lastManeuverNum++;
+            if (lastManeuverNum > 999) lastManeuverNum = 801;
+            const mStart = endTime + 2;
+            const mEnd = mStart + 4;
+            plan.push({
+              id: `TA${lastManeuverNum}`, servei: (activeDriver as any).servei, linia: 'S1', train: unitObj.train.id,
+              driver: activeDriver.driver || (activeDriver as any).driverName, torn: activeDriver.torn,
+              sortida: formatFgcTime(mStart), arribada: formatFgcTime(mEnd),
+              route: `${slot.dest} → ${slot.dest}`, direction: 'MANIOBRA', startTimeMinutes: mStart, numValue: lastManeuverNum
+            });
+            if (selectedDriver) {
               selectedDriver.availableAt = mEnd;
             }
+            unitObj.availableAt = mEnd;
           }
         });
 
@@ -2042,17 +2072,7 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
         return '#53565A';
       };
 
-      const mainLiniaForFilter = (linia: string) => {
-        const l = (linia || '').toUpperCase().trim();
-        if (l === 'S1' || l === 'MS1') return 'S1';
-        if (l === 'S2' || l === 'MS2' || l === 'ES2') return 'S2';
-        if (l === 'L6' || l === 'L66' || l === 'ML6') return 'L6';
-        if (l === 'L7' || l === 'ML7') return 'L7';
-        if (l === 'L12') return 'L12';
-        return l;
-      };
-
-      const filteredCircs = generatedCircs.filter(c => lineFilters.includes('Tots') || lineFilters.includes(c.linia));
+      const filteredCircs = generatedCircs.filter(c => lineFilters.includes('Tots') || lineFilters.includes(mainLiniaForFilter(c.linia)));
 
       // Build station set: include ALL stations from each visible line
       const foundStations = new Set<string>();
@@ -2145,7 +2165,7 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
           </div>
 
           <div className="flex-1 bg-white dark:bg-gray-950 rounded-[32px] border border-gray-100 dark:border-white/5 overflow-hidden shadow-inner relative" style={{ minHeight: '550px' }}>
-            <TransformWrapper initialScale={0.5} minScale={0.1} maxScale={4} centerOnInit={false}>
+            <TransformWrapper initialScale={0.8} minScale={0.1} maxScale={4} centerOnInit={true}>
               {({ zoomIn, zoomOut, resetTransform }) => (
                 <>
                   <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
@@ -2154,7 +2174,7 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
                     <button onClick={() => resetTransform()} className="p-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur rounded-full shadow border border-black/5 text-fgc-grey dark:text-white"><RotateCcw size={16} /></button>
                   </div>
                   <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }}>
-                    <div className="relative p-20 select-none">
+                    <div className="relative p-8 select-none">
                       <svg width={width} height={height} className="overflow-visible">
                         {/* Time grid */}
                         {Array.from({ length: hoursToShow * 4 + 1 }).map((_, i) => {
@@ -2290,8 +2310,8 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
     const islandLabel = dividedPersonnel[islandId].label.replace("Illa ", "");
     const totalAssigned = Object.values(lineCounts).reduce((a, b) => a + b, 0);
 
-    return (
-      <div className="fixed bottom-0 left-0 right-0 top-20 sm:top-24 z-40 flex items-start justify-center p-4 sm:p-6 bg-black/40 dark:bg-black/60 backdrop-blur-md animate-in slide-in-from-bottom-8 duration-500 overflow-y-auto">
+    return createPortal(
+      <div className="fixed inset-0 z-[9999] flex items-start justify-center p-4 sm:p-12 md:p-20 bg-slate-950/90 backdrop-blur-xl animate-in fade-in duration-500 overflow-y-auto">
         <GlassPanel className="w-full max-w-6xl !rounded-[40px] sm:!rounded-[56px] shadow-[0_32px_128px_-16px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col mb-12 relative animate-in zoom-in-95 duration-500">
           {/* Header */}
           <div className="p-8 border-b border-gray-100 dark:border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-6 bg-gray-50/50 dark:bg-black/20">
@@ -2788,7 +2808,8 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
             </div>
           </div>
         </GlassPanel>
-      </div>
+      </div>,
+      document.body
     );
   };
 
@@ -2921,7 +2942,7 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
 
         {(selectedCutStations.size > 0 || selectedCutSegments.size > 0) && (<button onClick={clearAllCuts} className="text-[10px] font-black text-red-500 uppercase flex items-center gap-2 bg-red-50 dark:bg-red-950/30 px-4 py-2.5 rounded-xl hover:scale-105 transition-all shadow-sm border border-red-100 dark:border-red-900/40 animate-in fade-in zoom-in-95 self-start mb-4"><Trash2 size={14} /> Anul·lar Talls ({selectedCutStations.size + selectedCutSegments.size})</button>)}
 
-        <div className="w-full h-[550px] sm:h-[650px] md:h-[750px] lg:h-[850px] bg-gray-50/30 dark:bg-black/20 rounded-3xl overflow-hidden border border-black/5 dark:border-white/5 relative">
+        <div className="w-full h-[350px] sm:h-[400px] md:h-[420px] lg:h-[450px] bg-gray-50/30 dark:bg-black/20 rounded-3xl overflow-hidden border border-black/5 dark:border-white/5 relative">
           <TransformWrapper
             initialScale={1}
             minScale={0.5}

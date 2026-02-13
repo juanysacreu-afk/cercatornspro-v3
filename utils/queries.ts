@@ -74,9 +74,9 @@ export async function fetchFullTurns(turnIds: string[], selectedServei?: string)
     // 5. Fetch Phones
     const employeeIds = Array.from(new Set(dailyAssignments.map((d: any) => d.empleat_id).filter(Boolean)));
     const phonesRes = employeeIds.length > 0
-        ? await supabase.from('phonebook').select('*').in('nomina', employeeIds)
+        ? await supabase.from('agents').select('nomina, phone, email').in('nomina', employeeIds)
         : { data: [] };
-    const phones = phonesRes.data || [];
+    const agents = phonesRes.data || [];
 
     // 6. Enrich everything
     const getFgcMinutes = (timeStr: string) => {
@@ -92,12 +92,14 @@ export async function fetchFullTurns(turnIds: string[], selectedServei?: string)
         const assignments = dailyAssignments.filter((d: any) => d.torn === sIdShort);
 
         const drivers = assignments.map((assig: any) => {
-            const pData = phones.find((p: any) => p.nomina === assig.empleat_id);
+            const agentData = agents.find((p: any) => p.nomina === assig.empleat_id);
+            const phones = agentData?.phone ? (Array.isArray(agentData.phone) ? agentData.phone : [agentData.phone]) : [];
             return {
                 nom: assig.nom || 'No assignat',
                 cognoms: assig.cognoms || '',
                 nomina: assig.empleat_id || '---',
-                phones: pData?.phones || [],
+                phones: phones,
+                email: agentData?.email || null,
                 observacions: assig.observacions || '',
                 abs_parc_c: assig.abs_parc_c,
                 dta: assig.dta,

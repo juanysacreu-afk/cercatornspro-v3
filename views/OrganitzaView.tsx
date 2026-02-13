@@ -6,7 +6,12 @@ import { fetchFullTurns } from '../utils/queries.ts';
 import { getShortTornId } from '../utils/fgc.ts';
 import { getServiceToday } from '../utils/serviceCalendar';
 
-type DisDesFilterType = 'ALL' | 'DIS' | 'DES' | 'DIS_DES' | 'FOR' | 'VAC' | 'DAG' | 'SERVEI';
+type DisDesFilterType = 'ALL' | 'DIS' | 'DES' | 'DIS_DES' | 'FOR' | 'VAC' | 'DAG' | 'SERVEI' | 'AJN';
+
+const normalizeId = (id: any) => {
+  if (!id) return '';
+  return String(id).trim().replace(/^0+/, '');
+};
 
 const OrganitzaViewComponent: React.FC<{
   isPrivacyMode: boolean
@@ -92,17 +97,24 @@ const OrganitzaViewComponent: React.FC<{
     try {
       const [assigRes, contactsRes] = await Promise.all([
         supabase.from('daily_assignments').select('*').order('cognoms', { ascending: true }),
-        supabase.from('agents').select('nomina, nom, cognom1, cognom2, phone, email')
+        supabase.from('agents').select('nomina, name, surname, phone, email, area').eq('area', 'bv')
       ]);
 
       if (assigRes.data) setAllAssignments(assigRes.data);
       if (contactsRes.data) {
         setAllAgents(contactsRes.data);
         const contactMap: Record<string, { phones: string[], email: string | null }> = {};
+
         contactsRes.data.forEach((a: any) => {
-          // Normalize phone to array if it is a string or already an array
-          const phones = a.phone ? (Array.isArray(a.phone) ? a.phone : [a.phone]) : [];
-          contactMap[a.nomina] = {
+          const nominaStr = String(a.nomina || '').trim();
+          if (!nominaStr) return;
+
+          let phones: string[] = [];
+          if (a.phone) {
+            phones = [String(a.phone)];
+          }
+
+          contactMap[normalizeId(nominaStr)] = {
             phones,
             email: a.email || null
           };
@@ -227,18 +239,20 @@ const OrganitzaViewComponent: React.FC<{
   const coincidences = useMemo(() => calculateCoincidences(turnsData), [turnsData, calculateCoincidences]);
 
   const filteredMaquinistes = useMemo(() => {
-    let baseList = [...allAssignments];
+    const bvAgentIds = new Set(allAgents.map(a => normalizeId(a.nomina)));
+    let baseList = allAssignments.filter(a => bvAgentIds.has(normalizeId(a.empleat_id)));
 
     // Si el filtre és 'ALL', afegim els agents que NO estan a daily_assignments
+    // Si el filtre és 'ALL', afegim els agents que NO estan a daily_assignments
     if (disDesFilter === 'ALL') {
-      const assignedIds = new Set(allAssignments.map(a => a.empleat_id));
+      const assignedIds = new Set(allAssignments.map(a => normalizeId(a.empleat_id)));
       const unassignedAgents = allAgents
-        .filter(agent => !assignedIds.has(agent.nomina))
+        .filter(agent => !assignedIds.has(normalizeId(agent.nomina)))
         .map(agent => ({
           id: -1 * parseInt(agent.nomina || '0'),
           empleat_id: agent.nomina,
-          nom: agent.nom,
-          cognoms: `${agent.cognom1 || ''} ${agent.cognom2 || ''}`.trim(),
+          nom: agent.name || '',
+          cognoms: agent.surname || '',
           torn: 'S/A',
           hora_inici: '--:--',
           hora_fi: '--:--',
@@ -265,6 +279,7 @@ const OrganitzaViewComponent: React.FC<{
       if (disDesFilter === 'FOR') return maquinista.torn.startsWith('FOR');
       if (disDesFilter === 'VAC') return maquinista.torn.startsWith('VAC');
       if (disDesFilter === 'DAG') return maquinista.torn.startsWith('DAG');
+      if (disDesFilter === 'AJN') return maquinista.torn.startsWith('AJN');
 
       if (disDesFilter === 'SERVEI') {
         return !maquinista.torn.startsWith('FOR') &&
@@ -307,13 +322,14 @@ const OrganitzaViewComponent: React.FC<{
 
   const filterLabels: Record<DisDesFilterType, string> = {
     ALL: 'Tots',
+    SERVEI: 'SERVEI',
     DIS: 'DIS',
     DES: 'DES',
     DIS_DES: 'DIS + DES',
     FOR: 'FOR',
     VAC: 'VAC',
     DAG: 'DAG',
-    SERVEI: 'SERVEI'
+    AJN: 'AJN'
   };
 
   return (
@@ -469,13 +485,13 @@ const OrganitzaViewComponent: React.FC<{
                 ) : filteredMaquinistes.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {filteredMaquinistes.map((maquinista) => {
-                      const contact = contacts[maquinista.empleat_id] || { phones: [], email: null };
+                      const contact = contacts[normalizeId(maquinista.empleat_id)] || { phones: [], email: null };
                       const phones = contact.phones;
                       const email = contact.email;
                       const isFOR = maquinista.torn.startsWith('FOR');
                       const isDIS = maquinista.torn.startsWith('DIS');
                       const isDES = maquinista.torn.startsWith('DES');
-                      const isAssigned = !isFOR && !isDIS && !isDES && !['VAC', 'DAG', 'ABS', 'LLIB'].some(p => maquinista.torn.startsWith(p));
+                      const isAssigned = !isFOR && !isDIS && !isDES && !['VAC', 'DAG', 'ABS', 'LLIB', 'AJN', 'S/N', 'S/A'].some(p => maquinista.torn.startsWith(p));
 
                       return (
                         <div
@@ -566,7 +582,7 @@ const OrganitzaViewComponent: React.FC<{
                                     className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black transition-all shadow-sm ${isAssigned ? 'bg-blue-600/20 text-blue-600 dark:text-blue-400 border border-blue-600/20' :
                                       isFOR ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 border border-yellow-500/20' :
                                         isDIS ? 'bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/20' :
-                                          isDES ? 'bg-fgc-green/20 text-fgc-green dark:text-fgc-green border border-fgc-green/20' :
+                                          isDES ? 'bg-fgc-green/20 text-green-800 dark:text-fgc-green border border-fgc-green/20' :
                                             'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 border border-gray-100 dark:border-white/5'
                                       }`}
                                     title={email}
@@ -727,13 +743,13 @@ const CompareInputSlot = ({ label, value, onChange, data, onClear, nowMin, getSe
                 {data.drivers[0]?.nomina}
               </p>
             </div>
-            {data.drivers[0]?.phones?.length > 0 && (
+            {(data.drivers[0]?.phones?.length > 0 || data.drivers[0]?.email) && (
               <div className="col-span-2 bg-fgc-green/10 dark:bg-fgc-green/5 p-3 sm:p-4 rounded-2xl border border-fgc-green/20 dark:border-fgc-green/10 transition-colors">
                 <p className="text-[9px] font-black text-fgc-green uppercase tracking-widest mb-2 flex items-center gap-2">
                   <Phone size={10} /> Contacte Directe
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {data.drivers[0].phones.map((p: string, i: number) => (
+                  {data.drivers[0].phones?.map((p: string, i: number) => (
                     <a
                       key={i}
                       href={isPrivacyMode ? undefined : `tel:${p}`}
@@ -742,6 +758,15 @@ const CompareInputSlot = ({ label, value, onChange, data, onClear, nowMin, getSe
                       <Phone size={12} /> {isPrivacyMode ? '*** ** ** **' : p}
                     </a>
                   ))}
+                  {data.drivers[0].email && (
+                    <a
+                      href={`mailto:${data.drivers[0].email}`}
+                      className={`flex items-center gap-2 bg-white dark:bg-black px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-black text-fgc-grey dark:text-gray-200 shadow-sm hover:bg-fgc-green dark:hover:text-black transition-all whitespace-nowrap`}
+                      title={data.drivers[0].email}
+                    >
+                      <Mail size={12} /> {data.drivers[0].email.length > 20 ? 'Email' : data.drivers[0].email}
+                    </a>
+                  )}
                 </div>
               </div>
             )}

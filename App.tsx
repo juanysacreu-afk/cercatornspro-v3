@@ -4,7 +4,6 @@ import { AppTab } from './types.ts';
 import { CercarView } from './views/CercarView.tsx';
 import OrganitzaView from './views/OrganitzaView.tsx';
 import CiclesView from './views/CiclesView.tsx';
-import AgendaView from './views/AgendaView.tsx';
 import IncidenciaView from './views/IncidenciaView.tsx';
 import FileUploadModal from './components/FileUploadModal.tsx';
 import CommandPalette from './components/CommandPalette.tsx';
@@ -201,9 +200,6 @@ const App: React.FC = () => {
     { id: AppTab.Cicles, label: 'Unitats', icon: <Train size={18} /> }
   ];
 
-  if (showSecretMenu) {
-    navItems.push({ id: AppTab.Agenda, label: 'Agenda', icon: <BookOpen size={18} /> });
-  }
 
   const toggleSecretMenu = () => {
     setShowSecretMenu(prev => !prev);
@@ -399,18 +395,11 @@ const App: React.FC = () => {
         <div className={`${activeTab === AppTab.Cicles ? 'block animate-in fade-in slide-in-from-right-8 duration-500' : 'hidden'}`}>
           <CiclesView parkedUnits={parkedUnits} onParkedUnitsChange={fetchParkedUnits} />
         </div>
-        {showSecretMenu && (
-          <div className={`${activeTab === AppTab.Agenda ? 'block animate-in fade-in slide-in-from-right-8 duration-500' : 'hidden'}`}>
-            <AgendaView
-              isPrivacyMode={isPrivacyMode}
-              onShare={handleShare}
-            />
-          </div>
-        )}
-      </main>
+
+      </main >
 
       {/* Floating Smart Search Button (Mobile ONLY) */}
-      <button
+      < button
         ref={searchButtonRef}
         onClick={(e) => {
           feedback.click();
@@ -421,7 +410,7 @@ const App: React.FC = () => {
         title="Búsqueda Inteligente"
       >
         <Search size={28} strokeWidth={3} />
-      </button>
+      </button >
 
       {showUploadModal && <FileUploadModal onClose={() => setShowUploadModal(false)} />}
       <CommandPalette
@@ -430,7 +419,7 @@ const App: React.FC = () => {
         onSelect={handleCommandSelect}
         triggerRect={searchTriggerRect}
       />
-    </div>
+    </div >
   );
 };
 

@@ -409,7 +409,7 @@ const CiclesViewComponent: React.FC<CiclesViewProps> = ({ parkedUnits, onParkedU
             <div className="animate-in fade-in slide-in-from-right-8 duration-700 space-y-8">
               <GlassPanel className="overflow-hidden">
                 <div className="p-8 border-b border-gray-100 dark:border-white/5 bg-gray-50/20 flex flex-col md:flex-row md:items-center justify-between gap-6">
-                  <div><h2 className="text-xl font-black uppercase tracking-tight">Esquema 2D Dipòsits</h2><p className="text-sm text-gray-400">Arrossega trens per organitzar-los.</p></div>
+                  <div><h2 className="text-xl font-black uppercase tracking-tight">Dipòsits</h2><p className="text-sm text-gray-400">Arrossega trens per organitzar-los.</p></div>
                   <div className="flex flex-wrap gap-2">{Object.keys(DEPOT_CAPACITIES_LOCAL).map(id => <button key={id} onClick={() => setSelectedDepot(id)} className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${selectedDepot === id ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-100 dark:bg-white/5 text-gray-400 hover:text-fgc-grey'}`}>{id}</button>)}</div>
                 </div>
                 <div className="p-8 grid grid-cols-1 lg:grid-cols-4 gap-8">
@@ -421,7 +421,7 @@ const CiclesViewComponent: React.FC<CiclesViewProps> = ({ parkedUnits, onParkedU
                     {DEPOT_LAYOUTS[selectedDepot].sections.map((s, idx) => (
                       <div key={idx} className="space-y-4">
                         <div className="flex items-center gap-4"><span className="text-[10px] font-black text-blue-500 uppercase">{s.name}</span><div className="h-px flex-1 bg-gray-100 dark:bg-white/5" /></div>
-                        <div className="grid gap-3">{s.tracks.map(tk => <DroppableTrack key={tk.id} track={tk} capacity={tk.capacity} units={parkedUnits.filter(u => u.depot_id === selectedDepot && u.track === tk.id)} onDropUnit={handleAddParkedUnit} onRemoveUnit={handleRemoveParkedUnit} brokenTrains={brokenTrains} imageTrains={imageTrains} recordTrains={recordTrains} cleaningTrains={cleaningTrains} />)}</div>
+                        <div className="grid gap-3">{s.tracks.map(tk => <DroppableTrack key={tk.id} track={tk} capacity={tk.capacity} units={parkedUnits.filter(u => u.depot_id === selectedDepot && u.track === tk.id)} onDropUnit={(unit: string, trackId: string) => handleAddParkedUnit(unit, selectedDepot, trackId)} onRemoveUnit={handleRemoveParkedUnit} brokenTrains={brokenTrains} imageTrains={imageTrains} recordTrains={recordTrains} cleaningTrains={cleaningTrains} />)}</div>
                       </div>
                     ))}
                   </div>
@@ -665,135 +665,304 @@ const CiclesViewComponent: React.FC<CiclesViewProps> = ({ parkedUnits, onParkedU
         </div >
 
         {/* Unit Detail Overlay */}
-        {
-          selectedUnitDetail && (
+        {selectedUnitDetail && (() => {
+          const unit = selectedUnitDetail;
+          const currentAssignment = assignments.find(a => a.train_number === unit);
+          const unitStatus = maintenanceAlerts.filter(a => a.unit === unit);
+
+          const isBroken = brokenTrains.has(unit);
+          const needsImages = imageTrains.has(unit);
+          const needsRecords = recordTrains.has(unit);
+          const needsCleaning = cleaningTrains.has(unit);
+
+          const history = unitKilometers
+            .filter(k => k.unit_number === unit)
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+          const unitKm = history.length > 0 ? parseFloat(history[0].kilometers) : 0;
+
+          return (
             <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-8 animate-in fade-in duration-300">
               <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedUnitDetail(null)} />
-              <GlassPanel className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto p-0 rounded-[40px]">
-                <div className="sticky top-0 z-10 p-6 flex items-center justify-between border-b border-gray-100 dark:border-white/5 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md">
-                  <div className="flex items-center gap-4"><div className="p-3 bg-blue-500 rounded-2xl text-white shadow-lg"><Gauge size={24} /></div><div><h2 className="text-2xl font-black uppercase tracking-tight">{selectedUnitDetail}</h2><p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Evolució de Kilòmetres</p></div></div>
-                  <button onClick={() => setSelectedUnitDetail(null)} className="p-3 bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 rounded-2xl transition-all"><X size={20} /></button>
+              <GlassPanel className="relative w-full max-w-5xl max-h-[90vh] overflow-y-auto p-0 rounded-[40px] shadow-2xl border-white/20">
+                {/* Header Section */}
+                <div className="sticky top-0 z-20 p-6 flex items-center justify-between border-b border-gray-100 dark:border-white/5 bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl">
+                  <div className="flex items-center gap-5">
+                    <div className={`p-4 rounded-[24px] shadow-lg text-white ${isBroken ? 'bg-red-500' : 'bg-blue-600'}`}>
+                      <Train size={32} />
+                    </div>
+                    <div>
+                      <h2 className="text-3xl font-black uppercase tracking-tighter leading-none">{unit}</h2>
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="px-3 py-1 bg-gray-100 dark:bg-white/5 rounded-full text-[10px] font-black text-gray-400 uppercase tracking-widest border border-gray-200/50 dark:border-white/5">
+                          Sèrie {unit.split('.')[0]}
+                        </span>
+                        {currentAssignment && (
+                          <span className="px-3 py-1 bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-full text-[10px] font-black uppercase tracking-widest border border-blue-500/20">
+                            Cicle: {currentAssignment.cycle_id}
+                          </span>
+                        )}
+                        {isBroken && (
+                          <span className="px-3 py-1 bg-red-500/10 text-red-600 dark:text-red-400 rounded-full text-[10px] font-black uppercase tracking-widest border border-red-500/20">
+                            AVARIA ACTIVA
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <button onClick={() => setSelectedUnitDetail(null)} className="p-4 bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 rounded-[20px] transition-all"><X size={24} /></button>
                 </div>
-                <div className="p-8 space-y-8">
-                  {(() => {
-                    const history = unitKilometers
-                      .filter(k => k.unit_number === selectedUnitDetail)
-                      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-                    const unitSerie = selectedUnitDetail?.split('.')[0];
+                <div className="p-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+                  {/* Left Column: Status & Assignment */}
+                  <div className="lg:col-span-4 space-y-8">
+                    {/* Status Selection Section */}
+                    <div className="space-y-4">
+                      <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2 px-1">
+                        <CheckCircle2 size={14} className="text-fgc-green" /> Estats de la Unitat
+                      </h3>
+                      <div className="grid grid-cols-2 gap-3">
+                        {[
+                          { id: 'is_broken', label: 'AVARIA', icon: <AlertTriangle size={18} />, active: isBroken, color: 'red' },
+                          { id: 'needs_images', label: 'IMATGES', icon: <Camera size={18} />, active: needsImages, color: 'blue' },
+                          { id: 'needs_records', label: 'REGISTRES', icon: <FileText size={18} />, active: needsRecords, color: 'yellow' },
+                          { id: 'needs_cleaning', label: 'NETEJA', icon: <Brush size={18} />, active: needsCleaning, color: 'orange' },
+                        ].map(st => (
+                          <button
+                            key={st.id}
+                            onClick={() => handleToggleStatus(unit, st.id, st.active)}
+                            className={`flex flex-col items-center justify-center gap-2 p-4 rounded-3xl border-2 transition-all hover:scale-[1.02] active:scale-95 ${st.active
+                              ? `bg-${st.color}-500/10 border-${st.color}-500 text-${st.color}-500 shadow-lg`
+                              : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-white/5 text-gray-400'}`}
+                          >
+                            {st.icon}
+                            <span className="text-[10px] font-black uppercase">{st.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
 
-                    // Get latest readings for all units
-                    const allLatestReadingsData = allFleetTrains.map(t => {
-                      const recs = unitKilometers.filter(k => k.unit_number === t);
-                      const km = recs.length > 0 ? parseFloat(recs[0].kilometers) : 0;
-                      return { unit: t, km };
-                    }).filter(x => x.km > 0);
-
-                    const fleetAvg = allLatestReadingsData.length > 0
-                      ? allLatestReadingsData.reduce((a, b) => a + b.km, 0) / allLatestReadingsData.length
-                      : 0;
-
-                    const seriesReadings = allLatestReadingsData.filter(x => x.unit.startsWith(unitSerie));
-                    const seriesAvg = seriesReadings.length > 0
-                      ? seriesReadings.reduce((a, b) => a + b.km, 0) / seriesReadings.length
-                      : 0;
-
-                    const unitKm = history.length > 0 ? parseFloat(history[0].kilometers) : 0;
-
-                    const isAboveFleet = unitKm > fleetAvg;
-                    const isBelowFleet = unitKm < fleetAvg;
-                    const isAboveSeries = unitKm > seriesAvg;
-                    const isBelowSeries = unitKm < seriesAvg;
-
-                    return (
-                      <>
-                        {/* Summary Card */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <div className="bg-gray-50 dark:bg-black/20 p-6 rounded-[32px] border border-gray-100 dark:border-white/5">
-                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">vs Mitjana Flota</p>
-                            <div className="flex items-center gap-3">
-                              <span className={`text-lg font-black uppercase ${isAboveFleet ? 'text-orange-500' : isBelowFleet ? 'text-blue-500' : 'text-fgc-green'}`}>
-                                {isAboveFleet ? 'Per sobre' : isBelowFleet ? 'Per sota' : 'A la mitjana'}
-                              </span>
-                              {isAboveFleet ? <TrendingUp size={20} className="text-orange-500" /> : isBelowFleet ? <TrendingUp size={20} className="text-blue-500 rotate-180" /> : <ArrowRight size={20} className="text-fgc-green" />}
-                            </div>
-                            <p className="text-[9px] font-bold text-gray-400 mt-1">Mitjana: {Math.round(fleetAvg).toLocaleString()} km</p>
-                          </div>
-
-                          <div className="bg-gray-50 dark:bg-black/20 p-6 rounded-[32px] border border-gray-100 dark:border-white/5">
-                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">vs Mitjana Sèrie {unitSerie}</p>
-                            <div className="flex items-center gap-3">
-                              <span className={`text-lg font-black uppercase ${isAboveSeries ? 'text-orange-500' : isBelowSeries ? 'text-blue-500' : 'text-fgc-green'}`}>
-                                {isAboveSeries ? 'Per sobre' : isBelowSeries ? 'Per sota' : 'A la mitjana'}
-                              </span>
-                              {isAboveSeries ? <TrendingUp size={20} className="text-orange-500" /> : isBelowSeries ? <TrendingUp size={20} className="text-blue-500 rotate-180" /> : <ArrowRight size={20} className="text-fgc-green" />}
-                            </div>
-                            <p className="text-[9px] font-bold text-gray-400 mt-1">Mitjana Sèrie: {Math.round(seriesAvg).toLocaleString()} km</p>
-                          </div>
-
-                          <div className="bg-gray-50 dark:bg-black/20 p-6 rounded-[32px] border border-gray-100 dark:border-white/5">
-                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Unitat</p>
-                            <p className="text-2xl font-black text-fgc-grey dark:text-white leading-none">{unitKm.toLocaleString()} <span className="text-xs text-gray-400">KM</span></p>
-                            <p className="text-[9px] font-bold text-gray-400 mt-2 uppercase tracking-tight">Lectura més recent</p>
-                          </div>
+                    {/* Cycle Assignment Section */}
+                    <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-white/5">
+                      <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2 px-1">
+                        <LinkIcon size={14} className="text-blue-500" /> Assignar Cicle
+                      </h3>
+                      <div className="relative" ref={cycleSuggestionsRef}>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            className="flex-1 bg-gray-50 dark:bg-black/20 rounded-2xl p-4 font-black outline-none focus:ring-2 focus:ring-blue-500/50 transition-all border border-transparent focus:border-blue-500/30"
+                            placeholder="Buscar Cicle..."
+                            value={newCycleId}
+                            onChange={e => { setNewCycleId(e.target.value.toUpperCase()); setShowCycleSuggestions(true); }}
+                            onFocus={() => setShowCycleSuggestions(true)}
+                          />
+                          {currentAssignment && (
+                            <button
+                              onClick={() => handleDelete(currentAssignment.cycle_id)}
+                              className="p-4 bg-red-500/10 text-red-500 rounded-2xl border border-red-500/20 hover:bg-red-500 hover:text-white transition-all"
+                              title="Eliminar assignació"
+                            >
+                              <Trash2 size={20} />
+                            </button>
+                          )}
                         </div>
+                        {showCycleSuggestions && filteredCyclesSuggestions.length > 0 && (
+                          <div className="absolute top-full left-0 right-0 mt-3 bg-white dark:bg-gray-800 rounded-3xl shadow-2xl z-[110] overflow-hidden border border-gray-100 dark:border-white/10 animate-in fade-in slide-in-from-top-2">
+                            {filteredCyclesSuggestions.map(c => (
+                              <button
+                                key={c}
+                                className="w-full p-4 text-left hover:bg-blue-500/10 font-black text-sm border-b last:border-none border-gray-100 dark:border-white/5 flex items-center justify-between"
+                                onClick={async () => {
+                                  setSaving(true);
+                                  const { error } = await supabase.from('assignments').upsert({ cycle_id: c, train_number: unit });
+                                  if (!error) { setNewCycleId(''); setShowCycleSuggestions(false); await fetchAllData(); addNotification('success', 'Assignació realitzada', `Unitat ${unit} assignada al cicle ${c}`); }
+                                  setSaving(false);
+                                }}
+                              >
+                                {c}
+                                <ArrowRight size={14} className="text-blue-500" />
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        <p className="mt-3 text-[10px] font-bold text-gray-400 italic px-2">
+                          {currentAssignment ? `Assignada actualment al cicle ${currentAssignment.cycle_id}` : 'Sense cicle assignat per avui'}
+                        </p>
+                      </div>
+                    </div>
 
-                        <div className="space-y-4">
-                          <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1 flex items-center gap-2"><History size={12} /> Llistat de Mesures</h3>
-                          <div className="bg-gray-50 dark:bg-black/20 rounded-[32px] border border-gray-100 dark:border-white/5 overflow-hidden">
-                            {history.length === 0 ? (
-                              <div className="p-12 text-center text-gray-400 text-[10px] font-black uppercase italic">Sense registres</div>
-                            ) : (
-                              <div className="divide-y divide-gray-100 dark:divide-white/5">
-                                {history.map((h, i) => (
-                                  <div key={i} className="p-6 flex items-center justify-between hover:bg-white/5 transition-colors">
-                                    <div className="flex items-center gap-4">
-                                      <div className="w-10 h-10 rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-white/5 flex items-center justify-center text-xs font-black shadow-sm">
-                                        {history.length - i}
-                                      </div>
-                                      <div>
-                                        <p className="text-lg font-black">{parseFloat(h.kilometers).toLocaleString()} <span className="text-xs font-bold text-gray-400">km</span></p>
-                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{new Date(h.date).toLocaleDateString(undefined, { day: '2-digit', month: 'long', year: 'numeric' })}</p>
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center gap-4">
-                                      {i < history.length - 1 && (
-                                        <div className="px-4 py-2 rounded-xl bg-fgc-green/10 text-fgc-green text-[11px] font-black border border-fgc-green/20">
-                                          +{(parseFloat(h.kilometers) - parseFloat(history[i + 1].kilometers)).toLocaleString()} km
-                                        </div>
-                                      )}
-                                      <button
-                                        onClick={async (e) => {
-                                          e.stopPropagation();
-                                          if (!window.confirm(`Segur que vols eliminar la mesura de ${parseFloat(h.kilometers).toLocaleString()} km del dia ${new Date(h.date).toLocaleDateString()}?`)) return;
-                                          const { error } = await supabase.from('unit_kilometers').delete().eq('id', h.id);
-                                          if (!error) {
-                                            addNotification('success', 'Mesura eliminada', 'El registre s\'ha esborrat correctament.');
-                                            await fetchAllData();
-                                          } else {
-                                            addNotification('error', 'Error en esborrar', error.message);
-                                          }
-                                        }}
-                                        className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-all"
-                                        title="Eliminar mesura"
-                                      >
-                                        <Trash2 size={16} />
-                                      </button>
-                                    </div>
-                                  </div>
-                                ))}
+                    {/* Quick Info Box */}
+                    <GlassPanel className="p-6 bg-fgc-green/5 border-fgc-green/20">
+                      <div className="flex items-center gap-3 mb-4">
+                        <Info className="text-fgc-green" size={18} />
+                        <h4 className="text-xs font-black uppercase text-fgc-grey dark:text-gray-300">Dades de Flota</h4>
+                      </div>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] font-bold text-gray-400 uppercase">Total KM</span>
+                          <span className="text-sm font-black text-fgc-grey dark:text-white">{unitKm.toLocaleString()} KM</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] font-bold text-gray-400 uppercase">Última Revisió</span>
+                          <span className="text-sm font-black text-fgc-grey dark:text-white">{history[0] ? new Date(history[0].date).toLocaleDateString() : 'Sense dades'}</span>
+                        </div>
+                      </div>
+                    </GlassPanel>
+                  </div>
+
+                  {/* Middle Column: Observations & Kilometers */}
+                  <div className="lg:col-span-5 space-y-8">
+                    {/* Observations Section */}
+                    <div className="space-y-4">
+                      <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2 px-1">
+                        <FileText size={14} className="text-orange-500" /> Observacions i Manteniment
+                      </h3>
+                      <div className="space-y-4">
+                        {[
+                          { id: 'BROKEN', label: 'Observacions Avaria', active: isBroken, icon: <AlertTriangle size={14} />, color: 'red' },
+                          { id: 'IMAGES', label: 'Notes Imatges', active: needsImages, icon: <Camera size={14} />, color: 'blue' },
+                          { id: 'RECORDS', label: 'Notes Registres', active: needsRecords, icon: <FileText size={14} />, color: 'yellow' },
+                          { id: 'CLEANING', label: 'Notes Neteja', active: needsCleaning, icon: <Brush size={14} />, color: 'orange' },
+                        ].map(o => (
+                          <div key={o.id} className={`p-4 rounded-3xl border transition-all ${o.active ? 'bg-white dark:bg-gray-800/40 border-gray-100 dark:border-white/10 shadow-sm' : 'opacity-40 grayscale pointer-events-none'}`}>
+                            <div className="flex items-center gap-2 mb-3">
+                              <div className={`p-1.5 rounded-lg text-white ${o.id === 'BROKEN' ? 'bg-red-500' : o.id === 'IMAGES' ? 'bg-blue-600' : o.id === 'RECORDS' ? 'bg-yellow-500' : 'bg-orange-500'}`}>
+                                {o.icon}
+                              </div>
+                              <span className="text-[10px] font-black uppercase tracking-tight">{o.label}</span>
+                            </div>
+                            <textarea
+                              defaultValue={unitStatus.find(s => s.type === o.id)?.notes || ''}
+                              placeholder={`Afegeix detalls sobre ${o.label.toLowerCase()}...`}
+                              onBlur={(e) => handleUpdateNotes(unit, o.id, e.target.value)}
+                              className="w-full bg-gray-50/50 dark:bg-black/20 rounded-2xl p-4 text-xs font-bold outline-none border border-transparent focus:border-fgc-green/30 focus:bg-white dark:focus:bg-black/40 transition-all resize-none h-20"
+                            />
+                            {o.active && (
+                              <div className="flex items-center justify-between mt-3 px-2">
+                                <span className="text-[9px] font-bold text-gray-400 uppercase">Data Registre</span>
+                                <input
+                                  type="date"
+                                  value={unitStatus.find(s => s.type === o.id)?.since?.split('T')[0] || ''}
+                                  onChange={(e) => handleUpdateStatusDate(unit, o.id, new Date(e.target.value).toISOString())}
+                                  className="bg-transparent text-[10px] font-black outline-none border-b border-dashed border-gray-300 dark:border-white/20 focus:border-fgc-green p-0"
+                                />
                               </div>
                             )}
                           </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Kilometers Update Section */}
+                    <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-white/5">
+                      <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2 px-1">
+                        <Gauge size={14} className="text-fgc-green" /> Actualitzar Kilometratge
+                      </h3>
+                      <div className="bg-gray-50 dark:bg-black/20 rounded-[32px] p-6 space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1.5">
+                            <label className="text-[9px] font-black text-gray-400 uppercase ml-2">Data</label>
+                            <input
+                              type="date"
+                              id="modal-km-date"
+                              defaultValue={new Date().toISOString().split('T')[0]}
+                              className="w-full bg-white dark:bg-gray-800 rounded-2xl p-4 text-sm font-black outline-none shadow-sm border border-gray-100 dark:border-white/5"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[9px] font-black text-gray-400 uppercase ml-2">Kilòmetres</label>
+                            <input
+                              type="number"
+                              id="modal-km-value"
+                              placeholder={unitKm.toString()}
+                              className="w-full bg-white dark:bg-gray-800 rounded-2xl p-4 text-sm font-black outline-none shadow-sm border border-gray-100 dark:border-white/5"
+                            />
+                          </div>
                         </div>
-                      </>
-                    );
-                  })()}
+                        <button
+                          onClick={async () => {
+                            const date = (document.getElementById('modal-km-date') as HTMLInputElement).value;
+                            const km = parseFloat((document.getElementById('modal-km-value') as HTMLInputElement).value);
+                            if (!date || isNaN(km)) return;
+                            setSaving(true);
+                            const { error } = await supabase.from('unit_kilometers').insert({ unit_number: unit, date: date, kilometers: km });
+                            if (!error) {
+                              addNotification('success', 'KM Actualitzats', `Lectura registrada per a la unitat ${unit}`);
+                              (document.getElementById('modal-km-value') as HTMLInputElement).value = '';
+                              await fetchAllData();
+                            }
+                            setSaving(false);
+                          }}
+                          className="w-full bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white p-4 rounded-2xl font-black text-sm shadow-xl hover:scale-[1.01] active:scale-95 transition-all flex items-center justify-center gap-2"
+                        >
+                          <Save size={18} /> REGISTRAR LECTURA
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column: History & Charts */}
+                  <div className="lg:col-span-3 space-y-6">
+                    <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2 px-1">
+                      <History size={14} className="text-blue-500" /> Històric KM
+                    </h3>
+
+                    {/* Mini Charts Visualization */}
+                    <div className="bg-gray-50 dark:bg-black/20 rounded-[32px] p-6 h-48 flex items-end justify-between gap-1 border border-gray-100 dark:border-white/5">
+                      {history.slice(0, 15).reverse().map((h, i) => {
+                        const max = Math.max(...history.map(x => parseFloat(x.kilometers))) || 1;
+                        const height = (parseFloat(h.kilometers) / max) * 100;
+                        return (
+                          <div key={i} className="flex-1 bg-blue-500/20 rounded-t-sm relative group" style={{ height: `${height}%` }}>
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-all pointer-events-none z-50">
+                              <div className="bg-gray-900 text-white text-[8px] p-2 rounded-lg whitespace-nowrap shadow-2xl">
+                                {parseFloat(h.kilometers).toLocaleString()} km
+                                <div className="text-gray-400 font-bold">{new Date(h.date).toLocaleDateString()}</div>
+                              </div>
+                            </div>
+                            <div className="absolute inset-0 bg-blue-600 opacity-0 group-hover:opacity-100 transition-all rounded-t-sm" />
+                          </div>
+                        );
+                      })}
+                      {history.length === 0 && <div className="w-full h-full flex items-center justify-center text-[10px] font-black text-gray-400 italic">Sense històric</div>}
+                    </div>
+
+                    <div className="max-h-[400px] overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+                      {history.map((h, i) => (
+                        <div key={i} className="p-4 bg-white dark:bg-gray-800/40 rounded-2xl border border-gray-100 dark:border-white/5 flex items-center justify-between group">
+                          <div>
+                            <p className="text-xs font-black">{parseFloat(h.kilometers).toLocaleString()} <span className="text-[8px] text-gray-400">KM</span></p>
+                            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">{new Date(h.date).toLocaleDateString()}</p>
+                          </div>
+                          <button
+                            onClick={async () => {
+                              if (!window.confirm("Borrar lectura?")) return;
+                              const { error } = await supabase.from('unit_kilometers').delete().eq('id', h.id);
+                              if (!error) await fetchAllData();
+                            }}
+                            className="p-2 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="pt-4 border-t border-gray-100 dark:border-white/5">
+                      <button
+                        onClick={() => setSelectedUnitDetail(null)}
+                        className="w-full p-4 rounded-2xl bg-gray-100 dark:bg-white/5 text-[10px] font-black uppercase tracking-widest hover:bg-gray-200 transition-all"
+                      >
+                        Tancar Detall
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </GlassPanel>
             </div>
-          )
-        }
+          );
+        })()}
 
         {/* Notifications */}
         <div className="fixed bottom-24 right-8 z-[200] space-y-3 pointer-events-none">
