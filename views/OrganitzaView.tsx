@@ -350,7 +350,7 @@ const OrganitzaViewComponent: React.FC<{
       <div className="relative overflow-hidden min-h-[600px]">
         {organizeType === OrganizeType.Comparador ? (
           <div key="comparador-view" className="space-y-8 animate-in fade-in slide-in-from-right-8 duration-700 ease-out-expo">
-            <div className="flex justify-center"><div className="inline-flex bg-white dark:bg-gray-900 p-1 rounded-2xl shadow-sm border border-gray-100 dark:border-white/5 transition-colors">{serveiTypes.map(s => (<button key={s} onClick={() => { setSelectedServei(s); setTurnsData([null, null, null, null]); setTurnIds(['', '', '', '']); }} className={`px-6 py-2 rounded-xl text-sm font-black transition-all ${selectedServei === s ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5'}`}>S-{s}</button>))}</div></div>
+            <div className="flex justify-center"><div className="inline-flex bg-white dark:bg-gray-900 p-1 rounded-2xl shadow-sm border border-gray-100 dark:border-white/5 transition-colors">{serveiTypes.map(s => (<button key={s} onClick={() => { feedback.deepClick(); setSelectedServei(s); setTurnsData([null, null, null, null]); setTurnIds(['', '', '', '']); }} className={`px-6 py-2 rounded-xl text-sm font-black transition-all ${selectedServei === s ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5'}`}>S-{s}</button>))}</div></div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
               {turnIds.map((id, index) => (
                 <CompareInputSlot
