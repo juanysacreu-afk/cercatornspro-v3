@@ -15,6 +15,28 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const [lastUploadDate, setLastUploadDate] = useState<string | null>(null);
+
+  const fetchLastUploadDate = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('daily_assignments')
+        .select('data_servei')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (data) {
+        setLastUploadDate(data.data_servei);
+      }
+    } catch (e) {
+      console.warn('Error fetching last upload date', e);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchLastUploadDate();
+  }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -210,6 +232,7 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
       }
 
       setStatus('success');
+      fetchLastUploadDate();
     } catch (error: any) {
       console.error("Error processant fitxer:", error);
       setErrorMessage(error.message || "S'ha produït un error inesperat durant la càrrega.");
@@ -224,7 +247,14 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
         <div className="p-6 border-b border-gray-100 dark:border-white/5 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-fgc-green/10 rounded-lg text-fgc-green"><Download size={20} /></div>
-            <h2 className="text-xl font-bold text-fgc-grey dark:text-white">Carregar PDF Diari</h2>
+            <div>
+              <h2 className="text-xl font-bold text-fgc-grey dark:text-white">Carregar PDF Diari</h2>
+              {lastUploadDate && (
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-0.5">
+                  Última càrrega: <span className="text-fgc-green">{new Date(lastUploadDate).toLocaleDateString('ca-ES')}</span>
+                </p>
+              )}
+            </div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-full transition-colors"><X size={20} className="dark:text-gray-400" /></button>
         </div>
