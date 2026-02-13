@@ -385,13 +385,13 @@ const CiclesViewComponent: React.FC<CiclesViewProps> = ({ parkedUnits, onParkedU
                   ))}
                 </div>
                 <GlassPanel className="overflow-hidden">
-                  <div className="p-6 border-b border-gray-100 dark:border-white/5 bg-gray-50/20 flex items-center justify-between"><h3 className="font-black flex items-center gap-2"><LinkIcon size={18} /> ASSIGNACIONS</h3> {assignments.length > 0 && <button onClick={handleDeleteAll} className="text-[10px] font-black text-red-500 uppercase">Eliminar Tot</button>}</div>
+                  <div className="p-6 border-b border-gray-100 dark:border-white/5 bg-gray-50/20 flex items-center justify-between"><h3 className="font-black flex items-center gap-2 text-fgc-grey dark:text-white"><LinkIcon size={18} /> ASSIGNACIONS</h3> {assignments.length > 0 && <button onClick={handleDeleteAll} className="text-[10px] font-black text-red-500 uppercase">Eliminar Tot</button>}</div>
                   <div className="p-6 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                     {assignments.map(a => <div key={a.cycle_id} className="p-4 rounded-xl border border-gray-100 dark:border-white/5 flex items-center justify-between"><div className="font-black text-sm text-gray-400">{a.cycle_id} <div className="text-lg text-fgc-grey dark:text-white">{a.train_number}</div></div> <button onClick={() => handleDelete(a.cycle_id)} className="text-gray-300 hover:text-red-500"><Trash2 size={18} /></button></div>)}
                   </div>
                 </GlassPanel>
                 <GlassPanel className="overflow-hidden">
-                  <div className="p-6 border-b border-gray-100 dark:border-white/5 flex items-center justify-between"><h3 className="font-black flex items-center gap-2"><LayoutGrid size={18} /> FLOTA</h3> <div className="flex gap-2">{FLEET_CONFIG.map(c => <button key={c.serie} onClick={() => setActiveFleetSerie(c.serie)} className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${activeFleetSerie === c.serie ? 'bg-fgc-grey text-white' : 'text-gray-400 hover:text-fgc-grey'}`}>{c.serie}</button>)}</div></div>
+                  <div className="p-6 border-b border-gray-100 dark:border-white/5 flex items-center justify-between"><h3 className="font-black flex items-center gap-2 text-fgc-grey dark:text-white"><LayoutGrid size={18} /> FLOTA</h3> <div className="flex gap-2">{FLEET_CONFIG.map(c => <button key={c.serie} onClick={() => setActiveFleetSerie(c.serie)} className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${activeFleetSerie === c.serie ? 'bg-fgc-grey text-white' : 'text-gray-400 hover:text-fgc-grey'}`}>{c.serie}</button>)}</div></div>
                   <div className="p-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                     {getTrainsBySerie(activeFleetSerie, FLEET_CONFIG.find(c => c.serie === activeFleetSerie)?.count || 0).filter(t => fleetFilter === 'BROKEN' ? brokenTrains.has(t) : fleetFilter === 'CLEANING' ? cleaningTrains.has(t) : fleetFilter === 'RECORDS' ? recordTrains.has(t) : fleetFilter === 'IMAGES' ? imageTrains.has(t) : true).map(t => (
                       <div key={t} onClick={() => setSelectedUnitDetail(t)} className={`p-4 rounded-2xl border text-center transition-all hover:scale-105 cursor-pointer flex flex-col items-center gap-1 ${brokenTrains.has(t) ? 'bg-red-500/10 border-red-500' : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-white/5'}`}>
@@ -412,7 +412,7 @@ const CiclesViewComponent: React.FC<CiclesViewProps> = ({ parkedUnits, onParkedU
             <div className="animate-in fade-in slide-in-from-right-8 duration-700 space-y-8">
               <GlassPanel className="overflow-hidden">
                 <div className="p-8 border-b border-gray-100 dark:border-white/5 bg-gray-50/20 flex flex-col md:flex-row md:items-center justify-between gap-6">
-                  <div><h2 className="text-xl font-black uppercase tracking-tight">Dipòsits</h2><p className="text-sm text-gray-400">Arrossega trens per organitzar-los.</p></div>
+                  <div><h2 className="text-xl font-black uppercase tracking-tight text-fgc-grey dark:text-white">Dipòsits</h2><p className="text-sm text-gray-400">Arrossega trens per organitzar-los.</p></div>
                   <div className="flex flex-wrap gap-2">{Object.keys(DEPOT_CAPACITIES_LOCAL).map(id => <button key={id} onClick={() => setSelectedDepot(id)} className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${selectedDepot === id ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-100 dark:bg-white/5 text-gray-400 hover:text-fgc-grey'}`}>{id}</button>)}</div>
                 </div>
                 <div className="p-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -485,7 +485,7 @@ const CiclesViewComponent: React.FC<CiclesViewProps> = ({ parkedUnits, onParkedU
             <div className="animate-in fade-in slide-in-from-right-8 duration-700 grid grid-cols-1 md:grid-cols-3 gap-8">
               <div className="md:col-span-2 space-y-6">
                 <GlassPanel className="p-8 overflow-hidden">
-                  <div className="flex items-center gap-4 mb-8"><div className="p-3 bg-red-500 rounded-2xl text-white"><Bell /></div><h2 className="text-xl font-black uppercase">Manteniment</h2></div>
+                  <div className="flex items-center gap-4 mb-8"><div className="p-3 bg-red-500 rounded-2xl text-white"><Bell /></div><h2 className="text-xl font-black uppercase text-fgc-grey dark:text-white">Manteniment</h2></div>
                   <div className="space-y-4">{maintenanceAlerts.map((a, i) => (
                     <div key={`${a.unit}-${a.type}`} className="flex items-center justify-between p-6 rounded-3xl bg-gray-50/50 dark:bg-white/5 border border-gray-100 dark:border-white/5">
                       <div className="flex items-center gap-6 flex-1">
@@ -530,7 +530,7 @@ const CiclesViewComponent: React.FC<CiclesViewProps> = ({ parkedUnits, onParkedU
                 </GlassPanel>
               </div>
               <div className="space-y-6">
-                <GlassPanel className="p-8"><h3 className="font-black uppercase mb-4">Informació</h3><p className="text-xs text-gray-500">Les alertes es mostren segons l'estat actual registrat a la base de dades en temps real.</p></GlassPanel>
+                <GlassPanel className="p-8"><h3 className="font-black uppercase mb-4 text-fgc-grey dark:text-white">Informació</h3><p className="text-xs text-gray-500">Les alertes es mostren segons l'estat actual registrat a la base de dades en temps real.</p></GlassPanel>
               </div>
             </div>
           ) : activeView === 'KILOMETERS' ? (
