@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, Train, User, MapPin, X, ArrowRight, Loader2, Command } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { ALL_STATIONS } from '../utils/fgc';
@@ -135,7 +136,7 @@ const CommandPaletteComponent: React.FC<CommandPaletteProps> = ({ isOpen, onClos
 
     if (!isOpen && !animating) return null;
 
-    return (
+    return createPortal(
         <div
             className={`fixed inset-0 z-[10001] flex items-start justify-center p-4 pt-[calc(1rem+env(safe-area-inset-top))] transition-all duration-400 ease-[cubic-bezier(0.23,1,0.32,1)] will-change-[clip-path] cursor-default ${isOpen && isExpanded ? 'bg-black/40 backdrop-blur-sm pointer-events-auto' : 'bg-transparent backdrop-blur-0 pointer-events-none'}`}
             style={{
@@ -220,7 +221,8 @@ const CommandPaletteComponent: React.FC<CommandPaletteProps> = ({ isOpen, onClos
                     <p className="text-gray-300 dark:text-gray-700">Smart Search v3</p>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 

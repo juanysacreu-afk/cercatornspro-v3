@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Download, FileText, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
 import * as pdfjsLib from 'pdfjs-dist';
@@ -40,11 +41,11 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
     let currentDate: string | null = null;
 
     const dateRegex = /Data:\s*(\d{2}\.\d{2}\.\d{2})/;
-    
+
     // Regex per Torns Operatius (Q301, 107R, etc.) que contenen dos horaris HH:MM HH:MM
     // Captura: Torn, (Opcional Variant), Inici, Fi, ID Empleat, Cognoms, resta...
     const operativeShiftRegex = /([QR0-9][A-Z0-9]{2,5})\s+(?:\d+\s+)?(\d{2}:\d{2})\s+(\d{2}:\d{2})\s+(\d{5,8})\s+([^,]+),\s+(.*)$/;
-    
+
     // Regex per Estats de personal (VAC, DIS, DES, FOR, DAG, etc.) sense horaris
     const statusRowRegex = /^(VAC|DIS|DES|FOR|DAG|FORA|AJN|FESTES|DISPONIBLE|FORA DE SERVEI)\s+(?:MQ\s+)?(?:BA\s+)?(?:[A-Z]{2}\s+)?(\d{5,8})\s+([^,]+),\s+(.*)$/;
 
@@ -54,10 +55,10 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
       const textContent = await page.getTextContent();
-      
+
       const items = textContent.items as any[];
       const lineMap: { [key: number]: any[] } = {};
-      
+
       items.forEach((item) => {
         const y = Math.round(item.transform[5]);
         if (!lineMap[y]) lineMap[y] = [];
@@ -65,11 +66,11 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
       });
 
       const sortedY = Object.keys(lineMap).map(Number).sort((a, b) => b - a);
-      
+
       sortedY.forEach(y => {
         const lineItems = lineMap[y].sort((a, b) => a.transform[4] - b.transform[4]);
         const textLine = lineItems.map(item => item.str).join(" ").replace(/\s+/g, " ").trim();
-        
+
         // 1. Cercar data del document
         const dateMatch = textLine.match(dateRegex);
         if (dateMatch) {
@@ -150,7 +151,7 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
             // Busquem patrons N o S aïllats que indiquen els flags Abs.parc.C, Dta, Dpa...
             const flagsPattern = /\s+([SN])\s+([SN])\s+([SN])(?:\s+[SN])?(?:\s+(.*))?$/;
             const flagsMatch = restOfLine.match(flagsPattern);
-            
+
             if (flagsMatch) {
               nom = restOfLine.substring(0, restOfLine.indexOf(flagsMatch[0])).trim();
               f1 = flagsMatch[1];
@@ -207,7 +208,7 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
         const { error } = await supabase.from('daily_assignments').insert(extractedData.slice(i, i + chunkSize));
         if (error) throw error;
       }
-      
+
       setStatus('success');
     } catch (error: any) {
       console.error("Error processant fitxer:", error);
@@ -216,10 +217,10 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-fgc-grey/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white dark:bg-gray-900 w-full max-w-lg rounded-[32px] overflow-hidden shadow-2xl border border-gray-100 dark:border-white/10">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-fgc-grey/60 backdrop-blur-md" onClick={onClose} />
+      <div className="relative bg-white dark:bg-gray-900 w-full max-w-lg rounded-[32px] overflow-hidden shadow-2xl border border-gray-100 dark:border-white/10 animate-in zoom-in-95 duration-300">
         <div className="p-6 border-b border-gray-100 dark:border-white/5 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-fgc-green/10 rounded-lg text-fgc-green"><Download size={20} /></div>
@@ -227,7 +228,7 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
           </div>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-full transition-colors"><X size={20} className="dark:text-gray-400" /></button>
         </div>
-        
+
         <div className="p-8">
           {status === 'idle' || status === 'processing' ? (
             <div className="space-y-6">
@@ -281,7 +282,8 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

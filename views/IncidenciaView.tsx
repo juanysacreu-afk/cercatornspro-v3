@@ -4825,8 +4825,8 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
 
       {altServiceIsland && <AlternativeServiceOverlay islandId={altServiceIsland} />}
       {
-        isRealMallaOpen && (
-          <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
+        isRealMallaOpen && createPortal(
+          <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
             <div className="bg-white dark:bg-gray-900 w-full max-w-7xl h-[90vh] rounded-[48px] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
               <div className="p-6 border-b border-gray-100 dark:border-white/5 flex items-center justify-between bg-gray-50/50 dark:bg-black/20">
                 <div className="flex items-center gap-4">
@@ -4842,7 +4842,8 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
                 <MallaVisualizer circs={realMallaCircs} />
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )
       }
     </>

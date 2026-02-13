@@ -238,6 +238,10 @@ const OrganitzaViewComponent: React.FC<{
 
   const coincidences = useMemo(() => calculateCoincidences(turnsData), [turnsData, calculateCoincidences]);
 
+  const nextCoincidenceIndex = useMemo(() => {
+    return coincidences.findIndex(c => c.end > nowMin);
+  }, [coincidences, nowMin]);
+
   const filteredMaquinistes = useMemo(() => {
     const bvAgentIds = new Set(allAgents.map(a => normalizeId(a.nomina)));
     let baseList = allAssignments.filter(a => bvAgentIds.has(normalizeId(a.empleat_id)));
@@ -408,18 +412,56 @@ const OrganitzaViewComponent: React.FC<{
                   <SimpleTimeline label="Mapa visual de trobades" segments={coincidences} colorMode="coincidence" globalMin={gr.min} globalMax={gr.max} />
                   {coincidences.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-10">
-                      {coincidences.map((c, i) => (
-                        <div key={i} className="glass-interactive glass-card rounded-[32px] p-7 border border-gray-100 dark:border-white/5 flex flex-col gap-6 hover:border-fgc-green/30 relative overflow-hidden group">
-                          <div className="absolute top-0 right-0 w-24 h-24 bg-fgc-green/10 -mr-8 -mt-8 rounded-full blur-2xl group-hover:bg-fgc-green/20 transition-all duration-700" />
-                          <div className="flex items-center justify-between relative z-10"><div className={`px-5 py-2 rounded-2xl font-black text-sm text-white shadow-lg ${getStatusColor(c.codi)}`}>{c.codi}</div><div className="flex items-center gap-2 bg-fgc-green/10 text-fgc-green px-3 py-1.5 rounded-xl font-black text-xs border border-fgc-green/10"><Clock size={14} />{c.duration} min</div></div>
-                          <div className="space-y-1 relative z-10"><p className="text-[10px] font-black text-gray-300 dark:text-gray-600 uppercase tracking-widest ml-1">Franja Horària</p><div className="flex items-center gap-3"><span className="text-2xl font-black text-fgc-grey dark:text-gray-200">{formatFgcTime(c.start)}</span><ArrowRight className="text-fgc-green" size={18} /><span className="text-2xl font-black text-fgc-grey dark:text-gray-200">{formatFgcTime(c.end)}</span></div></div>
-                          <div className="h-px bg-gray-100 dark:bg-white/5 w-full transition-colors" />
-                          <div className="space-y-4 relative z-10">
-                            <div className="flex items-center gap-4"><div className="h-10 min-w-[2.5rem] px-2 rounded-xl bg-fgc-grey dark:bg-black text-white flex items-center justify-center font-black text-xs shadow-md">{getShortTornId(c.turn1)}</div><div className="min-w-0"><p className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-tighter leading-none">Maquinista A</p><p className="text-sm font-bold text-fgc-grey dark:text-gray-300 truncate">{c.driver1}</p></div></div>
-                            <div className="flex items-center gap-4"><div className="h-10 min-w-[2.5rem] px-2 rounded-xl bg-fgc-grey/10 dark:bg-white/5 text-fgc-grey dark:text-gray-400 flex items-center justify-center font-black text-xs border border-fgc-grey/20 dark:border-white/10 transition-colors">{getShortTornId(c.turn2)}</div><div className="min-w-0"><p className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-tighter leading-none">Maquinista B</p><p className="text-sm font-bold text-fgc-grey dark:text-gray-300 truncate">{c.driver2}</p></div></div>
+                      {coincidences.map((c, i) => {
+                        const isNext = i === nextCoincidenceIndex;
+                        return (
+                          <div key={i} className={`glass-interactive glass-card rounded-[32px] p-7 border flex flex-col gap-6 relative overflow-hidden group transition-all duration-500 ${isNext
+                            ? 'border-fgc-green dark:border-fgc-green/50 bg-fgc-green/5 ring-4 ring-fgc-green/10 shadow-xl scale-[1.02] z-10'
+                            : 'border-gray-100 dark:border-white/5 hover:border-fgc-green/30'
+                            }`}>
+                            {isNext && (
+                              <div className="absolute -top-1 -right-1 z-20">
+                                <div className="bg-fgc-green text-fgc-grey text-[9px] font-black px-4 py-2 rounded-bl-2xl rounded-tr-3xl uppercase tracking-widest shadow-lg flex items-center gap-2 animate-in fade-in zoom-in duration-500">
+                                  <div className="w-1.5 h-1.5 bg-fgc-grey rounded-full animate-pulse" />
+                                  SEGÜENT
+                                </div>
+                              </div>
+                            )}
+                            <div className="absolute top-0 right-0 w-24 h-24 bg-fgc-green/10 -mr-8 -mt-8 rounded-full blur-2xl group-hover:bg-fgc-green/20 transition-all duration-700" />
+                            <div className="flex items-center justify-between relative z-10">
+                              <div className={`px-5 py-2 rounded-2xl font-black text-sm text-white shadow-lg ${getStatusColor(c.codi)}`}>{c.codi}</div>
+                              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl font-black text-xs border transition-colors ${isNext ? 'bg-fgc-green text-fgc-grey border-fgc-green/20' : 'bg-fgc-green/10 text-fgc-green border-fgc-green/10'}`}>
+                                <Clock size={14} />{c.duration} min
+                              </div>
+                            </div>
+                            <div className="space-y-1 relative z-10">
+                              <p className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Franja Horària</p>
+                              <div className="flex items-center gap-3">
+                                <span className="text-2xl font-black text-fgc-grey dark:text-gray-200">{formatFgcTime(c.start)}</span>
+                                <ArrowRight className="text-fgc-green" size={18} />
+                                <span className="text-2xl font-black text-fgc-grey dark:text-gray-200">{formatFgcTime(c.end)}</span>
+                              </div>
+                            </div>
+                            <div className="h-px bg-gray-100 dark:bg-white/5 w-full transition-colors" />
+                            <div className="space-y-4 relative z-10">
+                              <div className="flex items-center gap-4">
+                                <div className="h-10 min-w-[2.5rem] px-2 rounded-xl bg-fgc-grey dark:bg-black text-white flex items-center justify-center font-black text-xs shadow-md">{getShortTornId(c.turn1)}</div>
+                                <div className="min-w-0">
+                                  <p className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-tighter leading-none">Maquinista A</p>
+                                  <p className="text-sm font-bold text-fgc-grey dark:text-gray-300 truncate">{c.driver1}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-4">
+                                <div className="h-10 min-w-[2.5rem] px-2 rounded-xl bg-fgc-grey/10 dark:bg-white/5 text-fgc-grey dark:text-gray-400 flex items-center justify-center font-black text-xs border border-fgc-grey/20 dark:border-white/10 transition-colors">{getShortTornId(c.turn2)}</div>
+                                <div className="min-w-0">
+                                  <p className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-tighter leading-none">Maquinista B</p>
+                                  <p className="text-sm font-bold text-fgc-grey dark:text-gray-300 truncate">{c.driver2}</p>
+                                </div>
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="bg-gray-50/50 dark:bg-black/20 rounded-[40px] p-20 text-center border-2 border-dashed border-gray-100 dark:border-white/5 mt-6 transition-colors"><div className="w-20 h-20 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm"><Coffee className="text-gray-300 dark:text-gray-600" size={32} /></div><p className="text-gray-400 dark:text-gray-500 font-black uppercase tracking-[0.2em] text-sm">Cap coincidència detectada</p></div>

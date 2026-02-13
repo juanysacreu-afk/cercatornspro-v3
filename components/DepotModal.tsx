@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Loader2 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
@@ -71,41 +72,9 @@ const DepotModal: React.FC<DepotModalProps> = ({
         };
 
         if (variant === 'can_roca') {
-            // Can Roca: 2 tracks enter, split into 4. Platforms: Side - Track - Track - Central - Track - Track - Side.
-            // Simplified visualization:
-            // Input Left: Track 1 & 2 come from outside (not shown or shown as entry).
-            // Actually usually Depots are terminal stub tracks or run-through? User says "se convierten en cuatro".
-            // Let's draw 4 main parallel tracks but show the connection converging to left.
-
-            /*
-                 /-- Via 1 --\
-             ---<             >--- (if runthrough) OR just stub
-                 \-- Via 2 --/
-                 /-- Via 3 --\
-             ---<             >---
-                 \-- Via 4 --/
-            */
-            // User says: "Can Roca son dos vias que se convierten en cuatro y tiene un anden central y dos andenes laterales."
-            // Visual:
-            //   [Andana Lateral]
-            //   ---------------- Via 1
-            //   ---------------- Via 2
-            //   [Andana Central]
-            //   ---------------- Via 3
-            //   ---------------- Via 4
-            //   [Andana Lateral]
-
-            // Y positions
             const y1 = 60, y2 = 120, y3 = 220, y4 = 280;
-            const entryY1 = 90; // Between 1 and 2
-            const entryY2 = 250; // Between 3 and 4
-
-            // Draw Platforms
-            // Lateral Top
             const platTop = <rect x="80" y="20" width="800" height="20" fill="#2a2a2a" rx="4" />;
-            // Central
             const platMid = <rect x="80" y="150" width="800" height="40" fill="#2a2a2a" rx="4" />;
-            // Lateral Bottom
             const platBot = <rect x="80" y="320" width="800" height="20" fill="#2a2a2a" rx="4" />;
 
             return (
@@ -113,17 +82,10 @@ const DepotModal: React.FC<DepotModalProps> = ({
                     {platTop}
                     {platMid}
                     {platBot}
-
-                    {/* Left connectors */}
-                    {/* Upper Pair (1 & 2) */}
                     <path d="M 20 90 L 80 90 L 120 60 L 900 60" fill="none" stroke="#444" strokeWidth="4" />
                     <path d="M 80 90 L 120 120 L 900 120" fill="none" stroke="#444" strokeWidth="4" />
-
-                    {/* Lower Pair (3 & 4) */}
                     <path d="M 20 250 L 80 250 L 120 220 L 900 220" fill="none" stroke="#444" strokeWidth="4" />
                     <path d="M 80 250 L 120 280 L 900 280" fill="none" stroke="#444" strokeWidth="4" />
-
-                    {/* Track Labels and Units */}
                     {[1, 2, 3, 4].map(t => {
                         const y = t === 1 ? 60 : t === 2 ? 120 : t === 3 ? 220 : 280;
                         return (
@@ -143,37 +105,17 @@ const DepotModal: React.FC<DepotModalProps> = ({
         }
 
         if (variant === 'reina_elisenda_station') {
-            const y2 = 80; // Top track (Via 2)
-            const y1 = 180; // Bottom track (Via 1)
-            const xStart = 60;
-            const xS2 = 220; // \
-            const xPStart = 320, xPEnd = 600;
-            const xS3 = 680; // /
-            const xEnd = 890;
-
+            const y2 = 80, y1 = 180, xStart = 60, xS2 = 220, xPStart = 320, xPEnd = 600, xS3 = 680, xEnd = 890;
             return (
                 <g>
-                    {/* Main Tracks */}
                     <line x1={xStart} y1={y2} x2={xEnd} y2={y2} stroke="#333" strokeWidth="6" strokeLinecap="round" />
                     <line x1={xStart} y1={y1} x2={xEnd} y2={y1} stroke="#333" strokeWidth="6" strokeLinecap="round" />
-
-                    {/* Platforms */}
-                    {/* Top Platform (Superior) */}
                     <rect x={xPStart} y={y2 - 35} width={xPEnd - xPStart} height={20} fill="#2a2a2a" rx="4" />
                     <text x={xPStart + (xPEnd - xPStart) / 2} y={y2 - 45} textAnchor="middle" fill="#555" fontSize="8" fontWeight="black" className="uppercase tracking-widest">Andana Superior</text>
-
-                    {/* Bottom Platform (Inferior) */}
                     <rect x={xPStart} y={y1 + 15} width={xPEnd - xPStart} height={20} fill="#2a2a2a" rx="4" />
                     <text x={xPStart + (xPEnd - xPStart) / 2} y={y1 + 50} textAnchor="middle" fill="#555" fontSize="8" fontWeight="black" className="uppercase tracking-widest">Andana Inferior</text>
-
-                    {/* Switch 2: \ (Before platforms) connects V2 to V1 */}
                     <path d={`M ${xS2 - 20} ${y2} L ${xS2 + 20} ${y1}`} stroke="#444" strokeWidth="4" strokeLinecap="round" />
-
-                    {/* Switch 3: / (After platforms - Depot Entry) connects V1 to V2 */}
                     <path d={`M ${xS3 - 20} ${y1} L ${xS3 + 20} ${y2}`} stroke="#444" strokeWidth="4" strokeLinecap="round" />
-
-
-                    {/* Labels */}
                     {[1, 2].map(t => {
                         const y = t === 1 ? y1 : y2;
                         return (
@@ -187,9 +129,7 @@ const DepotModal: React.FC<DepotModalProps> = ({
         }
 
         if (variant === 'reina_elisenda') {
-            // Simple Depot View: 2 straight tracks with buffers at the right
-            const y2 = 100, y1 = 180;
-            const xStart = 60, xEnd = 800;
+            const y2 = 100, y1 = 180, xStart = 60, xEnd = 800;
             return (
                 <g>
                     {[1, 2].map(t => {
@@ -198,9 +138,7 @@ const DepotModal: React.FC<DepotModalProps> = ({
                             <g key={t}>
                                 <text x={xStart - 20} y={y + 5} fill="#666" fontSize="12" fontWeight="black" textAnchor="end">Via {t}</text>
                                 <line x1={xStart} y1={y} x2={xEnd} y2={y} stroke="#333" strokeWidth="6" strokeLinecap="round" />
-                                {/* Buffer (Tope) - Vertical red line as requested */}
                                 <line x1={xEnd + 5} y1={y - 12} x2={xEnd + 5} y2={y + 12} stroke="#ef4444" strokeWidth="4" strokeLinecap="round" />
-
                                 {unitsOnTrack(t).map((u, idx) => (
                                     <g key={u.unit_number} transform={`translate(${xStart + 100 + idx * 100}, ${y})`} className="cursor-pointer hover:scale-110 transition-transform">
                                         <rect x="-40" y="-14" width="80" height="28" rx="6" fill="#3b82f6" stroke="white" strokeWidth="2" className="shadow-lg" />
@@ -214,18 +152,8 @@ const DepotModal: React.FC<DepotModalProps> = ({
             );
         }
 
-
-        if (variant === 'ca_n_oriach') {
-            // "3 vias"
-            return renderStraightTracks([1, 2, 3], 60, 80);
-        }
-
-        if (variant === 'rubi') {
-            // "4 vias que seran la via 4, 6, 8 y 10"
-            return renderStraightTracks([4, 6, 8, 10], 60, 80);
-        }
-
-        // Generic
+        if (variant === 'ca_n_oriach') return renderStraightTracks([1, 2, 3], 60, 80);
+        if (variant === 'rubi') return renderStraightTracks([4, 6, 8, 10], 60, 80);
         return renderStraightTracks(tracks);
     };
 
@@ -238,10 +166,9 @@ const DepotModal: React.FC<DepotModalProps> = ({
         return 60 + tracks.length * 60;
     };
 
-    return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+    return createPortal(
+        <div className="fixed inset-0 z-[10003] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
             <div className="bg-[#1e1e1e] border border-white/10 rounded-3xl w-[90vw] max-w-5xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
-
                 <div className="p-6 border-b border-white/10 flex items-center justify-between bg-black/20">
                     <div>
                         <h2 className="text-2xl font-black text-white uppercase tracking-tighter">{title}</h2>
@@ -311,7 +238,8 @@ const DepotModal: React.FC<DepotModalProps> = ({
                     </div>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   MapPin,
   Train,
@@ -681,8 +682,8 @@ const CiclesViewComponent: React.FC<CiclesViewProps> = ({ parkedUnits, onParkedU
 
           const unitKm = history.length > 0 ? parseFloat(history[0].kilometers) : 0;
 
-          return (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-8 animate-in fade-in duration-300">
+          return createPortal(
+            <div className="fixed inset-0 z-[10002] flex items-center justify-center p-4 sm:p-8 animate-in fade-in duration-300">
               <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedUnitDetail(null)} />
               <GlassPanel className="relative w-full max-w-5xl max-h-[90vh] overflow-y-auto p-0 rounded-[40px] shadow-2xl border-white/20">
                 {/* Header Section */}
@@ -960,7 +961,8 @@ const CiclesViewComponent: React.FC<CiclesViewProps> = ({ parkedUnits, onParkedU
                   </div>
                 </div>
               </GlassPanel>
-            </div>
+            </div>,
+            document.body
           );
         })()}
 

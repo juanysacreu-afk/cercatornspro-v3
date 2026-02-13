@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { SearchType } from '../types.ts';
 import { Search, User, Train, MapPin, Hash, ArrowRight, Loader2, Info, Phone, Clock, FileText, ChevronDown, LayoutGrid, Timer, X, BookOpen, AlertTriangle, Users, Camera, Brush, Save, Check, Share2 } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
@@ -87,7 +88,7 @@ const CercarViewComponent: React.FC<{
   };
 
   const [startTime, setStartTime] = useState<string>(getCurrentTimeStr());
-  const [endTime, setEndTime] = useState<string>('23:59');
+  const [endTime, setEndTime] = useState<string>(getTimePlusMinutes(15));
 
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
@@ -124,6 +125,7 @@ const CercarViewComponent: React.FC<{
   useEffect(() => {
     if (searchType === SearchType.Estacio) {
       setStartTime(getCurrentTimeStr());
+      setEndTime(getTimePlusMinutes(15));
     }
   }, [searchType]);
 
@@ -805,9 +807,9 @@ const CercarViewComponent: React.FC<{
       </div>
 
       {
-        editingCirc && (
-          <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-fgc-grey/60 backdrop-blur-md animate-in fade-in duration-300">
-            <div className="bg-white dark:bg-gray-900 w-full max-md rounded-[48px] shadow-2xl border border-white/20 overflow-hidden flex flex-col animate-in zoom-in-95 duration-300 max-w-md">
+        editingCirc && createPortal(
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-fgc-grey/60 backdrop-blur-md animate-in fade-in duration-300">
+            <div className="bg-white dark:bg-gray-900 w-full rounded-[48px] shadow-2xl border border-white/20 overflow-hidden flex flex-col animate-in zoom-in-95 duration-300 max-w-md">
               <div className="p-8 border-b border-gray-100 dark:border-white/5 flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="p-3 bg-fgc-green rounded-2xl text-fgc-grey shadow-lg"><Train size={24} /></div>
@@ -821,7 +823,8 @@ const CercarViewComponent: React.FC<{
                 <button onClick={saveUnitChanges} disabled={isSavingUnit} className="w-full bg-fgc-green text-fgc-grey py-5 rounded-2xl font-black text-lg flex items-center justify-center gap-3 shadow-xl shadow-fgc-green/20 hover:scale-[1.02] active:scale-95 disabled:opacity-50 transition-all">{isSavingUnit ? <Loader2 size={24} className="animate-spin" /> : <Save size={24} />}DESAR CANVIS</button>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )
       }
     </div >
