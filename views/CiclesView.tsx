@@ -24,6 +24,7 @@ import {
   Clock,
   TrendingUp
 } from 'lucide-react';
+import { feedback } from '../utils/feedback';
 import { DndProvider, useDrag, useDrop } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { supabase } from '../supabaseClient.ts';
@@ -330,7 +331,7 @@ const CiclesViewComponent: React.FC<CiclesViewProps> = ({ parkedUnits, onParkedU
             ].map(view => (
               <button
                 key={view.id}
-                onClick={() => setActiveView(view.id as ViewMode)}
+                onClick={() => { feedback.deepClick(); setActiveView(view.id as ViewMode); }}
                 className={`p-2.5 rounded-full transition-all ${activeView === view.id ? 'bg-fgc-grey text-white shadow-lg scale-110' : 'text-gray-400 hover:text-fgc-grey hover:bg-white dark:hover:bg-white/5'}`}
               >
                 {view.icon}

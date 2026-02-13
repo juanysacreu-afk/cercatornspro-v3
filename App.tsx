@@ -201,12 +201,10 @@ const App: React.FC = () => {
   ];
 
 
-  const toggleSecretMenu = () => {
-    setShowSecretMenu(prev => !prev);
-  };
-
-  const togglePrivacyMode = () => {
+  const toggleAdminMode = () => {
     setIsPrivacyMode(prev => !prev);
+    setShowSecretMenu(prev => !prev);
+    feedback.success();
   };
 
   return (
@@ -223,10 +221,9 @@ const App: React.FC = () => {
       <nav className="sticky top-0 z-40 bg-fgc-grey dark:bg-black/80 dark:backdrop-blur-md text-white shadow-md safe-top border-b border-white/5 transition-all">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-20 sm:h-24">
-            {/* Logo & Title */}
             <div
               className="flex items-center gap-4 cursor-pointer select-none group"
-              onDoubleClick={toggleSecretMenu}
+              onDoubleClick={toggleAdminMode}
             >
               <img
                 src="https://www.fgc.cat/wp-content/uploads/2020/06/logo-FGC-square.png"
@@ -245,7 +242,6 @@ const App: React.FC = () => {
                 <button
                   key={item.id}
                   onClick={() => handleTabChange(item.id)}
-                  onDoubleClick={item.id === AppTab.Cercar ? togglePrivacyMode : undefined}
                   className={`relative flex items-center gap-2 px-5 py-2.5 rounded-xl text-base font-semibold transition-all group/nav ${activeTab === item.id
                     ? 'bg-fgc-green text-fgc-grey shadow-lg shadow-fgc-green/20'
                     : 'text-gray-300 hover:bg-white/10 hover:text-white'
@@ -347,7 +343,6 @@ const App: React.FC = () => {
             <button
               key={item.id}
               onClick={() => handleTabChange(item.id)}
-              onDoubleClick={item.id === AppTab.Cercar ? togglePrivacyMode : undefined}
               className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-lg font-bold transition-all active:scale-95 menu-item-stagger ${activeTab === item.id ? 'bg-fgc-green text-fgc-grey' : 'text-fgc-grey/70 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5'
                 }`}
               style={{ transitionDelay: `${index * 50}ms` }}

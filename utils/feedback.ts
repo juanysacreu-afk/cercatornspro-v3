@@ -7,9 +7,12 @@
 class FeedbackManager {
     private audioCtx: AudioContext | null = null;
 
-    private initAudio() {
+    private async initAudio() {
         if (!this.audioCtx) {
             this.audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        }
+        if (this.audioCtx.state === 'suspended') {
+            await this.audioCtx.resume();
         }
     }
 
@@ -18,7 +21,7 @@ class FeedbackManager {
      */
     async playNotification() {
         try {
-            this.initAudio();
+            await this.initAudio();
             if (!this.audioCtx) return;
 
             const oscillator = this.audioCtx.createOscillator();
@@ -47,7 +50,7 @@ class FeedbackManager {
      */
     async playClick() {
         try {
-            this.initAudio();
+            await this.initAudio();
             if (!this.audioCtx) return;
 
             const oscillator = this.audioCtx.createOscillator();
@@ -65,6 +68,36 @@ class FeedbackManager {
 
             oscillator.start();
             oscillator.stop(this.audioCtx.currentTime + 0.05);
+        } catch (e) {
+            console.warn('Audio feedback failed', e);
+        }
+    }
+
+    /**
+     * Play a short "click" sound but deeper (lower frequency)
+     */
+    async playDeepClick() {
+        try {
+            await this.initAudio();
+            if (!this.audioCtx) return;
+
+            const oscillator = this.audioCtx.createOscillator();
+            const gainNode = this.audioCtx.createGain();
+
+            // Frequency for a deeper sound (300Hz is a nice grave tone)
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(300, this.audioCtx.currentTime);
+
+            gainNode.gain.setValueAtTime(0, this.audioCtx.currentTime);
+            // Slightly more gain for deeper sounds as they can feel quieter
+            gainNode.gain.linearRampToValueAtTime(0.08, this.audioCtx.currentTime + 0.01);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, this.audioCtx.currentTime + 0.15);
+
+            oscillator.connect(gainNode);
+            gainNode.connect(this.audioCtx.destination);
+
+            oscillator.start();
+            oscillator.stop(this.audioCtx.currentTime + 0.15);
         } catch (e) {
             console.warn('Audio feedback failed', e);
         }
@@ -93,6 +126,14 @@ class FeedbackManager {
     click() {
         this.playClick();
         this.haptic(5);
+    }
+
+    /**
+     * Deep Click sequence: Sound + Haptic
+     */
+    deepClick() {
+        this.playDeepClick();
+        this.haptic(8);
     }
 }
 

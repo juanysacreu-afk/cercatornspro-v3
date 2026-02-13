@@ -5,6 +5,7 @@ import {
   resolveStationId, getTravelTime, getShortTornId,
   getFgcMinutes as getFgcMinutesRaw, formatFgcTime,
 } from '../utils/stations';
+import { feedback } from '../utils/feedback';
 
 // Thin wrapper: shared getFgcMinutes returns null for invalid input,
 // but this component's callers expect 0
@@ -53,6 +54,7 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu, is
   };
 
   const toggleReserveAvailability = (id: string) => {
+    feedback.deepClick();
     setDisabledReserves(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -241,7 +243,7 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu, is
                 )}
               </div>
               <button
-                onClick={calculatePlan}
+                onClick={() => { feedback.deepClick(); calculatePlan(); }}
                 disabled={analyzing || !uncoveredShiftId}
                 className="bg-blue-600 text-white px-8 py-5 sm:py-3 rounded-[24px] sm:rounded-2xl font-black text-sm sm:text-base hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-blue-500/20 disabled:opacity-50 whitespace-nowrap flex items-center justify-center gap-2"
               >
