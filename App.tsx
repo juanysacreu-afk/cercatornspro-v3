@@ -27,6 +27,7 @@ const App: React.FC = () => {
   const { showToast } = useToast();
 
   const handleTabChange = useCallback((tab: AppTab) => {
+    setIsMobileMenuOpen(false);
     if (tab === activeTab) return;
     feedback.click();
     setPrevTab(activeTab);
