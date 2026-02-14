@@ -614,16 +614,22 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
 
       const [shiftsRes, dailyRes] = await Promise.all([
         theoreticalShiftsQuery,
-        supabase.from('daily_assignments').select('torn')
+        supabase.from('daily_assignments').select('torn, observacions')
       ]);
 
       let allShifts = shiftsRes.data || [];
-      const dailyTornIds = Array.from(new Set((dailyRes.data || []).map(d => d.torn).filter(Boolean)));
+      const dailyRows = dailyRes.data || [];
+      const dailyTornIds = Array.from(new Set(dailyRows.map(d => d.torn).filter(Boolean)));
+      const observedTornIds = dailyRows.map(d => {
+        const match = (d.observacions || '').match(/\b(Q[A-Z0-9]+)\b/);
+        return match ? match[1] : null;
+      }).filter(Boolean) as string[];
 
-      // Combine theoretical IDs with daily assignment IDs to capture ad-hoc turns
+      // Combine theoretical IDs with daily assignment IDs and observed IDs to capture ad-hoc turns
       const allPossibleTurnIds = Array.from(new Set([
         ...allShifts.map(s => s.id),
-        ...dailyTornIds
+        ...dailyTornIds,
+        ...observedTornIds
       ]));
 
       if (allPossibleTurnIds.length === 0) { setLoading(false); return; }
@@ -718,8 +724,11 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
             if (!tData) continue;
             // 2.7: Handle TD ranges in observations for extensibility
             const firstDriver = tData.drivers?.[0];
+            const realId = firstDriver?.realTornId;
+            if (realId) tData.id = realId;
+
             const obs = firstDriver?.observacions || '';
-            const rangeMatch = obs.match(/(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/);
+            const rangeMatch = obs.match(/(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})/);
 
             let effectiveStartMin = getFgcMinutes(tData.inici_torn) || 0;
             let effectiveEndMin = getFgcMinutes(tData.final_torn) || 0;
@@ -737,9 +746,15 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
             const segs = getSegments(tData);
 
             const effectiveDurationMin = effectiveEndMin - effectiveStartMin;
-            // A shift is eligible if it's < 8h OR has a custom TD range
-            const maxExtensionCapacityMin = 525 - effectiveDurationMin;
+            // A shift is eligible if it's < 8.75h OR has a custom TD range
+            if (effectiveDurationMin >= 525 && !isCustomRange) continue;
+
+            // Strict check for virtual/ad-hoc shifts: only extensible if explicitly defined in obs
+            // As requested, if no explicit hours in observations, we "don't know if they can prolong".
+            if (tData.isVirtual && !isCustomRange) continue;
+
             const originalDurationMin = effectiveDurationMin;
+            const maxExtensionCapacityMin = 525 - originalDurationMin;
 
             // Ensure the search time is within the active bounds of the shift/TD
             const isInsideActiveBounds = sortidaMin >= effectiveStartMin && sortidaMin < effectiveEndMin + 120; // Allow 2h buffer for extension
@@ -776,6 +791,7 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
                   if (extraNeededTotal <= maxExtensionCapacityMin) {
                     extensibleRes.push({
                       ...tData,
+                      duracio: `${Math.floor(effectiveDurationMin / 60)}h ${effectiveDurationMin % 60}min`,
                       final_torn: isCustomRange ? formatFgcTime(effectiveEndMin) : tData.final_torn,
                       extData: {
                         extraNeeded: extraNeededTotal,
@@ -905,7 +921,11 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
                   }
                 }
                 if (bestIntercept) {
-                  reserveRes.push({ ...tData, resData: { ...bestIntercept, originalDuration: originalDurationMin, interceptTime: formatFgcTime(bestIntercept.time) } });
+                  reserveRes.push({
+                    ...tData,
+                    duracio: `${Math.floor(effectiveDurationMin / 60)}h ${effectiveDurationMin % 60}min`,
+                    resData: { ...bestIntercept, originalDuration: originalDurationMin, interceptTime: formatFgcTime(bestIntercept.time) }
+                  });
                 }
               }
             }

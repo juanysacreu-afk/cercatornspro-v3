@@ -103,6 +103,8 @@ export async function fetchFullTurns(turnIds: string[], selectedServei?: string)
         const sIdShort = getShortTornId(id);
         const assignments = dailyAssignments.filter((d: any) => d.torn === sIdShort);
 
+        const isVirtual = !shift;
+
         // If no theoretical shift found, create a virtual one
         const baseShift = shift || {
             id,
@@ -116,6 +118,11 @@ export async function fetchFullTurns(turnIds: string[], selectedServei?: string)
         const drivers = assignments.map((assig: any) => {
             const agentData = agents.find((p: any) => p.nomina === assig.empleat_id);
             const phones = agentData?.phone ? (Array.isArray(agentData.phone) ? agentData.phone : [agentData.phone]) : [];
+
+            // Extract turn code from observations if it exists
+            const obsTurnMatch = (assig.observacions || '').match(/\b(Q[A-Z0-9]+)\b/);
+            const realTornId = obsTurnMatch ? obsTurnMatch[1] : null;
+
             return {
                 nom: assig.nom || 'No assignat',
                 cognoms: assig.cognoms || '',
@@ -126,7 +133,8 @@ export async function fetchFullTurns(turnIds: string[], selectedServei?: string)
                 abs_parc_c: assig.abs_parc_c,
                 dta: assig.dta,
                 dpa: assig.dpa,
-                tipus_torn: assig.tipus_torn
+                tipus_torn: assig.tipus_torn,
+                realTornId: realTornId
             };
         });
 
@@ -163,6 +171,7 @@ export async function fetchFullTurns(turnIds: string[], selectedServei?: string)
 
         return {
             ...baseShift,
+            isVirtual,
             drivers: drivers.length > 0 ? drivers : [{ nom: 'No assignat', cognoms: '', nomina: '---', phones: [], observacions: '' }],
             fullCirculations
         };
