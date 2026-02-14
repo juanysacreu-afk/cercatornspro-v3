@@ -607,12 +607,26 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
       const { data: searchedCirc } = await supabase.from('circulations').select('*').eq('id', query.toUpperCase()).single();
       if (searchedCirc) setSearchedCircData(searchedCirc);
 
-      let queryBuilder = supabase.from('shifts').select('*');
-      if (selectedServei !== 'Tots') {
-        queryBuilder = queryBuilder.eq('servei', selectedServei);
-      }
-      const { data: allShifts } = await queryBuilder;
-      if (!allShifts) { setLoading(false); return; }
+      // 1. Fetch theoretical shifts and daily assignments in parallel to find all possible turns
+      let theoreticalShiftsQuery = supabase.from('shifts').select('*');
+      if (selectedServei === '000') theoreticalShiftsQuery = theoreticalShiftsQuery.eq('servei', '0');
+      else if (selectedServei !== 'Tots') theoreticalShiftsQuery = theoreticalShiftsQuery.eq('servei', selectedServei);
+
+      const [shiftsRes, dailyRes] = await Promise.all([
+        theoreticalShiftsQuery,
+        supabase.from('daily_assignments').select('torn')
+      ]);
+
+      let allShifts = shiftsRes.data || [];
+      const dailyTornIds = Array.from(new Set((dailyRes.data || []).map(d => d.torn).filter(Boolean)));
+
+      // Combine theoretical IDs with daily assignment IDs to capture ad-hoc turns
+      const allPossibleTurnIds = Array.from(new Set([
+        ...allShifts.map(s => s.id),
+        ...dailyTornIds
+      ]));
+
+      if (allPossibleTurnIds.length === 0) { setLoading(false); return; }
 
       let mainDriverShiftId = null;
       const passengerShiftIds: string[] = [];
@@ -675,7 +689,7 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
         const depOrigen = searchedCirc.inici;
         const sortidaMin = getFgcMinutes(searchedCirc.sortida) || 0;
         const arribadaMin = getFgcMinutes(searchedCirc.arribada) || 0;
-        const enrichedAllRaw = await fetchFullTurns(allShifts.map(s => s.id), selectedServei === 'Tots' ? undefined : selectedServei);
+        const enrichedAllRaw = await fetchFullTurns(allPossibleTurnIds, selectedServei === 'Tots' ? undefined : selectedServei);
         const enrichedAll = enrichedAllRaw.filter(t => t);
 
         const itinerary = [
@@ -702,7 +716,6 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
         for (const tData of enrichedAll) {
           try {
             if (!tData) continue;
-            const segs = getSegments(tData);
             // 2.7: Handle TD ranges in observations for extensibility
             const firstDriver = tData.drivers?.[0];
             const obs = firstDriver?.observacions || '';
@@ -716,7 +729,12 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
               effectiveStartMin = getFgcMinutes(rangeMatch[1]);
               effectiveEndMin = getFgcMinutes(rangeMatch[2]);
               isCustomRange = true;
+              // Override theoretical times so getSegments uses the real ones
+              tData.inici_torn = rangeMatch[1];
+              tData.final_torn = rangeMatch[2];
             }
+
+            const segs = getSegments(tData);
 
             const effectiveDurationMin = effectiveEndMin - effectiveStartMin;
             // A shift is eligible if it's < 8h OR has a custom TD range

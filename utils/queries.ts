@@ -13,9 +13,10 @@ export async function fetchFullTurns(turnIds: string[], selectedServei?: string)
 
     const shifts = shiftsRes.data || [];
     const cycleAssig = cycleAssigRes.data || [];
-    if (!shifts.length) return [];
 
-    const shortIds = shifts.map(s => getShortTornId(s.id));
+    // We want to process all turnIds, even those not found in the theoretical 'shifts' table
+    // (e.g. ad-hoc turns that only exist in 'daily_assignments')
+    const shortIds = turnIds.map(id => getShortTornId(id));
 
     // 2. Identify all required circulations and daily assignments
     const allCircIds = new Set<string>();
@@ -78,7 +79,7 @@ export async function fetchFullTurns(turnIds: string[], selectedServei?: string)
         : { data: [] };
     const agents = phonesRes.data || [];
 
-    // 6. Enrich everything
+    // 6. Enrichment helpers
     const getFgcMinutes = (timeStr: string) => {
         if (!timeStr || !timeStr.includes(':')) return 0;
         const [h, m] = timeStr.split(':').map(Number);
@@ -87,9 +88,30 @@ export async function fetchFullTurns(turnIds: string[], selectedServei?: string)
         return total;
     };
 
-    return shifts.map(shift => {
-        const sIdShort = getShortTornId(shift.id);
+    const guessStation = (id: string, obs: string) => {
+        const combined = (id + ' ' + obs).toUpperCase();
+        if (combined.includes('QN') || combined.includes('NAS')) return 'NA';
+        if (combined.includes('QR') || combined.includes('RB')) return 'RB';
+        if (combined.includes('QP') || combined.includes('PC')) return 'PC';
+        if (combined.includes('QS') || combined.includes('SR')) return 'SR';
+        return '';
+    };
+
+    // Use turnIds as the base to ensure even virtual shifts are included
+    return turnIds.map(id => {
+        const shift = shifts.find(s => s.id === id);
+        const sIdShort = getShortTornId(id);
         const assignments = dailyAssignments.filter((d: any) => d.torn === sIdShort);
+
+        // If no theoretical shift found, create a virtual one
+        const baseShift = shift || {
+            id,
+            servei: selectedServei || '---',
+            inici_torn: (assignments[0] as any)?.hora_inici || '',
+            final_torn: (assignments[0] as any)?.hora_fi || '',
+            dependencia: guessStation(id, (assignments[0] as any)?.observacions || ''),
+            circulations: []
+        };
 
         const drivers = assignments.map((assig: any) => {
             const agentData = agents.find((p: any) => p.nomina === assig.empleat_id);
@@ -108,7 +130,7 @@ export async function fetchFullTurns(turnIds: string[], selectedServei?: string)
             };
         });
 
-        const fullCirculations = (shift.circulations as any[])?.map((cRef: any) => {
+        const fullCirculations = (baseShift.circulations as any[])?.map((cRef: any) => {
             const isViatger = cRef.codi === 'Viatger';
             const obsParts = isViatger && cRef.observacions ? cRef.observacions.split('-') : [];
             const realCodiId = isViatger && obsParts.length > 0 ? obsParts[0] : cRef.codi;
@@ -140,7 +162,7 @@ export async function fetchFullTurns(turnIds: string[], selectedServei?: string)
         }).sort((a: any, b: any) => getFgcMinutes(a.sortida || '00:00') - getFgcMinutes(b.sortida || '00:00'));
 
         return {
-            ...shift,
+            ...baseShift,
             drivers: drivers.length > 0 ? drivers : [{ nom: 'No assignat', cognoms: '', nomina: '---', phones: [], observacions: '' }],
             fullCirculations
         };
