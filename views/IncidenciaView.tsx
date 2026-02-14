@@ -703,12 +703,30 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
           try {
             if (!tData) continue;
             const segs = getSegments(tData);
-            const [h, m] = (tData.duracio || "00:00").split(':').map(Number);
-            const originalDurationMin = h * 60 + m;
-            const maxExtensionCapacityMinRaw = 525 - originalDurationMin;
-            let maxExtensionCapacityMin = maxExtensionCapacityMinRaw;
+            // 2.7: Handle TD ranges in observations for extensibility
+            const firstDriver = tData.drivers?.[0];
+            const obs = firstDriver?.observacions || '';
+            const rangeMatch = obs.match(/(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/);
 
-            const currentRestSeg = segs.find(seg => seg.type === 'gap' && seg.codi.toUpperCase() === depOrigen.toUpperCase() && seg.start <= sortidaMin && seg.end > sortidaMin);
+            let effectiveStartMin = getFgcMinutes(tData.inici_torn) || 0;
+            let effectiveEndMin = getFgcMinutes(tData.final_torn) || 0;
+            let isCustomRange = false;
+
+            if (rangeMatch) {
+              effectiveStartMin = getFgcMinutes(rangeMatch[1]);
+              effectiveEndMin = getFgcMinutes(rangeMatch[2]);
+              isCustomRange = true;
+            }
+
+            const effectiveDurationMin = effectiveEndMin - effectiveStartMin;
+            // A shift is eligible if it's < 8h OR has a custom TD range
+            const maxExtensionCapacityMin = 525 - effectiveDurationMin;
+            const originalDurationMin = effectiveDurationMin;
+
+            // Ensure the search time is within the active bounds of the shift/TD
+            const isInsideActiveBounds = sortidaMin >= effectiveStartMin && sortidaMin < effectiveEndMin + 120; // Allow 2h buffer for extension
+
+            const currentRestSeg = isInsideActiveBounds ? segs.find(seg => seg.type === 'gap' && seg.codi.toUpperCase() === depOrigen.toUpperCase() && seg.start <= sortidaMin && seg.end > sortidaMin) : null;
             if (currentRestSeg) {
               const availableTime = currentRestSeg.end - sortidaMin;
               const conflictMinutes = Math.max(0, arribadaMin - currentRestSeg.end);
@@ -727,14 +745,26 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
             }
 
             if (maxExtensionCapacityMin > 0) {
-              const isAtOriginAtDeparture = segs.find(seg => seg.type === 'gap' && seg.codi.toUpperCase() === depOrigen.toUpperCase() && seg.start <= sortidaMin && seg.end > sortidaMin);
+              const currentGapAtOrigin = isInsideActiveBounds ? segs.find(seg => seg.type === 'gap' && seg.codi.toUpperCase() === depOrigen.toUpperCase() && seg.start <= sortidaMin && seg.end > sortidaMin) : null;
+              const lastSeg = segs[segs.length - 1];
+              const isJustFinishedAtOrigin = !currentGapAtOrigin && lastSeg && lastSeg.codi.toUpperCase() === depOrigen.toUpperCase() && sortidaMin >= effectiveEndMin && sortidaMin <= effectiveEndMin + 45;
+
+              const isAtOriginAtDeparture = currentGapAtOrigin || isJustFinishedAtOrigin;
               if (isAtOriginAtDeparture) {
                 const hasConflictsTotal = segs.some(seg => seg.type === 'circ' && seg.start >= sortidaMin && seg.start < (arribadaMin + (arribadaMin - sortidaMin) + 10));
                 if (!hasConflictsTotal) {
-                  const shiftFinalMin = getFgcMinutes(tData.final_torn) || 0;
+                  const shiftFinalMin = isCustomRange ? effectiveEndMin : (getFgcMinutes(tData.final_torn) || 0);
                   const extraNeededTotal = Math.max(0, (arribadaMin + (arribadaMin - sortidaMin) + 10) - shiftFinalMin);
                   if (extraNeededTotal <= maxExtensionCapacityMin) {
-                    extensibleRes.push({ ...tData, extData: { extraNeeded: extraNeededTotal, originalDuration: originalDurationMin, estimatedReturn: (arribadaMin + (arribadaMin - sortidaMin) + 10) } });
+                    extensibleRes.push({
+                      ...tData,
+                      final_torn: isCustomRange ? formatFgcTime(effectiveEndMin) : tData.final_torn,
+                      extData: {
+                        extraNeeded: extraNeededTotal,
+                        originalDuration: effectiveDurationMin,
+                        estimatedReturn: (arribadaMin + (arribadaMin - sortidaMin) + 10)
+                      }
+                    });
                   }
                 }
 
@@ -783,7 +813,7 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
 
                     const hasConflictsPartial = segs.some(seg => seg.type === 'circ' && seg.start >= sortidaMin && seg.start < returnToOriginTimeMin);
                     if (!hasConflictsPartial) {
-                      const shiftFinalMin = getFgcMinutes(tData.final_torn) || 0;
+                      const shiftFinalMin = isCustomRange ? effectiveEndMin : (getFgcMinutes(tData.final_torn) || 0);
                       const extraNeededPartial = Math.max(0, returnToOriginTimeMin - shiftFinalMin);
 
                       if (extraNeededPartial <= maxExtensionCapacityMin) {
