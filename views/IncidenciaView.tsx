@@ -619,18 +619,29 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
 
       let allShifts = shiftsRes.data || [];
       const dailyRows = dailyRes.data || [];
-      const dailyTornIds = Array.from(new Set(dailyRows.map(d => d.torn).filter(Boolean)));
-      const observedTornIds = dailyRows.map(d => {
-        const match = (d.observacions || '').match(/\b(Q[A-Z0-9]+)\b/);
-        return match ? match[1] : null;
-      }).filter(Boolean) as string[];
 
-      // Combine theoretical IDs with daily assignment IDs and observed IDs to capture ad-hoc turns
-      const allPossibleTurnIds = Array.from(new Set([
-        ...allShifts.map(s => s.id),
-        ...dailyTornIds,
-        ...observedTornIds
-      ]));
+      // Step A: Map Short ID to the "Best" original ID to avoid duplicates (e.g. Q302 vs Q0302)
+      // Theoretical shifts take priority
+      const idMap = new Map<string, string>();
+      allShifts.forEach(s => {
+        const short = getShortTornId(s.id);
+        if (!idMap.has(short)) idMap.set(short, s.id);
+      });
+      // Then daily assignments
+      dailyRows.forEach(d => {
+        if (d.torn) {
+          const short = getShortTornId(d.torn);
+          if (!idMap.has(short)) idMap.set(short, d.torn);
+        }
+        const obsMatch = (d.observacions || '').match(/\b(Q[A-Z0-9]+)\b/);
+        if (obsMatch) {
+          const obsTorn = obsMatch[1];
+          const short = getShortTornId(obsTorn);
+          if (!idMap.has(short)) idMap.set(short, obsTorn);
+        }
+      });
+
+      const allPossibleTurnIds = Array.from(idMap.values());
 
       if (allPossibleTurnIds.length === 0) { setLoading(false); return; }
 
@@ -719,15 +730,34 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
         const extensibleRes: any[] = [];
         const reserveRes: any[] = [];
 
-        for (const tData of enrichedAll) {
+        // Step B: Explode turns so each driver is evaluated independently (crucial for TD turns with multiple drivers)
+        const explodedTurns: any[] = [];
+        enrichedAll.forEach(t => {
+          (t.drivers || []).forEach((d: any) => {
+            explodedTurns.push({ ...t, drivers: [d] });
+          });
+        });
+
+        const seenCandidates = new Set<string>();
+
+        for (const tData of explodedTurns) {
           try {
-            if (!tData) continue;
+            if (!tData || !tData.drivers?.[0]) continue;
             // 2.7: Handle TD ranges in observations for extensibility
             const firstDriver = tData.drivers?.[0];
             const realId = firstDriver?.realTornId;
-            if (realId) tData.id = realId;
-
             const obs = firstDriver?.observacions || '';
+
+            if (realId) {
+              tData.id = realId;
+              // If we have a realId, we should re-check the station/dependencia
+              const combined = (realId + ' ' + obs).toUpperCase();
+              if (combined.includes('QN') || combined.includes('NAS')) tData.dependencia = 'NA';
+              else if (combined.includes('QR') || combined.includes('RB')) tData.dependencia = 'RB';
+              else if (combined.includes('QP') || combined.includes('PC')) tData.dependencia = 'PC';
+              else if (combined.includes('QS') || combined.includes('SR')) tData.dependencia = 'SR';
+            }
+
             const rangeMatch = obs.match(/(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})/);
 
             let effectiveStartMin = getFgcMinutes(tData.inici_torn) || 0;
@@ -741,7 +771,19 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
               // Override theoretical times so getSegments uses the real ones
               tData.inici_torn = rangeMatch[1];
               tData.final_torn = rangeMatch[2];
+
+              // If it's a TD (Availability) turn specified in observations, 
+              // it's almost certain it doesn't follow the theoretical circulations of the source turn
+              if (obs.toUpperCase().includes('TD')) {
+                tData.fullCirculations = [];
+              }
             }
+
+            // Step C: Deduplicate results
+            // If we've already processed this driver for this specific turn ID, skip
+            const candidateKey = `${firstDriver.nomina}_${tData.id}`;
+            if (seenCandidates.has(candidateKey)) continue;
+            seenCandidates.add(candidateKey);
 
             const segs = getSegments(tData);
 
@@ -4698,7 +4740,7 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
                                     <div className="flex items-center gap-2 mt-1"><div className="w-2 h-2 bg-fgc-green rounded-full animate-pulse" /><span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Nom. {mainDriverInfo.drivers[0]?.nomina}</span>{mainDriverInfo.fullCirculations?.find((c: any) => c.codi?.toUpperCase() === searchedCircData.id.toUpperCase())?.train && (<span className="bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-grey dark:text-fgc-green px-2 py-0.5 rounded text-[9px] font-black uppercase flex items-center gap-1"><Train size={10} /> {mainDriverInfo.fullCirculations.find((c: any) => c.codi?.toUpperCase() === searchedCircData.id.toUpperCase()).train}</span>)}</div>
                                   </div>
                                 </div>
-                                <div className="flex gap-1">{mainDriverInfo.drivers[0]?.phones?.map((p: string, i: number) => (<a key={i} href={`tel:${p}`} className="flex items-center justify-center gap-2 bg-fgc-grey dark:bg-black text-white px-5 py-2.5 rounded-xl font-black text-xs hover:bg-fgc-dark transition-all shadow-md active:scale-95 whitespace-nowrap"><Phone size={14} /> {p}</a>))}</div>
+                                <div className="flex gap-1">{mainDriverInfo.drivers[0]?.phones?.map((p: string, i: number) => (<a key={i} href={isPrivacyMode ? undefined : `tel:${p}`} className={`flex items-center justify-center gap-2 bg-fgc-grey dark:bg-black text-white px-5 py-2.5 rounded-xl font-black text-xs hover:bg-fgc-dark transition-all shadow-md active:scale-95 whitespace-nowrap ${isPrivacyMode ? 'cursor-default' : ''}`}><Phone size={14} /> {isPrivacyMode ? '*********' : p}</a>))}</div>
                               </div>
                               <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pt-3 border-t border-gray-100 dark:border-white/5 transition-colors">
                                 <div className="flex items-center gap-2"><span className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-tighter">TORN:</span><span className="text-base sm:text-lg font-black text-fgc-grey dark:text-gray-200 whitespace-nowrap">{mainDriverInfo.inici_torn} — {mainDriverInfo.final_torn} <span className="text-xs font-bold text-gray-400 dark:text-gray-500 ml-2">({mainDriverInfo.duracio})</span></span></div>
