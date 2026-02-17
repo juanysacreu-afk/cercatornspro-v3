@@ -12,7 +12,7 @@ export default {
   theme: {
     extend: {
       colors: {
-        'fgc-green': 'rgb(var(--fgc-green) / <alpha-value>)', // Color corporativo adaptable (Mobile Brightness Boost)
+        'fgc-green': '#A8D017', // Color corporativo fijo (Brighter Green)
         'fgc-green-dark': '#75990F', // Darker shade for text/contrast
         'fgc-grey': '#4D5358',
         'fgc-grey-dark': '#373C40', // 20% darker than corporate grey
