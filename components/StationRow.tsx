@@ -126,11 +126,27 @@ export const StationRow: React.FC<StationRowProps> = ({
 
             {/* Estat / Detalls */}
             <div className="flex items-center justify-end gap-1.5 sm:gap-3 shrink-0">
-                <div className="flex items-center gap-1 sm:gap-1.5">
+                {/* Desktop Status Icons */}
+                <div className="hidden md:flex items-center gap-1 sm:gap-1.5">
                     {needsImages && <Camera size={14} className="text-blue-500 animate-pulse drop-shadow-sm" />}
                     {needsRecords && <FileText size={14} className="text-yellow-500 animate-pulse drop-shadow-sm" />}
                     {needsCleaning && <Brush size={14} className="text-orange-500 animate-pulse drop-shadow-sm" />}
                     {isBroken && <AlertTriangle size={14} className="text-red-600 animate-pulse drop-shadow-sm" />}
+                </div>
+
+                {/* Mobile Unified Status Icon */}
+                <div className="md:hidden">
+                    {(needsImages || needsRecords || needsCleaning || isBroken) && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (circ.cicle) openUnitMenu(circ, circ.cicle);
+                            }}
+                            className="bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 p-1.5 rounded-lg animate-pulse"
+                        >
+                            <AlertTriangle size={14} />
+                        </button>
+                    )}
                 </div>
                 <button onClick={() => toggleItinerari(itemKey)} className={`p-2 sm:p-3 rounded-xl shadow-md hover:shadow-xl transition-all active:scale-95 border-b-2 border-black/5 flex items-center justify-center ${isActive || isBroken ? 'bg-red-600 text-white border-red-700' : 'bg-fgc-green text-fgc-grey'}`} title="Llibre d'itineraris">
                     <BookOpen size={16} />

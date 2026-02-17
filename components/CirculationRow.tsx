@@ -121,10 +121,29 @@ export const CirculationRow: React.FC<CirculationRowProps> = ({
                 <div className={`text-base sm:text-2xl font-black tabular-nums w-14 sm:w-16 text-center ${isActive || isBroken ? 'text-red-600' : 'text-fgc-grey dark:text-gray-200'}`}>{circ.arribada || '--:--'}</div>
             </div>
             <div className="flex justify-end items-center gap-2 sm:gap-3 px-1 sm:px-4">
-                {needsImages && <Camera size={16} className="text-blue-500 animate-pulse drop-shadow-sm" />}
-                {needsRecords && <FileText size={16} className="text-yellow-500 animate-pulse drop-shadow-sm" />}
-                {needsCleaning && <Brush size={16} className="text-orange-500 animate-pulse drop-shadow-sm" />}
-                {isBroken && <AlertTriangle size={16} className="text-red-600 animate-pulse drop-shadow-sm" />}
+                {/* Desktop Status Icons */}
+                <div className="hidden md:flex items-center gap-1.5 sm:gap-3">
+                    {needsImages && <Camera size={16} className="text-blue-500 animate-pulse drop-shadow-sm" />}
+                    {needsRecords && <FileText size={16} className="text-yellow-500 animate-pulse drop-shadow-sm" />}
+                    {needsCleaning && <Brush size={16} className="text-orange-500 animate-pulse drop-shadow-sm" />}
+                    {isBroken && <AlertTriangle size={16} className="text-red-600 animate-pulse drop-shadow-sm" />}
+                </div>
+
+                {/* Mobile Unified Status Icon */}
+                <div className="md:hidden">
+                    {(needsImages || needsRecords || needsCleaning || isBroken) && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (circ.cicle) openUnitMenu(circ, circ.cicle);
+                            }}
+                            className="bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 p-1.5 rounded-lg animate-pulse"
+                        >
+                            <AlertTriangle size={14} />
+                        </button>
+                    )}
+                </div>
+
                 {isActive && <span className="hidden xl:inline text-[9px] font-black text-red-500 animate-pulse bg-red-50 dark:bg-red-950/40 px-2.5 py-1 rounded-full border border-red-100 dark:border-red-900 shadow-sm">ACTIU</span>}
                 <button onClick={() => toggleItinerari(itemKey)} className={`p-2 sm:p-3 rounded-xl shadow-md hover:shadow-xl transition-all active:scale-95 border-b-2 border-black/5 flex items-center justify-center shrink-0 ${isActive ? 'bg-red-600 text-white border-red-700' : isBroken ? 'bg-red-600 text-white border-red-700' : 'bg-fgc-green text-fgc-grey border-fgc-green'}`} title="Llibre d'itineraris">
                     <BookOpen size={16} />
