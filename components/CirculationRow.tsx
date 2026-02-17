@@ -74,20 +74,23 @@ export const CirculationRow: React.FC<CirculationRowProps> = ({
                     {circ.cicle && <div className="absolute -top-1 -right-1 bg-white dark:bg-black rounded-full p-0.5 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"><Settings size={8} className="text-fgc-grey dark:text-gray-400" /></div>}
                 </button>
 
-                {passengerInfo && passengerInfo.length > 0 && (
-                    <div className="flex items-center flex-shrink-0 z-10 relative" title={`Viatgers:\n${passengerTooltip}`}>
-                        <div className={`p-1 rounded-full bg-white dark:bg-[#2d2d2d] shadow-sm border border-gray-100 dark:border-gray-700 ${hasFullCoverage ? 'text-blue-500' : 'text-orange-500'}`}>
-                            <User size={14} strokeWidth={3} />
+                <div className="flex flex-col md:flex-row items-center gap-1 md:gap-2 -space-y-0.5 md:space-y-0">
+                    {passengerInfo && passengerInfo.length > 0 && (
+                        <div className="flex items-center flex-shrink-0 z-10 relative" title={`Viatgers:\n${passengerTooltip}`}>
+                            <div className={`p-[1px] md:p-1 rounded-full bg-white dark:bg-[#2d2d2d] shadow-sm border border-gray-100 dark:border-gray-700 ${hasFullCoverage ? 'text-blue-500' : 'text-orange-500'}`}>
+                                <User className="w-3 h-3 md:w-3.5 md:h-3.5" strokeWidth={3} />
+                            </div>
                         </div>
-                    </div>
-                )}
+                    )}
+
+                    {circ.train && trainPhone && (
+                        <a href={isPrivacyMode ? undefined : `tel:${trainPhone}`} onClick={(e) => e.stopPropagation()} className={`md:hidden p-[3px] rounded bg-white dark:bg-[#2d2d2d] border shadow-sm transition-all active:scale-90 ${isBroken ? 'bg-red-600 text-white border-red-700' : 'bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-green border-fgc-green/30 dark:border-fgc-green/20'} ${isPrivacyMode ? 'cursor-default' : ''}`}>
+                            <Radio size={10} />
+                        </a>
+                    )}
+                </div>
 
                 <span className={`hidden md:flex px-2 py-1 ${getLiniaColor(circ.linia)} text-white rounded-md font-black text-[9px] sm:text-[11px] shadow-sm flex-shrink-0`}>{circ.linia || '??'}</span>
-                {circ.train && trainPhone && (
-                    <a href={isPrivacyMode ? undefined : `tel:${trainPhone}`} onClick={(e) => e.stopPropagation()} className={`md:hidden p-2 rounded-lg border shadow-sm transition-all active:scale-90 ${isBroken ? 'bg-red-600 text-white border-red-700' : 'bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-green border-fgc-green/30 dark:border-fgc-green/20'} ${isPrivacyMode ? 'cursor-default' : ''}`}>
-                        <Radio size={14} />
-                    </a>
-                )}
             </div>
             <div className="hidden md:flex justify-center">
                 {circ.cicle ? (
