@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, RefreshCcw, Train, Menu, X, Download, BookOpen, Settings, Moon, Sun, ShieldAlert } from 'lucide-react';
+import { Search, RefreshCcw, Train, Menu, X, Download, BookOpen, Settings, Moon, Sun, ShieldAlert, Eye } from 'lucide-react';
 import { AppTab } from './types.ts';
 import { CercarView } from './views/CercarView.tsx';
 import OrganitzaView from './views/OrganitzaView.tsx';
 import CiclesView from './views/CiclesView.tsx';
 import IncidenciaView from './views/IncidenciaView.tsx';
+import DashboardView from './views/dashboard/DashboardView.tsx';
 import FileUploadModal from './components/FileUploadModal.tsx';
 import CommandPalette from './components/CommandPalette.tsx';
 import { supabase } from './supabaseClient.ts';
@@ -20,7 +21,7 @@ interface ParkedUnit {
 import SplashScreen from './components/common/SplashScreen.tsx';
 
 const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<AppTab>(AppTab.Cercar);
+  const [activeTab, setActiveTab] = useState<AppTab>(AppTab.Dashboard);
   const [prevTab, setPrevTab] = useState<AppTab | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const [initProgress, setInitProgress] = useState(0);
@@ -195,6 +196,7 @@ const App: React.FC = () => {
   };
 
   const navItems = [
+    { id: AppTab.Dashboard, label: 'Dashboard', icon: <Eye size={18} /> },
     { id: AppTab.Cercar, label: 'Cercar', icon: <Search size={18} /> },
     { id: AppTab.Organitza, label: 'Organitza', icon: <RefreshCcw size={18} /> },
     { id: AppTab.Incidencia, label: 'Incidència', icon: <ShieldAlert size={18} /> },
@@ -368,6 +370,9 @@ const App: React.FC = () => {
 
       {/* Main Content: Mantenim les vistes muntades però ocultes per preservar l'estat */}
       <main className="flex-1 w-full py-8 safe-bottom max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 overflow-x-hidden">
+        <div className={`${activeTab === AppTab.Dashboard ? 'block animate-in fade-in slide-in-from-right-8 duration-500' : 'hidden'}`}>
+          <DashboardView />
+        </div>
         <div className={`${activeTab === AppTab.Cercar ? 'block animate-in fade-in slide-in-from-right-8 duration-500' : 'hidden'}`}>
           <CercarView
             isPrivacyMode={isPrivacyMode}

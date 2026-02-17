@@ -73,6 +73,7 @@ export interface Assignment {
 }
 
 export enum AppTab {
+  Dashboard = 'dashboard',
   Cercar = 'cercar',
   Organitza = 'organitza',
   Incidencia = 'incidencia',
