@@ -39,7 +39,14 @@ export const MarqueeText: React.FC<MarqueeTextProps> = ({ text, className = '' }
     }, [text]);
 
     return (
-        <div ref={containerRef} className="min-w-0 flex-1 overflow-hidden relative">
+        <div
+            ref={containerRef}
+            className="min-w-0 flex-1 overflow-hidden relative"
+            style={shouldAnimate ? {
+                maskImage: 'linear-gradient(to right, black calc(100% - 2rem), transparent)',
+                WebkitMaskImage: 'linear-gradient(to right, black calc(100% - 2rem), transparent)'
+            } : undefined}
+        >
             <div
                 ref={textRef}
                 className={`
@@ -55,11 +62,6 @@ export const MarqueeText: React.FC<MarqueeTextProps> = ({ text, className = '' }
                 <span>{text}</span>
                 {shouldAnimate && <span className="ml-12">{text}</span>}
             </div>
-
-            {/* Gradient mask for smoother marquee entry/exit */}
-            {shouldAnimate && (
-                <div className="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white dark:from-gray-900 to-transparent pointer-events-none z-10" />
-            )}
         </div>
     );
 };
