@@ -4,18 +4,9 @@
 
 /* Estilos globales y utilidades personalizadas */
 :root {
-  --fgc-green: 151 190 20;
-  /* #97BE14 in RGB for flexibility */
-  --fgc-green-hex: #97BE14;
-}
-
-/* Mobile-specific brightness boost for green */
-@media (max-width: 768px) {
-  html {
-    --fgc-green: 168 208 23 !important;
-    /* #A8D017 - Brighter/Lighter for Mobile */
-    --fgc-green-hex: #A8D017 !important;
-  }
+  --fgc-green: 168 208 23;
+  /* #A8D017 - Brighter Global */
+  --fgc-green-hex: #A8D017;
 }
 
 body {
