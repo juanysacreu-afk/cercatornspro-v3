@@ -10,7 +10,7 @@ import {
   S1_STATIONS, S2_STATIONS, L6_STATIONS, L7_STATIONS, L12_STATIONS, LINIA_STATIONS,
   getLiniaColorHex, getFgcMinutes, formatFgcTime, getShortTornId, LINE_COLORS, getTravelTime
 } from '../utils/stations';
-import type { LivePersonnel, IncidenciaViewProps, IncidenciaMode, DiagramId, ReserveShift } from '../types';
+import type { LivePersonnel, IncidenciaViewProps, IncidenciaMode, DiagramId, ReserveShift, MallaCirculation, EnrichedShift } from '../types';
 import IncidenciaPerTorn from '../components/IncidenciaPerTorn.tsx';
 import DepotModal from '../components/DepotModal.tsx';
 import MallaVisualizer from '../components/MallaVisualizer.tsx';
@@ -109,8 +109,8 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
   const [selectedTrain, setSelectedTrain] = useState<LivePersonnel | null>(null);
 
   const [isRealMallaOpen, setIsRealMallaOpen] = useState(false);
-  const [theoryCircsLocal, setTheoryCircsLocal] = useState<any[]>([]);
-  const [realMallaCircs, setRealMallaCircs] = useState<any[]>([]);
+  const [theoryCircsLocal, setTheoryCircsLocal] = useState<MallaCirculation[]>([]);
+  const [realMallaCircs, setRealMallaCircs] = useState<MallaCirculation[]>([]);
 
   const serveiTypes = ['0', '100', '400', '500'];
 
@@ -214,7 +214,7 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
     return grouped;
   }, [liveData, selectedServei]);
 
-  const CompactRow: React.FC<{ torn: any, color: string, label?: React.ReactNode, sub?: string }> = ({ torn, color, label, sub }) => (
+  const CompactRow: React.FC<{ torn: EnrichedShift, color: string, label?: React.ReactNode, sub?: string }> = ({ torn, color, label, sub }) => (
     <div className={`bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-md transition-all flex items-center gap-4 border-l-4 ${color}`}>
       <div className="h-10 min-w-[2.5rem] px-2 bg-fgc-grey/10 dark:bg-black text-[#4D5358] dark:text-gray-300 rounded-xl flex items-center justify-center font-bold text-xs shrink-0">{torn.id}</div>
       <div className="flex-1 min-w-0">
@@ -233,167 +233,167 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
 
   // TrainInspectorPopup extraído a components/TrainInspectorPopup.tsx
 
-return (
-  <>
-    <div className="relative min-h-screen p-4 sm:p-8 space-y-6 animate-in fade-in duration-700 overflow-x-hidden">
-      {/* Header con Parallax Suave */}
-      <ShiftHeader
-        mode={mode}
-        selectedServei={selectedServei}
-        onServeiChange={setSelectedServei}
-        serveiTypes={serveiTypes}
-      />
+  return (
+    <>
+      <div className="relative min-h-screen p-4 sm:p-8 space-y-6 animate-in fade-in duration-700 overflow-x-hidden">
+        {/* Header con Parallax Suave */}
+        <ShiftHeader
+          mode={mode}
+          selectedServei={selectedServei}
+          onServeiChange={setSelectedServei}
+          serveiTypes={serveiTypes}
+        />
 
-      {mode === 'INIT' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 py-12 max-w-6xl mx-auto">
-          <button onClick={() => { feedback.deepClick(); setMode('MAQUINISTA'); }} className="group glass-card glass-interactive p-10 rounded-[48px] border border-gray-100 dark:border-white/5 shadow-xl transition-all flex flex-col items-center gap-6"><div className="w-24 h-24 bg-red-50 dark:bg-red-950/20 rounded-full flex items-center justify-center text-red-500 group-hover:scale-110 transition-transform"><User size={48} /></div><div className="text-center"><h3 className="text-2xl font-bold text-[#4D5358] dark:text-white uppercase tracking-tight">Per Circulació</h3><p className="text-sm font-medium text-gray-400 mt-2">Identifica tren i busca cobertura avançada amb intercepció de reserves.</p></div></button>
-          <button onClick={() => { feedback.deepClick(); setMode('LINIA'); }} className="group glass-card glass-interactive p-10 rounded-[48px] border border-gray-100 dark:border-white/5 shadow-xl transition-all flex flex-col items-center gap-6"><div className="w-24 h-24 bg-fgc-green/10 rounded-full flex items-center justify-center text-fgc-green group-hover:scale-110 transition-transform"><MapIcon size={48} /></div><div className="text-center"><h3 className="text-2xl font-bold text-[#4D5358] dark:text-white uppercase tracking-tight">Per Línia / Tram</h3><p className="text-sm font-medium text-gray-400 mt-2">Gestiona talls de servei i identifica personal a cada costat.</p></div></button>
-          <button onClick={() => { feedback.deepClick(); setMode('PER_TORN'); }} className="group glass-card glass-interactive p-10 rounded-[48px] border border-gray-100 dark:border-white/5 shadow-xl transition-all flex flex-col items-center gap-6"><div className="w-24 h-24 bg-blue-50 dark:bg-blue-950/20 rounded-full flex items-center justify-center text-blue-500 group-hover:scale-110 transition-transform"><RotateCcw size={48} /></div><div className="text-center"><h3 className="text-2xl font-bold text-[#4D5358] dark:text-white uppercase tracking-tight">Per Torn</h3><p className="text-sm font-medium text-gray-400 mt-2">Cobreix totes les circulacions d'un torn descobert utilitzant els buits d'altres.</p></div></button>
-        </div>
-      ) : (
-        <div className="space-y-8">
-          <div className="flex justify-start">
-            <button
-              onClick={resetAllModeData}
-              className="flex items-center gap-2 text-gray-400 dark:text-gray-500 hover:text-[#4D5358] dark:hover:text-white transition-colors"
-            >
-              <ArrowLeft size={16} />
-              <span className="text-xs font-bold uppercase tracking-widest">Tornar enrere</span>
-            </button>
+        {mode === 'INIT' ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 py-12 max-w-6xl mx-auto">
+            <button onClick={() => { feedback.deepClick(); setMode('MAQUINISTA'); }} className="group glass-card glass-interactive p-10 rounded-[48px] border border-gray-100 dark:border-white/5 shadow-xl transition-all flex flex-col items-center gap-6"><div className="w-24 h-24 bg-red-50 dark:bg-red-950/20 rounded-full flex items-center justify-center text-red-500 group-hover:scale-110 transition-transform"><User size={48} /></div><div className="text-center"><h3 className="text-2xl font-bold text-[#4D5358] dark:text-white uppercase tracking-tight">Per Circulació</h3><p className="text-sm font-medium text-gray-400 mt-2">Identifica tren i busca cobertura avançada amb intercepció de reserves.</p></div></button>
+            <button onClick={() => { feedback.deepClick(); setMode('LINIA'); }} className="group glass-card glass-interactive p-10 rounded-[48px] border border-gray-100 dark:border-white/5 shadow-xl transition-all flex flex-col items-center gap-6"><div className="w-24 h-24 bg-fgc-green/10 rounded-full flex items-center justify-center text-fgc-green group-hover:scale-110 transition-transform"><MapIcon size={48} /></div><div className="text-center"><h3 className="text-2xl font-bold text-[#4D5358] dark:text-white uppercase tracking-tight">Per Línia / Tram</h3><p className="text-sm font-medium text-gray-400 mt-2">Gestiona talls de servei i identifica personal a cada costat.</p></div></button>
+            <button onClick={() => { feedback.deepClick(); setMode('PER_TORN'); }} className="group glass-card glass-interactive p-10 rounded-[48px] border border-gray-100 dark:border-white/5 shadow-xl transition-all flex flex-col items-center gap-6"><div className="w-24 h-24 bg-blue-50 dark:bg-blue-950/20 rounded-full flex items-center justify-center text-blue-500 group-hover:scale-110 transition-transform"><RotateCcw size={48} /></div><div className="text-center"><h3 className="text-2xl font-bold text-[#4D5358] dark:text-white uppercase tracking-tight">Per Torn</h3><p className="text-sm font-medium text-gray-400 mt-2">Cobreix totes les circulacions d'un torn descobert utilitzant els buits d'altres.</p></div></button>
           </div>
+        ) : (
+          <div className="space-y-8">
+            <div className="flex justify-start">
+              <button
+                onClick={resetAllModeData}
+                className="flex items-center gap-2 text-gray-400 dark:text-gray-500 hover:text-[#4D5358] dark:hover:text-white transition-colors"
+              >
+                <ArrowLeft size={16} />
+                <span className="text-xs font-bold uppercase tracking-widest">Tornar enrere</span>
+              </button>
+            </div>
 
-          {mode === 'MAQUINISTA' && (
-            <ErrorBoundary sectionName="Cerca per Circulació">
-              <div className="space-y-6">
+            {mode === 'MAQUINISTA' && (
+              <ErrorBoundary sectionName="Cerca per Circulació">
+                <div className="space-y-6">
 
-                <IncidentDashboard
-                  query={query}
-                  setQuery={setQuery}
-                  onSearch={handleSearchCirculation}
-                  loading={loading}
-                  searchedCircData={searchedCircData}
-                  mainDriverInfo={mainDriverInfo}
-                  passengerResults={passengerResults}
-                  adjacentResults={adjacentResults}
-                  restingResults={restingResults}
-                  extensibleResults={extensibleResults}
-                  reserveInterceptResults={reserveInterceptResults}
-                  isPrivacyMode={isPrivacyMode}
-                />
-              </div>
-            </ErrorBoundary>
-          )}
+                  <IncidentDashboard
+                    query={query}
+                    setQuery={setQuery}
+                    onSearch={handleSearchCirculation}
+                    loading={loading}
+                    searchedCircData={searchedCircData}
+                    mainDriverInfo={mainDriverInfo}
+                    passengerResults={passengerResults}
+                    adjacentResults={adjacentResults}
+                    restingResults={restingResults}
+                    extensibleResults={extensibleResults}
+                    reserveInterceptResults={reserveInterceptResults}
+                    isPrivacyMode={isPrivacyMode}
+                  />
+                </div>
+              </ErrorBoundary>
+            )}
 
-          {mode === 'LINIA' && (
-            <ErrorBoundary sectionName="Mapa de Línia / Tram">
-              <div className="w-full">
-                <IncidentMap
-                  liveData={liveData}
-                  parkedUnits={parkedUnits}
-                  onParkedUnitsChange={onParkedUnitsChange}
-                  selectedTrain={selectedTrain}
-                  setSelectedTrain={setSelectedTrain}
-                  openDiagram={openDiagram}
-                  setOpenDiagram={setOpenDiagram}
-                  isRealTime={isRealTime}
-                  setIsRealTime={setIsRealTime}
-                  customTime={customTime}
-                  setCustomTime={setCustomTime}
-                  isPaused={isPaused}
-                  setIsPaused={setIsPaused}
-                  isGeoTrenEnabled={isGeoTrenEnabled}
-                  setIsGeoTrenEnabled={setIsGeoTrenEnabled}
-                  geoTrenData={geoTrenData}
-                  mapTransform={mapTransform}
-                  setMapTransform={setMapTransform}
-                  selectedCutStations={selectedCutStations}
-                  setSelectedCutStations={setSelectedCutStations}
-                  selectedCutSegments={selectedCutSegments}
-                  setSelectedCutSegments={setSelectedCutSegments}
-                  dividedPersonnel={dividedPersonnel}
-                  selectedRestLocation={selectedRestLocation}
-                  setSelectedRestLocation={setSelectedRestLocation}
-                  groupedRestPersonnel={groupedRestPersonnel}
-                  isPrivacyMode={isPrivacyMode}
-                  depotSyncing={depotSyncing}
-                  setDepotSyncing={setDepotSyncing}
-                  setAltServiceIsland={setAltServiceIsland}
-                  manualOverrides={manualOverrides}
-                  setManualOverrides={setManualOverrides}
-                  openMenuId={openMenuId}
-                  setOpenMenuId={setOpenMenuId}
-                  selectedServei={selectedServei}
-                  theoryCircsLocal={theoryCircsLocal}
-                  setTheoryCircsLocal={setTheoryCircsLocal}
-                  allShifts={allShifts}
-                  setAllShifts={setAllShifts}
-                  setRealMallaCircs={setRealMallaCircs}
-                  setIsRealMallaOpen={setIsRealMallaOpen}
-                  setQuery={setQuery}
-                  handleSearchCirculation={handleSearchCirculation}
-                  loading={loading}
-                  setLoading={setLoading}
-                />
-              </div>
-            </ErrorBoundary>
-          )}
-          {mode === 'PER_TORN' && (
-            <ErrorBoundary sectionName="Cobertura per Torn">
-              <IncidenciaPerTorn selectedServei={selectedServei} showSecretMenu={showSecretMenu} isPrivacyMode={isPrivacyMode} />
-            </ErrorBoundary>
-          )}
+            {mode === 'LINIA' && (
+              <ErrorBoundary sectionName="Mapa de Línia / Tram">
+                <div className="w-full">
+                  <IncidentMap
+                    liveData={liveData}
+                    parkedUnits={parkedUnits}
+                    onParkedUnitsChange={onParkedUnitsChange}
+                    selectedTrain={selectedTrain}
+                    setSelectedTrain={setSelectedTrain}
+                    openDiagram={openDiagram}
+                    setOpenDiagram={setOpenDiagram}
+                    isRealTime={isRealTime}
+                    setIsRealTime={setIsRealTime}
+                    customTime={customTime}
+                    setCustomTime={setCustomTime}
+                    isPaused={isPaused}
+                    setIsPaused={setIsPaused}
+                    isGeoTrenEnabled={isGeoTrenEnabled}
+                    setIsGeoTrenEnabled={setIsGeoTrenEnabled}
+                    geoTrenData={geoTrenData}
+                    mapTransform={mapTransform}
+                    setMapTransform={setMapTransform}
+                    selectedCutStations={selectedCutStations}
+                    setSelectedCutStations={setSelectedCutStations}
+                    selectedCutSegments={selectedCutSegments}
+                    setSelectedCutSegments={setSelectedCutSegments}
+                    dividedPersonnel={dividedPersonnel}
+                    selectedRestLocation={selectedRestLocation}
+                    setSelectedRestLocation={setSelectedRestLocation}
+                    groupedRestPersonnel={groupedRestPersonnel}
+                    isPrivacyMode={isPrivacyMode}
+                    depotSyncing={depotSyncing}
+                    setDepotSyncing={setDepotSyncing}
+                    setAltServiceIsland={setAltServiceIsland}
+                    manualOverrides={manualOverrides}
+                    setManualOverrides={setManualOverrides}
+                    openMenuId={openMenuId}
+                    setOpenMenuId={setOpenMenuId}
+                    selectedServei={selectedServei}
+                    theoryCircsLocal={theoryCircsLocal}
+                    setTheoryCircsLocal={setTheoryCircsLocal}
+                    allShifts={allShifts}
+                    setAllShifts={setAllShifts}
+                    setRealMallaCircs={setRealMallaCircs}
+                    setIsRealMallaOpen={setIsRealMallaOpen}
+                    setQuery={setQuery}
+                    handleSearchCirculation={handleSearchCirculation}
+                    loading={loading}
+                    setLoading={setLoading}
+                  />
+                </div>
+              </ErrorBoundary>
+            )}
+            {mode === 'PER_TORN' && (
+              <ErrorBoundary sectionName="Cobertura per Torn">
+                <IncidenciaPerTorn selectedServei={selectedServei} showSecretMenu={showSecretMenu} isPrivacyMode={isPrivacyMode} />
+              </ErrorBoundary>
+            )}
 
+          </div>
+        )}
+      </div>
+
+      {mode === 'INIT' && !loading && (
+        <div className="py-32 text-center opacity-10 flex flex-col items-center">
+          <ShieldAlert size={100} className="text-[#4D5358] mb-8" />
+          <p className="text-xl font-bold uppercase tracking-[0.4em] text-[#4D5358]">Centre de Gestió Operativa</p>
         </div>
       )}
-    </div>
 
-    {mode === 'INIT' && !loading && (
-      <div className="py-32 text-center opacity-10 flex flex-col items-center">
-        <ShieldAlert size={100} className="text-[#4D5358] mb-8" />
-        <p className="text-xl font-bold uppercase tracking-[0.4em] text-[#4D5358]">Centre de Gestió Operativa</p>
-      </div>
-    )}
-
-    {altServiceIsland && (
-      <ErrorBoundary sectionName="Servei Alternatiu">
-        <AlternativeServiceOverlay
-          islandId={altServiceIsland}
-          dividedPersonnel={dividedPersonnel}
-          selectedServei={selectedServei}
-          allShifts={allShifts}
-          displayMin={displayMin}
-          showToast={showToast}
-          onClose={() => setAltServiceIsland(null)}
-          isPrivacyMode={isPrivacyMode}
-          parkedUnits={parkedUnits}
-          selectedCutSegments={selectedCutSegments}
-        />
-      </ErrorBoundary>
-    )}
-    {
-      isRealMallaOpen && createPortal(
-        <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-fgc-grey w-full max-w-7xl h-[90vh] rounded-[48px] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
-            <div className="p-6 border-b border-gray-100 dark:border-white/5 flex items-center justify-between bg-gray-50/50 dark:bg-black/20">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-orange-500 rounded-2xl text-white shadow-lg"><TrendingUp size={24} /></div>
-                <div>
-                  <h3 className="text-xl font-bold text-[#4D5358] dark:text-white uppercase tracking-tight">Malla Real Interactiva</h3>
-                  <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Servei Seleccionat: S-{selectedServei}</p>
+      {altServiceIsland && (
+        <ErrorBoundary sectionName="Servei Alternatiu">
+          <AlternativeServiceOverlay
+            islandId={altServiceIsland}
+            dividedPersonnel={dividedPersonnel}
+            selectedServei={selectedServei}
+            allShifts={allShifts}
+            displayMin={displayMin}
+            showToast={showToast}
+            onClose={() => setAltServiceIsland(null)}
+            isPrivacyMode={isPrivacyMode}
+            parkedUnits={parkedUnits}
+            selectedCutSegments={selectedCutSegments}
+          />
+        </ErrorBoundary>
+      )}
+      {
+        isRealMallaOpen && createPortal(
+          <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-fgc-grey w-full max-w-7xl h-[90vh] rounded-[48px] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
+              <div className="p-6 border-b border-gray-100 dark:border-white/5 flex items-center justify-between bg-gray-50/50 dark:bg-black/20">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-orange-500 rounded-2xl text-white shadow-lg"><TrendingUp size={24} /></div>
+                  <div>
+                    <h3 className="text-xl font-bold text-[#4D5358] dark:text-white uppercase tracking-tight">Malla Real Interactiva</h3>
+                    <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Servei Seleccionat: S-{selectedServei}</p>
+                  </div>
                 </div>
+                <button onClick={() => setIsRealMallaOpen(false)} className="p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded-full transition-colors"><X size={24} /></button>
               </div>
-              <button onClick={() => setIsRealMallaOpen(false)} className="p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded-full transition-colors"><X size={24} /></button>
+              <div className="flex-1 overflow-hidden p-6">
+                <MallaVisualizer circs={realMallaCircs} />
+              </div>
             </div>
-            <div className="flex-1 overflow-hidden p-6">
-              <MallaVisualizer circs={realMallaCircs} />
-            </div>
-          </div>
-        </div>,
-        document.body
-      )
-    }
-  </>
-);
+          </div>,
+          document.body
+        )
+      }
+    </>
+  );
 };
 
 export const IncidenciaView = React.memo(IncidenciaViewComponent);

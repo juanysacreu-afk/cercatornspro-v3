@@ -4,6 +4,10 @@ import { fetchFullTurns } from '../../../utils/queries';
 import { getShortTornId, getFgcMinutes, formatFgcTime, getSegments, getTravelTime, S1_STATIONS, S2_STATIONS, mainLiniaForFilter, resolveStationId } from '../../../utils/stations';
 import { feedback } from '../../../utils/feedback';
 import { useToast } from '../../../components/ToastProvider';
+import type {
+    EnrichedShift, CirculationDetail, RestingResult, ExtensibleResult,
+    ReserveInterceptResult, AdjacentResults, InterceptOption
+} from '../../../types';
 
 interface UseCirculationSearchProps {
     selectedServei: string;
@@ -17,13 +21,13 @@ export const useCirculationSearch = ({ selectedServei }: UseCirculationSearchPro
     const [loading, setLoading] = useState(false);
 
     // Search Results State
-    const [searchedCircData, setSearchedCircData] = useState<any>(null);
-    const [mainDriverInfo, setMainDriverInfo] = useState<any>(null);
-    const [passengerResults, setPassengerResults] = useState<any[]>([]);
-    const [adjacentResults, setAdjacentResults] = useState<{ anterior: any[], posterior: any[] }>({ anterior: [], posterior: [] });
-    const [restingResults, setRestingResults] = useState<any[]>([]);
-    const [extensibleResults, setExtensibleResults] = useState<any[]>([]);
-    const [reserveInterceptResults, setReserveInterceptResults] = useState<any[]>([]);
+    const [searchedCircData, setSearchedCircData] = useState<CirculationDetail | null>(null);
+    const [mainDriverInfo, setMainDriverInfo] = useState<EnrichedShift | null>(null);
+    const [passengerResults, setPassengerResults] = useState<EnrichedShift[]>([]);
+    const [adjacentResults, setAdjacentResults] = useState<AdjacentResults>({ anterior: [], posterior: [] });
+    const [restingResults, setRestingResults] = useState<RestingResult[]>([]);
+    const [extensibleResults, setExtensibleResults] = useState<ExtensibleResult[]>([]);
+    const [reserveInterceptResults, setReserveInterceptResults] = useState<ReserveInterceptResult[]>([]);
 
     const handleSearchCirculation = async () => {
         if (!query) return;
@@ -40,7 +44,7 @@ export const useCirculationSearch = ({ selectedServei }: UseCirculationSearchPro
         setExtensibleResults([]);
         setReserveInterceptResults([]);
 
-        let localMainDriverInfo: any = null;
+        let localMainDriverInfo: EnrichedShift | null = null;
         try {
             const { data: searchedCirc } = await supabase.from('circulations').select('*').eq('id', query.toUpperCase()).single();
             if (!searchedCirc) {
@@ -128,7 +132,7 @@ export const useCirculationSearch = ({ selectedServei }: UseCirculationSearchPro
             const circDetailsSafe = circDetails || [];
 
             // Find Adjacents & Return Candidates
-            let allLineCircsSafe: any[] = [];
+            let allLineCircsSafe: CirculationDetail[] = [];
             if (searchedCirc) {
                 // Fetch relevant lines for return trips (Vallès corridor sharing)
                 // We include L6 and L12 as they can provide return trips for SR
@@ -280,7 +284,7 @@ export const useCirculationSearch = ({ selectedServei }: UseCirculationSearchPro
                 else endStr = bestStops.find(s => resolveStationId(s.nom) === toCode)?.hora || '';
 
                 return {
-                    id: (best.codi === 'Viatger' || best.id === 'Viatger') ? best.observacions?.split('-')[0] : best.id,
+                    id: best.id,
                     start: (startStr || '').substring(0, 5),
                     end: (endStr || '').substring(0, 5)
                 };
@@ -490,11 +494,11 @@ export const useCirculationSearch = ({ selectedServei }: UseCirculationSearchPro
             }).filter(t => !restingCandidates.includes(t.id)));
 
             // Resolve Reserve Intercepts with path analysis
-            const allIntercepts: any[] = [];
+            const allIntercepts: ReserveInterceptResult[] = [];
 
             // 1. Candidate Source: Resting Drivers or Extensible Drivers at the origin station.
             // (We EXCLUDE the actual driver of the train as they are the ones missing in this scenario)
-            const candidateMap = new Map<string, any>();
+            const candidateMap = new Map<string, EnrichedShift>();
 
             // 2. Resting Drivers who are at End of Shift
             processedResting.forEach(t => {
@@ -512,14 +516,14 @@ export const useCirculationSearch = ({ selectedServei }: UseCirculationSearchPro
                 }
             });
 
-            const candidatesForIntercept: any[] = Array.from(candidateMap.values());
+            const candidatesForIntercept: EnrichedShift[] = Array.from(candidateMap.values());
 
             candidatesForIntercept.forEach(t => {
                 const sInici = getFgcMinutes(t.inici_torn) || 0;
                 const realId = t.drivers?.[0]?.realTornId || t.id;
                 const targetStation = getTargetEndStation(t.id) || t.dependencia;
 
-                const interceptOptions: any[] = [];
+                const interceptOptions: InterceptOption[] = [];
 
                 // Use robust line detection 
                 const liniaType = mainLiniaForFilter(searchedCirc.linia);

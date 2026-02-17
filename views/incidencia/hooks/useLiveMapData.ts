@@ -6,7 +6,7 @@ import {
 } from '../../../utils/stations';
 import { MAP_STATIONS } from '../mapConstants';
 import { getFullPath } from '../mapUtils';
-import type { LivePersonnel, IncidenciaMode } from '../../../types';
+import type { LivePersonnel, IncidenciaMode, GeoTrenPoint, Shift } from '../../../types';
 
 interface UseLiveMapDataProps {
     isRealTime: boolean;
@@ -23,9 +23,9 @@ export const useLiveMapData = ({
 }: UseLiveMapDataProps) => {
     const [loading, setLoading] = useState(false);
     const [liveData, setLiveData] = useState<LivePersonnel[]>([]);
-    const [geoTrenData, setGeoTrenData] = useState<any[]>([]);
+    const [geoTrenData, setGeoTrenData] = useState<GeoTrenPoint[]>([]);
     const [displayMin, setDisplayMin] = useState<number>(0);
-    const [allShifts, setAllShifts] = useState<any[]>([]); // Cache shifts
+    const [allShifts, setAllShifts] = useState<Shift[]>([]); // Cache shifts
 
     // Time management
     useEffect(() => {

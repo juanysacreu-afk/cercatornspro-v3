@@ -255,3 +255,126 @@ export type IncidenciaMode = 'INIT' | 'MAQUINISTA' | 'LINIA' | 'PER_TORN';
 export type DiagramId =
   | 'PC' | 'PR' | 'GR' | 'PM' | 'BN' | 'TB' | 'SR'
   | 'RE_ST' | 'RE_DEPOT' | 'RB_DEPOT' | 'NA_DEPOT' | 'PN_DEPOT';
+
+// ──────────────────────────────────────────────
+// Enriched Data (from fetchFullTurns / hooks)
+// ──────────────────────────────────────────────
+
+/** Driver information enriched from daily_assignments + agents */
+export interface EnrichedDriver {
+  nom: string;
+  cognoms: string;
+  nomina: string;
+  phones: string[];
+  email?: string | null;
+  observacions: string;
+  abs_parc_c?: string;
+  dta?: string;
+  dpa?: string;
+  tipus_torn?: string;
+  realTornId?: string | null;
+}
+
+/** Circulation detail enriched with machinist-specific info */
+export interface EnrichedCirculation {
+  id: string;
+  codi: string;
+  realCodi?: string | null;
+  linia: string;
+  inici: string;
+  final: string;
+  sortida: string;
+  arribada: string;
+  machinistInici?: string;
+  machinistFinal?: string;
+  cicle?: string | null;
+  train?: string | null;
+  via_inici?: string;
+  via_final?: string;
+  estacions?: StationStop[];
+  observacions?: string;
+}
+
+/** Shift enriched with driver info and full circulation details */
+export interface EnrichedShift {
+  id: string;
+  servei: string;
+  inici_torn: string;
+  final_torn: string;
+  duracio?: string;
+  dependencia: string;
+  circulations: CirculationRef[];
+  isVirtual?: boolean;
+  drivers: EnrichedDriver[];
+  fullCirculations: EnrichedCirculation[];
+  /** Used for adjacent results — the code of the adjacent circ */
+  adjacentCode?: string;
+}
+
+/** Supabase circulation row (raw from `circulations` table) */
+export interface CirculationDetail {
+  id: string;
+  linia: string;
+  inici: string;
+  via_inici: string;
+  sortida: string;
+  final: string;
+  via_final: string;
+  arribada: string;
+  estacions?: StationStop[];
+}
+
+/** Island division for personnel during incidents */
+export interface DividedPersonnelIsland {
+  list: LivePersonnel[];
+  stations: Set<string>;
+  isUnified: boolean;
+  label: string;
+}
+
+/** Result of a resting candidate analysis */
+export interface RestingResult extends EnrichedShift {
+  restSeg: { codi: string; start: number; end: number };
+  availableTime: number;
+  conflictMinutes: number;
+  nextCirculation: (EnrichedCirculation & { start: number; end: number }) | null;
+  returnStatus: 'unknown' | 'same_station' | 'ok' | 'no_route' | 'too_late';
+  returnCirc: CirculationDetail | null;
+  isEndOfShift: boolean;
+}
+
+/** Result of an extensible candidate analysis */
+export interface ExtensibleResult extends EnrichedShift {
+  extData: {
+    originalDuration: number;
+    extraNeeded: number;
+    estimatedReturn: number;
+  };
+}
+
+/** A single intercept option within a reserve intercept result */
+export interface InterceptOption {
+  type: 'direct' | 'travel';
+  station: string;
+  reserveId: string;
+  interceptTime: string;
+  reserveBase: string;
+  travelFrom?: string;
+  travelTime?: number;
+  margin: number;
+  isOverLimit: boolean;
+  actualEndTime: string;
+  returnCirc: { id: string; start: string; end: string } | null;
+  driverReturnCirc: { id: string; start: string; end: string } | null;
+}
+
+/** Reserve intercept result with options */
+export interface ReserveInterceptResult extends EnrichedShift {
+  resOptions: InterceptOption[];
+}
+
+/** Adjacent results (anterior/posterior viatger search) */
+export interface AdjacentResults {
+  anterior: EnrichedShift[];
+  posterior: EnrichedShift[];
+}
