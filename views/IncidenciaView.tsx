@@ -1698,9 +1698,9 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
 
                   {/* Maquinistes */}
                   <div className="bg-fgc-green/10 dark:bg-fgc-green/5 p-6 rounded-[32px] border border-fgc-green/20 dark:border-fgc-green/10 flex flex-col items-center justify-center text-center">
-                    <User className="text-green-600 dark:text-green-400 mb-2" size={32} />
-                    <span className="text-4xl font-bold text-green-700 dark:text-green-400">{allDrivers.length}</span>
-                    <span className="text-[10px] font-bold text-green-600 dark:text-green-500 uppercase tracking-widest mt-1">Maquinistes</span>
+                    <User className="text-fgc-green mb-2" size={32} />
+                    <span className="text-4xl font-bold text-fgc-green">{allDrivers.length}</span>
+                    <span className="text-[10px] font-bold text-fgc-green-dark dark:text-fgc-green uppercase tracking-widest mt-1">Maquinistes</span>
                   </div>
                 </div>
 

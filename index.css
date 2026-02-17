@@ -3,10 +3,23 @@
 @tailwind utilities;
 
 /* Estilos globales y utilidades personalizadas */
-@layer base {
-  body {
-    @apply antialiased text-fgc-grey dark:text-gray-100 dark:bg-black;
+:root {
+  --fgc-green: 151 190 20;
+  /* #97BE14 in RGB for flexibility */
+  --fgc-green-hex: #97BE14;
+}
+
+/* Mobile-specific brightness boost for green */
+@media (max-width: 768px) {
+  :root {
+    --fgc-green: 168 208 23;
+    /* #A8D017 - Brighter/Lighter for Mobile */
+    --fgc-green-hex: #A8D017;
   }
+}
+
+body {
+  @apply antialiased text-fgc-grey dark:text-gray-100 dark:bg-black;
 }
 
 /* Clases utilitarias personalizadas para componentes */

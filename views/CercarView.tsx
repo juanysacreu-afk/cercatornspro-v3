@@ -8,7 +8,7 @@ import { supabase } from '../supabaseClient.ts';
 import { getFgcMinutes, checkIfActive, calculateGap } from '../utils/time';
 import { fetchAllFromSupabase } from '../utils/supabase';
 import { getStatusColor, getLiniaColor, getShortTornId, getTrainPhone, ALL_STATIONS, STATION_CODE_MAP } from '../utils/fgc';
-import { fetchFullTurns } from '../utils/queries';
+import { fetchFullTurns, fetchPassengerInfo } from '../utils/queries';
 import { ItineraryPoint } from '../components/ItineraryPoint';
 import { ShiftTimeline } from '../components/ShiftTimeline';
 import { TimeGapRow } from '../components/TimeGapRow';
@@ -37,6 +37,7 @@ const CercarViewComponent: React.FC<{
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<any[]>([]);
+  const [passengerInfoMap, setPassengerInfoMap] = useState<Record<string, any[]>>({});
   const [expandedItinerari, setExpandedItinerari] = useState<string | null>(null);
   const [nowMin, setNowMin] = useState<number>(0);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -333,9 +334,10 @@ const CercarViewComponent: React.FC<{
     let searchVal = overrideQuery || query;
     const currentType = overrideType || searchType;
     if (!searchVal && currentType !== SearchType.Cicle && currentType !== SearchType.Estacio) { setResults([]); return; }
-    setLoading(true); setResults([]); setShowSuggestions(false);
+    setLoading(true); setResults([]); setShowSuggestions(false); setPassengerInfoMap({});
     feedback.click();
     try {
+      let newResults: any[] = [];
       if (currentType === SearchType.Cicle) {
         let q = supabase.from('shifts').select('*');
         if (selectedServei !== 'Tots') q = q.eq('servei', selectedServei);
@@ -358,7 +360,7 @@ const CercarViewComponent: React.FC<{
           const details = await fetchAllFromSupabase('circulations', supabase.from('circulations').select('*').in('id', Array.from(allCodiSet)));
           const enrichedCircs = flattenedCircs.map(fc => { const detail = details?.find(d => d.id === fc.codi); return { ...detail, ...fc }; });
           enrichedCircs.sort((a, b) => getFgcMinutes(a.sortida || '00:00') - getFgcMinutes(b.sortida || '00:00'));
-          setResults([{ type: 'cycle_summary', cycle_id: searchVal, train: cycleAssigRes.data?.train_number || 'S/A', circulations: enrichedCircs }]);
+          newResults = [{ type: 'cycle_summary', cycle_id: searchVal, train: cycleAssigRes.data?.train_number || 'S/A', circulations: enrichedCircs }];
         }
       } else if (currentType === SearchType.Estacio) {
         if (!selectedStation && !overrideQuery) { setLoading(false); return; }
@@ -439,12 +441,12 @@ const CercarViewComponent: React.FC<{
           };
         }).filter(Boolean);
 
-        setResults([{
+        newResults = [{
           type: 'station_summary',
           station: overrideQuery || selectedStation,
           stationCode: stationCode,
           circulations: (finalResults as any[]).sort((a, b) => getFgcMinutes(a.stopTimeAtStation) - getFgcMinutes(b.stopTimeAtStation))
-        }]);
+        }];
       } else {
         let turnIds: string[] = [];
         switch (currentType) {
@@ -453,18 +455,12 @@ const CercarViewComponent: React.FC<{
             const isNumeric = /^\d+$/.test(searchVal);
 
             if (isNumeric && selectedServei !== 'Tots') {
-              // Smart ID construction: 
-              // If user types "32" in Servei 0 -> Q0032
-              // If user types "105" in Servei 100 -> Q1105
               const prefix = selectedServei === '0' ? '0' : selectedServei.charAt(0);
               const numPart = searchVal.padStart(3, '0');
               const constructedId = `Q${prefix}${numPart}`;
-
-              // We search specifically for this constructed ID (exact match logic)
               if (selectedServei !== 'Tots') qt = qt.eq('servei', selectedServei);
               qt = qt.ilike('id', constructedId);
             } else {
-              // Standard behavior
               if (selectedServei !== 'Tots') qt = qt.eq('servei', selectedServei);
               qt = qt.ilike('id', `%${searchVal}%`);
             }
@@ -476,7 +472,6 @@ const CercarViewComponent: React.FC<{
             const nominaMatch = searchVal.match(/\((\d+)\)/); // More flexible regex
             const filterVal = nominaMatch ? nominaMatch[1] : searchVal.trim();
 
-            // Si tenim nòmina, cerquem exactament per ID d'empleat si és possible, si no ilike
             let qAssignments = supabase.from('daily_assignments').select('torn');
             if (nominaMatch) {
               qAssignments = qAssignments.eq('empleat_id', filterVal);
@@ -491,7 +486,6 @@ const CercarViewComponent: React.FC<{
             if (selectedServei !== 'Tots') qm = qm.eq('servei', selectedServei);
             const { data: matchingShifts } = await qm;
 
-            // Matching més flexible: convertim tot a format comparable (sense Q i sense zeros a l'esquerra per comparar la part numèrica)
             const simplifyId = (id: string) => id.replace(/^Q/i, '').replace(/^0+/, '');
             const targetShortTornSimples = shortTorns.map(st => simplifyId(st));
 
@@ -508,8 +502,28 @@ const CercarViewComponent: React.FC<{
             turnIds = c?.filter(turn => (turn.circulations as any[])?.some((circ: any) => (typeof circ === 'string' ? circ : circ.codi)?.toLowerCase().includes(searchVal.toLowerCase()))).map(turn => turn.id as string) || [];
             break;
         }
-        if (turnIds.length > 0) setResults(await fetchFullTurnData(turnIds)); else setResults([]);
+        if (turnIds.length > 0) newResults = await fetchFullTurnData(turnIds); else newResults = [];
       }
+
+      setResults(newResults);
+
+      // --- FETCH PASSENGER INFO ---
+      if (newResults.length > 0) {
+        const circIds = new Set<string>();
+        newResults.forEach(r => {
+          if (r.circulations) { // Cycle / Station
+            r.circulations.forEach((c: any) => c.codi && c.codi !== 'Viatger' && circIds.add(c.codi));
+          } else if (r.fullCirculations) { // Turn
+            r.fullCirculations.forEach((c: any) => c.codi && c.codi !== 'Viatger' && circIds.add(c.codi));
+          }
+        });
+
+        if (circIds.size > 0) {
+          const pInfo = await fetchPassengerInfo(Array.from(circIds), selectedServei === 'Tots' ? undefined : selectedServei);
+          setPassengerInfoMap(pInfo);
+        }
+      }
+
     } catch (error) { console.error("Error cercant dades:", error); } finally { setLoading(false); }
   };
 
@@ -776,7 +790,7 @@ const CercarViewComponent: React.FC<{
                         return (
                           <React.Fragment key={cIdx}>
                             <div id={`circ-row-${shiftItemKey}`} className={`flex flex-col relative scroll-mt-24 ${isActive ? 'ring-2 ring-inset ring-red-600 z-10' : ''}`}>
-                              <CirculationRow circ={circ} itemKey={shiftItemKey} nowMin={nowMin} trainStatuses={trainStatuses} getTrainPhone={getTrainPhone} getLiniaColor={getLiniaColor} openUnitMenu={openUnitMenu} toggleItinerari={toggleItinerari} isPrivacyMode={isPrivacyMode} />
+                              <CirculationRow circ={circ} itemKey={shiftItemKey} nowMin={nowMin} trainStatuses={trainStatuses} getTrainPhone={getTrainPhone} getLiniaColor={getLiniaColor} openUnitMenu={openUnitMenu} toggleItinerari={toggleItinerari} isPrivacyMode={isPrivacyMode} passengerInfo={passengerInfoMap[circ.codi] || []} />
                               {expandedItinerari === shiftItemKey && (
                                 <div className="p-4 sm:p-10 bg-white dark:bg-fgc-grey border-t border-gray-100 dark:border-white/5 animate-in slide-in-from-top-4 duration-500 overflow-hidden">
                                   <div className="relative flex flex-col pl-8 sm:pl-16 pr-2 sm:pr-6 py-4 space-y-0">

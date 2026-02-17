@@ -1,6 +1,7 @@
 
 import { supabase } from '../supabaseClient';
 import { getShortTornId } from './fgc';
+import { getFgcMinutes } from './stations';
 
 export async function fetchFullTurns(turnIds: string[], selectedServei?: string) {
     if (!turnIds.length) return [];
@@ -176,4 +177,77 @@ export async function fetchFullTurns(turnIds: string[], selectedServei?: string)
             fullCirculations
         };
     });
+}
+
+export async function fetchPassengerInfo(circulationIds: string[], servei?: string) {
+    if (!circulationIds.length) return {};
+
+    const uniqueIds = Array.from(new Set(circulationIds));
+    const result: Record<string, any[]> = {};
+
+    try {
+        let q = supabase.from('shifts')
+            .select('id, circulations')
+            .contains('circulations', JSON.stringify([{ codi: 'Viatger' }]));
+
+        if (servei && servei !== 'Tots') {
+            q = q.eq('servei', servei);
+        }
+
+        const { data: likelyPassengerShifts } = await q;
+
+        if (likelyPassengerShifts) {
+            likelyPassengerShifts.forEach(s => {
+                if (!s.circulations) return;
+                (s.circulations as any[]).forEach(c => {
+                    if (c.codi === 'Viatger' && c.observacions) {
+                        const parts = c.observacions.split('-');
+                        if (parts.length >= 1) {
+                            const targetCircId = parts[0];
+                            if (uniqueIds.includes(targetCircId)) {
+                                if (!result[targetCircId]) result[targetCircId] = [];
+
+                                result[targetCircId].push({
+                                    shiftId: s.id,
+                                    from: parts[1] || '??',
+                                    to: parts[2] || '??',
+                                    isPartial: false
+                                });
+                            }
+                        }
+                    }
+                });
+            });
+        }
+    } catch (e) {
+        console.error("Exception in fetchPassengerInfo:", e);
+        return {};
+    }
+
+    // Now we have the raw connections. We need to fetch driver names for these shifts to be useful.
+    const shiftsToFetch = new Set<string>();
+    Object.values(result).forEach(arr => arr.forEach(p => shiftsToFetch.add(getShortTornId(p.shiftId))));
+
+    if (shiftsToFetch.size > 0) {
+        const { data: assignments } = await supabase
+            .from('daily_assignments')
+            .select('torn, nom, cognoms')
+            .in('torn', Array.from(shiftsToFetch));
+
+        if (assignments) {
+            Object.values(result).forEach(arr => {
+                arr.forEach(p => {
+                    const shortId = getShortTornId(p.shiftId);
+                    const assign = assignments.find((a: any) => a.torn === shortId);
+                    if (assign) {
+                        p.driverName = `${assign.cognoms}, ${assign.nom}`;
+                    } else {
+                        p.driverName = p.shiftId; // Fallback
+                    }
+                });
+            });
+        }
+    }
+
+    return result;
 }

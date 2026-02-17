@@ -1,6 +1,5 @@
-
 import React from 'react';
-import { Phone, AlertTriangle, Camera, FileText, Brush, BookOpen, Settings, Radio } from 'lucide-react';
+import { Phone, AlertTriangle, Camera, FileText, Brush, BookOpen, Settings, Radio, User } from 'lucide-react';
 import { checkIfActive } from '../utils/time';
 
 interface CirculationRowProps {
@@ -13,6 +12,7 @@ interface CirculationRowProps {
     openUnitMenu: (circ: any, cycleId: string) => void;
     toggleItinerari: (id: string) => void;
     isPrivacyMode: boolean;
+    passengerInfo?: any[];
 }
 
 export const CirculationRow: React.FC<CirculationRowProps> = ({
@@ -24,7 +24,8 @@ export const CirculationRow: React.FC<CirculationRowProps> = ({
     getLiniaColor,
     openUnitMenu,
     toggleItinerari,
-    isPrivacyMode
+    isPrivacyMode,
+    passengerInfo = []
 }) => {
     const trainPhone = getTrainPhone(circ.train);
     const isActive = checkIfActive(circ.sortida, circ.arribada, nowMin);
@@ -34,6 +35,25 @@ export const CirculationRow: React.FC<CirculationRowProps> = ({
     const needsRecords = status?.needs_records;
     const needsCleaning = status?.needs_cleaning;
     const isViatger = circ.codi === 'Viatger';
+
+    // Determine passenger coverage
+    // Logic: Blue if ANY passenger covers the FULL route (Start -> End)
+    // Orange if NO passenger covers full route but there are passengers.
+    const circStart = (circ.inici || '').trim().toUpperCase();
+    const circEnd = (circ.final || '').trim().toUpperCase();
+
+    let hasFullCoverage = false;
+    let passengerTooltip = '';
+
+    if (passengerInfo && passengerInfo.length > 0) {
+        passengerTooltip = passengerInfo.map(p => {
+            const pStart = (p.from || '').trim().toUpperCase();
+            const pEnd = (p.to || '').trim().toUpperCase();
+            const isFull = (pStart === circStart && pEnd === circEnd);
+            if (isFull) hasFullCoverage = true;
+            return `${p.driverName || 'Maquinista'} (${pStart}-${pEnd})`;
+        }).join('\n');
+    }
 
     return (
         <div id={`circ-row-${itemKey}`} className={`p-2 sm:p-4 grid grid-cols-[auto_1fr_1fr_auto] md:grid-cols-[1fr_1.2fr_1.8fr_1.8fr_1.2fr] items-center gap-2 sm:gap-4 w-full relative transition-all scroll-mt-24 ${isActive ? 'bg-red-50/30 dark:bg-red-950/20' : isBroken ? 'bg-red-50/20 dark:bg-red-950/10 shadow-inner' : ''}`}>
@@ -53,6 +73,15 @@ export const CirculationRow: React.FC<CirculationRowProps> = ({
                     )}
                     {circ.cicle && <div className="absolute -top-1 -right-1 bg-white dark:bg-black rounded-full p-0.5 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"><Settings size={8} className="text-fgc-grey dark:text-gray-400" /></div>}
                 </button>
+
+                {passengerInfo && passengerInfo.length > 0 && (
+                    <div className="flex items-center flex-shrink-0 z-10 relative" title={`Viatgers:\n${passengerTooltip}`}>
+                        <div className={`p-1 rounded-full bg-white dark:bg-[#2d2d2d] shadow-sm border border-gray-100 dark:border-gray-700 ${hasFullCoverage ? 'text-blue-500' : 'text-orange-500'}`}>
+                            <User size={14} strokeWidth={3} />
+                        </div>
+                    </div>
+                )}
+
                 <span className={`hidden md:flex px-2 py-1 ${getLiniaColor(circ.linia)} text-white rounded-md font-black text-[9px] sm:text-[11px] shadow-sm flex-shrink-0`}>{circ.linia || '??'}</span>
                 {circ.train && trainPhone && (
                     <a href={isPrivacyMode ? undefined : `tel:${trainPhone}`} onClick={(e) => e.stopPropagation()} className={`md:hidden p-2 rounded-lg border shadow-sm transition-all active:scale-90 ${isBroken ? 'bg-red-600 text-white border-red-700' : 'bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-green border-fgc-green/30 dark:border-fgc-green/20'} ${isPrivacyMode ? 'cursor-default' : ''}`}>
