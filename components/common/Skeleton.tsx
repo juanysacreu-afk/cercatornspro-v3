@@ -19,7 +19,7 @@ export const Skeleton: React.FC<SkeletonProps> = ({ className = '', count = 1 })
 };
 
 export const CardSkeleton = () => (
-    <div className="p-6 bg-white dark:bg-gray-900 rounded-[32px] border border-gray-100 dark:border-white/5 space-y-4">
+    <div className="p-6 bg-white dark:bg-fgc-grey rounded-[32px] border border-gray-100 dark:border-white/5 space-y-4">
         <div className="flex justify-between items-center">
             <Skeleton className="h-8 w-24" />
             <Skeleton className="h-8 w-8 rounded-full" />

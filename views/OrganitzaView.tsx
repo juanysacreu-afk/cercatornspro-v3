@@ -60,7 +60,7 @@ const OrganitzaViewComponent: React.FC<{
     if (c === 'RE') return 'bg-purple-300';
     if (c === 'RB') return 'bg-pink-500';
     if (c === 'NA') return 'bg-orange-500';
-    if (c === 'PN') return 'bg-[#00B140]';
+    if (c === 'PN') return 'bg-[#97BE14]';
     if (c === 'TB') return 'bg-[#a67c52]';
     return 'bg-gray-200 dark:bg-gray-700';
   };
@@ -304,7 +304,7 @@ const OrganitzaViewComponent: React.FC<{
     return (
       <div className="space-y-3 relative z-10">
         <div className="flex justify-between items-center px-4">
-          <div className="flex items-center gap-2"><span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">{label}</span>{turnId && <span className="bg-fgc-grey dark:bg-black text-white text-[9px] font-black px-2 py-0.5 rounded-md uppercase whitespace-nowrap">Torn {turnId}</span>}</div>
+          <div className="flex items-center gap-2"><span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">{label}</span>{turnId && <span className="bg-fgc-grey dark:bg-black text-white text-[9px] font-bold px-2 py-0.5 rounded-md uppercase whitespace-nowrap">Torn {turnId}</span>}</div>
           <div className="flex items-center gap-1.5 text-gray-400 dark:text-gray-500"><Clock size={12} /><span className="text-[10px] font-bold">{formatFgcTime(globalMin)} — {formatFgcTime(globalMax)}</span></div>
         </div>
         <div className="h-14 bg-gray-100/30 dark:bg-black/30 rounded-[24px] p-1.5 relative border border-gray-100 dark:border-white/5 shadow-inner transition-colors">
@@ -312,9 +312,9 @@ const OrganitzaViewComponent: React.FC<{
             const left = ((seg.start - globalMin) / total) * 100; const width = ((seg.end - seg.start) / total) * 100;
             return (
               <div key={i} style={{ left: `${left}%`, width: `${width}%` }} className={`absolute top-1.5 bottom-1.5 rounded-xl flex items-center justify-center transition-all group cursor-pointer z-10 ${colorMode === 'coincidence' ? 'bg-fgc-green border-2 border-white/40 shadow-sm hover:brightness-105' : seg.type === 'circ' ? 'bg-gray-300 dark:bg-gray-700' : getStatusColor(seg.codi)}`}>
-                {width > 4 && <span className={`text-[9px] font-black truncate px-1 ${seg.type === 'circ' ? 'text-gray-600 dark:text-gray-300' : 'text-white'}`}>{seg.codi}</span>}
+                {width > 4 && <span className={`text-[9px] font-bold truncate px-1 ${seg.type === 'circ' ? 'text-gray-600 dark:text-gray-300' : 'text-white'}`}>{seg.codi}</span>}
                 <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 bg-fgc-grey dark:bg-black text-white text-[10px] font-bold py-2 px-3 rounded-xl opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 whitespace-nowrap z-[100] pointer-events-none shadow-2xl border border-white/10">
-                  <div className="flex flex-col gap-0.5"><span className="text-fgc-green uppercase text-[8px] tracking-widest">{seg.type === 'gap' || colorMode === 'coincidence' ? 'ESTADA' : 'CIRCULACIÓ'}</span><span className="text-base font-black">{seg.codi}</span><span className="opacity-60">{formatFgcTime(seg.start)} — {formatFgcTime(seg.end)} ({seg.end - seg.start} min)</span></div>
+                  <div className="flex flex-col gap-0.5"><span className="text-fgc-green uppercase text-[8px] tracking-widest">{seg.type === 'gap' || colorMode === 'coincidence' ? 'ESTADA' : 'CIRCULACIÓ'}</span><span className="text-base font-bold">{seg.codi}</span><span className="opacity-60">{formatFgcTime(seg.start)} — {formatFgcTime(seg.end)} ({seg.end - seg.start} min)</span></div>
                   <div className="absolute top-full left-1/2 -translate-x-1/2 border-[6px] border-transparent border-t-fgc-grey dark:border-t-black" />
                 </div>
               </div>
@@ -338,19 +338,19 @@ const OrganitzaViewComponent: React.FC<{
   };
 
   return (
-    <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-700">
+    <div className="space-y-6 sm:space-y-8 p-4 sm:p-8 animate-in fade-in duration-700">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-        <div><h1 className="text-2xl sm:text-3xl font-black text-fgc-grey dark:text-white tracking-tight title-glow uppercase">Organització de Torn</h1><p className="text-sm sm:text-base text-gray-500 dark:text-gray-400 font-medium">Anàlisi comparativa i gestió.</p></div>
+        <div><h1 className="text-2xl sm:text-3xl font-bold text-[#4D5358] dark:text-white tracking-tight title-glow uppercase">Organització de Torn</h1><p className="text-sm sm:text-base text-gray-500 dark:text-gray-400 font-medium">Anàlisi comparativa i gestió.</p></div>
         <div className="flex bg-white/20 dark:bg-black/20 p-1.5 rounded-[20px] backdrop-blur-md border border-white/20 shadow-inner">
-          <button onClick={() => { feedback.deepClick(); setOrganizeType(OrganizeType.Comparador); }} className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-6 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-sm font-black transition-all whitespace-nowrap ${organizeType === OrganizeType.Comparador ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-white/10'}`}><RefreshCcw size={16} /><span className="truncate">Comparador</span></button>
-          <button onClick={() => { feedback.deepClick(); setOrganizeType(OrganizeType.Maquinista); }} className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-6 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-sm font-black transition-all whitespace-nowrap ${organizeType === OrganizeType.Maquinista ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-white/10'}`}><User size={16} /><span className="truncate">Maquinistes</span></button>
+          <button onClick={() => { feedback.deepClick(); setOrganizeType(OrganizeType.Comparador); }} className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-6 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-sm font-bold transition-all whitespace-nowrap ${organizeType === OrganizeType.Comparador ? 'bg-fgc-grey dark:bg-fgc-green dark:text-[#4D5358] text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-white/10'}`}><RefreshCcw size={16} /><span className="truncate">Comparador</span></button>
+          <button onClick={() => { feedback.deepClick(); setOrganizeType(OrganizeType.Maquinista); }} className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-6 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-sm font-bold transition-all whitespace-nowrap ${organizeType === OrganizeType.Maquinista ? 'bg-fgc-grey dark:bg-fgc-green dark:text-[#4D5358] text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-white/10'}`}><User size={16} /><span className="truncate">Maquinistes</span></button>
         </div>
       </header>
 
       <div className="relative overflow-hidden min-h-[600px]">
         {organizeType === OrganizeType.Comparador ? (
           <div key="comparador-view" className="space-y-8 animate-in fade-in slide-in-from-right-8 duration-700 ease-out-expo">
-            <div className="flex justify-center"><div className="inline-flex bg-white dark:bg-gray-900 p-1 rounded-2xl shadow-sm border border-gray-100 dark:border-white/5 transition-colors">{serveiTypes.map(s => (<button key={s} onClick={() => { feedback.deepClick(); setSelectedServei(s); setTurnsData([null, null, null, null]); setTurnIds(['', '', '', '']); }} className={`px-6 py-2 rounded-xl text-sm font-black transition-all ${selectedServei === s ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5'}`}>S-{s}</button>))}</div></div>
+            <div className="flex justify-center"><div className="inline-flex bg-white dark:bg-fgc-grey p-1 rounded-2xl shadow-sm border border-gray-100 dark:border-white/5 transition-colors">{serveiTypes.map(s => (<button key={s} onClick={() => { feedback.deepClick(); setSelectedServei(s); setTurnsData([null, null, null, null]); setTurnIds(['', '', '', '']); }} className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${selectedServei === s ? 'bg-fgc-grey dark:bg-fgc-green dark:text-[#4D5358] text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5'}`}>S-{s}</button>))}</div></div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
               {turnIds.map((id, index) => (
                 <CompareInputSlot
@@ -382,7 +382,7 @@ const OrganitzaViewComponent: React.FC<{
               <button
                 onClick={handleCompare}
                 disabled={turnIds.filter(id => id.trim() !== '').length < 2 || loadingComparator}
-                className="bg-fgc-green text-fgc-grey w-full sm:w-auto px-12 py-4 sm:py-5 rounded-[24px] sm:rounded-[28px] font-black text-base sm:text-lg shadow-xl shadow-fgc-green/20 hover:scale-[1.02] sm:hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:scale-100 group relative overflow-hidden"
+                className="bg-fgc-green text-[#4D5358] w-full sm:w-auto px-12 py-4 sm:py-5 rounded-[24px] sm:rounded-[28px] font-bold text-base sm:text-lg shadow-xl shadow-fgc-green/20 hover:scale-[1.02] sm:hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:scale-100 group relative overflow-hidden"
               >
                 <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
                 {loadingComparator ? <Loader2 className="animate-spin" size={24} /> : <RefreshCcw size={20} />}
@@ -409,7 +409,7 @@ const OrganitzaViewComponent: React.FC<{
                   })}
                 </div>
                 <div className="pt-10 border-t border-dashed border-gray-200 dark:border-white/10 overflow-visible transition-colors">
-                  <div className="flex items-center justify-between mb-8"><div className="flex items-center gap-4"><div className="p-3 bg-fgc-green rounded-2xl text-fgc-grey shadow-lg shadow-fgc-green/10"><LayoutGrid size={24} /></div><div><h3 className="text-xl font-black text-fgc-grey dark:text-white tracking-tight">Timeline de Coincidències</h3><p className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mt-0.5">Moments en què coincideixen a la mateixa estació</p></div></div><div className="bg-gray-50 dark:bg-black/20 px-5 py-2 rounded-2xl border border-gray-100 dark:border-white/5 flex items-center gap-3 transition-colors"><span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase">Trobades detectades:</span><span className="text-xl font-black text-fgc-green">{coincidences.length}</span></div></div>
+                  <div className="flex items-center justify-between mb-8"><div className="flex items-center gap-4"><div className="p-3 bg-fgc-green rounded-2xl text-[#4D5358] shadow-lg shadow-fgc-green/10"><LayoutGrid size={24} /></div><div><h3 className="text-xl font-bold text-[#4D5358] dark:text-white tracking-tight">Timeline de Coincidències</h3><p className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mt-0.5">Moments en què coincideixen a la mateixa estació</p></div></div><div className="bg-gray-50 dark:bg-black/20 px-5 py-2 rounded-2xl border border-gray-100 dark:border-white/5 flex items-center gap-3 transition-colors"><span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase">Trobades detectades:</span><span className="text-xl font-bold text-fgc-green">{coincidences.length}</span></div></div>
                   <SimpleTimeline label="Mapa visual de trobades" segments={coincidences} colorMode="coincidence" globalMin={gr.min} globalMax={gr.max} />
                   {coincidences.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-10">
@@ -422,7 +422,7 @@ const OrganitzaViewComponent: React.FC<{
                             }`}>
                             {isNext && (
                               <div className="absolute -top-1 -right-1 z-20">
-                                <div className="bg-fgc-green text-fgc-grey text-[9px] font-black px-4 py-2 rounded-bl-2xl rounded-tr-3xl uppercase tracking-widest shadow-lg flex items-center gap-2 animate-in fade-in zoom-in duration-500">
+                                <div className="bg-fgc-green text-[#4D5358] text-[9px] font-bold px-4 py-2 rounded-bl-2xl rounded-tr-3xl uppercase tracking-widest shadow-lg flex items-center gap-2 animate-in fade-in zoom-in duration-500">
                                   <div className="w-1.5 h-1.5 bg-fgc-grey rounded-full animate-pulse" />
                                   SEGÜENT
                                 </div>
@@ -430,33 +430,33 @@ const OrganitzaViewComponent: React.FC<{
                             )}
                             <div className="absolute top-0 right-0 w-24 h-24 bg-fgc-green/10 -mr-8 -mt-8 rounded-full blur-2xl group-hover:bg-fgc-green/20 transition-all duration-700" />
                             <div className="flex items-center justify-between relative z-10">
-                              <div className={`px-5 py-2 rounded-2xl font-black text-sm text-white shadow-lg ${getStatusColor(c.codi)}`}>{c.codi}</div>
-                              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl font-black text-xs border transition-colors ${isNext ? 'bg-fgc-green text-fgc-grey border-fgc-green/20' : 'bg-fgc-green/10 text-fgc-green border-fgc-green/10'}`}>
+                              <div className={`px-5 py-2 rounded-2xl font-bold text-sm text-white shadow-lg ${getStatusColor(c.codi)}`}>{c.codi}</div>
+                              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl font-bold text-xs border transition-colors ${isNext ? 'bg-fgc-green text-[#4D5358] border-fgc-green/20' : 'bg-fgc-green/10 text-fgc-green border-fgc-green/10'}`}>
                                 <Clock size={14} />{c.duration} min
                               </div>
                             </div>
                             <div className="space-y-1 relative z-10">
-                              <p className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Franja Horària</p>
+                              <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Franja Horària</p>
                               <div className="flex items-center gap-3">
-                                <span className="text-2xl font-black text-fgc-grey dark:text-gray-200">{formatFgcTime(c.start)}</span>
+                                <span className="text-2xl font-bold text-[#4D5358] dark:text-gray-200">{formatFgcTime(c.start)}</span>
                                 <ArrowRight className="text-fgc-green" size={18} />
-                                <span className="text-2xl font-black text-fgc-grey dark:text-gray-200">{formatFgcTime(c.end)}</span>
+                                <span className="text-2xl font-bold text-[#4D5358] dark:text-gray-200">{formatFgcTime(c.end)}</span>
                               </div>
                             </div>
                             <div className="h-px bg-gray-100 dark:bg-white/5 w-full transition-colors" />
                             <div className="space-y-4 relative z-10">
                               <div className="flex items-center gap-4">
-                                <div className="h-10 min-w-[2.5rem] px-2 rounded-xl bg-fgc-grey dark:bg-black text-white flex items-center justify-center font-black text-xs shadow-md">{getShortTornId(c.turn1)}</div>
+                                <div className="h-10 min-w-[2.5rem] px-2 rounded-xl bg-fgc-grey dark:bg-black text-white flex items-center justify-center font-bold text-xs shadow-md">{getShortTornId(c.turn1)}</div>
                                 <div className="min-w-0">
-                                  <p className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-tighter leading-none">Maquinista A</p>
-                                  <p className="text-sm font-bold text-fgc-grey dark:text-gray-300 truncate">{c.driver1}</p>
+                                  <p className="text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-tighter leading-none">Maquinista A</p>
+                                  <p className="text-sm font-bold text-[#4D5358] dark:text-gray-300 truncate">{c.driver1}</p>
                                 </div>
                               </div>
                               <div className="flex items-center gap-4">
-                                <div className="h-10 min-w-[2.5rem] px-2 rounded-xl bg-fgc-grey/10 dark:bg-white/5 text-fgc-grey dark:text-gray-400 flex items-center justify-center font-black text-xs border border-fgc-grey/20 dark:border-white/10 transition-colors">{getShortTornId(c.turn2)}</div>
+                                <div className="h-10 min-w-[2.5rem] px-2 rounded-xl bg-fgc-grey/10 dark:bg-white/5 text-[#4D5358] dark:text-gray-400 flex items-center justify-center font-bold text-xs border border-fgc-grey/20 dark:border-white/10 transition-colors">{getShortTornId(c.turn2)}</div>
                                 <div className="min-w-0">
-                                  <p className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-tighter leading-none">Maquinista B</p>
-                                  <p className="text-sm font-bold text-fgc-grey dark:text-gray-300 truncate">{c.driver2}</p>
+                                  <p className="text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-tighter leading-none">Maquinista B</p>
+                                  <p className="text-sm font-bold text-[#4D5358] dark:text-gray-300 truncate">{c.driver2}</p>
                                 </div>
                               </div>
                             </div>
@@ -465,7 +465,7 @@ const OrganitzaViewComponent: React.FC<{
                       })}
                     </div>
                   ) : (
-                    <div className="bg-gray-50/50 dark:bg-black/20 rounded-[40px] p-20 text-center border-2 border-dashed border-gray-100 dark:border-white/5 mt-6 transition-colors"><div className="w-20 h-20 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm"><Coffee className="text-gray-300 dark:text-gray-600" size={32} /></div><p className="text-gray-400 dark:text-gray-500 font-black uppercase tracking-[0.2em] text-sm">Cap coincidència detectada</p></div>
+                    <div className="bg-gray-50/50 dark:bg-black/20 rounded-[40px] p-20 text-center border-2 border-dashed border-gray-100 dark:border-white/5 mt-6 transition-colors"><div className="w-20 h-20 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm"><Coffee className="text-gray-300 dark:text-gray-600" size={32} /></div><p className="text-gray-400 dark:text-gray-500 font-bold uppercase tracking-[0.2em] text-sm">Cap coincidència detectada</p></div>
                   )}
                 </div>
               </div>
@@ -473,7 +473,7 @@ const OrganitzaViewComponent: React.FC<{
           </div>
         ) : (
           <div key="maquinistes-view" className="space-y-8 animate-in fade-in slide-in-from-right-8 duration-700 ease-out-expo">
-            <div className="bg-white dark:bg-gray-900 rounded-[40px] p-6 sm:p-10 border border-gray-100 dark:border-white/5 shadow-sm space-y-8 transition-colors">
+            <div className="bg-white dark:bg-fgc-grey rounded-[40px] p-6 sm:p-10 border border-gray-100 dark:border-white/5 shadow-sm space-y-8 transition-colors">
               <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4">
                 <div className="relative flex-1">
                   <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={20} />
@@ -482,14 +482,14 @@ const OrganitzaViewComponent: React.FC<{
                     placeholder="Cerca per nom, cognoms o nòmina..."
                     value={maquinistaQuery}
                     onChange={(e) => setMaquinistaQuery(e.target.value)}
-                    className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] py-4 pl-14 pr-8 focus:ring-4 focus:ring-fgc-green/20 outline-none font-black text-lg transition-all dark:text-white dark:placeholder:text-gray-600 shadow-inner"
+                    className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] py-4 pl-14 pr-8 focus:ring-4 focus:ring-fgc-green/20 outline-none font-bold text-lg transition-all dark:text-white dark:placeholder:text-gray-600 shadow-inner"
                   />
                 </div>
 
                 <div className="relative" ref={filterRef}>
                   <button
                     onClick={() => setIsFilterMenuOpen(!isFilterMenuOpen)}
-                    className="h-full flex items-center justify-between gap-3 px-6 py-4 bg-gray-50 dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-[24px] font-black text-sm text-fgc-grey dark:text-gray-200 transition-all hover:bg-gray-100 dark:hover:bg-white/10 min-w-[180px] shadow-sm"
+                    className="h-full flex items-center justify-between gap-3 px-6 py-4 bg-gray-50 dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-[24px] font-bold text-sm text-[#4D5358] dark:text-gray-200 transition-all hover:bg-gray-100 dark:hover:bg-white/10 min-w-[180px] shadow-sm"
                   >
                     <div className="flex items-center gap-2">
                       <Filter size={16} className="text-fgc-green" />
@@ -507,7 +507,7 @@ const OrganitzaViewComponent: React.FC<{
                             setDisDesFilter(option);
                             setIsFilterMenuOpen(false);
                           }}
-                          className={`w-full flex items-center justify-between px-6 py-4 text-sm font-black transition-colors hover:bg-gray-50 dark:hover:bg-white/5 ${disDesFilter === option ? 'text-fgc-green' : 'text-fgc-grey dark:text-gray-200'
+                          className={`w-full flex items-center justify-between px-6 py-4 text-sm font-bold transition-colors hover:bg-gray-50 dark:hover:bg-white/5 ${disDesFilter === option ? 'text-fgc-green' : 'text-[#4D5358] dark:text-gray-200'
                             }`}
                         >
                           {filterLabels[option]}
@@ -523,7 +523,7 @@ const OrganitzaViewComponent: React.FC<{
                 {loadingMaquinistes ? (
                   <div className="py-20 flex flex-col items-center justify-center gap-4">
                     <Loader2 className="animate-spin text-fgc-green" size={40} />
-                    <p className="font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest text-[10px]">Recuperant llistat...</p>
+                    <p className="font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest text-[10px]">Recuperant llistat...</p>
                   </div>
                 ) : filteredMaquinistes.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -542,24 +542,24 @@ const OrganitzaViewComponent: React.FC<{
                           className={`bg-white dark:bg-gray-800 rounded-[28px] p-5 border transition-all flex flex-col h-full gap-4 group hover:shadow-xl ${isAssigned ? 'border-blue-200 dark:border-blue-500/20 bg-blue-50/10 dark:bg-blue-500/5 hover:border-blue-300' :
                             isFOR ? 'border-yellow-200 dark:border-yellow-500/20 bg-yellow-50/10 dark:bg-yellow-500/5 hover:border-yellow-300' :
                               isDIS ? 'border-orange-200 dark:border-orange-500/20 bg-orange-50/10 dark:bg-orange-500/5 hover:border-orange-300' :
-                                isDES ? 'border-green-200 dark:border-fgc-green/20 bg-green-50/10 dark:bg-fgc-green/5 hover:border-fgc-green/30' :
+                                isDES ? 'border-fgc-green/30 dark:border-fgc-green/20 bg-fgc-green/10 dark:bg-fgc-green/5 hover:border-fgc-green/30' :
                                   'border-gray-100 dark:border-white/5 hover:border-fgc-green/30'
                             }`}
                         >
                           <div className="flex items-center gap-4">
-                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xl shadow-md shrink-0 ${isAssigned ? 'bg-blue-600 text-white' :
+                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-xl shadow-md shrink-0 ${isAssigned ? 'bg-blue-600 text-white' :
                               isFOR ? 'bg-yellow-500 text-white' :
                                 isDIS ? 'bg-orange-500 text-white' :
-                                  isDES ? 'bg-fgc-green text-fgc-grey' :
+                                  isDES ? 'bg-fgc-green text-[#4D5358]' :
                                     'bg-fgc-grey dark:bg-black text-white'
                               }`}>
                               {maquinista.cognoms?.charAt(0) || maquinista.nom?.charAt(0)}
                             </div>
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2">
-                                <h3 className="text-base font-black text-fgc-grey dark:text-white leading-tight uppercase truncate">{maquinista.cognoms}, {maquinista.nom}</h3>
+                                <h3 className="text-base font-bold text-[#4D5358] dark:text-white leading-tight uppercase truncate">{maquinista.cognoms}, {maquinista.nom}</h3>
                                 {maquinista.tipus_torn && (
-                                  <span className={`px-2 py-0.5 rounded text-[7px] font-black uppercase border shrink-0 ${maquinista.tipus_torn === 'Reducció'
+                                  <span className={`px-2 py-0.5 rounded text-[7px] font-bold uppercase border shrink-0 ${maquinista.tipus_torn === 'Reducció'
                                     ? 'bg-purple-600 text-white border-purple-700'
                                     : 'bg-blue-600 text-white border-blue-700'
                                     }`}>
@@ -569,10 +569,10 @@ const OrganitzaViewComponent: React.FC<{
                               </div>
                               <div className="flex items-center gap-2 mt-0.5">
                                 <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500">#{maquinista.empleat_id}</span>
-                                <div className={`px-2 py-0.5 rounded text-[10px] font-black ${isAssigned ? 'bg-blue-600 text-white' :
+                                <div className={`px-2 py-0.5 rounded text-[10px] font-bold ${isAssigned ? 'bg-blue-600 text-white' :
                                   isFOR ? 'bg-yellow-500 text-white' :
                                     isDIS ? 'bg-orange-500 text-white' :
-                                      isDES ? 'bg-fgc-green text-fgc-grey' :
+                                      isDES ? 'bg-fgc-green text-[#4D5358]' :
                                         'bg-gray-100 dark:bg-black text-gray-400 dark:text-gray-600'
                                   }`}>
                                   {maquinista.torn}
@@ -588,9 +588,9 @@ const OrganitzaViewComponent: React.FC<{
                             </div>
                             {(maquinista.abs_parc_c === 'S' || maquinista.dta === 'S' || maquinista.dpa === 'S') && (
                               <div className="flex gap-2">
-                                {maquinista.abs_parc_c === 'S' && <span className="bg-red-50 text-red-600 text-[8px] font-black px-1.5 py-0.5 rounded border border-red-100">ABS</span>}
-                                {maquinista.dta === 'S' && <span className="bg-blue-50 text-blue-600 text-[8px] font-black px-1.5 py-0.5 rounded border border-blue-100">DTA</span>}
-                                {maquinista.dpa === 'S' && <span className="bg-purple-50 text-purple-600 text-[8px] font-black px-1.5 py-0.5 rounded border border-purple-100">DPA</span>}
+                                {maquinista.abs_parc_c === 'S' && <span className="bg-red-50 text-red-600 text-[8px] font-bold px-1.5 py-0.5 rounded border border-red-100">ABS</span>}
+                                {maquinista.dta === 'S' && <span className="bg-blue-50 text-blue-600 text-[8px] font-bold px-1.5 py-0.5 rounded border border-blue-100">DTA</span>}
+                                {maquinista.dpa === 'S' && <span className="bg-purple-50 text-purple-600 text-[8px] font-bold px-1.5 py-0.5 rounded border border-purple-100">DPA</span>}
                               </div>
                             )}
                             {maquinista.observacions && (
@@ -608,10 +608,10 @@ const OrganitzaViewComponent: React.FC<{
                                   <a
                                     key={`phone-${idx}`}
                                     href={isPrivacyMode ? undefined : `tel:${p}`}
-                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black transition-all shadow-sm ${isAssigned ? 'bg-blue-600 text-white hover:bg-blue-700' :
+                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all shadow-sm ${isAssigned ? 'bg-blue-600 text-white hover:bg-blue-700' :
                                       isFOR ? 'bg-yellow-500 text-white hover:bg-yellow-600' :
                                         isDIS ? 'bg-orange-500 text-white hover:bg-orange-600' :
-                                          isDES ? 'bg-fgc-green text-fgc-grey hover:brightness-110' :
+                                          isDES ? 'bg-fgc-green text-[#4D5358] hover:brightness-110' :
                                             'bg-fgc-grey dark:bg-black text-white hover:bg-fgc-dark'
                                       } ${isPrivacyMode ? 'cursor-default' : ''}`}
                                   >
@@ -622,7 +622,7 @@ const OrganitzaViewComponent: React.FC<{
                                 {email && (
                                   <a
                                     href={`mailto:${email}`}
-                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black transition-all shadow-sm ${isAssigned ? 'bg-blue-600/20 text-blue-600 dark:text-blue-400 border border-blue-600/20' :
+                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all shadow-sm ${isAssigned ? 'bg-blue-600/20 text-blue-600 dark:text-blue-400 border border-blue-600/20' :
                                       isFOR ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 border border-yellow-500/20' :
                                         isDIS ? 'bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/20' :
                                           isDES ? 'bg-fgc-green/20 text-green-800 dark:text-fgc-green border border-fgc-green/20' :
@@ -646,7 +646,7 @@ const OrganitzaViewComponent: React.FC<{
                 ) : (
                   <div className="py-20 text-center space-y-4 opacity-40 transition-colors">
                     <UserCircle size={60} className="mx-auto text-gray-200 dark:text-gray-800" />
-                    <p className="font-black text-fgc-grey dark:text-gray-400 uppercase tracking-[0.2em] text-[10px]">No s'ha trobat personal per a la cerca actual</p>
+                    <p className="font-bold text-[#4D5358] dark:text-gray-400 uppercase tracking-[0.2em] text-[10px]">No s'ha trobat personal per a la cerca actual</p>
                   </div>
                 )}
               </div>
@@ -709,9 +709,9 @@ const CompareInputSlot = ({ label, value, onChange, data, onClear, nowMin, getSe
   const currentActivity = useMemo(() => data ? getSegments(data).find(s => nowMin >= s.start && nowMin < s.end) : null, [data, getSegments, nowMin]);
 
   return (
-    <div className={`bg-white dark:bg-gray-900 rounded-[32px] p-5 border border-gray-100 dark:border-white/5 shadow-sm flex flex-col transition-all relative ${showSug ? 'z-50' : 'z-10'} ${data ? 'sm:p-8 min-h-[320px] sm:min-h-[400px]' : 'sm:p-6 min-h-[160px] sm:min-h-[200px]'}`} ref={containerRef}>
+    <div className={`bg-white dark:bg-fgc-grey rounded-[32px] p-5 border border-gray-100 dark:border-white/5 shadow-sm flex flex-col transition-all relative ${showSug ? 'z-50' : 'z-10'} ${data ? 'sm:p-8 min-h-[320px] sm:min-h-[400px]' : 'sm:p-6 min-h-[160px] sm:min-h-[200px]'}`} ref={containerRef}>
       <div className={`flex items-center justify-between ${data ? 'mb-4 sm:mb-6' : 'mb-3'}`}>
-        <h3 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">{label}</h3>
+        <h3 className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">{label}</h3>
         {data && (
           <button onClick={onClear} className="p-2 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-500 rounded-full transition-colors bg-red-50/10">
             <X size={16} />
@@ -722,16 +722,16 @@ const CompareInputSlot = ({ label, value, onChange, data, onClear, nowMin, getSe
       {data ? (
         <div className="flex-1 animate-in fade-in zoom-in-95 duration-300">
           <div className="flex items-center gap-5 mb-4 sm:mb-6">
-            <div className="h-14 sm:h-16 min-w-[3.5rem] sm:min-w-[4rem] px-3 sm:px-4 bg-fgc-grey dark:bg-black text-white rounded-2xl flex items-center justify-center font-black text-xl sm:text-2xl shadow-xl whitespace-nowrap">
+            <div className="h-14 sm:h-16 min-w-[3.5rem] sm:min-w-[4rem] px-3 sm:px-4 bg-fgc-grey dark:bg-black text-white rounded-2xl flex items-center justify-center font-bold text-xl sm:text-2xl shadow-xl whitespace-nowrap">
               {data.id}
             </div>
             <div className="min-w-0">
-              <p className="text-xl sm:text-2xl font-black text-fgc-grey dark:text-white leading-tight truncate">
+              <p className="text-xl sm:text-2xl font-bold text-[#4D5358] dark:text-white leading-tight truncate">
                 {data.drivers[0]?.cognoms}, {data.drivers[0]?.nom}
               </p>
               <div className="flex items-center gap-2 mt-1">
                 <div className="w-2 h-2 bg-fgc-green rounded-full animate-pulse" />
-                <p className="text-[10px] font-black text-fgc-green uppercase tracking-widest">
+                <p className="text-[10px] font-bold text-fgc-green uppercase tracking-widest">
                   Actiu ara {data.drivers[0]?.tipus_torn ? `(${data.drivers[0].tipus_torn})` : ''}
                 </p>
               </div>
@@ -745,15 +745,15 @@ const CompareInputSlot = ({ label, value, onChange, data, onClear, nowMin, getSe
             {currentActivity ? (
               <div className="space-y-2 sm:space-y-3 relative z-10">
                 <div className="flex items-center justify-between">
-                  <span className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Activitat Actual</span>
-                  <span className="text-[9px] font-black text-red-500 animate-pulse uppercase">EN VINCLE</span>
+                  <span className="text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Activitat Actual</span>
+                  <span className="text-[9px] font-bold text-red-500 animate-pulse uppercase">EN VINCLE</span>
                 </div>
                 <div className="flex items-center gap-3 sm:gap-4">
-                  <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-sm ${currentActivity.type === 'circ' ? 'bg-fgc-grey dark:bg-black text-white' : 'bg-fgc-green text-fgc-grey'}`}>
+                  <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-sm ${currentActivity.type === 'circ' ? 'bg-fgc-grey dark:bg-black text-white' : 'bg-fgc-green text-[#4D5358]'}`}>
                     {currentActivity.type === 'circ' ? <Train size={20} /> : <Coffee size={20} />}
                   </div>
                   <div>
-                    <p className="text-lg sm:text-xl font-black text-fgc-grey dark:text-white">{currentActivity.codi}</p>
+                    <p className="text-lg sm:text-xl font-bold text-[#4D5358] dark:text-white">{currentActivity.codi}</p>
                     {currentActivity.train && (
                       <div className="flex items-center gap-1.5 text-xs font-bold text-fgc-green">
                         <Hash size={12} /> Unitat: {currentActivity.train}
@@ -771,24 +771,24 @@ const CompareInputSlot = ({ label, value, onChange, data, onClear, nowMin, getSe
 
           <div className="grid grid-cols-2 gap-3 sm:gap-4">
             <div className="bg-gray-50/50 dark:bg-black/20 p-3 sm:p-4 rounded-2xl border border-gray-100 dark:border-white/5 transition-colors">
-              <p className="text-[9px] font-black text-gray-300 dark:text-gray-600 uppercase tracking-widest mb-1 sm:mb-1.5 flex items-center gap-2">
+              <p className="text-[9px] font-bold text-gray-300 dark:text-gray-600 uppercase tracking-widest mb-1 sm:mb-1.5 flex items-center gap-2">
                 <Clock size={10} /> Torn
               </p>
-              <p className="text-[12px] sm:text-sm font-black text-fgc-grey dark:text-gray-200 whitespace-nowrap">
+              <p className="text-[12px] sm:text-sm font-bold text-[#4D5358] dark:text-gray-200 whitespace-nowrap">
                 {data.inici_torn} — {data.final_torn}
               </p>
             </div>
             <div className="bg-gray-50/50 dark:bg-black/20 p-3 sm:p-4 rounded-2xl border border-gray-100 dark:border-white/5 transition-colors">
-              <p className="text-[9px] font-black text-gray-300 dark:text-gray-600 uppercase tracking-widest mb-1 sm:mb-1.5 flex items-center gap-2">
+              <p className="text-[9px] font-bold text-gray-300 dark:text-gray-600 uppercase tracking-widest mb-1 sm:mb-1.5 flex items-center gap-2">
                 <User size={10} /> Nòmina
               </p>
-              <p className="text-[12px] sm:text-sm font-black text-fgc-grey dark:text-gray-200 whitespace-nowrap">
+              <p className="text-[12px] sm:text-sm font-bold text-[#4D5358] dark:text-gray-200 whitespace-nowrap">
                 {data.drivers[0]?.nomina}
               </p>
             </div>
             {(data.drivers[0]?.phones?.length > 0 || data.drivers[0]?.email) && (
               <div className="col-span-2 bg-fgc-green/10 dark:bg-fgc-green/5 p-3 sm:p-4 rounded-2xl border border-fgc-green/20 dark:border-fgc-green/10 transition-colors">
-                <p className="text-[9px] font-black text-fgc-green uppercase tracking-widest mb-2 flex items-center gap-2">
+                <p className="text-[9px] font-bold text-fgc-green uppercase tracking-widest mb-2 flex items-center gap-2">
                   <Phone size={10} /> Contacte Directe
                 </p>
                 <div className="flex flex-wrap gap-2">
@@ -796,7 +796,7 @@ const CompareInputSlot = ({ label, value, onChange, data, onClear, nowMin, getSe
                     <a
                       key={i}
                       href={isPrivacyMode ? undefined : `tel:${p}`}
-                      className={`flex items-center gap-2 bg-white dark:bg-black px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-black text-fgc-grey dark:text-gray-200 shadow-sm hover:bg-fgc-green dark:hover:text-black transition-all whitespace-nowrap ${isPrivacyMode ? 'cursor-default' : ''}`}
+                      className={`flex items-center gap-2 bg-white dark:bg-black px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold text-[#4D5358] dark:text-gray-200 shadow-sm hover:bg-fgc-green dark:hover:text-[#4D5358] transition-all whitespace-nowrap ${isPrivacyMode ? 'cursor-default' : ''}`}
                     >
                       <Phone size={12} /> {isPrivacyMode ? '*** ** ** **' : p}
                     </a>
@@ -804,7 +804,7 @@ const CompareInputSlot = ({ label, value, onChange, data, onClear, nowMin, getSe
                   {data.drivers[0].email && (
                     <a
                       href={`mailto:${data.drivers[0].email}`}
-                      className={`flex items-center gap-2 bg-white dark:bg-black px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-black text-fgc-grey dark:text-gray-200 shadow-sm hover:bg-fgc-green dark:hover:text-black transition-all whitespace-nowrap`}
+                      className={`flex items-center gap-2 bg-white dark:bg-black px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold text-[#4D5358] dark:text-gray-200 shadow-sm hover:bg-fgc-green dark:hover:text-[#4D5358] transition-all whitespace-nowrap`}
                       title={data.drivers[0].email}
                     >
                       <Mail size={12} /> {data.drivers[0].email.length > 20 ? 'Email' : data.drivers[0].email}
@@ -829,7 +829,7 @@ const CompareInputSlot = ({ label, value, onChange, data, onClear, nowMin, getSe
               onChange={(e) => handleInputChange(e.target.value.toUpperCase())}
               onKeyDown={handleKeyDown}
               onFocus={() => value.length > 0 && setShowSug(true)}
-              className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[16px] sm:rounded-[20px] py-3.5 sm:py-4 pl-12 pr-6 focus:ring-4 focus:ring-fgc-green/20 outline-none font-black text-base transition-all placeholder:text-gray-300 dark:text-white dark:placeholder:text-gray-700 shadow-inner"
+              className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[16px] sm:rounded-[20px] py-3.5 sm:py-4 pl-12 pr-6 focus:ring-4 focus:ring-fgc-green/20 outline-none font-bold text-base transition-all placeholder:text-gray-300 dark:text-white dark:placeholder:text-gray-700 shadow-inner"
             />
             {showSug && suggestions.length > 0 && (
               <div className="absolute top-full left-0 right-0 mt-3 bg-white dark:bg-gray-800 rounded-[24px] shadow-2xl border border-gray-100 dark:border-white/10 z-[100] overflow-hidden overflow-y-auto max-h-56 animate-in slide-in-from-top-2 transition-colors">
@@ -840,7 +840,7 @@ const CompareInputSlot = ({ label, value, onChange, data, onClear, nowMin, getSe
                       onChange(s);
                       setShowSug(false);
                     }}
-                    className="w-full text-left px-8 py-4 text-base font-black text-fgc-grey dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-fgc-green transition-all border-b border-gray-50 dark:border-white/5 last:border-0 flex items-center justify-between group"
+                    className="w-full text-left px-8 py-4 text-base font-bold text-[#4D5358] dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-fgc-green transition-all border-b border-gray-50 dark:border-white/5 last:border-0 flex items-center justify-between group"
                   >
                     {s}
                     <ArrowRight className="opacity-0 group-hover:opacity-100 transition-all scale-110" size={16} />

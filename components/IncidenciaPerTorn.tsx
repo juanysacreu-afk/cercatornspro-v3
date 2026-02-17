@@ -216,7 +216,7 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu, is
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        <div className="lg:col-span-8 bg-white dark:bg-gray-900 rounded-[32px] p-8 shadow-sm border border-gray-100 dark:border-white/5 transition-colors h-full flex flex-col justify-center">
+        <div className="lg:col-span-8 bg-white dark:bg-fgc-grey rounded-[32px] p-8 shadow-sm border border-gray-100 dark:border-white/5 transition-colors h-full flex flex-col justify-center">
           <div className="max-w-2xl mx-auto space-y-6 text-center w-full">
             <div className="flex flex-col items-center gap-3">
               <div className="p-3 bg-blue-500/10 rounded-2xl text-blue-500"><RotateCcw size={32} /></div>
@@ -252,7 +252,7 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu, is
             </div>
           </div>
         </div>
-        <div className="lg:col-span-4 bg-white dark:bg-gray-900 rounded-[32px] p-6 shadow-sm border border-gray-100 dark:border-white/5 transition-colors h-full">
+        <div className="lg:col-span-4 bg-white dark:bg-fgc-grey rounded-[32px] p-6 shadow-sm border border-gray-100 dark:border-white/5 transition-colors h-full">
           <div className="flex items-center gap-2 mb-4 px-2"><ShieldAlert size={16} className="text-orange-500" /><h4 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Disponibilitat de Reserves</h4></div>
           <div className="grid grid-cols-2 sm:grid-cols-5 lg:grid-cols-2 gap-2 max-h-[220px] overflow-y-auto pr-1 custom-scrollbar">
             {RESERVE_SHIFTS_LIST.map(id => {
@@ -268,17 +268,17 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu, is
       ) : coveragePlan.length > 0 ? (
         <div className="space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-white dark:bg-gray-900 rounded-[32px] p-6 border border-gray-100 dark:border-white/5 shadow-sm flex items-center gap-5">
+            <div className="bg-white dark:bg-fgc-grey rounded-[32px] p-6 border border-gray-100 dark:border-white/5 shadow-sm flex items-center gap-5">
               <div className={`p-4 rounded-2xl ${coverageStats?.uncovered.length ? 'bg-red-500 text-white' : 'bg-fgc-green text-fgc-grey'} shadow-lg`}>{coverageStats?.uncovered.length ? <ShieldAlert size={28} /> : <CheckCircle2 size={28} />}</div>
               <div><h4 className="text-sm font-black text-fgc-grey dark:text-white uppercase tracking-tight">Estat del Torn {uncoveredShiftId}</h4><p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{coverageStats?.covered} de {coverageStats?.total} trens coberts</p></div>
             </div>
-            <div className={`bg-white dark:bg-gray-900 rounded-[32px] p-6 border shadow-sm flex items-center gap-5 transition-all ${coverageStats?.uncovered.length ? 'border-red-100 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20' : 'border-gray-100 dark:border-white/5'}`}>
+            <div className={`bg-white dark:bg-fgc-grey rounded-[32px] p-6 border shadow-sm flex items-center gap-5 transition-all ${coverageStats?.uncovered.length ? 'border-red-100 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20' : 'border-gray-100 dark:border-white/5'}`}>
               <div className={`p-4 rounded-2xl ${coverageStats?.uncovered.length ? 'bg-red-600 text-white animate-pulse' : 'bg-gray-100 dark:bg-white/5 text-gray-400'} shadow-lg`}><AlertTriangle size={28} /></div>
               <div><h4 className={`text-sm font-black uppercase tracking-tight ${coverageStats?.uncovered.length ? 'text-red-600 dark:text-red-400' : 'text-gray-400'}`}>Riscos detectats</h4><p className={`text-xs font-bold uppercase tracking-widest ${coverageStats?.uncovered.length ? 'text-red-500/70' : 'text-gray-300'}`}>{coverageStats?.uncovered.length || 0} trens sense cobertura directa</p></div>
             </div>
           </div>
 
-          <div className="bg-white dark:bg-gray-900 rounded-[32px] p-6 sm:p-8 border border-gray-100 dark:border-white/5 shadow-sm">
+          <div className="bg-white dark:bg-fgc-grey rounded-[32px] p-6 sm:p-8 border border-gray-100 dark:border-white/5 shadow-sm">
             <div className="flex items-center gap-4 border-b border-gray-100 dark:border-white/5 pb-4 mb-8">
               <div className="h-10 min-w-[3rem] bg-blue-600 text-white rounded-xl flex items-center justify-center font-black text-lg shadow-md">{uncoveredShiftId}</div>
               <div><h4 className="text-sm font-black text-fgc-grey dark:text-white uppercase tracking-tight">Pla de Cobertura Logística</h4><p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Marges optimitzats (1 min) | Sincronitzat amb Reserves</p></div>

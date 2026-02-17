@@ -45,6 +45,11 @@ const STATION_NAME_MAP: Record<string, string> = {
     'CAN FEU': 'CF', 'PL. MAJOR': 'PJ', 'LA CREU ALTA': 'CT', 'SABADELL NORD': 'NO', 'PARC DEL NORD': 'PN',
     'PL. MOLINA': 'PM', 'PADUA': 'PD', 'EL PUTXET': 'EP',
     'AV TIBIDABO': 'TB', 'PLACA MOLINA': 'PM',
+    // Depots
+    'CAN ROCA': 'DNA', 'DIPOSIT TERRASSA': 'DNA', 'DNA': 'DNA',
+    'CA N\'ORIACH': 'DPN', 'DIPOSIT SABADELL': 'DPN', 'DPN': 'DPN',
+    'DIPOSIT REINA ELISENDA': 'DRE', 'DIP.RE': 'DRE', 'DRE': 'DRE',
+    'CENTRE OPERACIONS RUBI': 'COR', 'TALLERS RUBI': 'COR', 'COR': 'COR',
 };
 
 /**
@@ -93,17 +98,17 @@ export const LINE_COLORS: Record<string, { hex: string; tailwind: string; label:
 export const getLiniaColorHex = (linia: string): string => {
     const l = mainLiniaForFilter(linia);
     if (l.startsWith('M')) return LINE_COLORS['M'].hex;
-    return LINE_COLORS[l]?.hex || '#53565A';
+    return LINE_COLORS[l]?.hex || '#4D5358';
 };
 
 /** Returns the main line identifier for filter grouping */
 export const mainLiniaForFilter = (linia: string): string => {
     const l = (linia || '').toUpperCase().trim();
-    if (l === 'S1' || l === 'MS1' || l === '400') return 'S1';
+    if (l === 'S1' || l === 'MS1' || l === '400' || l.startsWith('D')) return 'S1';
     if (l === 'S2' || l === 'MS2' || l === 'ES2' || l === '500' || l.startsWith('F')) return 'S2';
-    if (l === 'L6' || l === 'L66' || l === 'ML6' || l === '100') return 'L6';
-    if (l === 'L7' || l === 'ML7' || l === '300') return 'L7';
-    if (l === 'L12') return 'L12';
+    if (l === 'L6' || l === 'L66' || l === 'ML6' || l === '100' || l.startsWith('A')) return 'L6';
+    if (l === 'L7' || l === 'ML7' || l === '300' || l.startsWith('B')) return 'L7';
+    if (l === 'L12' || l.startsWith('L') && !l.startsWith('LP')) return 'L12';
     if (l.startsWith('M')) return 'M';
     return l;
 };
@@ -114,13 +119,36 @@ export const mainLiniaForFilter = (linia: string): string => {
 
 /** Checks if a servei value matches the selected filter */
 export const isServiceVisible = (val: string | undefined, f: string): boolean => {
-    if (f === 'Tots') return true;
-    const s = (val || '').toString();
-    if (f === '400' || f === 'S1') return s === '400' || s === 'S1' || s.includes('S1');
-    if (f === '500' || f === 'S2') return s === '500' || s === 'S2' || s.includes('S2');
-    if (f === '100' || f === 'L6') return s === '100' || s === 'L6' || s.includes('L6');
-    if (f === '0' || f === 'L12' || f === '000') return s === '0' || s === '000' || s === 'L12' || s.includes('L12');
-    return s === f || s.includes(f) || f.includes(s);
+    if (f === 'Tots' || !f) return true;
+    const s = (val || '').toString().toUpperCase().trim();
+    const filter = f.toUpperCase().trim();
+
+    // 1. Exact match
+    if (s === filter) return true;
+
+    // 2. Specific partial match (e.g. '100' inside 'S-100' or '100-F')
+    // We use a regex to ensure numeric filters don't match sub-parts of other numbers 
+    // to avoid the problem where "0" matches "100", "400", etc.
+    const escapedFilter = filter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const isOnlyDigits = /^\d+$/.test(filter);
+
+    if (isOnlyDigits) {
+        // Match if it's exactly the number, or preceded/followed by non-digits
+        // Example: "0" matches "0", "S-0", "0-A", but NOT "100", "205"
+        const regex = new RegExp(`(^|[^0-9])${escapedFilter}([^0-9]|$)`);
+        if (regex.test(s)) return true;
+    } else {
+        // Generic partial match for non-numeric filters
+        if (s.includes(filter)) return true;
+    }
+
+    // 3. Legacy Aliases / Line Mappings
+    if ((filter === '400' || filter === 'S1') && (s === '400' || s === 'S1' || s.includes('S1'))) return true;
+    if ((filter === '500' || filter === 'S2') && (s === '500' || s === 'S2' || s.includes('S2'))) return true;
+    if ((filter === '100' || filter === 'L6') && (s === '100' || s === 'L6' || s.includes('L6'))) return true;
+    if ((filter === '0' || filter === '000' || filter === 'L12') && (s === '0' || s === '000' || s === 'L12' || s.includes('L12'))) return true;
+
+    return false;
 };
 
 // ──────────────────────────────────────────────
@@ -197,4 +225,41 @@ export const getTravelTime = (from: string, to: string): number => {
     if ((f === 'SR' && t === 'RB') || (f === 'RB' && t === 'SR')) return 25;
     if ((f === 'SR' && t === 'PN') || (f === 'PN' && t === 'SR')) return 30;
     return 15;
+};
+
+// ──────────────────────────────────────────────
+// Segment Logic
+// ──────────────────────────────────────────────
+
+/**
+ * Returns a set of segments (e.g. "PC-PR-V1") for a path between two stations.
+ * Used for identifying if a train is "inside" a cut or relevant area.
+ */
+export const getSegments = (from: string, to: string, linia: string = ''): string[] => {
+    const f = resolveStationId(from);
+    const t = resolveStationId(to);
+    if (!f || !t || f === t) return [];
+
+    // Determine direction based on station order in MASTER_STATION_ORDER
+    const idxF = MASTER_STATION_ORDER.indexOf(f);
+    const idxT = MASTER_STATION_ORDER.indexOf(t);
+    if (idxF === -1 || idxT === -1) return [];
+
+    const isDesc = idxT > idxF; // Descendent: PC -> Vallés
+    const track = isDesc ? 'V1' : 'V2';
+
+    // Build list of stations in path
+    const startIdx = Math.min(idxF, idxT);
+    const endIdx = Math.max(idxF, idxT);
+    const pathStations = MASTER_STATION_ORDER.slice(startIdx, endIdx + 1);
+
+    if (!isDesc) pathStations.reverse(); // If Ascendent, reverse to match travel direction
+
+    const segments: string[] = [];
+    for (let i = 0; i < pathStations.length - 1; i++) {
+        const u = pathStations[i];
+        const v = pathStations[i + 1];
+        segments.push(`${u}-${v}-${track}`);
+    }
+    return segments;
 };

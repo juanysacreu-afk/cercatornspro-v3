@@ -58,7 +58,7 @@ export const StationRow: React.FC<StationRowProps> = ({
                     {circ.cicle && <div className="absolute -top-1 -right-1 bg-white dark:bg-black rounded-full p-0.5 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"><Settings size={8} className="text-fgc-grey dark:text-gray-400" /></div>}
                 </button>
                 <div className="flex items-center gap-1">
-                    <span className={`px-1.5 py-0.5 bg-gray-100 dark:bg-white/10 ${getLiniaColor(circ.linia)} text-white rounded-md font-black text-[8px] sm:text-[11px] shadow-sm`}>{circ.linia || '??'}</span>
+                    <span className={`px-1.5 py-0.5 ${getLiniaColor(circ.linia)} text-white rounded-md font-black text-[8px] sm:text-[11px] shadow-sm`}>{circ.linia || '??'}</span>
                     {circ.viaAtStation && (
                         <span className="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-800 text-fgc-grey dark:text-gray-300 rounded-md font-black text-[8px] sm:text-[11px] shadow-sm border border-gray-300/50 dark:border-white/10 uppercase">V{circ.viaAtStation}</span>
                     )}
@@ -75,7 +75,7 @@ export const StationRow: React.FC<StationRowProps> = ({
             {/* Cicle i Unitat (Només Escritori) */}
             <div className="hidden md:flex justify-center shrink-0">
                 {circ.cicle ? (
-                    <div className={`text-[10px] sm:text-sm font-black px-3 py-1.5 rounded-lg border shadow-sm flex items-center gap-2 w-full max-w-[140px] ${isBroken ? 'bg-red-600 text-white border-red-700 animate-pulse' : isViatger ? 'text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-900/20 border-sky-200 dark:border-sky-800' : 'text-black dark:text-gray-200 bg-fgc-green/20 dark:bg-fgc-green/10 border-fgc-green/30 dark:border-fgc-green/20'}`}>
+                    <div className={`text-[10px] sm:text-sm font-black px-3 py-1.5 rounded-lg border shadow-sm flex items-center gap-2 w-full max-w-[140px] ${isBroken ? 'bg-red-600 text-white border-red-700 animate-pulse' : isViatger ? 'text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-900/20 border-sky-200 dark:border-sky-800' : 'text-fgc-grey dark:text-gray-200 bg-fgc-green/20 dark:bg-fgc-green/10 border-fgc-green/30 dark:border-fgc-green/20'}`}>
                         <div className="flex flex-col items-center">
                             {isViatger && <span className="text-[7px] opacity-60 leading-none mb-0.5 uppercase">Cicle Viatger</span>}
                             <span>{circ.cicle}</span>

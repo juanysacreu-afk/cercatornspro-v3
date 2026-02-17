@@ -242,7 +242,7 @@ const CercarViewComponent: React.FC<{
     }
 
     if (circs.length === 0) {
-      return { label: `Temps: ${end - nowMin} min`, color: 'bg-yellow-400 text-fgc-grey shadow-sm', targetId: null };
+      return { label: `Temps: ${end - nowMin} min`, color: 'bg-yellow-400 text-[#4D5358] shadow-sm', targetId: null };
     }
 
     const firstStart = getFgcMinutes(circs[0].sortida);
@@ -250,7 +250,7 @@ const CercarViewComponent: React.FC<{
       const remaining = firstStart - nowMin;
       return {
         label: `${(firstStart - start) >= 15 ? 'Descans' : 'Temps'}: ${remaining} min`,
-        color: (firstStart - start) >= 15 ? 'bg-fgc-green text-fgc-grey shadow-sm' : 'bg-yellow-400 text-fgc-grey shadow-sm',
+        color: (firstStart - start) >= 15 ? 'bg-fgc-green text-[#4D5358] shadow-sm' : 'bg-yellow-400 text-[#4D5358] shadow-sm',
         targetId: `gap-pre-${shiftIdx}`
       };
     }
@@ -263,13 +263,13 @@ const CercarViewComponent: React.FC<{
         const remaining = nextStart - nowMin;
         return {
           label: `${gapDuration >= 15 ? 'Descans' : 'Temps'}: ${remaining} min`,
-          color: gapDuration >= 15 ? 'bg-fgc-green text-fgc-grey shadow-sm' : 'bg-yellow-400 text-fgc-grey shadow-sm',
+          color: gapDuration >= 15 ? 'bg-fgc-green text-[#4D5358] shadow-sm' : 'bg-yellow-400 text-[#4D5358] shadow-sm',
           targetId: `gap-row-${shiftIdx}-${i}`
         };
       }
     }
 
-    return { label: 'En servei', color: 'bg-fgc-green text-fgc-grey shadow-sm', targetId: null };
+    return { label: 'En servei', color: 'bg-fgc-green text-[#4D5358] shadow-sm', targetId: null };
   };
 
   const isDriverWorkingNow = (obs: string) => {
@@ -514,23 +514,23 @@ const CercarViewComponent: React.FC<{
   };
 
   return (
-    <div className="space-y-6">
-      <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 animate-in fade-in slide-in-from-top-4 duration-700 parallax-slow">
-        <div><h1 className="text-2xl sm:text-3xl font-black text-fgc-grey dark:text-white tracking-tight title-glow">Cerca de Servei</h1><p className="text-sm sm:text-base text-gray-500 dark:text-gray-400 font-medium">Informació de torns, circulacions i unitats de tren.</p></div>
-        <div className="flex flex-col gap-2"><span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Filtre de Servei</span><div className="inline-flex glass-card p-1 rounded-2xl shadow-sm border border-gray-100 dark:border-white/5">{['Tots', ...serveiTypes].map(s => (<button key={s} onClick={() => { feedback.deepClick(); setSelectedServei(s); }} className={`px-3 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-black transition-all ${selectedServei === s ? 'bg-fgc-grey dark:bg-fgc-green dark:text-fgc-grey text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5'}`}>{s === 'Tots' ? 'Tots' : `S-${s}`}</button>))}</div></div>
+    <div className="space-y-6 sm:space-y-8 p-4 sm:p-8 animate-in fade-in duration-700">
+      <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 animate-in fade-in slide-in-from-top-4 duration-700 parallax-slow">
+        <div><h1 className="text-2xl sm:text-3xl font-bold text-[#4D5358] dark:text-white tracking-tight title-glow uppercase">Cerca de Servei</h1><p className="text-sm sm:text-base text-gray-500 dark:text-gray-400 font-medium">Informació de torns, circulacions i unitats de tren.</p></div>
+        <div className="flex flex-col gap-2"><span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Filtre de Servei</span><div className="inline-flex glass-card p-1 rounded-2xl shadow-sm border border-gray-100 dark:border-white/5">{['Tots', ...serveiTypes].map(s => (<button key={s} onClick={() => { feedback.deepClick(); setSelectedServei(s); }} className={`px-3 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${selectedServei === s ? 'bg-fgc-grey dark:bg-fgc-green dark:text-[#4D5358] text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5'}`}>{s === 'Tots' ? 'Tots' : `S-${s}`}</button>))}</div></div>
       </header>
 
       <GlassPanel className="p-6 sm:p-8 relative z-30">
         <div className="absolute inset-0 rounded-[32px] sm:rounded-[40px] overflow-hidden pointer-events-none">
           <div className="absolute top-0 right-0 w-64 h-64 bg-fgc-green/5 blur-3xl -mr-32 -mt-32" />
         </div>
-        <div className="flex flex-wrap gap-2 sm:gap-3 mb-6 sm:mb-8">{filterButtons.map((btn) => (<button key={btn.id} onClick={() => { feedback.click(); setSearchType(btn.id); setResults([]); setQuery(''); setSuggestions([]); setShowSuggestions(false); }} className={`flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-black transition-all ${searchType === btn.id ? 'bg-fgc-green text-fgc-grey shadow-xl shadow-fgc-green/20' : 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/10'}`}>{btn.icon}{btn.label}</button>))}</div>
+        <div className="flex flex-wrap gap-2 sm:gap-3 mb-6 sm:mb-8">{filterButtons.map((btn) => (<button key={btn.id} onClick={() => { feedback.click(); setSearchType(btn.id); setResults([]); setQuery(''); setSuggestions([]); setShowSuggestions(false); }} className={`flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all ${searchType === btn.id ? 'bg-fgc-green text-[#4D5358] shadow-xl shadow-fgc-green/20' : 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/10'}`}>{btn.icon}{btn.label}</button>))}</div>
 
         {searchType === SearchType.Estacio ? (
           <div className="space-y-6">
             <div className="flex flex-col gap-6">
               <div className="flex-1 space-y-2">
-                <label className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-4">Selecciona Estació</label>
+                <label className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-4">Selecciona Estació</label>
                 <div className="relative">
                   <MapPin className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={24} />
                   <select
@@ -538,8 +538,8 @@ const CercarViewComponent: React.FC<{
                     onChange={(e) => { setSelectedStation(e.target.value); if (e.target.value) executeSearch(e.target.value, SearchType.Estacio); }}
                     className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] sm:rounded-[32px] py-4 sm:py-6 pl-16 pr-12 focus:ring-4 focus:ring-fgc-green/20 outline-none text-lg sm:text-2xl font-bold appearance-none cursor-pointer dark:text-white transition-all shadow-inner"
                   >
-                    <option value="" className="dark:bg-gray-900">Tria una estació...</option>
-                    {allStations.map(st => <option key={st} value={st} className="dark:bg-gray-900">{st}</option>)}
+                    <option value="" className="dark:bg-fgc-grey">Tria una estació...</option>
+                    {allStations.map(st => <option key={st} value={st} className="dark:bg-fgc-grey">{st}</option>)}
                   </select>
                   <ChevronDown className="absolute right-8 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none" size={24} />
                 </div>
@@ -547,32 +547,32 @@ const CercarViewComponent: React.FC<{
 
               <div className="grid grid-cols-2 gap-3 sm:gap-4 w-full">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-4 flex items-center gap-2">
+                  <label className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-4 flex items-center gap-2">
                     De les<button onClick={() => setStartTime(getCurrentTimeStr())} className="text-fgc-green"><Clock size={12} /></button>
                   </label>
                   <input
                     type="time"
                     value={startTime}
                     onChange={(e) => setStartTime(e.target.value)}
-                    className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[20px] sm:rounded-[32px] py-4 sm:py-6 px-2 sm:px-8 focus:ring-4 focus:ring-fgc-green/20 outline-none text-base sm:text-2xl font-black dark:text-white text-center appearance-none"
+                    className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[20px] sm:rounded-[32px] py-4 sm:py-6 px-2 sm:px-8 focus:ring-4 focus:ring-fgc-green/20 outline-none text-base sm:text-2xl font-bold dark:text-white text-center appearance-none"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-4 flex items-center gap-2">
+                  <label className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-4 flex items-center gap-2">
                     A les<button onClick={() => setEndTime(getTimePlusMinutes(15))} className="text-fgc-green"><Clock size={12} /></button>
                   </label>
                   <input
                     type="time"
                     value={endTime}
                     onChange={(e) => setEndTime(e.target.value)}
-                    className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[20px] sm:rounded-[32px] py-4 sm:py-6 px-2 sm:px-8 focus:ring-4 focus:ring-fgc-green/20 outline-none text-base sm:text-2xl font-black dark:text-white text-center appearance-none"
+                    className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[20px] sm:rounded-[32px] py-4 sm:py-6 px-2 sm:px-8 focus:ring-4 focus:ring-fgc-green/20 outline-none text-base sm:text-2xl font-bold dark:text-white text-center appearance-none"
                   />
                 </div>
               </div>
 
               <button
                 onClick={() => executeSearch()}
-                className="bg-fgc-green text-fgc-grey h-[60px] sm:h-[76px] w-full rounded-[20px] sm:rounded-[32px] text-lg sm:text-xl font-black shadow-xl shadow-fgc-green/20 hover:scale-[1.01] active:scale-95 flex items-center justify-center gap-3 transition-all mt-2"
+                className="bg-fgc-green text-[#4D5358] h-[60px] sm:h-[76px] w-full rounded-[20px] sm:rounded-[32px] text-lg sm:text-xl font-bold shadow-xl shadow-fgc-green/20 hover:scale-[1.01] active:scale-95 flex items-center justify-center gap-3 transition-all mt-2"
               >
                 <Search size={22} />CERCAR
               </button>
@@ -584,16 +584,16 @@ const CercarViewComponent: React.FC<{
               <div className="relative flex-1">
                 <div className="absolute inset-y-0 left-6 flex items-center pointer-events-none text-gray-400 dark:text-gray-500">{loading ? <Loader2 className="animate-spin" size={24} /> : <Search size={24} />}</div>
                 <input type="text" placeholder={`Cerca per ${searchType.toUpperCase()}...`} className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] sm:rounded-[32px] py-4 sm:py-6 pl-14 sm:pl-16 pr-6 sm:pr-8 focus:ring-4 focus:ring-fgc-green/20 outline-none text-lg sm:text-2xl font-bold placeholder:text-gray-300 dark:text-white dark:placeholder:text-gray-600" value={query} onChange={(e) => handleInputChange(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && executeSearch()} onFocus={() => query.length >= 1 && setShowSuggestions(true)} />
-                {showSuggestions && suggestions.length > 0 && (<div className="absolute top-full left-2 right-2 mt-2 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md rounded-[24px] shadow-2xl border border-gray-100 dark:border-white/10 z-[200] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">{suggestions.map((id, sIdx) => (<button key={sIdx} onClick={() => handleSuggestionClick(id)} className="w-full text-left px-6 sm:px-8 py-3 sm:py-4 text-base sm:text-xl font-bold text-fgc-grey dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-fgc-green transition-colors flex items-center justify-between group"><span>{id}</span><ArrowRight size={18} className="opacity-0 group-hover:opacity-100 transition-all scale-110" /></button>))}</div>)}
+                {showSuggestions && suggestions.length > 0 && (<div className="absolute top-full left-2 right-2 mt-2 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md rounded-[24px] shadow-2xl border border-gray-100 dark:border-white/10 z-[200] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">{suggestions.map((id, sIdx) => (<button key={sIdx} onClick={() => handleSuggestionClick(id)} className="w-full text-left px-6 sm:px-8 py-3 sm:py-4 text-base sm:text-xl font-bold text-[#4D5358] dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-fgc-green transition-colors flex items-center justify-between group"><span>{id}</span><ArrowRight size={18} className="opacity-0 group-hover:opacity-100 transition-all scale-110" /></button>))}</div>)}
               </div>
-              <button onClick={() => executeSearch()} className="bg-fgc-green text-fgc-grey h-[60px] sm:h-[76px] px-8 sm:px-10 rounded-[24px] sm:rounded-[32px] text-lg sm:text-xl font-black shadow-xl shadow-fgc-green/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3"><Search size={22} />CERCAR</button>
+              <button onClick={() => executeSearch()} className="bg-fgc-green text-[#4D5358] h-[60px] sm:h-[76px] px-8 sm:px-10 rounded-[24px] sm:rounded-[32px] text-lg sm:text-xl font-bold shadow-xl shadow-fgc-green/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3"><Search size={22} />CERCAR</button>
             </div>
 
             {searchType === SearchType.Cicle && (
               <div className="animate-in fade-in slide-in-from-top-2 duration-500">
                 <div className="flex items-center gap-2 mb-4 px-2">
                   <LayoutGrid size={16} className="text-fgc-green" />
-                  <h3 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Selecció ràpida de Cicle (S-{selectedServei})</h3>
+                  <h3 className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Selecció ràpida de Cicle (S-{selectedServei})</h3>
                 </div>
                 <div className="bg-gray-50/50 dark:bg-black/20 p-4 sm:p-6 rounded-[28px] border border-gray-100 dark:border-white/5">
                   {loading ? (
@@ -608,7 +608,7 @@ const CercarViewComponent: React.FC<{
                         <button
                           key={c}
                           onClick={() => { setQuery(c); executeSearch(c); }}
-                          className={`py-3 px-2 rounded-xl text-sm font-black border transition-all ${query === c ? 'bg-fgc-green text-fgc-grey border-fgc-green shadow-lg scale-105' : 'bg-white dark:bg-gray-800 text-fgc-grey dark:text-gray-200 border-gray-100 dark:border-white/5 hover:border-fgc-green hover:shadow-md hover:scale-105 active:scale-95'}`}
+                          className={`py-3 px-2 rounded-xl text-sm font-bold border transition-all ${query === c ? 'bg-fgc-green text-[#4D5358] border-fgc-green shadow-lg scale-105' : 'bg-white dark:bg-gray-800 text-[#4D5358] dark:text-gray-200 border-gray-100 dark:border-white/5 hover:border-fgc-green hover:shadow-md hover:scale-105 active:scale-95'}`}
                         >
                           {c}
                         </button>
@@ -641,9 +641,9 @@ const CercarViewComponent: React.FC<{
                   <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-fgc-green/5 to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-8 mb-6 sm:mb-12">
                     <div className="flex items-center gap-4 sm:gap-6">
-                      <div className={`min-w-[3.5rem] min-h-[3.5rem] sm:min-w-[5rem] sm:min-h-[5rem] px-2 ${isStationGroup ? 'bg-fgc-green text-fgc-grey' : 'bg-fgc-grey dark:bg-black text-white'} rounded-2xl sm:rounded-[28px] flex items-center justify-center text-base sm:text-2xl font-black shadow-lg`}><span className="truncate">{isStationGroup ? <MapPin size={28} /> : group.cycle_id}</span></div>
+                      <div className={`min-w-[3.5rem] min-h-[3.5rem] sm:min-w-[5rem] sm:min-h-[5rem] px-2 ${isStationGroup ? 'bg-fgc-green text-[#4D5358]' : 'bg-fgc-grey dark:bg-black text-white'} rounded-2xl sm:rounded-[28px] flex items-center justify-center text-base sm:text-2xl font-bold shadow-lg`}><span className="truncate">{isStationGroup ? <MapPin size={28} /> : group.cycle_id}</span></div>
                       <div className="min-w-0">
-                        <h2 className="text-lg sm:text-3xl font-black text-fgc-grey dark:text-white tracking-tighter uppercase truncate">{isStationGroup ? `Circulacions a ${group.station}` : 'Cronograma de Cicle'}</h2>
+                        <h2 className="text-lg sm:text-3xl font-bold text-[#4D5358] dark:text-white tracking-tighter uppercase truncate">{isStationGroup ? `Circulacions a ${group.station}` : 'Cronograma de Cicle'}</h2>
                         <div className="flex items-center gap-2 mt-0.5 sm:mt-1">{isStationGroup ? <Clock size={14} className="text-fgc-green" /> : <Train size={14} className="text-fgc-green" />}<p className="text-sm sm:text-lg font-bold text-gray-500 dark:text-gray-400">{isStationGroup ? `Franja: ${startTime} - ${endTime}` : `Unitat: ${group.train}`}</p></div>
                       </div>
                     </div>
@@ -661,7 +661,7 @@ const CercarViewComponent: React.FC<{
                   <div className="border border-gray-100 dark:border-white/5 rounded-[32px] overflow-hidden bg-white dark:bg-black/20 shadow-sm">
                     {isStationGroup && group.stationCode === 'PC' && (
                       <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 p-3 sm:p-4 bg-gray-50/50 dark:bg-black/40 border-b border-gray-100 dark:border-white/5">
-                        <span className="hidden sm:inline text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mr-2">Filtrar per via:</span>
+                        <span className="hidden sm:inline text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mr-2">Filtrar per via:</span>
                         {['Tot', 'V1', 'V2', 'V3', 'V4', 'V5'].map(via => (
                           <button
                             key={via}
@@ -669,8 +669,8 @@ const CercarViewComponent: React.FC<{
                               feedback.click();
                               setSelectedVia(via);
                             }}
-                            className={`px-3 sm:px-4 py-1.5 rounded-full text-[10px] sm:text-xs font-black transition-all ${selectedVia === via
-                              ? 'bg-fgc-green text-fgc-grey shadow-md scale-105'
+                            className={`px-3 sm:px-4 py-1.5 rounded-full text-[10px] sm:text-xs font-bold transition-all ${selectedVia === via
+                              ? 'bg-fgc-green text-[#4D5358] shadow-md scale-105'
                               : 'bg-white dark:bg-white/5 text-gray-500 dark:text-gray-400 border border-gray-100 dark:border-white/5 hover:bg-gray-100'
                               }`}
                           >
@@ -695,7 +695,7 @@ const CercarViewComponent: React.FC<{
                                 <CirculationRow circ={circ} itemKey={itemKey} nowMin={nowMin} trainStatuses={trainStatuses} getTrainPhone={getTrainPhone} getLiniaColor={getLiniaColor} openUnitMenu={openUnitMenu} toggleItinerari={toggleItinerari} isPrivacyMode={isPrivacyMode} />
                               )}
                               {expandedItinerari === itemKey && (
-                                <div className="p-4 sm:p-10 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-white/5 animate-in slide-in-from-top-4 duration-500 overflow-hidden">
+                                <div className="p-4 sm:p-10 bg-white dark:bg-fgc-grey border-t border-gray-100 dark:border-white/5 animate-in slide-in-from-top-4 duration-500 overflow-hidden">
                                   <div className="relative flex flex-col pl-8 sm:pl-16 pr-2 sm:pr-6 py-4 space-y-0">
                                     <div className="absolute left-[15px] sm:left-[29px] top-10 bottom-10 w-0.5 sm:w-1 bg-gray-100 dark:bg-gray-800 rounded-full" />
                                     {[{ nom: circ.inici, hora: circ.sortida, via: circ.via_inici }, ...(circ.estacions?.map((st: any) => ({ nom: st.nom, hora: st.hora || st.sortida || st.arribada, via: st.via })) || []), { nom: circ.final, hora: circ.arribada, via: circ.via_final }].map((point, pIdx, arr) => (
@@ -721,22 +721,22 @@ const CercarViewComponent: React.FC<{
                     <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 flex-1">
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-3">
-                          <h2 className="text-xl sm:text-3xl font-black text-fgc-grey dark:text-white tracking-tighter uppercase leading-tight">Torn {group.id}</h2>
+                          <h2 className="text-xl sm:text-3xl font-bold text-[#4D5358] dark:text-white tracking-tighter uppercase leading-tight">Torn {group.id}</h2>
                           {group.drivers.length > 1 && (
                             <div className="flex gap-2">
-                              <span className="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-lg text-[9px] font-black uppercase flex items-center gap-1"><Users size={10} /> Compartit ({group.drivers.length})</span>
+                              <span className="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase flex items-center gap-1"><Users size={10} /> Compartit ({group.drivers.length})</span>
                             </div>
                           )}
                         </div>
                         <div className="flex items-center gap-2">
-                          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 dark:bg-white/5 text-gray-500 rounded-lg text-[10px] font-black uppercase border border-gray-200/50"><Timer size={12} /> {group.duracio}</div>
-                          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 dark:bg-white/5 text-gray-500 rounded-lg text-[10px] font-black uppercase border border-gray-200/50"><MapPin size={12} /> {group.dependencia}</div>
+                          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 dark:bg-white/5 text-gray-500 rounded-lg text-[10px] font-bold uppercase border border-gray-200/50"><Timer size={12} /> {group.duracio}</div>
+                          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 dark:bg-white/5 text-gray-500 rounded-lg text-[10px] font-bold uppercase border border-gray-200/50"><MapPin size={12} /> {group.dependencia}</div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2.5 text-base sm:text-xl font-black text-fgc-green bg-fgc-green/5 px-4 py-2 rounded-xl border border-fgc-green/10 whitespace-nowrap">
+                      <div className="flex items-center gap-2.5 text-base sm:text-xl font-bold text-fgc-green bg-fgc-green/5 px-4 py-2 rounded-xl border border-fgc-green/10 whitespace-nowrap">
                         <Clock size={20} /><span>{group.inici_torn}</span><span className="opacity-30 mx-1">—</span><span>{group.final_torn}</span>
                       </div>
-                      <button onClick={() => scrollToElement(currentStatus.targetId)} className={`px-5 py-2.5 rounded-2xl text-[10px] sm:text-xs font-black shadow-md border-b-4 border-black/10 transition-all ${currentStatus.color}`}>{currentStatus.label}</button>
+                      <button onClick={() => scrollToElement(currentStatus.targetId)} className={`px-5 py-2.5 rounded-2xl text-[10px] sm:text-xs font-bold shadow-md border-b-4 border-black/10 transition-all ${currentStatus.color}`}>{currentStatus.label}</button>
                     </div>
                   </div>
                 </GlassPanel>
@@ -747,18 +747,18 @@ const CercarViewComponent: React.FC<{
                       <div key={dIdx} className="p-6 sm:p-10 transition-colors hover:bg-white/5 relative">
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 sm:gap-10">
                           <div className="flex items-center gap-6 sm:gap-8 w-full md:w-auto">
-                            <div className="w-14 h-14 sm:w-16 sm:h-16 bg-white/40 dark:bg-black/20 rounded-full flex items-center justify-center text-fgc-grey border-2 border-white/60 shrink-0">{group.drivers.length > 1 ? <span className="font-black text-lg">{dIdx + 1}</span> : <User size={28} strokeWidth={2.5} />}</div>
+                            <div className="w-14 h-14 sm:w-16 sm:h-16 bg-white/40 dark:bg-black/20 rounded-full flex items-center justify-center text-[#4D5358] border-2 border-white/60 shrink-0">{group.drivers.length > 1 ? <span className="font-bold text-lg">{dIdx + 1}</span> : <User size={28} strokeWidth={2.5} />}</div>
                             <div className="space-y-1 min-w-0 flex-1 md:flex-none">
                               <div className="flex items-center gap-3">
-                                <MarqueeText text={`${driver.cognoms}, ${driver.nom}`} className="text-xl sm:text-2xl font-black text-fgc-grey tracking-tight leading-tight uppercase" />
-                                {driver.tipus_torn && (<span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase shadow-sm border ${driver.tipus_torn === 'Reducció' ? 'bg-purple-600 text-white border-purple-700' : 'bg-blue-600 text-white border-blue-700'}`}>{driver.tipus_torn}</span>)}
-                                {isWorking && (<div className="bg-fgc-grey text-white px-3 py-1 rounded-full text-[9px] font-black uppercase flex items-center gap-1.5 shadow-sm animate-bounce"><div className="w-1.5 h-1.5 bg-fgc-green rounded-full animate-pulse" />TREBALLANT</div>)}
+                                <MarqueeText text={`${driver.cognoms}, ${driver.nom}`} className="text-xl sm:text-2xl font-bold text-[#4D5358] tracking-tight leading-tight uppercase" />
+                                {driver.tipus_torn && (<span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase shadow-sm border ${driver.tipus_torn === 'Reducció' ? 'bg-purple-600 text-white border-purple-700' : 'bg-blue-600 text-white border-blue-700'}`}>{driver.tipus_torn}</span>)}
+                                {isWorking && (<div className="bg-fgc-grey text-white px-3 py-1 rounded-full text-[9px] font-bold uppercase flex items-center gap-1.5 shadow-sm animate-bounce"><div className="w-1.5 h-1.5 bg-fgc-green rounded-full animate-pulse" />TREBALLANT</div>)}
                               </div>
-                              <div className="flex flex-wrap gap-2 items-center"><div className="inline-flex items-center bg-fgc-grey text-white px-2.5 py-0.5 rounded-lg font-black text-[9px] sm:text-[10px] tracking-widest uppercase">Nómina: {driver.nomina}</div>{driver.abs_parc_c === 'S' && <span className="bg-red-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded">ABS</span>}{driver.dta === 'S' && <span className="bg-blue-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded">DTA</span>}{driver.dpa === 'S' && <span className="bg-purple-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded">DPA</span>}</div>
-                              {driver.observacions && (<div className="flex items-start gap-2 bg-black/10 dark:bg-black/20 px-3 py-2 rounded-xl border border-black/5 max-w-lg mt-2"><Info size={14} className="text-fgc-grey dark:text-gray-300 mt-0.5 shrink-0" /><p className="text-[11px] sm:text-xs font-bold text-fgc-grey dark:text-gray-200 leading-snug italic">{driver.observacions}</p></div>)}
+                              <div className="flex flex-wrap gap-2 items-center"><div className="inline-flex items-center bg-fgc-grey text-white px-2.5 py-0.5 rounded-lg font-bold text-[9px] sm:text-[10px] tracking-widest uppercase">Nómina: {driver.nomina}</div>{driver.abs_parc_c === 'S' && <span className="bg-red-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded">ABS</span>}{driver.dta === 'S' && <span className="bg-blue-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded">DTA</span>}{driver.dpa === 'S' && <span className="bg-purple-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded">DPA</span>}</div>
+                              {driver.observacions && (<div className="flex items-start gap-2 bg-black/10 dark:bg-black/20 px-3 py-2 rounded-xl border border-black/5 max-w-lg mt-2"><Info size={14} className="text-[#4D5358] dark:text-gray-300 mt-0.5 shrink-0" /><p className="text-[11px] sm:text-xs font-bold text-[#4D5358] dark:text-gray-200 leading-snug italic">{driver.observacions}</p></div>)}
                             </div>
                           </div>
-                          <div className="flex flex-wrap gap-2 sm:gap-3 w-full md:w-auto">{driver.phones?.map((p: string, i: number) => (<a key={i} href={isPrivacyMode ? undefined : `tel:${p}`} className={`flex-1 md:flex-none flex items-center justify-center gap-2.5 bg-fgc-grey text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-black hover:bg-fgc-dark transition-all active:scale-95 ${isPrivacyMode ? 'cursor-default' : ''}`}><Phone size={14} />{isPrivacyMode ? '*** ** ** **' : p}</a>))}</div>
+                          <div className="flex flex-wrap gap-2 sm:gap-3 w-full md:w-auto">{driver.phones?.map((p: string, i: number) => (<a key={i} href={isPrivacyMode ? undefined : `tel:${p}`} className={`flex-1 md:flex-none flex items-center justify-center gap-2.5 bg-fgc-grey text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-bold hover:bg-fgc-dark transition-all active:scale-95 ${isPrivacyMode ? 'cursor-default' : ''}`}><Phone size={14} />{isPrivacyMode ? '*** ** ** **' : p}</a>))}</div>
                         </div>
                       </div>
                     );
@@ -778,7 +778,7 @@ const CercarViewComponent: React.FC<{
                             <div id={`circ-row-${shiftItemKey}`} className={`flex flex-col relative scroll-mt-24 ${isActive ? 'ring-2 ring-inset ring-red-600 z-10' : ''}`}>
                               <CirculationRow circ={circ} itemKey={shiftItemKey} nowMin={nowMin} trainStatuses={trainStatuses} getTrainPhone={getTrainPhone} getLiniaColor={getLiniaColor} openUnitMenu={openUnitMenu} toggleItinerari={toggleItinerari} isPrivacyMode={isPrivacyMode} />
                               {expandedItinerari === shiftItemKey && (
-                                <div className="p-4 sm:p-10 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-white/5 animate-in slide-in-from-top-4 duration-500 overflow-hidden">
+                                <div className="p-4 sm:p-10 bg-white dark:bg-fgc-grey border-t border-gray-100 dark:border-white/5 animate-in slide-in-from-top-4 duration-500 overflow-hidden">
                                   <div className="relative flex flex-col pl-8 sm:pl-16 pr-2 sm:pr-6 py-4 space-y-0">
                                     <div className="absolute left-[15px] sm:left-[29px] top-10 bottom-10 w-0.5 sm:w-1 bg-gray-100 dark:bg-gray-800 rounded-full" />
                                     {[{ nom: circ.inici, hora: circ.sortida, via: circ.via_inici }, ...(circ.estacions?.map((st: any) => ({ nom: st.nom, hora: st.hora || st.sortida || st.arribada, via: st.via })) || []), { nom: circ.final, hora: circ.arribada, via: circ.via_final }].map((point, pIdx, arr) => (
@@ -799,9 +799,9 @@ const CercarViewComponent: React.FC<{
             );
           })
         ) : !loading && (query.length >= 1 || (searchType === SearchType.Estacio && selectedStation)) ? (
-          <div className="bg-white dark:bg-gray-900 rounded-[32px] py-20 text-center text-gray-400 flex flex-col items-center gap-6"><div className="w-24 h-24 bg-gray-50 dark:bg-black/20 rounded-full flex items-center justify-center text-gray-100"><Search size={48} /></div><div className="space-y-2"><p className="text-xl font-black text-fgc-grey uppercase">No s'han trobat dades</p><p className="text-sm font-medium">Revisa els paràmetres de cerca.</p></div></div>
+          <div className="bg-white dark:bg-fgc-grey rounded-[32px] py-20 text-center text-gray-400 flex flex-col items-center gap-6"><div className="w-24 h-24 bg-gray-50 dark:bg-black/20 rounded-full flex items-center justify-center text-gray-100"><Search size={48} /></div><div className="space-y-2"><p className="text-xl font-bold text-[#4D5358] uppercase">No s'han trobat dades</p><p className="text-sm font-medium">Revisa els paràmetres de cerca.</p></div></div>
         ) : !loading && (
-          <div className="text-center py-24 opacity-10 flex flex-col items-center"><Train size={80} className="text-fgc-grey mb-8" /><p className="text-lg font-black uppercase tracking-[0.4em] text-fgc-grey">Consulta de Torns Activa</p></div>
+          <div className="text-center py-24 opacity-10 flex flex-col items-center"><Train size={80} className="text-[#4D5358] mb-8" /><p className="text-lg font-bold uppercase tracking-[0.4em] text-[#4D5358]">Consulta de Torns Activa</p></div>
         )
         }
       </div>
@@ -809,18 +809,18 @@ const CercarViewComponent: React.FC<{
       {
         editingCirc && createPortal(
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-fgc-grey/60 backdrop-blur-md animate-in fade-in duration-300">
-            <div className="bg-white dark:bg-gray-900 w-full rounded-[48px] shadow-2xl border border-white/20 overflow-hidden flex flex-col animate-in zoom-in-95 duration-300 max-w-md">
+            <div className="bg-white dark:bg-fgc-grey w-full rounded-[48px] shadow-2xl border border-white/20 overflow-hidden flex flex-col animate-in zoom-in-95 duration-300 max-w-md">
               <div className="p-8 border-b border-gray-100 dark:border-white/5 flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="p-3 bg-fgc-green rounded-2xl text-fgc-grey shadow-lg"><Train size={24} /></div>
-                  <div><h3 className="text-xl font-black text-fgc-grey dark:text-white uppercase tracking-tight">Gestió d'Unitat</h3><p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Circulació {editingCirc.circ.codi} • Cicle {editingCirc.cycleId}</p></div>
+                  <div className="p-3 bg-fgc-green rounded-2xl text-[#4D5358] shadow-lg"><Train size={24} /></div>
+                  <div><h3 className="text-xl font-bold text-[#4D5358] dark:text-white uppercase tracking-tight">Gestió d'Unitat</h3><p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Circulació {editingCirc.circ.codi} • Cicle {editingCirc.cycleId}</p></div>
                 </div>
                 <button onClick={() => setEditingCirc(null)} className="p-2 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-500 rounded-full transition-colors"><X size={24} /></button>
               </div>
               <div className="p-8 space-y-8">
-                <div className="space-y-2"><label className="block text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Assignar Unitat de Tren</label><div className="relative"><Hash className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={18} /><input type="text" value={editUnitNumber} onChange={(e) => setEditUnitNumber(e.target.value)} placeholder="Ex: 112.01, 113.12..." className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-2xl py-4 pl-12 pr-4 focus:ring-4 focus:ring-fgc-green/20 outline-none font-black text-lg transition-all dark:text-white" /></div></div>
-                <div className="space-y-4"><label className="block text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Estat de la Flota</label><div className="grid grid-cols-2 gap-3">{[{ id: 'is_broken', label: 'AVARIAT', icon: <AlertTriangle size={16} />, color: 'red' }, { id: 'needs_images', label: 'IMATGES', icon: <Camera size={16} />, color: 'blue' }, { id: 'needs_records', label: 'REGISTRES', icon: <FileText size={16} />, color: 'yellow' }, { id: 'needs_cleaning', label: 'NETEJA', icon: <Brush size={16} />, color: 'orange' },].map((st) => (<button key={st.id} onClick={() => setTempStatus(prev => ({ ...prev, [st.id]: !prev[st.id as keyof typeof prev] }))} className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all font-black text-[11px] ${tempStatus[st.id as keyof typeof tempStatus] ? `bg-${st.color}-50 dark:bg-${st.color}-900/20 border-${st.color}-500 text-${st.color}-600 dark:text-${st.color}-400 shadow-sm` : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-white/5 text-gray-400 dark:text-gray-500 grayscale'}`}>{st.icon}{st.label}{tempStatus[st.id as keyof typeof tempStatus] && <Check size={14} />}</button>))}</div></div>
-                <button onClick={saveUnitChanges} disabled={isSavingUnit} className="w-full bg-fgc-green text-fgc-grey py-5 rounded-2xl font-black text-lg flex items-center justify-center gap-3 shadow-xl shadow-fgc-green/20 hover:scale-[1.02] active:scale-95 disabled:opacity-50 transition-all">{isSavingUnit ? <Loader2 size={24} className="animate-spin" /> : <Save size={24} />}DESAR CANVIS</button>
+                <div className="space-y-2"><label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Assignar Unitat de Tren</label><div className="relative"><Hash className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={18} /><input type="text" value={editUnitNumber} onChange={(e) => setEditUnitNumber(e.target.value)} placeholder="Ex: 112.01, 113.12..." className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-2xl py-4 pl-12 pr-4 focus:ring-4 focus:ring-fgc-green/20 outline-none font-bold text-lg transition-all dark:text-white" /></div></div>
+                <div className="space-y-4"><label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Estat de la Flota</label><div className="grid grid-cols-2 gap-3">{[{ id: 'is_broken', label: 'AVARIAT', icon: <AlertTriangle size={16} />, color: 'red' }, { id: 'needs_images', label: 'IMATGES', icon: <Camera size={16} />, color: 'blue' }, { id: 'needs_records', label: 'REGISTRES', icon: <FileText size={16} />, color: 'yellow' }, { id: 'needs_cleaning', label: 'NETEJA', icon: <Brush size={16} />, color: 'orange' },].map((st) => (<button key={st.id} onClick={() => setTempStatus(prev => ({ ...prev, [st.id]: !prev[st.id as keyof typeof prev] }))} className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all font-bold text-[11px] ${tempStatus[st.id as keyof typeof tempStatus] ? `bg-${st.color}-50 dark:bg-${st.color}-900/20 border-${st.color}-500 text-${st.color}-600 dark:text-${st.color}-400 shadow-sm` : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-white/5 text-gray-400 dark:text-gray-500 grayscale'}`}>{st.icon}{st.label}{tempStatus[st.id as keyof typeof tempStatus] && <Check size={14} />}</button>))}</div></div>
+                <button onClick={saveUnitChanges} disabled={isSavingUnit} className="w-full bg-fgc-green text-[#4D5358] py-5 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 shadow-xl shadow-fgc-green/20 hover:scale-[1.02] active:scale-95 disabled:opacity-50 transition-all">{isSavingUnit ? <Loader2 size={24} className="animate-spin" /> : <Save size={24} />}DESAR CANVIS</button>
               </div>
             </div>
           </div>,

@@ -8,7 +8,7 @@
   <title>FGC CercaTorns Pro</title>
 
   <!-- PWA Meta Tags -->
-  <meta name="theme-color" content="#53565A">
+  <meta name="theme-color" content="#4D5358">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -24,28 +24,7 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Caveat:wght@400;500;600&display=swap"
     rel="stylesheet">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            fgc: {
-              green: '#8EDE00',
-              grey: '#53565A',
-              light: '#F4F4F4',
-              dark: '#1A1A1A'
-            }
-          },
-          fontFamily: {
-            sans: ['Inter', 'sans-serif'],
-            handwriting: ['Caveat', 'cursive'],
-          },
-        }
-      }
-    }
-  </script>
+
   <style>
     body {
       scroll-behavior: smooth;
@@ -79,10 +58,7 @@
       background: #D1D5DB;
     }
 
-    .nav-blur {
-      backdrop-filter: blur(12px);
-      background: rgba(83, 86, 90, 0.95);
-    }
+
 
     @keyframes marquee {
       0% {
@@ -339,7 +315,7 @@
     }
 
     .dark .glass-card {
-      background: rgba(15, 23, 42, 0.6);
+      background: rgba(77, 83, 88, 0.6);
       border: 1px solid rgba(255, 255, 255, 0.05);
       box-shadow:
         0 10px 25px -5px rgba(0, 0, 0, 0.3),
@@ -356,12 +332,12 @@
       box-shadow:
         0 20px 25px -5px rgba(0, 0, 0, 0.05),
         0 10px 10px -5px rgba(0, 0, 0, 0.02);
-      border-color: rgba(142, 222, 0, 0.3);
+      border-color: rgba(151, 191, 21, 0.3);
     }
 
     .dark .glass-interactive:hover {
       background: rgba(30, 41, 59, 0.7);
-      border-color: rgba(142, 222, 0, 0.2);
+      border-color: rgba(151, 191, 21, 0.2);
       box-shadow: 0 20px 30px -10px rgba(0, 0, 0, 0.5);
     }
 
@@ -388,7 +364,7 @@
       content: '';
       position: absolute;
       inset: -4px;
-      border: 2px solid #8EDE00;
+      border: 2px solid #97BE14;
       border-radius: inherit;
       animation: live-ring 2s cubic-bezier(0.16, 1, 0.3, 1) infinite;
     }
@@ -456,13 +432,13 @@
     .nav-blur {
       backdrop-filter: blur(20px) saturate(180%);
       -webkit-backdrop-filter: blur(20px) saturate(180%);
-      background: rgba(255, 255, 255, 0.85);
-      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+      background: rgba(77, 83, 88, 0.95);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     }
 
     .dark .nav-blur {
-      background: rgba(15, 23, 42, 0.9);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      background: rgba(77, 83, 88, 0.95);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     }
 
     @keyframes shimmer-anim {
@@ -477,11 +453,11 @@
 
     /* Typography Spatial Depth */
     .title-glow {
-      text-shadow: 0 0 30px rgba(142, 222, 0, 0.2);
+      text-shadow: 0 0 30px rgba(151, 191, 21, 0.2);
     }
 
     .dark .title-glow {
-      text-shadow: 0 0 40px rgba(142, 222, 0, 0.15);
+      text-shadow: 0 0 40px rgba(151, 191, 21, 0.15);
     }
 
     /* Notch expansion effect */
@@ -511,7 +487,7 @@
     }
 
     .dark .dynamic-island-menu {
-      background: rgba(15, 23, 42, 0.98);
+      background: rgba(77, 83, 88, 0.98);
       border-color: rgba(255, 255, 255, 0.1);
       box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.5);
     }
@@ -568,36 +544,6 @@
         opacity: 0;
         stroke-width: 0.5;
       }
-    }
-
-    /* 2.4: Mini-mapa de contexto */
-    .minimap-container {
-      position: absolute;
-      bottom: 16px;
-      left: 16px;
-      width: 180px;
-      height: 60px;
-      border-radius: 12px;
-      overflow: hidden;
-      z-index: 20;
-      pointer-events: none;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      background: rgba(0, 0, 0, 0.6);
-      backdrop-filter: blur(8px);
-    }
-
-    .dark .minimap-container {
-      background: rgba(0, 0, 0, 0.7);
-      border-color: rgba(255, 255, 255, 0.1);
-    }
-
-    .minimap-viewport {
-      position: absolute;
-      border: 1.5px solid #8EDE00;
-      border-radius: 3px;
-      background: rgba(142, 222, 0, 0.08);
-      pointer-events: none;
-      transition: all 0.15s ease;
     }
   </style>
   <script type="importmap">

@@ -219,7 +219,7 @@ const App: React.FC = () => {
         <div className="blob blob-3 parallax-blob" data-speed="0.03" />
       </div>
       {/* Top Navigation Bar con soporte para Safe Areas */}
-      <nav className="sticky top-0 z-40 bg-fgc-grey dark:bg-black/80 dark:backdrop-blur-md text-white shadow-md safe-top border-b border-white/5 transition-all">
+      <nav style={{ backgroundColor: isDarkMode ? '#222222' : '#4D5358' }} className="sticky top-0 z-40 dark:backdrop-blur-md text-white shadow-md safe-top border-b border-white/5 transition-all">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-20 sm:h-24">
             <div
@@ -276,9 +276,9 @@ const App: React.FC = () => {
 
                   {/* Settings Dropdown */}
                   {isSettingsOpen && (
-                    <div className="absolute right-0 mt-3 w-64 bg-white dark:bg-gray-900 rounded-[24px] shadow-2xl border border-gray-100 dark:border-white/10 py-3 animate-in fade-in slide-in-from-top-4 duration-200">
+                    <div className="absolute right-0 mt-3 w-64 bg-white dark:bg-[#4D5358] rounded-[24px] shadow-2xl border border-gray-100 dark:border-white/10 py-3 animate-in fade-in slide-in-from-top-4 duration-200">
                       <div className="px-6 py-3 border-b border-gray-100 dark:border-white/5">
-                        <h4 className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Ajustes</h4>
+                        <h4 className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Ajustes</h4>
                       </div>
                       <div className="px-3 pt-2">
                         <button
@@ -299,15 +299,15 @@ const App: React.FC = () => {
                         </button>
 
                         <div className="mx-3 mt-4 mb-2 p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
-                          <p className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2">Cerca Intel·ligent</p>
+                          <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2">Cerca Intel·ligent</p>
                           <div className="flex flex-col gap-2">
                             <div className="flex items-center justify-between">
                               <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 italic">Atall Windows</span>
-                              <span className="px-1.5 py-0.5 bg-white dark:bg-white/10 rounded border border-gray-200 dark:border-white/10 text-[10px] font-black text-fgc-grey dark:text-gray-300">CTRL + K</span>
+                              <span className="px-1.5 py-0.5 bg-white dark:bg-white/10 rounded border border-gray-200 dark:border-white/10 text-[10px] font-bold text-fgc-grey dark:text-gray-300">CTRL + K</span>
                             </div>
                             <div className="flex items-center justify-between">
                               <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 italic">Atall macOS</span>
-                              <span className="px-1.5 py-0.5 bg-white dark:bg-white/10 rounded border border-gray-200 dark:border-white/10 text-[10px] font-black text-fgc-grey dark:text-gray-300">⌘ + K</span>
+                              <span className="px-1.5 py-0.5 bg-white dark:bg-white/10 rounded border border-gray-200 dark:border-white/10 text-[10px] font-bold text-fgc-grey dark:text-gray-300">⌘ + K</span>
                             </div>
                           </div>
                         </div>
@@ -402,7 +402,7 @@ const App: React.FC = () => {
           setSearchTriggerRect(e.currentTarget.getBoundingClientRect());
           setIsCommandPaletteOpen(true);
         }}
-        className={`md:hidden fixed bottom-8 right-6 w-16 h-16 bg-fgc-green text-fgc-grey rounded-full shadow-[0_16px_32px_-8px_rgba(0,177,64,0.5)] border-4 border-white dark:border-gray-900 flex items-center justify-center z-[9999] active:scale-90 transition-all duration-500 ${isCommandPaletteOpen ? 'scale-0 rotate-90 opacity-0 pointer-events-none' : 'scale-100 rotate-0 opacity-100'}`}
+        className={`md:hidden fixed bottom-8 right-6 w-16 h-16 bg-fgc-green text-fgc-grey rounded-full shadow-[0_16px_32px_-8px_rgba(151,191,21,0.5)] border-4 border-white dark:border-gray-900 flex items-center justify-center z-[9999] active:scale-90 transition-all duration-500 ${isCommandPaletteOpen ? 'scale-0 rotate-90 opacity-0 pointer-events-none' : 'scale-100 rotate-0 opacity-100'}`}
         title="Búsqueda Inteligente"
       >
         <Search size={28} strokeWidth={3} />

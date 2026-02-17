@@ -150,7 +150,7 @@ const CommandPaletteComponent: React.FC<CommandPaletteProps> = ({ isOpen, onClos
 
             {/* Container */}
             <div
-                className={`w-full max-w-2xl bg-white dark:bg-gray-900 rounded-[32px] shadow-2xl overflow-hidden relative transition-all duration-300 ${isOpen && isExpanded ? 'mt-0 sm:mt-[10vh] opacity-100 scale-100' : 'mt-0 opacity-0 scale-90 translate-y-10'}`}
+                className={`w-full max-w-2xl bg-white dark:bg-fgc-grey rounded-[32px] shadow-2xl overflow-hidden relative transition-all duration-300 ${isOpen && isExpanded ? 'mt-0 sm:mt-[10vh] opacity-100 scale-100' : 'mt-0 opacity-0 scale-90 translate-y-10'}`}
             >
                 {/* Header */}
                 <div className="relative border-b border-gray-100 dark:border-white/5">

@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Estilos globales y utilidades personalizadas */
+@layer base {
+  body {
+    @apply antialiased text-fgc-grey dark:text-gray-100 dark:bg-black;
+  }
+}
+
+/* Clases utilitarias personalizadas para componentes */
+@layer components {
+
+  /* Efecto Glassmorphism Estándar */
+  .glass-card {
+    @apply bg-white/70 dark:bg-black/40 backdrop-blur-xl border border-white/40 dark:border-white/5 shadow-lg;
+  }
+
+  .glass-interactive {
+    @apply active:scale-95 transition-all duration-200 cursor-pointer;
+  }
+
+  /* Animaciones custom */
+  .title-glow {
+    text-shadow: 0 0 40px rgba(151, 191, 21, 0.4);
+  }
+
+  /* Scrollbar oculta pero funcional */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}

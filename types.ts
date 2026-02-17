@@ -125,6 +125,9 @@ export interface LivePersonnel {
   visualOffset?: number;
   nextStationId?: string;
   isMoving?: boolean;
+  startTimeMin?: number;
+  endTimeMin?: number;
+  progress?: number;
 }
 
 /** Nodo de estación para el mapa SVG */

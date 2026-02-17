@@ -1,7 +1,7 @@
-
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
+import './index.css'; // Import estilos Tailwind
 import { ToastProvider } from './components/ToastProvider.tsx';
 
 // Registro del Service Worker para PWA con autoupdate
