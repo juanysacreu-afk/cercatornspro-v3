@@ -11,6 +11,7 @@
 
 body {
   @apply antialiased text-fgc-grey dark:text-gray-100 dark:bg-black;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* Clases utilitarias personalizadas para componentes */
