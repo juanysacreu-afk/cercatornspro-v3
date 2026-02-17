@@ -4,9 +4,9 @@
 
 /* Estilos globales y utilidades personalizadas */
 :root {
-  --fgc-green: 168 208 23;
+  --fgc-green: 168 208 23 !important;
   /* #A8D017 - Brighter Global */
-  --fgc-green-hex: #A8D017;
+  --fgc-green-hex: #A8D017 !important;
 }
 
 body {

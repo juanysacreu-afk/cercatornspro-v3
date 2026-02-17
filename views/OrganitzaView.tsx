@@ -60,7 +60,7 @@ const OrganitzaViewComponent: React.FC<{
     if (c === 'RE') return 'bg-purple-300';
     if (c === 'RB') return 'bg-pink-500';
     if (c === 'NA') return 'bg-orange-500';
-    if (c === 'PN') return 'bg-[#97BE14]';
+    if (c === 'PN') return 'bg-[#A8D017]';
     if (c === 'TB') return 'bg-[#a67c52]';
     return 'bg-gray-200 dark:bg-gray-700';
   };
