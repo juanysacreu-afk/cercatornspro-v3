@@ -9,6 +9,26 @@ interface CiclesMaintenanceTabProps {
 }
 
 const CiclesMaintenanceTab: React.FC<CiclesMaintenanceTabProps> = ({ maintenanceAlerts, handleUpdateNotes, handleUpdateStatusDate }) => {
+    const [sortBy, setSortBy] = React.useState<'DATE' | 'TYPE'>('DATE');
+    const [sortOrder, setSortOrder] = React.useState<'ASC' | 'DESC'>('DESC');
+
+    const sortedAlerts = React.useMemo(() => {
+        const sorted = [...maintenanceAlerts];
+        sorted.sort((a, b) => {
+            if (sortBy === 'DATE') {
+                const dateA = new Date(a.since).getTime();
+                const dateB = new Date(b.since).getTime();
+                return sortOrder === 'ASC' ? dateA - dateB : dateB - dateA;
+            } else {
+                const typePriority: Record<string, number> = { 'BROKEN': 4, 'IMAGES': 3, 'RECORDS': 2, 'CLEANING': 1 };
+                const prioA = typePriority[a.type] || 0;
+                const prioB = typePriority[b.type] || 0;
+                return sortOrder === 'ASC' ? prioA - prioB : prioB - prioA;
+            }
+        });
+        return sorted;
+    }, [maintenanceAlerts, sortBy, sortOrder]);
+
     return (
         <div className="animate-in fade-in slide-in-from-right-8 duration-700 grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="md:col-span-2 space-y-6">
@@ -19,8 +39,34 @@ const CiclesMaintenanceTab: React.FC<CiclesMaintenanceTabProps> = ({ maintenance
                         </div>
                         <h2 className="text-xl font-black uppercase text-fgc-grey dark:text-white">Manteniment</h2>
                     </div>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Ordenar per:</span>
+                            <div className="flex bg-gray-100 dark:bg-white/5 rounded-lg p-1">
+                                <button
+                                    onClick={() => setSortBy('DATE')}
+                                    className={`px-3 py-1 text-[10px] font-bold uppercase rounded-md transition-all ${sortBy === 'DATE' ? 'bg-white dark:bg-white/10 text-fgc-grey dark:text-white shadow-sm' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}
+                                >
+                                    Data
+                                </button>
+                                <button
+                                    onClick={() => setSortBy('TYPE')}
+                                    className={`px-3 py-1 text-[10px] font-bold uppercase rounded-md transition-all ${sortBy === 'TYPE' ? 'bg-white dark:bg-white/10 text-fgc-grey dark:text-white shadow-sm' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'}`}
+                                >
+                                    Tipus
+                                </button>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => setSortOrder(prev => prev === 'ASC' ? 'DESC' : 'ASC')}
+                            className="flex items-center gap-1 text-[10px] font-bold uppercase text-fgc-green hover:underline"
+                        >
+                            {sortOrder === 'ASC' ? 'Ascendent' : 'Descendent'}
+                        </button>
+                    </div>
+
                     <div className="space-y-4">
-                        {maintenanceAlerts.map((a, i) => {
+                        {sortedAlerts.map((a, i) => {
                             const [isExpanded, setIsExpanded] = React.useState(false);
                             const conf = a.type === 'BROKEN' ? { icon: <AlertTriangle size={14} />, label: 'Avaria', color: 'bg-red-500' } :
                                 a.type === 'IMAGES' ? { icon: <Camera size={14} />, label: 'Imatges', color: 'bg-blue-600' } :
