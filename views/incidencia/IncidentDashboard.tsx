@@ -125,26 +125,36 @@ const IncidentDashboard: React.FC<IncidentDashboardProps> = ({
                         <div className="space-y-4">
                             <div className="flex items-center gap-2 px-2"><Coffee className="text-fgc-green" size={16} /><h3 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Maquinistes en descans ({restingResults.length})</h3></div>
                             {restingResults.length > 0 ? (<div className="flex flex-col gap-2">{restingResults.map((torn, idx) => (
-                                <div key={idx} className="bg-white dark:bg-gray-800 rounded-2xl p-3 border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-md transition-all flex items-center gap-4 border-l-4 border-l-fgc-green">
-                                    <div className="h-10 min-w-[2.5rem] px-2 bg-fgc-grey/10 dark:bg-black text-fgc-grey dark:text-gray-300 rounded-xl flex items-center justify-center font-black text-xs shadow-sm shrink-0 whitespace-nowrap">{torn.id}</div>
-                                    <div className="flex flex-col min-w-[160px] max-w-[220px]">
-                                        <div className="flex items-center gap-2">
-                                            <p className="text-xs sm:text-sm font-black text-fgc-grey dark:text-gray-200 truncate">{torn.drivers?.[0]?.cognoms}, {torn.drivers?.[0]?.nom}</p>
+                                <div key={idx} className="bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-md transition-all flex flex-col sm:flex-row gap-4 border-l-4 border-l-fgc-green">
+                                    {/* Header Mobile & Desktop: Avatar + ID + Name + Phone */}
+                                    <div className="flex items-center justify-between sm:w-auto sm:justify-start gap-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-10 w-12 bg-fgc-grey/10 dark:bg-black text-fgc-grey dark:text-gray-300 rounded-xl flex items-center justify-center font-black text-xs shadow-sm shrink-0 whitespace-nowrap">{torn.id}</div>
+                                            <div className="flex flex-col min-w-[120px] sm:w-[180px]">
+                                                <p className="text-sm font-black text-fgc-grey dark:text-gray-200 truncate">{torn.drivers?.[0]?.cognoms}, {torn.drivers?.[0]?.nom}</p>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="flex items-center gap-1 text-[8px] text-fgc-green font-black uppercase tracking-widest"><MapPin size={8} /> {torn.restSeg?.codi}</span>
+                                                    <span className="text-[8px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Nom. {torn.drivers?.[0]?.nomina}</span>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <span className="flex items-center gap-1 text-[8px] text-fgc-green font-black uppercase tracking-widest mt-0.5"><MapPin size={8} /> {torn.restSeg?.codi}</span>
-                                        <p className="text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mt-0.5">Nom. {torn.drivers?.[0]?.nomina}</p>
+                                        {/* Mobile Phone (top right) */}
+                                        <div className="sm:hidden flex gap-1">
+                                            {torn.drivers?.[0]?.phones?.slice(0, 1).map((p: string, i: number) => (<a key={i} href={isPrivacyMode ? undefined : `tel:${p}`} className={`w-8 h-8 bg-fgc-grey dark:bg-black text-white rounded-lg flex items-center justify-center shadow-sm ${isPrivacyMode ? 'cursor-default' : ''}`}><Phone size={14} /></a>))}
+                                        </div>
                                     </div>
 
-                                    <div className="flex-1 px-4 flex flex-col justify-center space-y-1.5 border-l border-gray-100 dark:border-white/5 mx-2">
+                                    {/* Middle: Info / Next Circulation */}
+                                    <div className="flex-1 px-3 py-2 bg-gray-50 dark:bg-black/20 rounded-xl flex flex-col justify-center space-y-1.5 sm:bg-transparent sm:dark:bg-transparent sm:p-0 sm:border-l sm:border-gray-100 sm:dark:border-white/5 sm:pl-4">
                                         {torn.nextCirculation ? (
                                             <>
                                                 <div className="flex items-center gap-2">
-                                                    <div className="bg-gray-100 dark:bg-white/10 p-1.5 rounded-lg text-gray-400 dark:text-gray-500"><Train size={12} /></div>
+                                                    <div className="hidden sm:block bg-gray-100 dark:bg-white/10 p-1.5 rounded-lg text-gray-400 dark:text-gray-500"><Train size={12} /></div>
                                                     <span className="text-[10px] font-black text-fgc-grey dark:text-gray-300 uppercase leading-none">
                                                         SEGÜENT: CIRC. {torn.nextCirculation?.codi} <span className="text-gray-400 dark:text-gray-500 ml-1">({formatFgcTime(torn.nextCirculation?.start)} - {formatFgcTime(torn.nextCirculation?.end)})</span>
                                                     </span>
                                                 </div>
-                                                <div className="pl-8 space-y-1">
+                                                <div className="pl-0 sm:pl-8 space-y-1">
                                                     {torn.returnStatus === 'same_station' && (
                                                         <p className="text-[9px] font-bold text-fgc-green flex items-center gap-1.5"><CheckCircle2 size={10} /> Ja a l'estació ({torn.fullCirculations?.find((c: any) => c?.codi === torn.nextCirculation?.codi)?.machinistInici || '?'})</p>
                                                     )}
@@ -174,23 +184,22 @@ const IncidentDashboard: React.FC<IncidentDashboardProps> = ({
                                         )}
                                     </div>
 
-                                    <div className="flex flex-col items-end gap-1 shrink-0">
+                                    {/* Right: Times & Desktop Phone */}
+                                    <div className="flex items-center justify-between sm:flex-col sm:items-end sm:justify-center gap-2 shrink-0">
                                         <div className="flex items-center gap-1.5 bg-fgc-green/10 dark:bg-fgc-green/5 px-3 py-1 rounded-lg border border-fgc-green/20 dark:border-fgc-green/10 transition-colors">
                                             <span className="text-[10px] font-black uppercase text-fgc-grey dark:text-gray-300">{formatFgcTime(torn.restSeg?.start)}</span>
                                             <ArrowRight size={10} className="text-fgc-green" />
                                             <span className="text-[10px] font-black uppercase text-fgc-grey dark:text-gray-300">{formatFgcTime(torn.restSeg?.end)}</span>
                                         </div>
-                                        <div className={`text-[10px] font-black px-2 py-0.5 rounded border min-w-[80px] text-center flex items-center justify-center gap-1 ${torn.conflictMinutes > 0 ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border-red-100 dark:border-red-900/30' : 'text-fgc-green bg-fgc-green/5 border-fgc-green/10'}`}>
-                                            {torn.conflictMinutes > 0 && <ShieldAlert size={10} />}
-                                            {torn.availableTime} MIN ÚTILS
+                                        <div className="flex items-center gap-2">
+                                            <div className={`text-[10px] font-black px-2 py-0.5 rounded border min-w-[80px] text-center flex items-center justify-center gap-1 ${torn.conflictMinutes > 0 ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border-red-100 dark:border-red-900/30' : 'text-fgc-green bg-fgc-green/5 border-fgc-green/10'}`}>
+                                                {torn.conflictMinutes > 0 && <ShieldAlert size={10} />}
+                                                {torn.availableTime} MIN ÚTILS
+                                            </div>
+                                            {/* Desktop Phone */}
+                                            <div className="hidden sm:flex gap-1">{torn.drivers?.[0]?.phones?.map((p: string, i: number) => (<a key={i} href={isPrivacyMode ? undefined : `tel:${p}`} className={`w-8 h-8 bg-fgc-grey dark:bg-black text-white rounded-lg flex items-center justify-center hover:bg-fgc-dark transition-all shadow-sm ${isPrivacyMode ? 'cursor-default' : ''}`}><Phone size={12} /></a>))}</div>
                                         </div>
-                                        {torn.conflictMinutes > 0 ? (
-                                            <span className="text-[8px] font-bold text-red-500 dark:text-red-400 uppercase tracking-tight">Solapa {torn.conflictMinutes} min</span>
-                                        ) : (
-                                            <span className="text-[8px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-tight">Total: {(torn.restSeg?.end || 0) - (torn.restSeg?.start || 0)} min</span>
-                                        )}
                                     </div>
-                                    <div className="flex gap-1 shrink-0">{torn.drivers?.[0]?.phones?.map((p: string, i: number) => (<a key={i} href={isPrivacyMode ? undefined : `tel:${p}`} className={`w-8 h-8 bg-fgc-grey dark:bg-black text-white rounded-lg flex items-center justify-center hover:bg-fgc-dark transition-all shadow-sm ${isPrivacyMode ? 'cursor-default' : ''}`}><Phone size={12} /></a>))}</div>
                                 </div>
                             ))}</div>) : (<div className="bg-gray-50/50 dark:bg-black/20 rounded-2xl p-6 text-center border border-dashed border-gray-200 dark:border-white/10 transition-colors"><p className="text-gray-400 dark:text-gray-600 font-bold italic text-xs">Cap maquinista en descans.</p></div>)}
                         </div>
@@ -198,32 +207,51 @@ const IncidentDashboard: React.FC<IncidentDashboardProps> = ({
                         <div className="space-y-4">
                             <div className="flex items-center gap-2 px-2"><Timer className="text-orange-500" size={16} /><h3 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Torns amb possibilitat de perllongar ({extensibleResults.length})</h3></div>
                             {extensibleResults.length > 0 ? (<div className="flex flex-col gap-2">{extensibleResults.map((torn, idx) => (
-                                <div key={idx} className="bg-white dark:bg-gray-800 rounded-2xl p-3 border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-md transition-all flex items-center gap-4 border-l-4 border-l-orange-500">
-                                    <div className="h-10 min-w-[2.5rem] px-2 bg-orange-50 dark:bg-orange-950/20 text-orange-600 rounded-xl flex items-center justify-center font-black text-xs shadow-sm shrink-0 whitespace-nowrap">{torn.id}</div>
-                                    <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center sm:gap-6">
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2">
-                                                <p className="text-sm font-black text-fgc-grey dark:text-gray-200 truncate">{torn.drivers?.[0]?.cognoms}, {torn.drivers?.[0]?.nom}</p>
-                                                <span className="flex items-center gap-1 text-[8px] text-orange-500 font-black uppercase tracking-widest"><Timer size={10} /> Extensible</span>
-                                            </div>
-                                            <div className="flex items-center gap-2 mt-0.5">
-                                                <p className="text-[8px] font-black text-gray-300 dark:text-gray-600 uppercase tracking-widest">Nom. {torn.drivers?.[0]?.nomina} {torn.drivers?.[0]?.tipus_torn ? `(${torn.drivers?.[0].tipus_torn})` : ''}</p>
-                                                <span className="text-[8px] font-bold text-gray-400 dark:text-gray-500 uppercase">Durada: {torn.duracio}</span>
+                                <div key={idx} className="bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-md transition-all flex flex-col sm:flex-row gap-4 border-l-4 border-l-orange-500">
+                                    {/* Header Mobile & Desktop */}
+                                    <div className="flex items-center justify-between sm:w-auto sm:justify-start gap-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-10 w-12 bg-orange-50 dark:bg-orange-950/20 text-orange-600 rounded-xl flex items-center justify-center font-black text-xs shadow-sm shrink-0 whitespace-nowrap">{torn.id}</div>
+                                            <div className="flex flex-col min-w-[120px] sm:w-[180px]">
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-sm font-black text-fgc-grey dark:text-gray-200 truncate">{torn.drivers?.[0]?.cognoms}, {torn.drivers?.[0]?.nom}</p>
+                                                </div>
+                                                <div className="flex items-center gap-2 mt-0.5">
+                                                    <span className="flex items-center gap-1 text-[8px] text-orange-500 font-black uppercase tracking-widest"><Timer size={8} /> Extensible</span>
+                                                    <p className="text-[8px] font-black text-gray-300 dark:text-gray-600 uppercase tracking-widest">Nom. {torn.drivers?.[0]?.nomina}</p>
+                                                </div>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-3 text-fgc-grey dark:text-gray-300 shrink-0">
-                                            <div className="flex flex-col items-end">
-                                                <div className="flex items-center gap-1.5 bg-orange-50 dark:bg-orange-950/20 px-3 py-1 rounded-lg border border-orange-100 dark:border-orange-900/40 transition-colors">
-                                                    <span className="text-[10px] font-black uppercase text-orange-700 dark:text-orange-400">{formatFgcTime(getFgcMinutes(torn.final_torn))}</span>
-                                                    <ArrowRight size={10} className="text-orange-300" />
-                                                    <span className="text-[10px] font-black uppercase text-orange-700 dark:text-orange-400">{formatFgcTime(torn.extData?.estimatedReturn)}</span>
-                                                </div>
-                                                <span className="text-[8px] font-black text-orange-400 uppercase tracking-tighter mt-1">Extra: +{torn.extData?.extraNeeded || 0} min</span>
-                                            </div>
-                                            <div className="text-[10px] font-black text-white bg-orange-500 px-3 py-1 rounded-lg border border-orange-600 min-w-[100px] text-center shadow-sm">{Math.floor((525 - ((torn.extData?.originalDuration || 0) + (torn.extData?.extraNeeded || 0))))} MIN MARGE</div>
+                                        {/* Mobile Phone (top right) */}
+                                        <div className="sm:hidden flex gap-1">
+                                            {torn.drivers?.[0]?.phones?.slice(0, 1).map((p: string, i: number) => (<a key={i} href={isPrivacyMode ? undefined : `tel:${p}`} className={`w-8 h-8 bg-orange-500 text-white rounded-lg flex items-center justify-center hover:bg-orange-600 transition-all shadow-sm ${isPrivacyMode ? 'cursor-default' : ''}`}><Phone size={14} /></a>))}
                                         </div>
                                     </div>
-                                    <div className="flex gap-1 shrink-0">{torn.drivers?.[0]?.phones?.map((p: string, i: number) => (<a key={i} href={isPrivacyMode ? undefined : `tel:${p}`} className={`w-8 h-8 bg-orange-500 text-white rounded-lg flex items-center justify-center hover:bg-orange-600 transition-all shadow-sm ${isPrivacyMode ? 'cursor-default' : ''}`}><Phone size={12} /></a>))}</div>
+
+                                    {/* Middle: Duration & Extra Line */}
+                                    <div className="flex-1 px-3 py-2 bg-gray-50 dark:bg-black/20 rounded-xl flex flex-col justify-center sm:bg-transparent sm:dark:bg-transparent sm:p-0 sm:border-l sm:border-gray-100 sm:dark:border-white/5 sm:pl-4">
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase">Durada Torn: <span className="text-fgc-grey dark:text-gray-300">{torn.duracio}</span></span>
+                                            {torn.extData?.extraNeeded > 0 && <span className="text-[9px] font-black text-orange-400 uppercase tracking-tighter">Extra: +{torn.extData?.extraNeeded} min</span>}
+                                        </div>
+                                    </div>
+
+                                    {/* Right: Times & Margin & Desktop Phone */}
+                                    <div className="flex items-center justify-between sm:flex-col sm:items-end sm:justify-center gap-2 shrink-0">
+                                        <div className="flex items-center gap-1.5 bg-orange-50 dark:bg-orange-950/20 px-3 py-1 rounded-lg border border-orange-100 dark:border-orange-900/40 transition-colors">
+                                            <span className="text-[10px] font-black uppercase text-orange-700 dark:text-orange-400">{formatFgcTime(getFgcMinutes(torn.final_torn))}</span>
+                                            <ArrowRight size={10} className="text-orange-300" />
+                                            <span className="text-[10px] font-black uppercase text-orange-700 dark:text-orange-400">{formatFgcTime(torn.extData?.estimatedReturn)}</span>
+                                        </div>
+
+                                        <div className="flex items-center gap-2">
+                                            <div className="text-[10px] font-black text-white bg-orange-500 px-3 py-0.5 rounded-lg border border-orange-600 min-w-[80px] text-center shadow-sm whitespace-nowrap">
+                                                {Math.floor((525 - ((torn.extData?.originalDuration || 0) + (torn.extData?.extraNeeded || 0))))} MIN MARGE
+                                            </div>
+                                            {/* Desktop Phone */}
+                                            <div className="hidden sm:flex gap-1">{torn.drivers?.[0]?.phones?.map((p: string, i: number) => (<a key={i} href={isPrivacyMode ? undefined : `tel:${p}`} className={`w-8 h-8 bg-orange-500 text-white rounded-lg flex items-center justify-center hover:bg-orange-600 transition-all shadow-sm ${isPrivacyMode ? 'cursor-default' : ''}`}><Phone size={12} /></a>))}</div>
+                                        </div>
+                                    </div>
                                 </div>
                             ))}</div>) : (<div className="bg-gray-50/50 dark:bg-black/20 rounded-2xl p-6 text-center border border-dashed border-gray-200 dark:border-white/10 transition-colors"><p className="text-gray-400 dark:text-gray-600 font-bold italic text-xs">Cap torn extensible fins al final.</p></div>)}
                         </div>
@@ -255,59 +283,67 @@ const IncidentDashboard: React.FC<IncidentDashboardProps> = ({
                                             {/* Options List */}
                                             <div className="space-y-2 pl-2 border-l-2 border-dashed border-gray-200 dark:border-gray-700 ml-5">
                                                 {torn.resOptions?.map((opt: any, optIdx: number) => (
-                                                    <div key={optIdx} className="bg-gray-50 dark:bg-black/20 p-2 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                                        <div className="flex items-center gap-2 min-w-0">
-                                                            <div className="bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold px-1.5 py-0.5 rounded uppercase shrink-0">{opt.reserveBase}</div>
-                                                            <ArrowRight size={10} className="text-gray-400 shrink-0" />
-                                                            <div className="flex items-center gap-1 min-w-0">
-                                                                <span className="text-[10px] font-black text-gray-700 dark:text-gray-300 uppercase whitespace-nowrap">
+                                                    <div key={optIdx} className="bg-gray-50 dark:bg-black/20 p-3 rounded-xl flex flex-col gap-3 border border-gray-100 dark:border-white/5">
+                                                        {/* Row 1: Route Info (Always visible clearly) */}
+                                                        <div className="flex items-center gap-2 w-full">
+                                                            <div className="bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold px-2 py-1 rounded-md uppercase shrink-0">{opt.reserveBase}</div>
+                                                            <ArrowRight size={12} className="text-gray-300 shrink-0" />
+                                                            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                                                <span className="text-xs font-black text-gray-700 dark:text-gray-200 uppercase truncate">
                                                                     {opt.reserveId}
                                                                 </span>
-                                                                <span className="text-[9px] text-gray-500 dark:text-gray-400 font-medium truncate">
-                                                                    a <span className="font-bold">{opt.station}</span> ({opt.interceptTime})
+                                                                <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium truncate">
+                                                                    a <span className="font-bold text-fgc-grey dark:text-gray-300">{opt.station}</span>
                                                                 </span>
+                                                            </div>
+                                                            <div className="text-[10px] font-bold text-fgc-grey dark:text-white bg-white dark:bg-white/10 px-2 py-0.5 rounded border border-gray-100 dark:border-white/5 whitespace-nowrap">
+                                                                {opt.interceptTime}
                                                             </div>
                                                         </div>
 
-                                                        {/* Return Info for Reserve */}
-                                                        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 justify-end min-w-0">
+                                                        {/* Row 2: Return Details (Stacked on mobile, grid on desktop) */}
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                                             {/* Reserve Return */}
-                                                            {opt.returnCirc ? (
-                                                                <div className="flex items-center gap-1 text-[9px] shrink-0" title="Retorn Reserva">
-                                                                    <span className="text-gray-400 uppercase tracking-wider font-bold hidden sm:inline">R:</span>
-                                                                    <div className="flex items-center gap-1 bg-white dark:bg-black/40 px-1.5 py-0.5 rounded border border-gray-100 dark:border-white/10">
-                                                                        <Train size={10} className="text-gray-400" />
-                                                                        <span className="font-bold text-fgc-grey dark:text-gray-300">{opt.returnCirc.id}</span>
-                                                                        <span className="text-gray-400">({opt.returnCirc.start}-{opt.returnCirc.end})</span>
+                                                            <div className="bg-white dark:bg-black/40 p-2 rounded-lg border border-gray-100 dark:border-white/5 flex items-center justify-between gap-2">
+                                                                <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">RET. RESERVA</span>
+                                                                {opt.returnCirc ? (
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <Train size={12} className="text-gray-400" />
+                                                                        <span className="text-[10px] font-black text-fgc-grey dark:text-gray-300">{opt.returnCirc.id}</span>
+                                                                        <span className="text-[9px] text-gray-400">({opt.returnCirc.start}-{opt.returnCirc.end})</span>
                                                                     </div>
-                                                                </div>
-                                                            ) : (
-                                                                <span className="text-[9px] text-red-400 italic shrink-0" title="Retorn Reserva">Res: Sense retorn</span>
-                                                            )}
+                                                                ) : (
+                                                                    <span className="text-[9px] text-red-400 italic font-medium">Sense retorn</span>
+                                                                )}
+                                                            </div>
 
                                                             {/* Driver Return */}
-                                                            {opt.driverReturnCirc ? (
-                                                                <div className="flex items-center gap-1 text-[9px] shrink-0" title="Retorn Maquinista">
-                                                                    <span className="text-gray-400 uppercase tracking-wider font-bold hidden sm:inline">M:</span>
-                                                                    <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded border ${opt.isOverLimit ? 'bg-red-500/10 border-red-500 text-red-600 dark:text-red-400 font-black' : 'bg-white dark:bg-black/40 border-gray-100 dark:border-white/10 text-fgc-grey dark:text-gray-300'}`}>
-                                                                        <Train size={10} className={opt.isOverLimit ? 'text-red-500' : 'text-gray-400'} />
-                                                                        <span className={opt.isOverLimit ? '' : 'text-fgc-grey dark:text-gray-300'}>{opt.driverReturnCirc.id}</span>
-                                                                        <span className={opt.isOverLimit ? 'text-red-600/70' : 'text-gray-400'}>({opt.driverReturnCirc.start}-{opt.driverReturnCirc.end})</span>
+                                                            <div className={`p-2 rounded-lg border flex items-center justify-between gap-2 ${opt.isOverLimit ? 'bg-red-50 dark:bg-red-900/10 border-red-100 dark:border-red-900/30' : 'bg-white dark:bg-black/40 border-gray-100 dark:border-white/5'}`}>
+                                                                <span className={`text-[9px] font-bold uppercase tracking-wider ${opt.isOverLimit ? 'text-red-500' : 'text-gray-400'}`}>RET. MAQ</span>
+                                                                {opt.driverReturnCirc ? (
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <Train size={12} className={opt.isOverLimit ? 'text-red-500' : 'text-gray-400'} />
+                                                                        <span className={`text-[10px] font-black ${opt.isOverLimit ? 'text-red-600 dark:text-red-400' : 'text-fgc-grey dark:text-gray-300'}`}>{opt.driverReturnCirc.id}</span>
+                                                                        <span className={`text-[9px] ${opt.isOverLimit ? 'text-red-500/70' : 'text-gray-400'}`}>({opt.driverReturnCirc.start}-{opt.driverReturnCirc.end})</span>
                                                                     </div>
-                                                                </div>
-                                                            ) : (
-                                                                <span className="text-[9px] text-red-400 italic shrink-0" title="Retorn Maquinista">Maq: Sense retorn</span>
-                                                            )}
+                                                                ) : (
+                                                                    <span className="text-[9px] text-red-400 italic font-medium">Sense retorn</span>
+                                                                )}
+                                                            </div>
+                                                        </div>
 
-                                                            <div className={`text-[9px] font-black text-white px-2 py-0.5 rounded shadow-sm shrink-0 uppercase ${opt.isOverLimit ? 'bg-red-500 animate-pulse' : 'bg-indigo-500'}`}>
+                                                        {/* Row 3: Footer (Margin & Actions) */}
+                                                        <div className="flex items-center justify-between pt-1 border-t border-gray-100 dark:border-white/5 mt-1">
+                                                            <div className={`text-[10px] font-black text-white px-3 py-1 rounded-lg border shadow-sm uppercase ${opt.isOverLimit ? 'bg-red-500 border-red-600 animate-pulse' : 'bg-indigo-500 border-indigo-600'}`}>
                                                                 MARGE: {opt.margin} min
                                                             </div>
                                                             <a
                                                                 href={`mailto:gpoperacions_@fgc.cat?subject=${encodeURIComponent(`Perllongament MQ BV - Torn ${torn.id}`)}&body=${encodeURIComponent(`Bon dia,\n\nS'informa que el maquinista ${torn.drivers?.[0]?.nom} ${torn.drivers?.[0]?.cognoms} del torn ${torn.id} finalitzarà la seva jornada a les ${opt.actualEndTime || formatFgcTime((getFgcMinutes(torn.final_torn) || 0) + 45 - opt.margin)} per necessitat del servei (cobertura d'incidència).\n\nPreguem realitzin la modificació corresponent al sistema SAP.\n\nMoltes gràcies,`)}`}
-                                                                className="w-8 h-8 bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-gray-400 rounded-lg flex items-center justify-center hover:bg-gray-200 dark:hover:bg-white/20 transition-all shadow-sm active:scale-90"
+                                                                className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-gray-400 rounded-lg hover:bg-gray-200 dark:hover:bg-white/20 transition-all shadow-sm active:scale-95 text-[10px] font-bold uppercase"
                                                                 title="Enviar correu a GPO"
                                                             >
                                                                 <Mail size={12} />
+                                                                <span>Notificar GPO</span>
                                                             </a>
                                                         </div>
                                                     </div>

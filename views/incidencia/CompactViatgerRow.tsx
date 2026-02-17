@@ -26,7 +26,7 @@ const CompactViatgerRow: React.FC<CompactViatgerRowProps> = ({
     return (
         <div className={`bg-white dark:bg-gray-800 rounded-2xl p-3 border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-md transition-all flex items-center gap-4 border-l-4 ${colorClass}`}>
             <div className={`h-10 min-w-[2.5rem] px-2 ${bgClass} ${textClass} rounded-xl flex items-center justify-center font-black text-xs shadow-sm shrink-0 whitespace-nowrap`}>{torn.id}</div>
-            <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center sm:gap-6">
+            <div className="flex-1 min-w-0 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-6">
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                         <p className="text-sm font-black text-fgc-grey dark:text-gray-200 truncate">{torn.drivers?.[0]?.cognoms}, {torn.drivers?.[0]?.nom}</p>
