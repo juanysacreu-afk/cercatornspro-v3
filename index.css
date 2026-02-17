@@ -11,10 +11,10 @@
 
 /* Mobile-specific brightness boost for green */
 @media (max-width: 768px) {
-  :root {
-    --fgc-green: 168 208 23;
+  html {
+    --fgc-green: 168 208 23 !important;
     /* #A8D017 - Brighter/Lighter for Mobile */
-    --fgc-green-hex: #A8D017;
+    --fgc-green-hex: #A8D017 !important;
   }
 }
 
