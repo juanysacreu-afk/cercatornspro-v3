@@ -18,8 +18,8 @@ const formatTime = (min: number): string => {
 // ── Tooltip State ──────────────────────────────────────
 interface TooltipState {
     bar: GanttBar;
-    x: number;
-    y: number;
+    clientX: number;
+    clientY: number;
 }
 
 // ── Hour Header ────────────────────────────────────────
@@ -96,6 +96,7 @@ const ShiftBar: React.FC<{
                 top: '2px'
             }}
             onMouseEnter={(e) => onHover(bar, e)}
+            onMouseMove={(e) => onHover(bar, e)}
             onMouseLeave={onLeave}
         >
             {/* Internal circulation segments */}
@@ -210,8 +211,8 @@ const OrganitzaGantt: React.FC = () => {
         if (!rect) return;
         setTooltip({
             bar,
-            x: e.clientX - rect.left,
-            y: e.clientY - rect.top
+            clientX: e.clientX - rect.left,
+            clientY: e.clientY - rect.top
         });
     }, []);
 
@@ -227,7 +228,7 @@ const OrganitzaGantt: React.FC = () => {
     }
 
     return (
-        <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-700" ref={containerRef}>
+        <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-700 relative" ref={containerRef}>
             {/* Stats Row */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <GlassPanel className="p-3 sm:p-4">
@@ -341,13 +342,14 @@ const OrganitzaGantt: React.FC = () => {
                 </span>
             </div>
 
-            {/* Tooltip */}
+            {/* Tooltip - Absolute inside the relative container to avoid transform issues */}
             {tooltip && (
                 <div
-                    className="fixed z-50 pointer-events-none animate-in fade-in zoom-in-95 duration-150"
+                    className="absolute z-[100] pointer-events-none animate-in fade-in zoom-in-95 duration-150"
                     style={{
-                        left: `${tooltip.x + (containerRef.current?.getBoundingClientRect().left || 0)}px`,
-                        top: `${tooltip.y + (containerRef.current?.getBoundingClientRect().top || 0) - 90}px`
+                        left: `${tooltip.clientX}px`,
+                        top: `${tooltip.clientY}px`,
+                        transform: 'translate(-50%, -110%)'
                     }}
                 >
                     <div className="bg-fgc-grey/95 dark:bg-black/90 backdrop-blur-xl text-white rounded-xl px-3.5 py-2.5 shadow-2xl border border-white/10 min-w-[180px]">
