@@ -191,8 +191,8 @@ const DashboardViewComponent: React.FC = () => {
             <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
                 <div>
                     <h1 className="text-2xl sm:text-3xl font-bold text-[#4D5358] dark:text-white tracking-tight uppercase title-glow flex items-center gap-3">
-                        <Eye className="text-fgc-green" size={28} strokeWidth={2.5} />
-                        Ull de Falcó
+                        <Zap className="text-fgc-green" size={28} strokeWidth={2.5} />
+                        CCO — Supervisió Operativa
                     </h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400 font-medium tracking-tight mt-0.5">
                         Servei {serviceLabel[serviceToday] || serviceToday} · Última actualització: {formatTime(lastRefresh)}
@@ -329,7 +329,7 @@ const DashboardViewComponent: React.FC = () => {
 
 // ── Wrapped export with ErrorBoundary ──────────────────
 const DashboardView: React.FC = () => (
-    <ErrorBoundary sectionName="Dashboard Ull de Falcó">
+    <ErrorBoundary sectionName="CCO — Supervisió Operativa">
         <DashboardViewComponent />
     </ErrorBoundary>
 );
