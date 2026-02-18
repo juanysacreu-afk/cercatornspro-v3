@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../../../supabaseClient';
 import { getServiceToday } from '../../../utils/serviceCalendar';
-import { getFgcMinutes, getShortTornId, isServiceVisible } from '../../../utils/stations';
+import { getFgcMinutes, getShortTornId, isServiceVisible, resolveStationId } from '../../../utils/stations';
 
 // ── Types ──────────────────────────────────────────────
 export interface DashboardKPIs {
@@ -77,10 +77,13 @@ export function useDashboardData() {
                 supabase.from('shifts').select('id, servei, inici_torn, final_torn, dependencia, circulations'),
                 supabase.from('daily_assignments').select('*'),
                 supabase.from('parked_units').select('*'),
-                supabase.from('fleet_status').select('*')
+                supabase.from('train_status').select('*')
             ]);
 
-            const shifts = (shiftsRes.data || []).filter(s => isServiceVisible(s.servei, serviceToday));
+            const shifts = (shiftsRes.data || []).filter(s =>
+                isServiceVisible(s.servei, serviceToday) ||
+                (s.id && s.id.toUpperCase().startsWith('QR'))
+            );
             const assignments = assignmentsRes.data || [];
             const parkedUnits = parkedRes.data || [];
             const fleetStatus = brokenRes.data || [];
@@ -127,50 +130,80 @@ export function useDashboardData() {
             const coverage = scheduledTrains > 0 ? Math.round((activeTrains / scheduledTrains) * 100) : 100;
 
             // ── Personnel ──
+            // ── Personnel ──
             const assignedTorns = new Set(assignments.map(a => a.torn));
             const activeAssignments = assignments.filter(a => {
-                const shift = shifts.find(s => getShortTornId(s.id) === a.torn);
-                if (!shift) return false;
-                const sMin = getFgcMinutes(shift.inici_torn);
-                const eMin = getFgcMinutes(shift.final_torn);
-                return sMin !== null && eMin !== null && currentMin >= sMin && currentMin <= eMin;
+                // Priority: Use assignment specific times if available, otherwise fallback to shift def
+                let start = getFgcMinutes(a.hora_inici);
+                let end = getFgcMinutes(a.hora_fi);
+
+                if (start === null || end === null) {
+                    const shift = shifts.find(s => getShortTornId(s.id) === a.torn || s.id === a.torn);
+                    if (shift) {
+                        start = getFgcMinutes(shift.inici_torn);
+                        end = getFgcMinutes(shift.final_torn);
+                    }
+                }
+
+                return start !== null && end !== null && currentMin >= start && currentMin <= end;
             });
 
             // ── Reserves ──
+            // ── Reserves ──
             const RESERVE_STATIONS: Record<string, string> = {
                 'PC': 'Pl. Catalunya', 'SR': 'Sarrià', 'RB': 'Rubí',
-                'RE': 'Reina Elisenda', 'NA': 'Nació', 'PN': 'Pont de la Potència'
+                'NA': 'Nacions Unides', 'NO': 'Sabadell', 'EN': 'Terrassa',
+                'XX': 'Sense Ubicació'
             };
+            const reserveSlotsMap = new Map<string, { label: string, personnel: any[] }>();
+
+            // Initialize map
+            Object.entries(RESERVE_STATIONS).forEach(([k, v]) => reserveSlotsMap.set(k, { label: v, personnel: [] }));
+
+            // Iterate ASSIGNMENTS first (Source of Truth for "Who works now")
+            activeAssignments.forEach(a => {
+                const tornId = a.torn.toUpperCase();
+                if (!tornId.startsWith('QR')) return;
+
+                // Find Shift Metadata for location
+                const shiftMeta = shifts.find(s => getShortTornId(s.id) === a.torn || s.id === a.torn);
+                let stationCode = shiftMeta?.dependencia ? resolveStationId(shiftMeta.dependencia) : '';
+
+                // Fallback: Infer station from ID if metadata missing or unresolved
+                // User: QRP=PC, QRS=SR, QRR=RB, QRN=NA (Nacions), QRF=Sabadell (NO or similar), QRT=Terrassa(EN)
+                if (!stationCode || !RESERVE_STATIONS[stationCode]) {
+                    if (tornId.startsWith('QRP')) stationCode = 'PC';
+                    else if (tornId.startsWith('QRS')) stationCode = 'SR';
+                    else if (tornId.startsWith('QRR')) stationCode = 'RB';
+                    else if (tornId.startsWith('QRN')) stationCode = 'NA';
+                    else if (tornId.startsWith('QRF')) stationCode = 'NO'; // Sabadell
+                    else if (tornId.startsWith('QRT')) stationCode = 'EN'; // Terrassa (Guessing QRT prefix exists for Terrassa if QRF is Sabadell?)
+                    else stationCode = 'XX';
+                }
+
+                if (reserveSlotsMap.has(stationCode)) {
+                    reserveSlotsMap.get(stationCode)?.personnel.push({
+                        nom: a.nom,
+                        cognoms: a.cognoms,
+                        torn: a.torn
+                    });
+                } else if (shiftMeta?.dependencia) {
+                    // If we resolved a station code but it wasn't in our predefined list, add it dynamically?
+                    // For now, only track the main reserve stations as per UI requirements.
+                }
+            });
+
+            // Convert map to array
             const reserveSlots: ReserveSlot[] = [];
-
-            Object.entries(RESERVE_STATIONS).forEach(([code, label]) => {
-                const reserveShifts = activeShifts.filter(s => {
-                    const dep = (s.dependencia || '').toUpperCase();
-                    const isReserve = ((s.circulations as any[]) || []).length === 0 ||
-                        ((s.circulations as any[]) || []).every((c: any) =>
-                            typeof c === 'object' && (!c.codi || c.codi === 'Reserva')
-                        );
-                    return dep.includes(code) && isReserve;
-                });
-
-                const personnel = reserveShifts.map(rs => {
-                    const shortId = getShortTornId(rs.id);
-                    const assig = assignments.find(a => a.torn === shortId);
-                    return {
-                        nom: assig?.nom || 'Sense assignar',
-                        cognoms: assig?.cognoms || '',
-                        torn: rs.id
-                    };
-                });
-
-                if (personnel.length > 0) {
-                    reserveSlots.push({ station: code, stationLabel: label, count: personnel.length, personnel });
+            reserveSlotsMap.forEach((val, key) => {
+                if (val.personnel.length > 0 && key !== 'XX') {
+                    reserveSlots.push({ station: key, stationLabel: val.label, count: val.personnel.length, personnel: val.personnel });
                 }
             });
 
             // ── Fleet ──
-            const brokenTrains = fleetStatus.filter((f: any) => f.status === 'broken' || f.is_broken === true);
-            const totalFleet = 85; // FGC fleet size constant
+            const brokenTrains = fleetStatus.filter((f: any) => f.is_broken === true);
+            const totalFleet = 61; // FGC fleet size constant (22+19+5+15)
             const brokenCount = brokenTrains.length;
 
             // ── Line Statuses ──
@@ -266,7 +299,7 @@ export function useDashboardData() {
                 totalPersonnel: assignments.length,
                 activePersonnel: activeAssignments.length,
                 reserveAvailable: reserveSlots.reduce((sum, r) => sum + r.count, 0),
-                availableTrainUnits: totalFleet - brokenCount - parkedUnits.length,
+                availableTrainUnits: totalFleet - brokenCount,
                 brokenTrainUnits: brokenCount,
                 totalTrainUnits: totalFleet
             });

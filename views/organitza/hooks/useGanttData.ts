@@ -6,8 +6,8 @@ import { getFgcMinutes, isServiceVisible } from '../../../utils/stations';
 
 // ── Constants ──────────────────────────────────────────
 export const GANTT_START_HOUR = 4;   // FGC day starts at 04:00
-export const GANTT_END_HOUR = 28;    // ends at 28:00 (04:00 next day)
-export const GANTT_TOTAL_MINUTES = (GANTT_END_HOUR - GANTT_START_HOUR) * 60; // 1440 min = 24h
+export const GANTT_END_HOUR = 30;    // ends at 30:00 (06:00 next day)
+export const GANTT_TOTAL_MINUTES = (GANTT_END_HOUR - GANTT_START_HOUR) * 60; // 26h duration
 export const GANTT_START_MIN = GANTT_START_HOUR * 60; // 240
 
 // ── Types ──────────────────────────────────────────────
@@ -20,7 +20,9 @@ export interface GanttBar {
     driverName: string | null;
     driverNomina: string | null;
     absType: string | null;      // DIS, DES, VAC, etc.
+    incidentStartTime: string | null; // HH:mm format for partial absence
     isAssigned: boolean;
+    assignmentId: number | null;
     circulations: GanttCircSegment[];
 }
 
@@ -39,14 +41,17 @@ export interface GanttGroup {
 }
 
 export type GanttGroupBy = 'dependencia' | 'linia';
+export type GanttFilterMode = 'all' | 'unassigned' | 'conflicts';
 
 // ── Hook ───────────────────────────────────────────────
 export function useGanttData() {
     const [loading, setLoading] = useState(true);
     const [allBars, setAllBars] = useState<GanttBar[]>([]);
     const [groupBy, setGroupBy] = useState<GanttGroupBy>('dependencia');
+    const [filterMode, setFilterMode] = useState<GanttFilterMode>('all');
     const [nowMin, setNowMin] = useState(0);
-    const serviceToday = getServiceToday();
+    const [selectedService, setSelectedService] = useState<string>(getServiceToday());
+    const [availableServices, setAvailableServices] = useState<string[]>([]);
 
     // Live clock
     useEffect(() => {
@@ -61,26 +66,85 @@ export function useGanttData() {
         return () => clearInterval(id);
     }, []);
 
+    // Load available services once
+    useEffect(() => {
+        const loadServices = async () => {
+            const { data } = await supabase.from('shifts').select('servei');
+            if (data) {
+                const unique = Array.from(new Set(data.map(d => d.servei).filter(Boolean))).sort();
+                setAvailableServices(unique);
+            }
+        };
+        loadServices();
+    }, []);
+
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
+            const todayStr = new Date().toISOString().split('T')[0];
+
+            // Fetch shifts and assignments
+            // Note: We fetch ALL daily assignments for today to ensure we catch "extras"
             const [shiftsRes, assignRes] = await Promise.all([
                 supabase.from('shifts').select('id, servei, inici_torn, final_torn, dependencia, circulations'),
-                supabase.from('daily_assignments').select('*')
+                supabase.from('daily_assignments')
+                    .select('id, torn, cognoms, nom, abs_parc_c, empleat_id, incident_start_time, hora_inici, hora_fi, data_servei, observacions')
+                    .eq('data_servei', todayStr)
             ]);
 
-            const shifts = (shiftsRes.data || []).filter(s => isServiceVisible(s.servei, serviceToday));
-            const assignments = assignRes.data || [];
+            const rawShifts = shiftsRes.data || [];
+            // Filter shifts by selected service (client-side filtering as 'isServiceVisible' logic is complex)
+            const shifts = rawShifts.filter(s => isServiceVisible(s.servei, selectedService));
 
-            const bars: GanttBar[] = shifts.map(shift => {
+            const assignments = assignRes.data || [];
+            const usedAssignmentIds = new Set<number>();
+
+            // Helper to get short ID based on User's Description:
+            // Shift: Q + ServiceDigit + 3Digits (e.g. Q0001)
+            // Assignment: Q + 3Digits (e.g. Q001)
+            const getMatchId = (id: string) => {
+                const s = id.trim().toUpperCase();
+                // If it follows pattern Q + Digit + 3 chars
+                if (s.length === 5 && s.startsWith('Q') && !isNaN(parseInt(s[1])) && !s.startsWith('QR')) {
+                    return s[0] + s.slice(2);
+                }
+                return s;
+            };
+
+            // Process existing shifts
+            const shiftBars: GanttBar[] = shifts.map(shift => {
                 const startMin = getFgcMinutes(shift.inici_torn) ?? 0;
-                const endMin = getFgcMinutes(shift.final_torn) ?? 0;
-                const shortId = getShortTornId(shift.id);
+                let endMin = getFgcMinutes(shift.final_torn) ?? 0;
+
+                if (endMin < startMin) {
+                    endMin += 24 * 60;
+                }
+
+                const shortId = getMatchId(shift.id);
 
                 // Find assigned driver
-                const assignment = assignments.find(a => a.torn === shortId);
+                // Priority 1: Exact Match (torn === shortId)
+                // Priority 2: Observacions contains shortId (e.g. "Cobreix Q001")
+
+                let assignment = assignments.find(a =>
+                    !usedAssignmentIds.has(a.id) && a.torn === shortId
+                );
+
+                if (!assignment) {
+                    assignment = assignments.find(a =>
+                        !usedAssignmentIds.has(a.id) &&
+                        a.observacions &&
+                        a.observacions.toUpperCase().includes(shortId)
+                    );
+                }
+
+                if (assignment) {
+                    usedAssignmentIds.add(assignment.id);
+                }
+
                 const driverName = assignment ? `${assignment.cognoms}, ${assignment.nom}` : null;
                 const absType = assignment?.abs_parc_c || null;
+                const incidentStartTime = assignment?.incident_start_time || null;
 
                 // Parse circulation segments
                 const rawCircs = (shift.circulations as any[]) || [];
@@ -90,10 +154,13 @@ export function useGanttData() {
                 rawCircs.forEach((c: any) => {
                     const codi = typeof c === 'string' ? c : (c.codi || '');
                     const linia = typeof c === 'object' ? (c.linia || '') : '';
-                    const cStart = typeof c === 'object' ? (getFgcMinutes(c.sortida || c.inici || '') ?? currentPos) : currentPos;
-                    const cEnd = typeof c === 'object' ? (getFgcMinutes(c.arribada || c.final || '') ?? currentPos) : currentPos;
+                    let cStart = typeof c === 'object' ? (getFgcMinutes(c.sortida || c.inici || '') ?? currentPos) : currentPos;
+                    let cEnd = typeof c === 'object' ? (getFgcMinutes(c.arribada || c.final || '') ?? currentPos) : currentPos;
 
-                    if (codi === 'Viatger') return; // Skip passenger segments
+                    if (cStart < currentPos) cStart += 24 * 60;
+                    if (cEnd < cStart) cEnd += 24 * 60;
+
+                    if (codi === 'Viatger') return;
 
                     // Gap before this circulation
                     if (cStart > currentPos) {
@@ -113,27 +180,115 @@ export function useGanttData() {
 
                 return {
                     shiftId: shift.id,
-                    shortId,
+                    shortId, // Use the matched short ID for display
                     dependencia: (shift.dependencia || 'Altres').toUpperCase(),
                     startMin,
                     endMin,
                     driverName,
                     driverNomina: assignment?.empleat_id || null,
                     absType,
+                    incidentStartTime,
                     isAssigned: !!assignment,
+                    assignmentId: assignment?.id || null,
                     circulations: segments
                 };
             });
 
+            // Process "Extra" Assignments (assignments not used yet)
+            const extraAssignments = assignments.filter(a => {
+                // If it was already used to cover a shift, skip it
+                if (usedAssignmentIds.has(a.id)) return false;
+
+                // User Request: Exclude specific codes from Extras
+                const tornCode = (a.torn || '').toUpperCase();
+                const EXCLUDED_CODES = ['VAC', 'AJN', 'DAG', 'DES', 'DIS', 'FOR'];
+
+                // If the torn code contains one of these, or is exactly one of these, skip it.
+                // Assuming exact match or substring match is appropriate.
+                // e.g. "VAC" -> skip. "Q100" -> keep.
+                if (EXCLUDED_CODES.includes(tornCode)) return false;
+
+                // Filter by Service Visibility
+                // We infer the service from the assignment torn ID if possible
+                // Assuming standard naming convention: Q + ServiceDigit + ... (e.g. Q0xx -> S-0, Q1xx -> S-100)
+                // If it doesn't match standard pattern (e.g. QR...), we assume it's visible or relevant.
+
+                let inferredService = '';
+                if (tornCode.startsWith('Q') && tornCode.length >= 2) {
+                    const digit = tornCode[1];
+                    if (digit === '0') inferredService = '0';
+                    else if (digit === '1') inferredService = '100';
+                    else if (digit === '4') inferredService = '400';
+                    else if (digit === '5') inferredService = '500';
+                }
+
+                if (inferredService && !isServiceVisible(inferredService, selectedService)) {
+                    return false;
+                }
+
+                return true;
+            });
+
+            const extraBars: GanttBar[] = extraAssignments.map(assign => {
+                let startMin = getFgcMinutes(assign.hora_inici) ?? 0;
+                let endMin = getFgcMinutes(assign.hora_fi) ?? 0;
+                let shortId = assign.torn;
+
+                // Priority Logic for Extras: Check Observacions
+                if (assign.observacions) {
+                    const obs = assign.observacions.toUpperCase();
+
+                    // 1. Look for Shift ID Override (e.g. QRR8)
+                    // Matches Q followed by alphanumeric chars (e.g. QRR8, Q113)
+                    const shiftMatch = obs.match(/\bQ[A-Z0-9]{2,5}\b/);
+                    if (shiftMatch) {
+                        shortId = shiftMatch[0];
+                    }
+
+                    // 2. Look for Time Range Override (e.g. 06:49-11:37)
+                    // Supports HH:MM-HH:MM, space optional
+                    const timeMatch = obs.match(/(\d{1,2}[:.]\d{2})\s*-\s*(\d{1,2}[:.]\d{2})/);
+                    if (timeMatch) {
+                        const tStart = timeMatch[1].replace('.', ':');
+                        const tEnd = timeMatch[2].replace('.', ':');
+                        const sMin = getFgcMinutes(tStart);
+                        const eMin = getFgcMinutes(tEnd);
+
+                        if (sMin !== null && eMin !== null) {
+                            startMin = sMin;
+                            endMin = eMin;
+                        }
+                    }
+                }
+
+                if (endMin < startMin) endMin += 24 * 60;
+
+                return {
+                    shiftId: `extra-${assign.id}`,
+                    shortId: shortId,
+                    dependencia: 'EXTRA',
+                    startMin,
+                    endMin,
+                    driverName: `${assign.cognoms}, ${assign.nom}`,
+                    driverNomina: assign.empleat_id,
+                    absType: assign.abs_parc_c,
+                    incidentStartTime: assign.incident_start_time,
+                    isAssigned: true,
+                    assignmentId: assign.id,
+                    circulations: []
+                };
+            });
+
+            const all = [...shiftBars, ...extraBars];
             // Sort by start time within each group
-            bars.sort((a, b) => a.startMin - b.startMin);
-            setAllBars(bars);
+            all.sort((a, b) => a.startMin - b.startMin);
+            setAllBars(all);
         } catch (err) {
             console.error('[Gantt] Error fetching data:', err);
         } finally {
             setLoading(false);
         }
-    }, [serviceToday]);
+    }, [selectedService]); // Dep on selectedService
 
     useEffect(() => {
         fetchData();
@@ -141,39 +296,53 @@ export function useGanttData() {
 
     // ── Grouped Bars ──
     const groups: GanttGroup[] = useMemo(() => {
+        let filteredBars = allBars;
+
+        if (filterMode === 'unassigned') {
+            filteredBars = allBars.filter(b => !b.isAssigned);
+        } else if (filterMode === 'conflicts') {
+            filteredBars = allBars.filter(b => {
+                const absCode = (b.absType || '').toUpperCase();
+                return absCode.includes('DIS') || absCode.includes('DES') || absCode.includes('VAC') || !!b.incidentStartTime;
+            });
+        }
+
         if (groupBy === 'dependencia') {
-            const DEP_ORDER = ['PC', 'SR', 'RB_COR', 'RE', 'RB', 'NA', 'PN', 'TB', 'SB'];
+            const DEP_ORDER = ['PC', 'SR', 'RB_COR', 'RE', 'RB', 'NA', 'PN', 'TB', 'SB', 'EXTRA'];
             const DEP_LABELS: Record<string, string> = {
                 'PC': 'Pl. Catalunya', 'SR': 'Sarrià', 'RB_COR': 'Rubí-COR', 'RE': 'Reina Elisenda',
                 'RB': 'Rubí', 'NA': 'Terrassa Nacions Unides', 'PN': 'Sabadell Parc del Nord',
-                'TB': 'Tibidabo', 'SB': 'Sabadell'
+                'TB': 'Tibidabo', 'SB': 'Sabadell',
+                'EXTRA': 'Torns Extra / Sense Gràfic'
             };
 
             const map = new Map<string, GanttBar[]>();
-            allBars.forEach(bar => {
+            filteredBars.forEach(bar => {
                 let depCode = bar.dependencia;
+                // Normalize some dependencies
                 if (bar.shortId.startsWith('Q2') || depCode === 'ALTRES') {
                     depCode = 'RB_COR';
                 }
-                const dep = DEP_ORDER.includes(depCode) ? depCode : 'RB_COR';
+                const dep = Object.keys(DEP_LABELS).includes(depCode) ? depCode : 'RB_COR';
+
                 if (!map.has(dep)) map.set(dep, []);
                 map.get(dep)!.push(bar);
             });
 
-            return DEP_ORDER
+            return Object.keys(DEP_LABELS)
                 .filter(dep => map.has(dep))
                 .map(dep => ({
-                    label: DEP_LABELS[dep] || dep,
+                    label: DEP_LABELS[dep],
                     code: dep,
-                    bars: map.get(dep)!
+                    bars: map.get(dep)!.sort((a, b) => a.startMin - b.startMin)
                 }));
         }
 
         // Group by first line in circulations
         const map = new Map<string, GanttBar[]>();
-        allBars.forEach(bar => {
+        filteredBars.forEach(bar => {
             const firstCirc = bar.circulations.find(c => c.type === 'circ');
-            const linia = firstCirc?.linia?.toUpperCase() || 'SENSE LÍNIA';
+            const linia = (firstCirc?.linia || (bar.dependencia === 'EXTRA' ? 'EXTRA' : 'SENSE LÍNIA')).toUpperCase();
             if (!map.has(linia)) map.set(linia, []);
             map.get(linia)!.push(bar);
         });
@@ -183,9 +352,9 @@ export function useGanttData() {
             .map(([linia, bars]) => ({
                 label: linia,
                 code: linia,
-                bars
+                bars: bars.sort((a, b) => a.startMin - b.startMin)
             }));
-    }, [allBars, groupBy]);
+    }, [allBars, groupBy, filterMode]);
 
     // ── Stats ──
     const stats = useMemo(() => {
@@ -194,13 +363,27 @@ export function useGanttData() {
         const unassigned = total - assigned;
         const conflicts = allBars.filter(b => {
             const absCode = (b.absType || '').toUpperCase();
-            return absCode.includes('DIS') || absCode.includes('DES');
+            return absCode.includes('DIS') || absCode.includes('DES') || !!b.incidentStartTime;
         }).length;
         return { total, assigned, unassigned, conflicts };
     }, [allBars]);
 
+    const updateIncidentTime = async (assignmentId: number, time: string | null) => {
+        if (!assignmentId) return;
+        const { error } = await supabase
+            .from('daily_assignments')
+            .update({ incident_start_time: time }) // Ensure this column exists in DB
+            .eq('id', assignmentId);
+
+        if (error) {
+            console.error('Error updating incident time:', error);
+        } else {
+            fetchData(); // Refresh data
+        }
+    };
+
     return {
-        loading, groups, stats, groupBy, setGroupBy,
-        nowMin, serviceToday, refresh: fetchData
+        loading, groups, stats, groupBy, setGroupBy, filterMode, setFilterMode,
+        nowMin, selectedService, setSelectedService, availableServices, refresh: fetchData, updateIncidentTime
     };
 }
