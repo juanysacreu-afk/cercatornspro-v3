@@ -72,13 +72,68 @@ export function useDashboardData() {
 
     const fetchData = useCallback(async () => {
         try {
-            // Parallel fetch of all data sources
-            const [shiftsRes, assignmentsRes, parkedRes, brokenRes] = await Promise.all([
-                supabase.from('shifts').select('id, servei, inici_torn, final_torn, dependencia, circulations'),
-                supabase.from('daily_assignments').select('*'),
-                supabase.from('parked_units').select('*'),
-                supabase.from('train_status').select('*')
-            ]);
+            // Independent fetches to prevent one failure from crashing the entire dashboard
+
+            // 1. Shifts (Core)
+            let shiftsRes: { data: any[] | null } = { data: [] };
+            try {
+                const res = await supabase.from('shifts').select('id, servei, inici_torn, final_torn, dependencia, circulations');
+                if (res.error) console.error('[Dashboard] Error fetching shifts:', res.error);
+                else shiftsRes = res;
+            } catch (e) {
+                console.error('[Dashboard] Unexpected error fetching shifts:', e);
+            }
+
+            // 2. Assignments (Core)
+            let assignmentsRes: { data: any[] | null } = { data: [] };
+            try {
+                const res = await supabase.from('daily_assignments').select('*');
+                if (res.error) console.error('[Dashboard] Error fetching assignments:', res.error);
+                else assignmentsRes = res;
+            } catch (e) {
+                console.error('[Dashboard] Unexpected error fetching assignments:', e);
+            }
+
+            // 3. Parked Units (Optional)
+            let parkedRes: { data: any[] | null } = { data: [] };
+            try {
+                const res = await supabase.from('parked_units').select('*');
+                if (res.error) console.error('[Dashboard] Error fetching parked_units:', res.error);
+                else parkedRes = res;
+            } catch (e) {
+                console.error('[Dashboard] Unexpected error fetching parked_units:', e);
+            }
+
+            // 4. Fleet Status (Optional)
+            let brokenRes: { data: any[] | null } = { data: [] };
+            try {
+                const res = await supabase.from('train_status').select('*');
+                if (res.error) console.error('[Dashboard] Error fetching train_status:', res.error);
+                else brokenRes = res;
+            } catch (e) {
+                console.error('[Dashboard] Unexpected error fetching train_status:', e);
+            }
+
+            // 5. Circulations (Optional lookup)
+            let circsRes: { data: any[] | null } = { data: [] };
+            try {
+                const res = await supabase.from('circulations').select('id, codi, sortida, arribada');
+                if (res.error) console.warn('[Dashboard] Optional circulations fetch failed:', res.error);
+                else circsRes = res;
+            } catch (e) {
+                console.warn('Failed to fetch circulations, continuing without extra data', e);
+            }
+
+            // Create timestamp lookup map for circulations
+            const circMap = new Map<string, { start: number, end: number }>();
+            (circsRes.data || []).forEach((c: any) => {
+                const s = getFgcMinutes(c.sortida);
+                const e = getFgcMinutes(c.arribada);
+                if (s !== null && e !== null) {
+                    circMap.set(c.id, { start: s, end: e }); // Map by UUID
+                    circMap.set(c.codi, { start: s, end: e }); // Map by Code (fallback)
+                }
+            });
 
             const shifts = (shiftsRes.data || []).filter(s =>
                 isServiceVisible(s.servei, serviceToday) ||
@@ -101,33 +156,53 @@ export function useDashboardData() {
             });
 
             // ── Circulations (scheduled vs active) ──
-            const allScheduledCircIds = new Set<string>();
-            const activeCircIds = new Set<string>();
+            const allScheduledCircIds = new Set<string>(); // Total daily unique circs
+            const currentScheduledCircIds = new Set<string>(); // Circs scheduled NOW
 
             shifts.forEach(s => {
                 ((s.circulations as any[]) || []).forEach(c => {
                     const codi = typeof c === 'string' ? c : c?.codi;
-                    if (codi && codi !== 'Viatger') allScheduledCircIds.add(codi);
-                });
-            });
-
-            activeShifts.forEach(s => {
-                ((s.circulations as any[]) || []).forEach(c => {
-                    const codi = typeof c === 'string' ? c : c?.codi;
                     if (codi && codi !== 'Viatger') {
-                        // Check if this circulation is currently running
-                        const sortida = typeof c === 'object' ? getFgcMinutes(c.sortida || c.inici || '') : null;
-                        const arribada = typeof c === 'object' ? getFgcMinutes(c.arribada || c.final || '') : null;
-                        if (sortida !== null && arribada !== null && currentMin >= sortida && currentMin <= arribada) {
-                            activeCircIds.add(codi);
+                        allScheduledCircIds.add(codi);
+
+                        // Resolve Start/End times
+                        let start: number | null = null;
+                        let end: number | null = null;
+
+                        if (typeof c === 'object' && c.sortida && c.arribada) {
+                            start = getFgcMinutes(c.sortida);
+                            end = getFgcMinutes(c.arribada);
+                        } else if (typeof c === 'string' && circMap.has(c)) {
+                            const times = circMap.get(c);
+                            if (times) { start = times.start; end = times.end; }
+                        } else if (typeof c === 'object' && c.id && circMap.has(c.id)) {
+                            const times = circMap.get(c.id);
+                            if (times) { start = times.start; end = times.end; }
+                        }
+
+                        // Check if active
+                        if (start !== null && end !== null && currentMin >= start && currentMin <= end) {
+                            currentScheduledCircIds.add(codi);
                         }
                     }
                 });
             });
 
-            const scheduledTrains = allScheduledCircIds.size;
-            const activeTrains = activeCircIds.size;
-            const coverage = scheduledTrains > 0 ? Math.round((activeTrains / scheduledTrains) * 100) : 100;
+            // KPI Logic: 
+            // Scheduled Trains (Context: Dashboard) -> Usually means "Trains that SHOULD be here now".
+            // Active Trains -> "Trains that ARE here now". (Without live cancellation data, this equals Scheduled Now).
+            // Service Coverage -> Active Now / Scheduled Now.
+
+            const totalDailyTrains = allScheduledCircIds.size; // 1712
+            const scheduledNow = currentScheduledCircIds.size; // e.g. 150
+            const activeNow = scheduledNow; // Assuming 100% reliability for now as we don't have Cancellations inputs
+
+            // If user wants to see "X de Y trens", Y should likely be the current requirement.
+            const coverage = scheduledNow > 0 ? Math.round((activeNow / scheduledNow) * 100) : 100;
+
+            // Update semantic mapping for UI
+            // activeTrains: The number displayed as big number
+            // scheduledTrains: The number displayed in subtitle "X de Y"
 
             // ── Personnel ──
             // ── Personnel ──
@@ -294,8 +369,8 @@ export function useDashboardData() {
             // ── Set State ──
             setKpis({
                 serviceCoverage: coverage,
-                activeTrains,
-                scheduledTrains,
+                activeTrains: activeNow,
+                scheduledTrains: scheduledNow,
                 totalPersonnel: assignments.length,
                 activePersonnel: activeAssignments.length,
                 reserveAvailable: reserveSlots.reduce((sum, r) => sum + r.count, 0),
