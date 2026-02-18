@@ -142,16 +142,20 @@ export function useGanttData() {
     // ── Grouped Bars ──
     const groups: GanttGroup[] = useMemo(() => {
         if (groupBy === 'dependencia') {
-            const DEP_ORDER = ['PC', 'SR', 'RE', 'RB', 'NA', 'PN', 'TB', 'SB', 'ALTRES'];
+            const DEP_ORDER = ['PC', 'SR', 'RB_COR', 'RE', 'RB', 'NA', 'PN', 'TB', 'SB', 'ALTRES'];
             const DEP_LABELS: Record<string, string> = {
-                'PC': 'Pl. Catalunya', 'SR': 'Sarrià', 'RE': 'Reina Elisenda',
+                'PC': 'Pl. Catalunya', 'SR': 'Sarrià', 'RB_COR': 'Rubí-COR', 'RE': 'Reina Elisenda',
                 'RB': 'Rubí', 'NA': 'Nació', 'PN': 'Pont Potència',
                 'TB': 'Tibidabo', 'SB': 'Sabadell', 'ALTRES': 'Altres'
             };
 
             const map = new Map<string, GanttBar[]>();
             allBars.forEach(bar => {
-                const dep = DEP_ORDER.includes(bar.dependencia) ? bar.dependencia : 'ALTRES';
+                let depCode = bar.dependencia;
+                if (bar.shortId.startsWith('Q2')) {
+                    depCode = 'RB_COR';
+                }
+                const dep = DEP_ORDER.includes(depCode) ? depCode : 'ALTRES';
                 if (!map.has(dep)) map.set(dep, []);
                 map.get(dep)!.push(bar);
             });
