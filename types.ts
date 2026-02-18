@@ -91,7 +91,8 @@ export enum SearchType {
 export enum OrganizeType {
   Comparador = 'comparador',
   Maquinista = 'maquinista',
-  Incidencia = 'incidencia'
+  Incidencia = 'incidencia',
+  Malla = 'malla'
 }
 
 // ──────────────────────────────────────────────
