@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Send, Hash, MoreVertical, MessageCircle, AlertTriangle, Paperclip, CheckCircle } from 'lucide-react';
 import GlassPanel from '../../components/common/GlassPanel';
+import { sendTelegramMessage } from '../../src/lib/telegram';
 
 interface UserProfile {
     id?: string;
@@ -56,21 +57,39 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
 
     const currentUserId = currentProfile.id || 'current-user-id';
 
-    const handleSendMessage = (e: React.FormEvent) => {
+    const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!inputText.trim()) return;
+        const textToSent = inputText.trim();
+        if (!textToSent) return;
+
+        // Clear input optimistically
+        setInputText('');
+
+        const isAlert = textToSent.startsWith('!');
+        const visualText = textToSent;
+
+        // We will format the text sent to Telegram to show who sent it
+        const role = currentProfile.role || 'Supervisor';
+        const formattedTelegramMsg = `👤 <b>${currentProfile.firstName} ${currentProfile.lastName}</b> (${role})\n💬 ${visualText}`;
 
         const newMessage: Message = {
             id: Date.now().toString(),
-            text: inputText,
+            text: visualText,
             sender_name: `${currentProfile.firstName} ${currentProfile.lastName}`,
             sender_id: currentUserId,
-            is_alert: inputText.startsWith('!'), // Simple hack to test sending an alert
+            is_alert: isAlert,
             created_at: new Date().toISOString()
         };
 
-        setMessages([...messages, newMessage]);
-        setInputText('');
+        setMessages((prev) => [...prev, newMessage]);
+
+        // Actually send to Telegram API
+        const { success, error } = await sendTelegramMessage(formattedTelegramMsg);
+
+        if (!success) {
+            console.error("Failed to send to Telegram", error);
+            // Optionally could show a toast or remove the message
+        }
     };
 
     const formatTime = (isoString: string) => {
@@ -162,8 +181,8 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                                     <span className="text-[11px] font-bold text-gray-400 dark:text-gray-500 mb-1 mr-2">Tu</span>
                                 )}
                                 <div className={`relative max-w-[75%] px-4 py-2.5 rounded-2xl shadow-sm ${isMe
-                                        ? 'bg-fgc-green text-gray-900 rounded-tr-sm'
-                                        : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border border-gray-100 dark:border-white/5 rounded-tl-sm'
+                                    ? 'bg-fgc-green text-gray-900 rounded-tr-sm'
+                                    : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border border-gray-100 dark:border-white/5 rounded-tl-sm'
                                     }`}>
                                     <p className="text-[15px] leading-snug">{msg.text}</p>
                                     <div className={`text-[10px] mt-1 flex items-center justify-end gap-1 ${isMe ? 'text-gray-900/60' : 'text-gray-400'}`}>
