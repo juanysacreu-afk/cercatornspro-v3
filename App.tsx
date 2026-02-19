@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, RefreshCcw, Train, Menu, X, Download, BookOpen, Settings, Moon, Sun, ShieldAlert, Eye, Layers, Volume2, VolumeX } from 'lucide-react';
+import { Search, RefreshCcw, Train, Menu, X, Download, BookOpen, Settings, Moon, Sun, ShieldAlert, Eye, Layers, Volume2, VolumeX, MessageCircle } from 'lucide-react';
 import { AppTab } from './types.ts';
 import { CercarView } from './views/CercarView.tsx';
 import OrganitzaView from './views/OrganitzaView.tsx';
 import CiclesView from './views/CiclesView.tsx';
 import IncidenciaView from './views/IncidenciaView.tsx';
 import DashboardView from './views/dashboard/DashboardView.tsx';
+import MensajeriaView from './views/mensajeria/MensajeriaView.tsx';
 import FileUploadModal from './components/FileUploadModal.tsx';
 import CommandPalette from './components/CommandPalette.tsx';
 import Sidebar from './components/common/Sidebar.tsx';
@@ -283,7 +284,8 @@ const App: React.FC = () => {
     { id: AppTab.Cercar, label: 'Cercar', icon: <Search size={18} /> },
     { id: AppTab.Organitza, label: 'Organitza', icon: <RefreshCcw size={18} /> },
     { id: AppTab.Incidencia, label: 'Incidència', icon: <ShieldAlert size={18} /> },
-    { id: AppTab.Cicles, label: 'Unitats', icon: <Train size={18} /> }
+    { id: AppTab.Cicles, label: 'Unitats', icon: <Train size={18} /> },
+    { id: AppTab.Mensajeria, label: 'Missatges', icon: <MessageCircle size={18} /> }
   ];
 
   const toggleAdminMode = () => {
@@ -558,6 +560,9 @@ const App: React.FC = () => {
             </div>
             <div className={`${activeTab === AppTab.Cicles ? 'block animate-in fade-in slide-in-from-right-8 duration-500' : 'hidden'}`}>
               <CiclesView parkedUnits={parkedUnits} onParkedUnitsChange={fetchParkedUnits} />
+            </div>
+            <div className={`${activeTab === AppTab.Mensajeria ? 'block animate-in fade-in slide-in-from-right-8 duration-500 h-[calc(100vh-140px)]' : 'hidden'}`}>
+              <MensajeriaView currentProfile={userProfile} />
             </div>
           </div>
         </div>

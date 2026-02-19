@@ -77,7 +77,8 @@ export enum AppTab {
   Cercar = 'cercar',
   Organitza = 'organitza',
   Incidencia = 'incidencia',
-  Cicles = 'cicles'
+  Cicles = 'cicles',
+  Mensajeria = 'mensajeria'
 }
 
 export enum SearchType {
