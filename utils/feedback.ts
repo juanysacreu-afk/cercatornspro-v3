@@ -21,6 +21,11 @@ class FeedbackManager {
     setSoundsEnabled(enabled: boolean) {
         this.soundsEnabled = enabled;
         localStorage.setItem('app_sounds_enabled', enabled.toString());
+        if (!enabled && this.audioCtx && this.audioCtx.state === 'running') {
+            this.audioCtx.suspend();
+        } else if (enabled && this.audioCtx && this.audioCtx.state === 'suspended') {
+            this.audioCtx.resume();
+        }
     }
 
     isSoundsEnabled() {
@@ -31,6 +36,7 @@ class FeedbackManager {
      * Play a subtle "pro" notification sound
      */
     async playNotification() {
+        if (!this.soundsEnabled) return;
         try {
             await this.initAudio();
             if (!this.audioCtx) return;
@@ -60,6 +66,7 @@ class FeedbackManager {
      * Play a very short "click" sound
      */
     async playClick() {
+        if (!this.soundsEnabled) return;
         try {
             await this.initAudio();
             if (!this.audioCtx) return;
@@ -88,6 +95,7 @@ class FeedbackManager {
      * Play a short "click" sound but deeper (lower frequency)
      */
     async playDeepClick() {
+        if (!this.soundsEnabled) return;
         try {
             await this.initAudio();
             if (!this.audioCtx) return;
@@ -95,12 +103,10 @@ class FeedbackManager {
             const oscillator = this.audioCtx.createOscillator();
             const gainNode = this.audioCtx.createGain();
 
-            // Frequency for a deeper sound (300Hz is a nice grave tone)
             oscillator.type = 'sine';
             oscillator.frequency.setValueAtTime(300, this.audioCtx.currentTime);
 
             gainNode.gain.setValueAtTime(0, this.audioCtx.currentTime);
-            // Slightly more gain for deeper sounds as they can feel quieter
             gainNode.gain.linearRampToValueAtTime(0.08, this.audioCtx.currentTime + 0.01);
             gainNode.gain.exponentialRampToValueAtTime(0.001, this.audioCtx.currentTime + 0.15);
 

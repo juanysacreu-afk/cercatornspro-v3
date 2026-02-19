@@ -277,7 +277,7 @@ const App: React.FC = () => {
           />
         )}
 
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+        <div className={`flex-1 flex flex-col min-w-0 relative ${isProNav ? 'lg:pl-20' : ''}`}>
           {(!isProNav || isMobileMenuOpen) && (
             <nav style={{ backgroundColor: isDarkMode ? '#222222' : '#4D5358' }} className="sticky top-0 z-40 dark:backdrop-blur-md text-white shadow-md safe-top border-b border-white/5 transition-all w-full">
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
