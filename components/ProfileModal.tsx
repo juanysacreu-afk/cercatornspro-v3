@@ -3,8 +3,10 @@ import { User, Shield, Check, X, Camera } from 'lucide-react';
 import GlassPanel from './common/GlassPanel';
 
 interface UserProfile {
+    id?: string;
     firstName: string;
     lastName: string;
+    email: string;
     role: string;
 }
 
@@ -92,6 +94,16 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, currentPro
                                     onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
                                     className="w-full bg-gray-50 dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-2xl px-4 py-3 text-gray-900 dark:text-white font-bold placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:outline-none focus:border-fgc-green/50 focus:ring-1 focus:ring-fgc-green/50 transition-all"
                                     placeholder="Ex: Lopez"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-2 ml-1">Correu Corporatiu</label>
+                                <input
+                                    type="email"
+                                    value={formData.email}
+                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                    className="w-full bg-gray-50 dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-2xl px-4 py-3 text-gray-900 dark:text-white font-bold placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:outline-none focus:border-fgc-green/50 focus:ring-1 focus:ring-fgc-green/50 transition-all"
+                                    placeholder="Ex: mlopez@fgc.cat"
                                 />
                             </div>
                             <div>

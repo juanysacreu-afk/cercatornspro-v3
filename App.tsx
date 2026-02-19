@@ -69,13 +69,56 @@ const App: React.FC = () => {
     return {
       firstName: 'Marcos',
       lastName: 'Lopez',
+      email: 'mlopez@fgc.cat',
       role: 'FGC Operacions'
     };
   });
 
-  const handleProfileUpdate = (newProfile: { firstName: string, lastName: string, role: string }) => {
-    setUserProfile(newProfile);
-    localStorage.setItem('user_profile', JSON.stringify(newProfile));
+  useEffect(() => {
+    const fetchProfile = async () => {
+      const saved = localStorage.getItem('user_profile');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.id) {
+          const { data, error } = await supabase.from('supervisor_profiles').select('*').eq('id', parsed.id).single();
+          if (data && !error) {
+            const profile = {
+              id: data.id,
+              firstName: data.first_name,
+              lastName: data.last_name,
+              email: data.email || '',
+              role: data.role
+            };
+            setUserProfile(profile);
+            localStorage.setItem('user_profile', JSON.stringify(profile));
+          }
+        }
+      }
+    };
+    fetchProfile();
+  }, []);
+
+  const handleProfileUpdate = async (newProfile: { id?: string, firstName: string, lastName: string, email: string, role: string }) => {
+    const payload = {
+      first_name: newProfile.firstName,
+      last_name: newProfile.lastName,
+      email: newProfile.email,
+      role: newProfile.role
+    };
+
+    let updatedProfile = { ...newProfile };
+
+    if (newProfile.id) {
+      await supabase.from('supervisor_profiles').update(payload).eq('id', newProfile.id);
+    } else {
+      const { data, error } = await supabase.from('supervisor_profiles').insert(payload).select().single();
+      if (data && !error) {
+        updatedProfile.id = data.id;
+      }
+    }
+
+    setUserProfile(updatedProfile);
+    localStorage.setItem('user_profile', JSON.stringify(updatedProfile));
     showToast('Perfil actualitzat correctament', 'success');
     feedback.success();
   };
