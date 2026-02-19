@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
-import { User, Shield, Check, X, Camera } from 'lucide-react';
+import { User, Shield, Check, X, Camera, Search, Loader2 } from 'lucide-react';
 import GlassPanel from './common/GlassPanel';
+import { supabase } from '../supabaseClient';
+import { useToast } from './ToastProvider';
+import { feedback } from '../utils/feedback';
 
 interface UserProfile {
     id?: string;
@@ -19,6 +22,8 @@ interface ProfileModalProps {
 
 const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, currentProfile, onSave }) => {
     const [formData, setFormData] = useState<UserProfile>(currentProfile);
+    const [isSearching, setIsSearching] = useState(false);
+    const { showToast } = useToast();
 
     if (!isOpen) return null;
 
@@ -26,6 +31,38 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, currentPro
         e.preventDefault();
         onSave(formData);
         onClose();
+    };
+
+    const handleLogin = async () => {
+        if (!formData.email) return;
+        setIsSearching(true);
+        try {
+            const { data, error } = await supabase
+                .from('supervisor_profiles')
+                .select('*')
+                .eq('email', formData.email.toLowerCase().trim())
+                .single();
+
+            if (data && !error) {
+                setFormData({
+                    id: data.id,
+                    firstName: data.first_name,
+                    lastName: data.last_name,
+                    email: data.email || formData.email,
+                    role: data.role
+                });
+                showToast('Perfil carregat correctament', 'success');
+                feedback.success();
+            } else {
+                showToast('No s\'ha trobat cap perfil associat a aquest email', 'error');
+                feedback.haptic([50, 50, 50]);
+            }
+        } catch (e) {
+            showToast('Error de connexió', 'error');
+            feedback.haptic([50, 50, 50]);
+        } finally {
+            setIsSearching(false);
+        }
     };
 
     return (
@@ -98,13 +135,24 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, currentPro
                             </div>
                             <div>
                                 <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-2 ml-1">Correu Corporatiu</label>
-                                <input
-                                    type="email"
-                                    value={formData.email}
-                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                    className="w-full bg-gray-50 dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-2xl px-4 py-3 text-gray-900 dark:text-white font-bold placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:outline-none focus:border-fgc-green/50 focus:ring-1 focus:ring-fgc-green/50 transition-all"
-                                    placeholder="Ex: mlopez@fgc.cat"
-                                />
+                                <div className="flex gap-2">
+                                    <input
+                                        type="email"
+                                        value={formData.email}
+                                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                        className="flex-1 min-w-0 bg-gray-50 dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-2xl px-4 py-3 text-gray-900 dark:text-white font-bold placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:outline-none focus:border-fgc-green/50 focus:ring-1 focus:ring-fgc-green/50 transition-all"
+                                        placeholder="Ex: mlopez@fgc.cat"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={handleLogin}
+                                        disabled={!formData.email || isSearching}
+                                        className="px-4 py-3 bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-2xl text-gray-600 dark:text-white font-bold hover:bg-gray-200 dark:hover:bg-white/10 transition-colors disabled:opacity-50 flex items-center justify-center shadow-sm"
+                                        title="Recuperar perfil"
+                                    >
+                                        {isSearching ? <Loader2 size={18} className="animate-spin text-fgc-green" /> : <Search size={18} />}
+                                    </button>
+                                </div>
                             </div>
                             <div>
                                 <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-2 ml-1">Departament / Rol</label>
