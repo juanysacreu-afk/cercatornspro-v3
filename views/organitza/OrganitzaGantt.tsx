@@ -11,10 +11,12 @@ const calculatePercent = (minutes: number, start: number, total: number): number
     return (offset / total) * 100;
 };
 
-const formatTime = (min: number): string => {
-    let m = min;
-    while (m >= 24 * 60) m -= 24 * 60; // Handle multiple day wraps if needed
-    return `${Math.floor(m / 60).toString().padStart(2, '0')}:${(m % 60).toString().padStart(2, '0')}`;
+const formatTime = (totalMins: number): string => {
+    const totalSecs = Math.round(totalMins * 60);
+    const h = Math.floor(totalSecs / 3600) % 24;
+    const m = Math.floor((totalSecs % 3600) / 60);
+    const s = totalSecs % 60;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 };
 
 // ── Tooltip State ──────────────────────────────────────

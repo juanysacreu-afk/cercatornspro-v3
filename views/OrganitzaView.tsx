@@ -41,18 +41,21 @@ const OrganitzaViewComponent: React.FC<{
 
   function getFgcMinutes(timeStr: string) {
     if (!timeStr || !timeStr.includes(':')) return 0;
-    const [h, m] = timeStr.split(':').map(Number);
-    let total = h * 60 + m;
+    const parts = timeStr.split(':');
+    const h = parseInt(parts[0], 10);
+    const m = parseFloat(parts[1]);
+    const s = parts[2] ? parseFloat(parts[2]) : 0;
+    let total = h * 60 + m + (s / 60);
     if (h < 4) total += 24 * 60;
     return total;
   }
 
   function formatFgcTime(totalMinutes: number) {
-    let mins = totalMinutes;
-    if (mins >= 24 * 60) mins -= 24 * 60;
-    const h = Math.floor(mins / 60);
-    const m = mins % 60;
-    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+    const totalSecs = Math.round(totalMinutes * 60);
+    const h = Math.floor(totalSecs / 3600) % 24;
+    const m = Math.floor((totalSecs % 3600) / 60);
+    const s = totalSecs % 60;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   }
 
   const getStatusColor = (codi: string) => {
@@ -70,12 +73,12 @@ const OrganitzaViewComponent: React.FC<{
   useEffect(() => {
     const updateTime = () => {
       const now = new Date();
-      const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+      const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
       setNowMin(getFgcMinutes(timeStr));
     };
 
     updateTime();
-    const interval = setInterval(updateTime, 60000);
+    const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
   }, []);
 

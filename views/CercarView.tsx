@@ -79,13 +79,13 @@ const CercarViewComponent: React.FC<{
 
   const getCurrentTimeStr = () => {
     const now = new Date();
-    return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+    return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
   };
 
   const getTimePlusMinutes = (minutes: number) => {
     const now = new Date();
     now.setMinutes(now.getMinutes() + minutes);
-    return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+    return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
   };
 
   const [startTime, setStartTime] = useState<string>(getCurrentTimeStr());
@@ -96,12 +96,12 @@ const CercarViewComponent: React.FC<{
   useEffect(() => {
     const updateTime = () => {
       const now = new Date();
-      const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+      const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
       setNowMin(getFgcMinutes(timeStr));
     };
 
     updateTime();
-    const interval = setInterval(updateTime, 60000);
+    const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
   }, []);
 

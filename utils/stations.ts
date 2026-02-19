@@ -155,26 +155,37 @@ export const isServiceVisible = (val: string | undefined, f: string): boolean =>
 // Shared Time Utilities (FGC day starts at 04:00)
 // ──────────────────────────────────────────────
 
-/** Converts "HH:MM" to minutes since midnight, with FGC day wrapping (hours < 4 = next day) */
+/** Converts "HH:MM" or "HH:MM:SS" to minutes since midnight, with FGC day wrapping (hours < 4 = next day) */
 export const getFgcMinutes = (timeStr: string | undefined): number | null => {
     if (!timeStr || typeof timeStr !== 'string' || !timeStr.includes(':')) return null;
     const parts = timeStr.split(':');
     const h = parseInt(parts[0], 10);
-    const m = parseInt(parts[1], 10);
+    const m = parseFloat(parts[1]);
+    const s = parts[2] ? parseFloat(parts[2]) : 0;
+
     if (isNaN(h) || isNaN(m)) return null;
-    let total = h * 60 + m;
+
+    let total = h * 60 + m + (s / 60);
     if (h < 4) total += 24 * 60;
     return total;
 };
 
-/** Formats total minutes back to "HH:MM" format */
+/** Formats total minutes back to "HH:MM:SS" format */
 export const formatFgcTime = (totalMinutes: number | null): string => {
-    if (totalMinutes === null) return '--:--';
-    let mins = totalMinutes;
-    if (mins >= 24 * 60) mins -= 24 * 60;
-    const h = Math.floor(mins / 60);
-    const m = mins % 60;
-    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+    if (totalMinutes === null) return '--:--:--';
+    let absMins = Math.abs(totalMinutes);
+    const totalSecs = Math.round(absMins * 60);
+
+    const h = Math.floor(totalSecs / 3600);
+    const m = Math.floor((totalSecs % 3600) / 60);
+    const s = totalSecs % 60;
+
+    // We want the FGC wrapping logic: if it was wrapped (> 1440), keep it wrap-aware if possible?
+    // Actually, formatFgcTime usually takes the relative minutes.
+    // If it's 25:10, it should be 01:10.
+    const displayH = h % 24;
+
+    return `${displayH.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 };
 
 // ──────────────────────────────────────────────

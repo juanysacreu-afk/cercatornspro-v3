@@ -339,19 +339,67 @@ const AlternativeServiceOverlay: React.FC<AlternativeServiceOverlayProps> = ({
         });
       });
 
-      // NORMATIVA LABORAL BV
+      // NORMATIVA LABORAL BV — Línia Barcelona-Vallès
+      const TURNAROUND_TERM = 6; // minutes at each terminus for cab maneuver
       const N_LABORAL = {
-        CAB_CHANGE: 3,
-        TRAIN_CHANGE: 6,
-        HANDOVER: 7,
-        MAX_DRIVE: 120, // 2h
-        MIN_BREAK: 10,
-        MAIN_BREAK: 35,
-        SETUP_GENERAL: 7,
-        SETUP_COTXERA_MAX: 30, // Reina Elisenda
-        WALK_RUBI_COR: 12,
-        WALK_NA_DEPOT: 11,
-        WALK_PN_DEPOT: 6
+        CAB_CHANGE: 3,          // Canvi de cabina (totes les estacions)
+        HANDOVER: 7,            // Relevo (Rubí, Sarrià)
+        MAX_DRIVE: 120,         // Màx. conducció continuada sense pausa (2h)
+        MIN_BREAK: 10,          // Descans mínim obligatori després de MAX_DRIVE
+        MAIN_BREAK: 35,         // Descans principal ("àpat") per torn sencer
+        MAIN_BREAK_PARTIAL: 15, // Descans principal per torn parcial (6h)
+        MIN_TOTAL_REST: 90,     // Suma mínima descansos torn sencer
+        MIN_TOTAL_REST_PARTIAL_6: 45, // Suma mínima desc. torn parcial 6h
+        NON_COMPUTE_THRESHOLD: 15, // Períodes < 15 min no computen com a descans
+        DEADHEAD_REST_FACTOR: 0.5, // Viatje en via morta ≥15 min: 50% descans
+        PASSENGER_REST_FACTOR: 0.66, // Com a viatger ≥15 min: 66% descans
+        // Temps inici/final de servei per cotxera/dependència
+        SETUP: {
+          'PC': { withStartup: 7, withoutStartup: 7 }, // General
+          'NA': { withStartup: 23, withoutStartup: 18 }, // Cocheras Terrassa N.U.
+          'PN': { withStartup: 19, withoutStartup: 14 }, // Cocheras Sabadell P.N.
+          'RB': { withStartup: 7, withoutStartup: 7 }, // Rubí estació
+          'COR': { withStartup: 23, withoutStartup: 18 }, // Rubí COR
+          'RE': { withStartup: 30, withoutStartup: 30 }, // Reina Elisenda
+          'SR': { withStartup: 7, withoutStartup: 7 }, // Sarrià
+          'SC': { withStartup: 7, withoutStartup: 7 }, // Sant Cugat
+          'GR': { withStartup: 7, withoutStartup: 7 }, // Gràcia
+          'TB': { withStartup: 7, withoutStartup: 7 }, // Terrassa
+        } as Record<string, { withStartup: number; withoutStartup: number }>,
+        // Canvi de material per estació
+        TRAIN_CHANGE: {
+          'DEFAULT': 6,
+          'COR': 30,  // Rubí COR
+          'RE': 10,  // Reina Elisenda
+          'GR': 3,   // Gràcia (a partir de les 00:00h)
+        } as Record<string, number>,
+        // Temps a peu entre dependències
+        WALK: {
+          'RB-COR': 12, 'COR-RB': 12,
+          'NA-TNU': 11, 'TNU-NA': 11,
+          'PN-SPN': 6, 'SPN-PN': 6,
+          'RE-ZM': 10, 'ZM-RE': 10,  // Reina Elisenda <-> Zona Maniobres
+          'SR-V0': 10, 'V0-SR': 10,  // Sarrià Via 0
+        } as Record<string, number>,
+      };
+
+      // Helper: get train change time for a station
+      const getTrainChangeTime = (station: string, timeMin: number): number => {
+        if (station === 'GR' && timeMin >= 1440) return N_LABORAL.TRAIN_CHANGE['GR'];
+        return N_LABORAL.TRAIN_CHANGE[station] ?? N_LABORAL.TRAIN_CHANGE['DEFAULT'];
+      };
+
+      // Helper: get setup time for a home depot
+      const getSetupTime = (depot: string, hasStartup = true): number => {
+        const entry = N_LABORAL.SETUP[depot];
+        if (!entry) return 7;
+        return hasStartup ? entry.withStartup : entry.withoutStartup;
+      };
+
+      // Helper: get walk time between two points
+      const getWalkTime = (from: string, to: string): number => {
+        const key = `${from}-${to}`;
+        return N_LABORAL.WALK[key] ?? 0;
       };
 
       const getEndpoints = (lineStations: string[]) => {
@@ -372,32 +420,53 @@ const AlternativeServiceOverlay: React.FC<AlternativeServiceOverlayProps> = ({
 
       const activeSimultaneous = Math.min(physicalTrains.length, allDrivers.length);
 
-      // Initialize Driver Pool with current personnel and shift extension logic
+      // Initialize Driver Pool with correct BV normativa setup times per home depot
       let driverPool: any[] = allDrivers.map(d => {
         const shiftNum = parseInt(d.torn?.replace(/\D/g, '') || '0');
-        let homeStation = 'PC'; // Default
-        if (shiftNum >= 100 && shiftNum < 200) homeStation = 'SR';
-        else if (shiftNum >= 200 && shiftNum < 300) homeStation = 'RB';
-        else if (shiftNum >= 300 && shiftNum < 400) homeStation = 'NA';
-        else if (shiftNum >= 400 && shiftNum < 500) homeStation = 'PN';
+        let homeStation = 'PC'; // Default (Plaça Catalunya / Provença area)
+        if (shiftNum >= 100 && shiftNum < 200) homeStation = 'SR';  // Sarrià branch
+        else if (shiftNum >= 200 && shiftNum < 300) homeStation = 'RB';  // Rubí
+        else if (shiftNum >= 300 && shiftNum < 400) homeStation = 'NA';  // Terrassa N.U.
+        else if (shiftNum >= 400 && shiftNum < 500) homeStation = 'PN';  // Sabadell P.N.
 
         const startMin = getFgcMinutes(d.shiftStart) || displayMin;
         const endMin = getFgcMinutes(d.shiftEnd) || 1620;
 
-        // REGLA: Pestaña de extensión hasta 8h 45min (525 min)
+        // BV Norm 1: Max shift duration = 8h 45min (525 min) from start
         const extensionLimit = startMin + 525;
+
+        // BV Norm 6: Setup time at start of service depends on home depot
+        // For emergency service we assume trains already started (without UT startup)
+        const setupTime = getSetupTime(homeStation, false);
+
+        // Driver is available at: max(displayMin, shiftStart + setupTime already elapsed)
+        // If driver already started (startMin < displayMin), they're already deployed
+        const effectiveAvailAt = startMin < displayMin
+          ? displayMin   // already on shift, available now
+          : startMin + setupTime; // just starting, needs setup time
+
+        // Accumulated driving time already done before the incident (approximate)
+        const alreadyDriven = Math.max(0, displayMin - startMin);
+        // Simplified: assume half their pre-incident time was actual driving
+        const contDriveAtStart = Math.min(N_LABORAL.MAX_DRIVE, Math.floor(alreadyDriven * 0.5));
+
+        // Main break: if driver has been on shift > 2.5h, they may have had their break
+        const shiftHoursElapsed = (displayMin - startMin) / 60;
+        const mainBreakLikelyTaken = shiftHoursElapsed > 3.5;
 
         return {
           ...d,
-          currentStation: d.stationId || 'PC',
-          availableAt: d.type === 'TRAIN' ? displayMin : (getFgcMinutes(d.shiftStart) || displayMin),
+          currentStation: d.stationId || homeStation,
+          availableAt: effectiveAvailAt,
           activeShiftEnd: endMin,
           shiftExtensionLimit: extensionLimit,
           activeShiftStart: startMin,
           activeShiftDep: homeStation,
+          setupTime,
           tripCount: 0,
-          contDrive: 0,
-          mainBreakTaken: false,
+          contDrive: contDriveAtStart,
+          mainBreakTaken: mainBreakLikelyTaken,
+          accumulatedRest: 0,   // Sum of rest periods ≥ 15 min
           lastArrival: displayMin,
           currentTrain: null
         };
@@ -588,56 +657,119 @@ const AlternativeServiceOverlay: React.FC<AlternativeServiceOverlayProps> = ({
           currentStation: u.driver ? (u.driver.stationId || 'PC') : 'PC' // Estació inicial
         }));
 
-        const activeOnThisBranch = Math.max(1, branchUnits.length);
-        const cycleTime = (refTravelTime * 2) + 12;
-        const headway = lineHeadways[liniaCode] || Math.max(10, Math.floor(cycleTime / activeOnThisBranch));
+        const numUnits = Math.max(1, branchUnits.length);
+        const clampedTravel = Math.min(60, Math.max(5, refTravelTime));
+
+        // ── AUTO FREQUENCY CALCULATION based on driver capacity ──────────────────
+        // Physics minimum: time for full round trip divided by fleet size
+        const fullCyclePhysics = 2 * (clampedTravel + TURNAROUND_TERM);
+        const physicsHeadway = fullCyclePhysics / numUnits;
+
+        // Calculate total one-way trips all available drivers can cover
+        // (accounting for BV mandatory breaks and shift limits)
+        let totalDriverTripCapacity = 0;
+        driverPool.forEach(d => {
+          const shiftEndLimit = Math.max(d.activeShiftEnd, d.shiftExtensionLimit || 0);
+          const driverWindowStart = Math.max(displayMin, d.availableAt);
+          const driverWindowEnd = shiftEndLimit;
+          const rawWindow = Math.max(0, driverWindowEnd - driverWindowStart);
+          if (rawWindow <= 0) return;
+
+          // Deduct mandatory main break from effective working time:
+          // BV Norm 2: 35 min break must happen between hour 2.5 and 5.5 of shift.
+          // If driver hasn't taken it yet and the window crosses that period, deduct 35 min.
+          const hoursFromShiftStart = (driverWindowStart - d.activeShiftStart) / 60;
+          const requiresMainBreakInWindow =
+            !d.mainBreakTaken &&
+            hoursFromShiftStart < 5.5 &&  // break window not yet past
+            rawWindow > 30;                // enough time left for it to matter
+          const breakDeduction = requiresMainBreakInWindow ? N_LABORAL.MAIN_BREAK : 0;
+
+          // Also deduct compulsory 10-min rest if continuous driving near limit
+          const continuousBreaks = d.contDrive > N_LABORAL.MAX_DRIVE - clampedTravel
+            ? N_LABORAL.MIN_BREAK : 0;
+
+          const effectiveWorkTime = Math.max(0, rawWindow - breakDeduction - continuousBreaks);
+
+          // Each one-way trip costs: travel time + turnaround at destination
+          // (BV Norm 6: TURNAROUND_TERM covers cab change + readiness)
+          const tripsThisDriver = Math.floor(effectiveWorkTime / (clampedTravel + TURNAROUND_TERM));
+          totalDriverTripCapacity += tripsThisDriver;
+        });
+
+        // How many one-way trip slots would physics headway generate across service window?
+        const serviceWindow = Math.max(0, maxLineTime - displayMin);
+        const physicsSlots = numUnits * Math.floor(serviceWindow / (clampedTravel + TURNAROUND_TERM));
+
+        let optimalHeadway: number;
+        if (totalDriverTripCapacity === 0) {
+          // No drivers available — use physics minimum, all marked SENSE MAQUINISTA
+          optimalHeadway = physicsHeadway;
+        } else if (totalDriverTripCapacity >= physicsSlots * 0.9) {
+          // Enough drivers: run at maximum physics frequency (full coverage)
+          optimalHeadway = physicsHeadway;
+        } else {
+          // Driver-limited: widen headway so trips ≤ driver capacity
+          // totalDriverTripCapacity = numUnits * serviceWindow / headway (approx)
+          // → headway = numUnits * serviceWindow / totalDriverTripCapacity
+          const driverHeadway = (numUnits * serviceWindow) / totalDriverTripCapacity;
+          optimalHeadway = Math.max(physicsHeadway, driverHeadway);
+        }
+
+        // Round to nearest minute and enforce absolute minimum of 5 min
+        const headway = Math.max(5, Math.round(optimalHeadway));
 
         lineContexts[liniaCode] = {
-          eps, prefix, refTravelTime: Math.min(60, Math.max(5, refTravelTime)), headway,
+          eps, prefix,
+          refTravelTime: clampedTravel,
+          headway,          // auto-computed or physics-based
+          physicsHeadway,   // kept for reference
           maxLineTime, maxAscTime, maxDescTime,
           nextAscNum: maxAscStartedNum + 2, nextDescNum: maxDescStartedNum + 2,
-          branchUnits, nextStartTimeAsc: displayMin + 2, nextStartTimeDesc: displayMin + 2 + Math.floor(headway / 2)
+          branchUnits,
+          nextStartTimeAsc: displayMin + 2,
+          nextStartTimeDesc: displayMin + 2 + Math.floor(headway / 2)
         };
       });
 
-      // 2. Create trip slots for all lines
+      // 2. Create trip slots for all lines — one unit at a time, sequential round-trip
       const tripSlots: any[] = [];
       Object.entries(lineContexts).forEach(([liniaCode, ctx]) => {
-        // Generem slots per UNITATS individuals per garantir rotació física
+        const numUnits = Math.max(1, ctx.branchUnits.length);
+
+        // Full cycle for ONE unit = outbound + turnaround + return + turnaround
+        const fullCycleTime = 2 * (ctx.refTravelTime + TURNAROUND_TERM);
+
+        // True stagger = evenly spread units so frequency is constant throughout service
+        const trueStagger = fullCycleTime / numUnits;
+
         ctx.branchUnits.forEach((u: any, uIdx: number) => {
-          let curTime = ctx.nextStartTimeAsc + (uIdx * (ctx.headway / ctx.branchUnits.length));
-          let isAsc = (uIdx % 2 === 0); // Repartim orientacions inicials
-          let currentSt = isAsc ? ctx.eps.start : ctx.eps.end;
+          const staggerOffset = Math.round(uIdx * trueStagger);
+          let currentTime = ctx.nextStartTimeAsc + staggerOffset;
+          let currentStation = ctx.eps.start;
+          let goingToEnd = true; // first leg: start → end
 
-          while (curTime < ctx.maxLineTime) {
-            const dest = isAsc ? ctx.eps.end : ctx.eps.start;
-
-            // Verifiquem si aquesta direcció encara ha de tenir servei
-            const isTechnical = isAsc ? (curTime >= ctx.maxAscTime) : (curTime >= ctx.maxDescTime);
+          while (currentTime < ctx.maxLineTime) {
+            const origin = currentStation;
+            const dest = goingToEnd ? ctx.eps.end : ctx.eps.start;
+            const isTechnical = goingToEnd
+              ? currentTime >= ctx.maxAscTime
+              : currentTime >= ctx.maxDescTime;
 
             tripSlots.push({
-              liniaCode, isAsc, idealStartTime: curTime,
-              origin: currentSt,
-              dest: dest,
+              liniaCode,
+              isAsc: goingToEnd,
+              idealStartTime: currentTime,
+              origin,
+              dest,
               unitIdx: uIdx,
               isTechnical
             });
 
-            curTime += (ctx.refTravelTime * 2) + 12; // Temps de cicle per aquesta unitat
-            // L'orientació es manté equilibrada ja que la unitat torna
-            // (En realitat el següent slot d'aquesta unitat serà el de tornada)
-            // Però el bucle de slots és més senzill si generem els parells aquí:
-
-            const returnStart = curTime - ctx.refTravelTime - 6;
-            if (returnStart < ctx.maxLineTime) {
-              tripSlots.push({
-                liniaCode, isAsc: !isAsc, idealStartTime: returnStart,
-                origin: dest,
-                dest: currentSt,
-                unitIdx: uIdx,
-                isTechnical: !isAsc ? (returnStart >= ctx.maxAscTime) : (returnStart >= ctx.maxDescTime)
-              });
-            }
+            // Advance: travel time + turnaround at destination terminal
+            currentTime += ctx.refTravelTime + TURNAROUND_TERM;
+            currentStation = dest;
+            goingToEnd = !goingToEnd;
           }
         });
       });
@@ -657,144 +789,131 @@ const AlternativeServiceOverlay: React.FC<AlternativeServiceOverlayProps> = ({
         tripSlots.length = 0; tripSlots.push(...filtered);
       }
 
-      // 4. Assign drivers chronologically preserving cadence
-      const lastActualStart: Record<string, { ASCENDENT: number; DESCENDENT: number }> = {};
+      // 4. Assign drivers chronologically — unit schedule is fixed, only driver varies
       tripSlots.sort((a, b) => a.idealStartTime - b.idealStartTime);
       tripSlots.forEach(slot => {
         const ctx = lineContexts[slot.liniaCode];
-        const originalStart = slot.idealStartTime;
-
-        // 1. Dinàmicament seleccionem la millor unitat física per aquest slot
-        // Prioritzem unitats que estiguin ja a l'estació d'origen i estiguin a punt més aviat
-        const turnAround = 4;
-        const candidateUnits = ctx.branchUnits.map(u => {
-          let readyAt = u.availableAt;
-          const isAtStation = u.currentStation === slot.origin;
-          if (!isAtStation) {
-            // Si no hi és, necessita temps per arribar (teòric)
-            readyAt += getTravelTime(u.currentStation, slot.origin) + 2;
-          } else if (u.availableAt > displayMin) {
-            readyAt += turnAround;
-          }
-          return { unit: u, readyAt, isAtStation };
-        }).sort((a, b) => a.readyAt - b.readyAt || (a.isAtStation ? -1 : 1));
-
-        const unitObj = candidateUnits[0]?.unit;
+        // The unit for this slot is already determined by unitIdx from section 2
+        const unitObj = ctx.branchUnits[slot.unitIdx];
         if (!unitObj) return;
 
-        let unitReadyAt = candidateUnits[0].readyAt;
+        // The departure time is fixed by the physical unit's cycle (section 2)
+        const startTime = slot.idealStartTime;
+        const endTime = startTime + ctx.refTravelTime;
 
-        let startTime = Math.max(originalStart, unitReadyAt);
-        let endTime = startTime + ctx.refTravelTime;
-
+        // Find the best available driver for this slot — full BV normativa check
         const selectedCandidate = driverPool.map(d => {
           const isAtStation = d.currentStation === slot.origin;
           const isSameUnit = unitObj.currentDriverId === d.torn;
 
-          // 1. Càlcul de Tiempos Técnicos (Norma 6)
+          // ── BV Norm 6: Technical times ──────────────────────────────────────────
           let techTime = 0;
           if (isSameUnit) {
-            techTime = N_LABORAL.CAB_CHANGE; // Canvi de cabina
+            // Same cab: only cab-change time (driver flips sides)
+            techTime = N_LABORAL.CAB_CHANGE;
           } else if (isAtStation) {
-            techTime = N_LABORAL.TRAIN_CHANGE; // Canvi de material
+            // Different train at the same station: train-change time
+            techTime = getTrainChangeTime(slot.origin, startTime);
           } else {
-            // Walking times específicos
-            if (d.currentStation === 'RB' && slot.origin === 'COR') techTime = N_LABORAL.WALK_RUBI_COR;
-            else if (d.currentStation === 'NA' && slot.origin === 'TNU') techTime = N_LABORAL.WALK_NA_DEPOT;
-            else if (d.currentStation === 'PN' && slot.origin === 'SPN') techTime = N_LABORAL.WALK_PN_DEPOT;
-            else techTime = Math.max(10, (getFullPath(d.currentStation, slot.origin).length - 1) * 4); // General walking
+            // Driver must walk to origin station
+            const walkLookup = getWalkTime(d.currentStation, slot.origin);
+            if (walkLookup > 0) {
+              techTime = walkLookup + getTrainChangeTime(slot.origin, startTime);
+            } else {
+              // Generic walking estimate: 4 min per graph node
+              const pathLen = getFullPath(d.currentStation, slot.origin).length;
+              techTime = Math.max(10, (pathLen - 1) * 4);
+            }
           }
 
-          // 2. Restricció de Conducció Continuada (Norma 5)
-          let drivingLimitMet = false;
-          if (d.contDrive + ctx.refTravelTime > N_LABORAL.MAX_DRIVE) {
-            drivingLimitMet = true; // Necessita descans mínim 10 min
-          }
+          // ── BV Norm 5: Continuous driving limit (2h max without 10-min break) ───
+          const drivingLimitMet = (d.contDrive || 0) + ctx.refTravelTime > N_LABORAL.MAX_DRIVE;
 
-          // 3. Ventana de Descans Principal (Norma 2)
+          // ── BV Norm 2: Main break window (between h2.5 and h5.5 of shift) ────────
           const hoursInShift = (startTime - d.activeShiftStart) / 60;
-          const isMainBreakWindow = hoursInShift >= 2.5 && hoursInShift <= 5.5;
-          let needsMainBreak = !d.mainBreakTaken && isMainBreakWindow;
+          const inMainBreakWindow = hoursInShift >= 2.5 && hoursInShift <= 5.5;
+          const needsMainBreak = !d.mainBreakTaken && inMainBreakWindow;
 
-          // 4. Disponibilitat horària amb increments per normativa
-          let readyTime = d.availableAt + techTime;
-          if (drivingLimitMet) readyTime += N_LABORAL.MIN_BREAK;
-          if (needsMainBreak) readyTime += N_LABORAL.MAIN_BREAK;
+          // ── Compute effective ready-time ─────────────────────────────────────────
+          let driverReadyAt = d.availableAt + techTime;
+          if (drivingLimitMet) driverReadyAt += N_LABORAL.MIN_BREAK;     // +10 min
+          if (needsMainBreak) driverReadyAt += N_LABORAL.MAIN_BREAK;    // +35 min
 
-          const eStart = Math.max(startTime, readyTime);
-          const pEnd = eStart + ctx.refTravelTime;
-          const returnDuration = Math.max(0, (getFullPath(slot.dest, d.activeShiftDep || 'PC').length - 1) * 3);
+          // Driver must be physically ready before the train departs (±2 min tolerance)
+          const driverCanMakeIt = driverReadyAt <= startTime + 2;
 
-          // REGLA ESTRICTA TELETRANSPORT
-          let canPerform = true;
-          if (!isAtStation && d.tripCount > 0) canPerform = false;
+          // ── Anti-teleportation: after first trip driver must be at origin ─────────
+          const canPerform = isAtStation || d.tripCount === 0;
 
-          // VALIDACIÓ AMB EXTENSIÓ DE TORN (Fins a 8h 45min)
-          const isValid = (d && pEnd + returnDuration <= Math.max(d.activeShiftEnd, d.shiftExtensionLimit || 0) && canPerform);
+          // ── BV Norm 1: Shift-end check (original end OR 8h45m extension) ─────────
+          // Include travel time from last station back to home depot
+          const retPathLen = getFullPath(slot.dest, d.activeShiftDep || 'PC').length;
+          const returnDuration = Math.max(getWalkTime(slot.dest, d.activeShiftDep || ''),
+            (retPathLen - 1) * 3);
+          const shiftEndLimit = Math.max(d.activeShiftEnd, d.shiftExtensionLimit || 0);
+          const isValid = driverCanMakeIt && canPerform &&
+            endTime + returnDuration <= shiftEndLimit;
 
-          return { driver: d, pStart: eStart, pEnd, isValid, isAtStation, isSameUnit, needsMainBreak, drivingLimitMet };
+          return { driver: d, isValid, isAtStation, isSameUnit, needsMainBreak, drivingLimitMet };
         })
           .filter(c => c.isValid)
           .sort((a, b) => {
+            // Prefer: same unit → at station → fewest trips (equitable load) → earliest available
             if (a.isSameUnit !== b.isSameUnit) return a.isSameUnit ? -1 : 1;
             if (a.isAtStation !== b.isAtStation) return a.isAtStation ? -1 : 1;
-            if ((a.driver.tripCount || 0) !== (b.driver.tripCount || 0)) return (a.driver.tripCount || 0) - (b.driver.tripCount || 0);
-            return a.pStart - b.pStart;
+            if ((a.driver.tripCount || 0) !== (b.driver.tripCount || 0))
+              return (a.driver.tripCount || 0) - (b.driver.tripCount || 0);
+            return (a.driver.availableAt || 0) - (b.driver.availableAt || 0);
           })[0];
 
-        let selectedDriver = null;
-        if (selectedCandidate) {
-          startTime = selectedCandidate.pStart;
-          selectedDriver = selectedCandidate.driver;
-          unitObj.currentDriverId = selectedDriver.torn;
-        }
-
-        // Enforce minimum headway from previous trip of same line & direction to avoid overlaps and preserves numbering order
-        const dirChar = slot.isAsc ? 'ASCENDENT' : 'DESCENDENT';
-        if (!lastActualStart[slot.liniaCode]) lastActualStart[slot.liniaCode] = { ASCENDENT: 0, DESCENDENT: 0 };
-        const minTimeFromPrev = (lastActualStart[slot.liniaCode][dirChar] || 0) + ctx.headway;
-        if (startTime < minTimeFromPrev && lastActualStart[slot.liniaCode][dirChar] > 0) {
-          startTime = minTimeFromPrev;
-        }
-        endTime = startTime + ctx.refTravelTime;
-        lastActualStart[slot.liniaCode][dirChar] = startTime;
-
+        const selectedDriver = selectedCandidate?.driver || null;
         const activeDriver = selectedDriver || { driver: 'SENSE MAQUINISTA (AVÍS)', torn: '---' };
         const tripNum = slot.isAsc ? ctx.nextAscNum : ctx.nextDescNum;
         if (slot.isAsc) ctx.nextAscNum += 2; else ctx.nextDescNum += 2;
 
         plan.push({
-          id: `${ctx.prefix}A${tripNum.toString().padStart(3, '0')}`, delay: startTime - originalStart,
-          servei: (activeDriver as any).servei, linia: slot.liniaCode, train: unitObj.train.id,
-          driver: activeDriver.driver || (activeDriver as any).driverName, torn: activeDriver.torn,
-          shiftStart: activeDriver.shiftStart || activeDriver.sortida || '--:--',
-          shiftEnd: activeDriver.shiftEnd || activeDriver.arribada || '--:--',
-          sortida: formatFgcTime(startTime), arribada: formatFgcTime(endTime),
-          route: `${slot.origin} → ${slot.dest}`, direction: slot.isAsc ? 'ASCENDENT' : 'DESCENDENT',
-          startTimeMinutes: startTime, numValue: tripNum
+          id: `${ctx.prefix}A${tripNum.toString().padStart(3, '0')}`,
+          delay: 0,
+          servei: (activeDriver as any).servei,
+          linia: slot.liniaCode,
+          train: unitObj.train.id,
+          driver: activeDriver.driver || (activeDriver as any).driverName,
+          torn: activeDriver.torn,
+          shiftStart: activeDriver.shiftStart || '--:--',
+          shiftEnd: activeDriver.shiftEnd || '--:--',
+          sortida: formatFgcTime(startTime),
+          arribada: formatFgcTime(endTime),
+          route: `${slot.origin} → ${slot.dest}`,
+          direction: slot.isAsc ? 'ASCENDENT' : 'DESCENDENT',
+          startTimeMinutes: startTime,
+          numValue: tripNum
         });
 
+        // Update unit state (unit always moves on schedule regardless of driver)
+        unitObj.availableAt = endTime;
+        unitObj.currentStation = slot.dest;
         if (selectedDriver) {
+          unitObj.currentDriverId = selectedDriver.torn;
           selectedDriver.currentStation = slot.dest;
           selectedDriver.availableAt = endTime;
           selectedDriver.tripCount = (selectedDriver.tripCount || 0) + 1;
 
-          // Actualitzar estat de la unitat
-          unitObj.availableAt = endTime;
-          unitObj.currentStation = slot.dest;
-          unitObj.currentDriverId = selectedDriver.torn;
+          // BV Norm 5: reset continuous driving if limit was met (driver had mandatory break)
+          if (selectedCandidate!.drivingLimitMet) selectedDriver.contDrive = 0;
+          selectedDriver.contDrive = (selectedDriver.contDrive || 0) + ctx.refTravelTime;
 
-          // Actualització de mètriques laborals
-          if (selectedCandidate.drivingLimitMet) selectedDriver.contDrive = 0;
-          selectedDriver.contDrive += ctx.refTravelTime;
-          if (selectedCandidate.needsMainBreak) {
+          // BV Norm 2: mark main break as taken and reset contDrive
+          if (selectedCandidate!.needsMainBreak) {
             selectedDriver.mainBreakTaken = true;
             selectedDriver.contDrive = 0;
+            selectedDriver.accumulatedRest = (selectedDriver.accumulatedRest || 0) + N_LABORAL.MAIN_BREAK;
+          }
+
+          // BV Norm rest accounting: turnaround at terminus counts as rest if >= 15 min
+          if (TURNAROUND_TERM >= N_LABORAL.NON_COMPUTE_THRESHOLD) {
+            selectedDriver.accumulatedRest = (selectedDriver.accumulatedRest || 0) + TURNAROUND_TERM;
           }
         } else {
-          // Encara que no hi hagi maquinista assignat, la unitat s'ha mogut físicament
-          unitObj.availableAt = endTime;
-          unitObj.currentStation = slot.dest;
           unitObj.currentDriverId = '---';
         }
 
@@ -912,7 +1031,7 @@ const AlternativeServiceOverlay: React.FC<AlternativeServiceOverlayProps> = ({
           });
 
           if (targetDepot && fromStation !== targetDepot) {
-            const rStart = Math.max(arrival + 5, ctx.maxServiceTime);
+            const rStart = Math.max(arrival + 5, ctx.maxLineTime);
             const rTravel = Math.max(5, (minDistance - 1) * 3);
             const rEnd = rStart + rTravel;
 
@@ -1055,10 +1174,12 @@ const AlternativeServiceOverlay: React.FC<AlternativeServiceOverlayProps> = ({
       return total;
     };
 
-    const formatTime = (mins: number) => {
-      let m = mins;
-      if (m >= 24 * 60) m -= 24 * 60;
-      return `${Math.floor(m / 60).toString().padStart(2, '0')}:${(m % 60).toString().padStart(2, '0')}`;
+    const formatTime = (totalMins: number) => {
+      const totalSecs = Math.round(totalMins * 60);
+      const h = Math.floor(totalSecs / 3600) % 24;
+      const m = Math.floor((totalSecs % 3600) / 60);
+      const s = totalSecs % 60;
+      return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
     };
 
     // Group by unit/torn
