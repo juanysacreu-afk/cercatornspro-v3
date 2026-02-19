@@ -151,8 +151,12 @@ export function useDashboardData() {
             // ── Active Shifts ──
             const activeShifts = shifts.filter(s => {
                 const sMin = getFgcMinutes(s.inici_torn);
-                const eMin = getFgcMinutes(s.final_torn);
-                return sMin !== null && eMin !== null && currentMin >= sMin && currentMin <= eMin;
+                let eMin = getFgcMinutes(s.final_torn);
+                if (sMin !== null && eMin !== null) {
+                    if (eMin < sMin) eMin += 1440; // Handle overnight shifts
+                    return currentMin >= sMin && currentMin <= eMin;
+                }
+                return false;
             });
 
             // ── Circulations (scheduled vs active) ──
@@ -180,9 +184,12 @@ export function useDashboardData() {
                             if (times) { start = times.start; end = times.end; }
                         }
 
-                        // Check if active
-                        if (start !== null && end !== null && currentMin >= start && currentMin <= end) {
-                            currentScheduledCircIds.add(codi);
+                        // Check if active (handle overnight)
+                        if (start !== null && end !== null) {
+                            if (end < start) end += 1440;
+                            if (currentMin >= start && currentMin <= end) {
+                                currentScheduledCircIds.add(codi);
+                            }
                         }
                     }
                 });
@@ -220,7 +227,11 @@ export function useDashboardData() {
                     }
                 }
 
-                return start !== null && end !== null && currentMin >= start && currentMin <= end;
+                if (start !== null && end !== null) {
+                    if (end < start) end += 1440;
+                    return currentMin >= start && currentMin <= end;
+                }
+                return false;
             });
 
             // ── Reserves ──

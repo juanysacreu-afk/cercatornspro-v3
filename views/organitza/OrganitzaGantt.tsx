@@ -1,14 +1,14 @@
 import React, { useRef, useMemo, useState, useCallback } from 'react';
-import { Loader2, GanttChart, Users, AlertTriangle, RefreshCcw, Layers, GitBranch, Filter, Clock } from 'lucide-react';
+import { Loader2, GanttChart, Users, AlertTriangle, RefreshCcw, Layers, GitBranch, Filter, Clock, Sun, Sunrise, Sunset, Moon } from 'lucide-react';
 import GlassPanel from '../../components/common/GlassPanel';
 import { useGanttData, GANTT_START_MIN, GANTT_TOTAL_MINUTES, GanttBar, GanttGroup, GANTT_START_HOUR, GANTT_END_HOUR } from './hooks/useGanttData';
 import { getFgcMinutes } from '../../utils/stations';
 import { feedback } from '../../utils/feedback';
 
 // ── Helper: position as % ──────────────────────────────
-const toPercent = (minutes: number): number => {
-    const offset = minutes - GANTT_START_MIN;
-    return Math.max(0, Math.min(100, (offset / GANTT_TOTAL_MINUTES) * 100));
+const calculatePercent = (minutes: number, start: number, total: number): number => {
+    const offset = minutes - start;
+    return (offset / total) * 100;
 };
 
 const formatTime = (min: number): string => {
@@ -25,15 +25,22 @@ interface TooltipState {
 }
 
 // ── Hour Header ────────────────────────────────────────
-const HourHeader: React.FC = () => {
-    const hours = [];
-    for (let h = GANTT_START_HOUR; h < GANTT_END_HOUR; h++) {
-        hours.push(h);
-    }
+const HourHeader: React.FC<{ viewRange: { start: number, end: number, total: number }, toPercent: (min: number) => number }> = ({ viewRange, toPercent }) => {
+    const hours = useMemo(() => {
+        const hArr = [];
+        const startH = Math.floor(viewRange.start / 60);
+        const endH = Math.ceil(viewRange.end / 60);
+        for (let h = startH; h <= endH; h++) {
+            hArr.push(h);
+        }
+        return hArr;
+    }, [viewRange]);
+
     return (
         <div className="relative h-8 border-b border-gray-200 dark:border-white/10">
             {hours.map(h => {
                 const left = toPercent(h * 60);
+                if (left < 0 || left > 100) return null;
                 const displayH = h >= 24 ? h - 24 : h;
                 return (
                     <React.Fragment key={h}>
@@ -55,11 +62,11 @@ const HourHeader: React.FC = () => {
 };
 
 // ── Now Marker ─────────────────────────────────────────
-const NowMarker: React.FC<{ nowMin: number }> = ({ nowMin }) => {
+const NowMarker: React.FC<{ nowMin: number, toPercent: (min: number) => number }> = ({ nowMin, toPercent }) => {
     const left = toPercent(nowMin);
     if (left <= 0 || left >= 100) return null;
     return (
-        <div className="absolute top-0 bottom-0 z-30 pointer-events-none" style={{ left: `${left}%` }}>
+        <div className="absolute top-0 bottom-0 z-30 pointer-events-none transition-all duration-500" style={{ left: `${left}%` }}>
             <div className="w-0.5 h-full bg-red-500 dark:bg-red-400 opacity-80" />
             <div className="absolute -top-1 -left-1.5 w-3.5 h-3.5 rounded-full bg-red-500 dark:bg-red-400 border-2 border-white dark:border-fgc-grey shadow-lg" />
         </div>
@@ -74,10 +81,11 @@ interface ContextMenuProps {
     clickedTime: string;
     onClose: () => void;
     onMarkIncident: () => void;
+    onMarkUncovered: () => void;
     onClearIncident: () => void;
 }
 
-const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, bar, clickedTime, onClose, onMarkIncident, onClearIncident }) => {
+const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, bar, clickedTime, onClose, onMarkIncident, onMarkUncovered, onClearIncident }) => {
     // Add click outside listener
     React.useEffect(() => {
         const handleClickOutside = () => onClose();
@@ -102,20 +110,29 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, bar, clickedTime, onClo
                 <div className="text-[10px] text-gray-500 mt-0.5">{bar.driverName || 'Sense conductor'}</div>
             </div>
             {!bar.incidentStartTime ? (
-                <button
-                    onClick={onMarkIncident}
-                    className="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 hover:text-amber-600 flex items-center gap-2"
-                >
-                    <AlertTriangle size={12} />
-                    Marcar Indisposició
-                </button>
+                <>
+                    <button
+                        onClick={onMarkIncident}
+                        className="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 hover:text-amber-600 flex items-center gap-2"
+                    >
+                        <AlertTriangle size={12} className="text-amber-500" />
+                        Marcar Indisposició
+                    </button>
+                    <button
+                        onClick={onMarkUncovered}
+                        className="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 flex items-center gap-2"
+                    >
+                        <AlertTriangle size={12} className="text-red-500" />
+                        Marcar Torn Descobert
+                    </button>
+                </>
             ) : (
                 <button
                     onClick={onClearIncident}
                     className="w-full text-left px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
                 >
                     <RefreshCcw size={12} />
-                    Esborrar Indisposició
+                    Esborrar Marcació
                 </button>
             )}
         </div>
@@ -125,12 +142,19 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, bar, clickedTime, onClo
 // ── Single Bar ─────────────────────────────────────────
 const ShiftBar: React.FC<{
     bar: GanttBar;
+    toPercent: (min: number) => number;
     onClick: (bar: GanttBar, e: React.MouseEvent) => void;
     onContextMenu: (bar: GanttBar, e: React.MouseEvent) => void;
     isSelected: boolean;
-}> = ({ bar, onClick, onContextMenu, isSelected }) => {
-    const left = toPercent(bar.startMin);
-    const width = toPercent(bar.endMin) - left;
+}> = ({ bar, toPercent, onClick, onContextMenu, isSelected }) => {
+    const startLeft = toPercent(bar.startMin);
+    const endRight = toPercent(bar.endMin);
+    const width = endRight - startLeft;
+
+    // Filter bars out of view
+    if (startLeft > 100 || endRight < 0) return null;
+    const renderLeft = Math.max(0, startLeft);
+    const renderWidth = Math.min(100 - renderLeft, width - (renderLeft > startLeft ? renderLeft - startLeft : 0));
 
     const absCode = (bar.absType || '').toUpperCase();
     const isAbsent = absCode.includes('DIS') || absCode.includes('DES') || absCode.includes('VAC') || absCode.includes('FOR');
@@ -148,28 +172,36 @@ const ShiftBar: React.FC<{
         borderClass = isSelected ? 'border-white dark:border-white ring-2 ring-indigo-500 z-30' : 'border-amber-500/50';
     }
 
-    // Incident Gradient Logic
+    // Incident Styling Logic
     if (bar.incidentStartTime && bar.isAssigned && !isAbsent) {
-        const incidentMin = getFgcMinutes(bar.incidentStartTime);
-        if (incidentMin && incidentMin > bar.startMin && incidentMin < bar.endMin) {
-            const splitPercent = ((incidentMin - bar.startMin) / (bar.endMin - bar.startMin)) * 100;
-            // Linear gradient: Green until visible split types, Amber after
-            // Using CSS variables or hardcoded colors for simplicity
-            bgStyle = {
-                background: `linear-gradient(90deg, 
-                    rgba(16, 185, 129, 0.9) 0%, rgba(16, 185, 129, 0.9) ${splitPercent}%, 
-                    rgba(245, 158, 11, 0.9) ${splitPercent}%, rgba(245, 158, 11, 0.9) 100%)`
-            };
-            borderClass = isSelected ? 'border-white dark:border-white ring-2 ring-indigo-500 z-30' : 'border-amber-500/50';
+        if (bar.incidentStartTime === '00:00') {
+            // Full uncovered
+            baseBgClass = 'bg-gradient-to-r from-red-500/90 to-red-600/90 dark:from-red-600/80 dark:to-red-700/80';
+            borderClass = isSelected ? 'border-white dark:border-white ring-2 ring-indigo-500 z-30' : 'border-red-500/50';
+        } else {
+            const incidentMin = getFgcMinutes(bar.incidentStartTime);
+            if (incidentMin && incidentMin > bar.startMin && incidentMin < bar.endMin) {
+                const splitPercent = ((incidentMin - bar.startMin) / (bar.endMin - bar.startMin)) * 100;
+                bgStyle = {
+                    background: `linear-gradient(90deg, 
+                        rgba(16, 185, 129, 0.9) 0%, rgba(16, 185, 129, 0.9) ${splitPercent}%, 
+                        rgba(245, 158, 11, 0.9) ${splitPercent}%, rgba(245, 158, 11, 0.9) 100%)`
+                };
+                borderClass = isSelected ? 'border-white dark:border-white ring-2 ring-indigo-500 z-30' : 'border-amber-500/50';
+            } else if (incidentMin && incidentMin <= bar.startMin) {
+                // Also treat as full amber if it starts before shift
+                baseBgClass = 'bg-gradient-to-r from-amber-400/80 to-amber-500/80 dark:from-amber-500/70 dark:to-amber-600/70';
+                borderClass = isSelected ? 'border-white dark:border-white ring-2 ring-indigo-500 z-30' : 'border-amber-500/50';
+            }
         }
     }
 
     return (
         <div
-            className={`absolute h-7 rounded-md border ${Object.keys(bgStyle).length === 0 ? baseBgClass : ''} ${borderClass} cursor-pointer transition-all duration-200 hover:scale-y-110 hover:z-20 hover:shadow-lg`}
+            className={`absolute h-7 rounded-md border ${Object.keys(bgStyle).length === 0 ? baseBgClass : ''} ${borderClass} cursor-pointer transition-all duration-500 hover:scale-y-110 hover:z-20 hover:shadow-lg`}
             style={{
-                left: `${left}%`,
-                width: `${Math.max(width, 0.3)}%`,
+                left: `${renderLeft}%`,
+                width: `${Math.max(renderWidth, 0.3)}%`,
                 top: '2px',
                 ...bgStyle
             }}
@@ -178,19 +210,20 @@ const ShiftBar: React.FC<{
         >
             {/* Internal circulation segments */}
             {width > 3 && bar.circulations.filter(c => c.type === 'circ').map((seg, i) => {
-                const segLeft = ((seg.startMin - bar.startMin) / (bar.endMin - bar.startMin)) * 100;
-                const segWidth = ((seg.endMin - seg.startMin) / (bar.endMin - bar.startMin)) * 100;
+                const segStartLeft = ((seg.startMin - bar.startMin) / (bar.endMin - bar.startMin)) * 100;
+                const segEndRight = ((seg.endMin - bar.startMin) / (bar.endMin - bar.startMin)) * 100;
+                const segWidth = segEndRight - segStartLeft;
                 return (
                     <div
                         key={i}
                         className="absolute top-0 bottom-0 bg-white/15 dark:bg-white/10 border-l border-white/20"
-                        style={{ left: `${segLeft}%`, width: `${segWidth}%` }}
+                        style={{ left: `${segStartLeft}%`, width: `${segWidth}%` }}
                     />
                 );
             })}
 
             {/* Label inside bar */}
-            {width > 2.5 && (
+            {renderWidth > 2.5 && (
                 <span className="absolute inset-0 flex items-center px-1.5 text-[9px] sm:text-[10px] font-bold text-white truncate select-none drop-shadow-sm">
                     {bar.shortId}
                 </span>
@@ -202,11 +235,13 @@ const ShiftBar: React.FC<{
 // ── Group Row ──────────────────────────────────────────
 const GroupSection: React.FC<{
     group: GanttGroup;
+    viewRange: { start: number, end: number, total: number };
+    toPercent: (min: number) => number;
     nowMin: number;
     onBarClick: (bar: GanttBar, e: React.MouseEvent) => void;
     onBarContextMenu: (bar: GanttBar, e: React.MouseEvent) => void;
     selectedBarId: string | null;
-}> = ({ group, nowMin, onBarClick, onBarContextMenu, selectedBarId }) => {
+}> = ({ group, viewRange, toPercent, nowMin, onBarClick, onBarContextMenu, selectedBarId }) => {
     // Stacking: assign bars to "lanes" to avoid overlaps
     const lanes = useMemo(() => {
         const result: GanttBar[][] = [];
@@ -239,10 +274,11 @@ const GroupSection: React.FC<{
             </div>
 
             {/* Timeline rows */}
-            <div className="relative bg-white/30 dark:bg-white/[.03] rounded-lg border border-gray-100/50 dark:border-white/5 overflow-hidden">
+            <div className="relative bg-white/30 dark:bg-white/[.03] rounded-lg border border-gray-100/50 dark:border-white/5 overflow-hidden transition-all duration-500">
                 {/* Grid lines every hour */}
-                {Array.from({ length: GANTT_END_HOUR - GANTT_START_HOUR }, (_, i) => {
-                    const left = toPercent((i + GANTT_START_HOUR) * 60);
+                {Array.from({ length: 32 }, (_, i) => {
+                    const left = toPercent(i * 60);
+                    if (left < 0 || left > 100) return null;
                     return (
                         <div
                             key={i}
@@ -252,7 +288,7 @@ const GroupSection: React.FC<{
                     );
                 })}
 
-                <NowMarker nowMin={nowMin} />
+                <NowMarker nowMin={nowMin} toPercent={toPercent} />
 
                 {/* Lanes */}
                 {lanes.map((lane, laneIdx) => (
@@ -261,6 +297,7 @@ const GroupSection: React.FC<{
                             <ShiftBar
                                 key={bar.shiftId}
                                 bar={bar}
+                                toPercent={toPercent}
                                 onClick={onBarClick}
                                 onContextMenu={onBarContextMenu}
                                 isSelected={selectedBarId === bar.shiftId}
@@ -281,10 +318,15 @@ const GroupSection: React.FC<{
 
 // ── Main Component ─────────────────────────────────────
 const OrganitzaGantt: React.FC = () => {
-    const { loading, groups, stats, groupBy, setGroupBy, filterMode, setFilterMode, nowMin, selectedService, setSelectedService, availableServices, refresh, updateIncidentTime } = useGanttData();
+    const { loading, groups, stats, groupBy, setGroupBy, filterMode, setFilterMode, timeFilter, setTimeFilter, viewRange, nowMin, selectedService, setSelectedService, availableServices, refresh, updateIncidentTime } = useGanttData();
     const [tooltip, setTooltip] = useState<TooltipState | null>(null);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; bar: GanttBar; clickedTime: string } | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+
+    // Dynamic Coordinate helper
+    const toPercent = useCallback((minutes: number) => {
+        return calculatePercent(minutes, viewRange.start, viewRange.total);
+    }, [viewRange]);
 
     const handleBarClick = useCallback((bar: GanttBar, e: React.MouseEvent) => {
         e.stopPropagation(); // Stop propagation to avoid closing immediately if we add a global click listener
@@ -335,6 +377,13 @@ const OrganitzaGantt: React.FC = () => {
     const handleMarkIncident = async () => {
         if (!contextMenu?.bar.assignmentId) return;
         await updateIncidentTime(contextMenu.bar.assignmentId, contextMenu.clickedTime);
+        setContextMenu(null);
+    };
+
+    const handleMarkUncovered = async () => {
+        if (!contextMenu?.bar.assignmentId) return;
+        // Use 00:00 as a special code for full uncovered
+        await updateIncidentTime(contextMenu.bar.assignmentId, '00:00');
         setContextMenu(null);
     };
 
@@ -390,7 +439,7 @@ const OrganitzaGantt: React.FC = () => {
                 <GlassPanel className="p-3 sm:p-4">
                     <div className="flex items-center gap-2 mb-1">
                         <AlertTriangle size={14} className="text-amber-500" />
-                        <span className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 font-bold uppercase">DIS/DES</span>
+                        <span className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 font-bold uppercase">Indisposició</span>
                     </div>
                     <span className={`text-xl sm:text-2xl font-black ${stats.conflicts > 0 ? 'text-amber-500' : 'text-gray-300 dark:text-gray-600'}`}>
                         {stats.conflicts}
@@ -409,11 +458,11 @@ const OrganitzaGantt: React.FC = () => {
                         Dependència
                     </button>
                     <button
-                        onClick={() => setGroupBy('linia')}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all ${groupBy === 'linia' ? 'bg-fgc-grey dark:bg-fgc-green dark:text-[#4D5358] text-white shadow' : 'text-gray-400 hover:bg-white/10'}`}
+                        onClick={() => setGroupBy('horari')}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all ${groupBy === 'horari' ? 'bg-fgc-grey dark:bg-fgc-green dark:text-[#4D5358] text-white shadow' : 'text-gray-400 hover:bg-white/10'}`}
                     >
-                        <GitBranch size={12} />
-                        Línia
+                        <Clock size={12} />
+                        Horari
                     </button>
                 </div>
 
@@ -450,7 +499,38 @@ const OrganitzaGantt: React.FC = () => {
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all ${filterMode === 'conflicts' ? 'bg-amber-500 text-white shadow' : 'text-gray-400 hover:bg-white/10'}`}
                     >
                         <AlertTriangle size={12} />
-                        Conflictes
+                        Indisposició
+                    </button>
+                </div>
+
+                {/* Shift Timing Filters */}
+                <div className="flex bg-white/20 dark:bg-black/20 p-1 rounded-xl backdrop-blur-md border border-white/20 shadow-inner ml-3">
+                    <button
+                        onClick={() => setTimeFilter('all')}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all ${timeFilter === 'all' ? 'bg-fgc-grey dark:bg-white/20 text-white shadow' : 'text-gray-400 hover:bg-white/10'}`}
+                    >
+                        Tots
+                    </button>
+                    <button
+                        onClick={() => setTimeFilter('mati')}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all ${timeFilter === 'mati' ? 'bg-amber-400 text-black shadow' : 'text-gray-400 hover:bg-white/10'}`}
+                    >
+                        <Sunrise size={12} />
+                        Matí
+                    </button>
+                    <button
+                        onClick={() => setTimeFilter('tarda')}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all ${timeFilter === 'tarda' ? 'bg-orange-500 text-white shadow' : 'text-gray-400 hover:bg-white/10'}`}
+                    >
+                        <Sunset size={12} />
+                        Tarda
+                    </button>
+                    <button
+                        onClick={() => setTimeFilter('nit')}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all ${timeFilter === 'nit' ? 'bg-indigo-900 text-white shadow' : 'text-gray-400 hover:bg-white/10'}`}
+                    >
+                        <Moon size={12} />
+                        Nit
                     </button>
                 </div>
 
@@ -467,7 +547,7 @@ const OrganitzaGantt: React.FC = () => {
             <GlassPanel className="p-3 sm:p-4 overflow-x-auto">
                 <div className="min-w-[700px]">
                     {/* Hour ruler */}
-                    <HourHeader />
+                    <HourHeader viewRange={viewRange} toPercent={toPercent} />
 
                     {/* Groups */}
                     <div className="mt-2 space-y-1">
@@ -475,6 +555,8 @@ const OrganitzaGantt: React.FC = () => {
                             <GroupSection
                                 key={group.code}
                                 group={group}
+                                viewRange={viewRange}
+                                toPercent={toPercent}
                                 nowMin={nowMin}
                                 onBarClick={handleBarClick}
                                 onBarContextMenu={handleBarContextMenu}
@@ -503,7 +585,10 @@ const OrganitzaGantt: React.FC = () => {
                     <span className="inline-block w-3 h-2.5 rounded-sm bg-gradient-to-r from-gray-300 to-gray-400 border border-dashed border-gray-400/50" /> Sense assignar
                 </span>
                 <span className="flex items-center gap-1.5">
-                    <span className="inline-block w-3 h-2.5 rounded-sm bg-gradient-to-r from-amber-400 to-amber-500" /> DIS / DES / Absent
+                    <span className="inline-block w-3 h-2.5 rounded-sm bg-gradient-to-r from-amber-400 to-amber-500" /> Indisposició / Absent
+                </span>
+                <span className="flex items-center gap-1.5">
+                    <span className="inline-block w-3 h-2.5 rounded-sm bg-gradient-to-r from-red-500 to-red-600" /> Torn Descobert
                 </span>
                 <span className="flex items-center gap-1.5">
                     <span className="inline-block w-0.5 h-3 bg-red-500" /> Ara
@@ -584,6 +669,7 @@ const OrganitzaGantt: React.FC = () => {
                     {...contextMenu}
                     onClose={() => setContextMenu(null)}
                     onMarkIncident={handleMarkIncident}
+                    onMarkUncovered={handleMarkUncovered}
                     onClearIncident={handleClearIncident}
                 />
             )}

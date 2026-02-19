@@ -40,8 +40,9 @@ export interface GanttGroup {
     bars: GanttBar[];
 }
 
-export type GanttGroupBy = 'dependencia' | 'linia';
+export type GanttGroupBy = 'dependencia' | 'horari';
 export type GanttFilterMode = 'all' | 'unassigned' | 'conflicts';
+export type GanttTimeFilter = 'all' | 'mati' | 'tarda' | 'nit';
 
 // ── Hook ───────────────────────────────────────────────
 export function useGanttData() {
@@ -49,6 +50,7 @@ export function useGanttData() {
     const [allBars, setAllBars] = useState<GanttBar[]>([]);
     const [groupBy, setGroupBy] = useState<GanttGroupBy>('dependencia');
     const [filterMode, setFilterMode] = useState<GanttFilterMode>('all');
+    const [timeFilter, setTimeFilter] = useState<GanttTimeFilter>('all');
     const [nowMin, setNowMin] = useState(0);
     const [selectedService, setSelectedService] = useState<string>(getServiceToday());
     const [availableServices, setAvailableServices] = useState<string[]>([]);
@@ -299,11 +301,30 @@ export function useGanttData() {
         let filteredBars = allBars;
 
         if (filterMode === 'unassigned') {
-            filteredBars = allBars.filter(b => !b.isAssigned);
+            filteredBars = allBars.filter(b => !b.isAssigned || b.incidentStartTime === '00:00');
         } else if (filterMode === 'conflicts') {
             filteredBars = allBars.filter(b => {
                 const absCode = (b.absType || '').toUpperCase();
-                return absCode.includes('DIS') || absCode.includes('DES') || absCode.includes('VAC') || !!b.incidentStartTime;
+                const hasPartialIncident = !!b.incidentStartTime && b.incidentStartTime !== '00:00';
+                const hasAbsenceCode = absCode.includes('DIS') || absCode.includes('DES') || absCode.includes('VAC');
+                return (hasAbsenceCode || hasPartialIncident) && b.incidentStartTime !== '00:00';
+            });
+        }
+
+        // Apply Time Filter (Shift-based)
+        if (timeFilter !== 'all') {
+            filteredBars = filteredBars.filter(b => {
+                // Get numeric part of shift ID (e.g., Q0001 -> 1)
+                const numMatch = b.shiftId.match(/\d+$/);
+                const num = numMatch ? parseInt(numMatch[0], 10) : 0;
+                const isEven = num % 2 === 0;
+                const isOdd = !isEven;
+                const start21 = 21 * 60; // 1260 min
+
+                if (timeFilter === 'mati') return isOdd;
+                if (timeFilter === 'tarda') return isEven && b.startMin < start21;
+                if (timeFilter === 'nit') return isEven && b.startMin >= start21;
+                return true;
             });
         }
 
@@ -338,32 +359,24 @@ export function useGanttData() {
                 }));
         }
 
-        // Group by first line in circulations
-        const map = new Map<string, GanttBar[]>();
-        filteredBars.forEach(bar => {
-            const firstCirc = bar.circulations.find(c => c.type === 'circ');
-            const linia = (firstCirc?.linia || (bar.dependencia === 'EXTRA' ? 'EXTRA' : 'SENSE LÍNIA')).toUpperCase();
-            if (!map.has(linia)) map.set(linia, []);
-            map.get(linia)!.push(bar);
-        });
-
-        return Array.from(map.entries())
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([linia, bars]) => ({
-                label: linia,
-                code: linia,
-                bars: bars.sort((a, b) => a.startMin - b.startMin)
-            }));
-    }, [allBars, groupBy, filterMode]);
+        // Group by Horari (Single group, sorted by time)
+        return [{
+            label: 'Horari',
+            code: 'horari',
+            bars: filteredBars.sort((a, b) => a.startMin - b.startMin)
+        }];
+    }, [allBars, groupBy, filterMode, timeFilter]);
 
     // ── Stats ──
     const stats = useMemo(() => {
         const total = allBars.length;
         const assigned = allBars.filter(b => b.isAssigned).length;
-        const unassigned = total - assigned;
+        const unassigned = allBars.filter(b => !b.isAssigned || b.incidentStartTime === '00:00').length;
         const conflicts = allBars.filter(b => {
             const absCode = (b.absType || '').toUpperCase();
-            return absCode.includes('DIS') || absCode.includes('DES') || !!b.incidentStartTime;
+            const hasPartialIncident = !!b.incidentStartTime && b.incidentStartTime !== '00:00';
+            const hasAbsenceCode = absCode.includes('DIS') || absCode.includes('DES');
+            return (hasAbsenceCode || hasPartialIncident) && b.incidentStartTime !== '00:00';
         }).length;
         return { total, assigned, unassigned, conflicts };
     }, [allBars]);
@@ -382,8 +395,16 @@ export function useGanttData() {
         }
     };
 
+    // ── Dynamic View Range (Zoom) ──
+    const viewRange = useMemo(() => {
+        if (timeFilter === 'mati') return { start: 4 * 60, end: 16 * 60, total: 12 * 60 };
+        if (timeFilter === 'tarda') return { start: 12 * 60, end: 24 * 60, total: 12 * 60 };
+        if (timeFilter === 'nit') return { start: 20 * 60, end: 32 * 60, total: 12 * 60 };
+        return { start: GANTT_START_MIN, end: GANTT_START_MIN + GANTT_TOTAL_MINUTES, total: GANTT_TOTAL_MINUTES };
+    }, [timeFilter]);
+
     return {
-        loading, groups, stats, groupBy, setGroupBy, filterMode, setFilterMode,
-        nowMin, selectedService, setSelectedService, availableServices, refresh: fetchData, updateIncidentTime
+        loading, groups, stats, groupBy, setGroupBy, filterMode, setFilterMode, timeFilter, setTimeFilter,
+        viewRange, nowMin, selectedService, setSelectedService, availableServices, refresh: fetchData, updateIncidentTime
     };
 }
