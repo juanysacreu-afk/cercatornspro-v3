@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, RefreshCcw, Train, Menu, X, Download, BookOpen, Settings, Moon, Sun, ShieldAlert, Eye } from 'lucide-react';
+import { Search, RefreshCcw, Train, Menu, X, Download, BookOpen, Settings, Moon, Sun, ShieldAlert, Eye, Layers } from 'lucide-react';
 import { AppTab } from './types.ts';
 import { CercarView } from './views/CercarView.tsx';
 import OrganitzaView from './views/OrganitzaView.tsx';
@@ -8,9 +8,11 @@ import IncidenciaView from './views/IncidenciaView.tsx';
 import DashboardView from './views/dashboard/DashboardView.tsx';
 import FileUploadModal from './components/FileUploadModal.tsx';
 import CommandPalette from './components/CommandPalette.tsx';
+import Sidebar from './components/common/Sidebar.tsx';
 import { supabase } from './supabaseClient.ts';
 import { feedback } from './utils/feedback';
 import { useToast } from './components/ToastProvider';
+import ProfileModal from './components/ProfileModal.tsx';
 
 interface ParkedUnit {
   unit_number: string;
@@ -41,7 +43,6 @@ const App: React.FC = () => {
   }, [handleTabChange]);
 
   useEffect(() => {
-    // Simulació de càrrega de dades inicials
     const interval = setInterval(() => {
       setInitProgress(prev => {
         if (prev >= 100) {
@@ -61,6 +62,23 @@ const App: React.FC = () => {
   const [isPrivacyMode, setIsPrivacyMode] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [userProfile, setUserProfile] = useState(() => {
+    const saved = localStorage.getItem('user_profile');
+    if (saved) return JSON.parse(saved);
+    return {
+      firstName: 'Marcos',
+      lastName: 'Lopez',
+      role: 'FGC Operacions'
+    };
+  });
+
+  const handleProfileUpdate = (newProfile: { firstName: string, lastName: string, role: string }) => {
+    setUserProfile(newProfile);
+    localStorage.setItem('user_profile', JSON.stringify(newProfile));
+    showToast('Perfil actualitzat correctament', 'success');
+    feedback.success();
+  };
   const [globalSearch, setGlobalSearch] = useState<{ type: string, query: string } | null>(null);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -69,6 +87,17 @@ const App: React.FC = () => {
     }
     return false;
   });
+
+  const [isProNav, setIsProNav] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('proNav') === 'true';
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('proNav', isProNav.toString());
+  }, [isProNav]);
 
   const [parkedUnits, setParkedUnits] = useState<ParkedUnit[]>([]);
 
@@ -99,8 +128,6 @@ const App: React.FC = () => {
     const { data } = await supabase.from('parked_units').select('*');
     if (data) setParkedUnits(data);
   }, []);
-
-  const onExternalSearchHandled = useCallback(() => setGlobalSearch(null), []);
 
   useEffect(() => {
     fetchParkedUnits();
@@ -145,7 +172,6 @@ const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleGlobalKeys);
   }, []);
 
-  // Parallax Effect Logic - Optimized for Desktop, Disabled for Mobile
   useEffect(() => {
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || ('ontouchstart' in window);
     if (isMobile) return;
@@ -188,8 +214,6 @@ const App: React.FC = () => {
 
   const handleCommandSelect = (result: any) => {
     setIsCommandPaletteOpen(false);
-
-    // Convert command types to search search types
     let searchType = 'torn';
     if (result.type === 'driver') searchType = 'maquinista';
     if (result.type === 'circulation') searchType = 'circulacio';
@@ -208,7 +232,6 @@ const App: React.FC = () => {
     { id: AppTab.Cicles, label: 'Unitats', icon: <Train size={18} /> }
   ];
 
-
   const toggleAdminMode = () => {
     setIsPrivacyMode(prev => !prev);
     setShowSecretMenu(prev => !prev);
@@ -219,194 +242,256 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-transparent flex flex-col transition-colors duration-300">
       <SplashScreen progress={initProgress} onComplete={() => setIsInitializing(false)} />
 
-      {/* High-Fidelity Mesh Background Global with Parallax */}
       <div className="mesh-bg">
         <div className="blob blob-1 parallax-blob" data-speed="0.05" />
         <div className="blob blob-2 parallax-blob" data-speed="0.08" />
         <div className="blob blob-3 parallax-blob" data-speed="0.03" />
       </div>
-      {/* Top Navigation Bar con soporte para Safe Areas */}
-      <nav style={{ backgroundColor: isDarkMode ? '#222222' : '#4D5358' }} className="sticky top-0 z-40 dark:backdrop-blur-md text-white shadow-md safe-top border-b border-white/5 transition-all">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-20 sm:h-24">
-            <div
-              className="flex items-center gap-4 cursor-pointer select-none group"
-              onDoubleClick={toggleAdminMode}
-            >
-              <img
-                src="https://www.fgc.cat/wp-content/uploads/2020/06/logo-FGC-square.png"
-                alt="FGC Logo"
-                className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg object-cover shadow-sm transition-transform active:scale-95 group-hover:brightness-110"
-              />
-              <span className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-                <span className="text-white transition-colors duration-300">Cerca</span>
-                <span className="text-fgc-green">Torns</span> <span className="pro-badge">PRO</span>
-              </span>
-            </div>
 
-            {/* Desktop Navigation */}
-            <div className="hidden md:flex items-center gap-1">
-              {navItems.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => handleTabChange(item.id)}
-                  className={`relative flex items-center gap-2 px-5 py-2.5 rounded-xl text-base font-semibold transition-all group/nav ${activeTab === item.id
-                    ? 'bg-fgc-green text-fgc-grey shadow-lg shadow-fgc-green/20'
-                    : 'text-gray-300 hover:bg-white/10 hover:text-white'
-                    }`}
-                >
-                  {item.icon}
-                  {item.label}
-                </button>
-              ))}
+      <div className={`flex flex-1 overflow-hidden ${isProNav ? 'flex-row' : 'flex-col'}`}>
+        {isProNav && (
+          <Sidebar
+            activeTab={activeTab}
+            onTabChange={handleTabChange}
+            navItems={navItems}
+            isPrivacyMode={isPrivacyMode}
+            toggleAdminMode={toggleAdminMode}
+            onSettingsClick={() => setIsSettingsOpen(!isSettingsOpen)}
+            onProfileClick={() => setIsProfileModalOpen(true)}
+            isDarkMode={isDarkMode}
+            userProfile={userProfile}
+            onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+            settingsButtonRef={settingsRef as any}
+          />
+        )}
 
-              <div className="w-px h-8 bg-white/10 mx-3" />
-
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setShowUploadModal(true)}
-                  title="Carregar PDF Diari"
-                  className="flex items-center justify-center w-12 h-12 bg-white/10 hover:bg-fgc-green hover:text-fgc-grey rounded-xl transition-all group"
-                >
-                  <Download size={22} className="group-hover:scale-110 transition-transform" />
-                </button>
-
-                {/* Settings Menu Trigger */}
-                <div className="relative" ref={settingsRef}>
-                  <button
-                    onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-                    className={`flex items-center justify-center w-12 h-12 rounded-xl transition-all group ${isSettingsOpen ? 'bg-fgc-green text-fgc-grey shadow-lg' : 'bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white'
-                      }`}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+          {(!isProNav || isMobileMenuOpen) && (
+            <nav style={{ backgroundColor: isDarkMode ? '#222222' : '#4D5358' }} className="sticky top-0 z-40 dark:backdrop-blur-md text-white shadow-md safe-top border-b border-white/5 transition-all w-full">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex items-center justify-between h-20 sm:h-24">
+                  <div
+                    className="flex items-center gap-4 cursor-pointer select-none group"
+                    onDoubleClick={toggleAdminMode}
                   >
-                    <Settings size={22} className={`transition-transform duration-500 ${isSettingsOpen ? 'rotate-90' : 'group-hover:rotate-45'}`} />
-                  </button>
+                    <img
+                      src="https://www.fgc.cat/wp-content/uploads/2020/06/logo-FGC-square.png"
+                      alt="FGC Logo"
+                      className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg object-cover shadow-sm transition-transform active:scale-95 group-hover:brightness-110"
+                    />
+                    <span className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+                      <span className="text-white transition-colors duration-300">Cerca</span>
+                      <span className="text-fgc-green">Torns</span> <span className="pro-badge">PRO</span>
+                    </span>
+                  </div>
 
-                  {/* Settings Dropdown */}
-                  {isSettingsOpen && (
-                    <div className="absolute right-0 mt-3 w-64 bg-white dark:bg-[#4D5358] rounded-[24px] shadow-2xl border border-gray-100 dark:border-white/10 py-3 animate-in fade-in slide-in-from-top-4 duration-200">
-                      <div className="px-6 py-3 border-b border-gray-100 dark:border-white/5">
-                        <h4 className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Ajustes</h4>
-                      </div>
-                      <div className="px-3 pt-2">
+                  <div className="hidden md:flex items-center gap-1">
+                    {navItems.map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => handleTabChange(item.id)}
+                        className={`relative flex items-center gap-2 px-5 py-2.5 rounded-xl text-base font-semibold transition-all group/nav ${activeTab === item.id
+                          ? 'bg-fgc-green text-fgc-grey shadow-lg shadow-fgc-green/20'
+                          : 'text-gray-300 hover:bg-white/10 hover:text-white'
+                          }`}
+                      >
+                        {item.icon}
+                        {item.label}
+                      </button>
+                    ))}
+
+                    <div className="w-px h-8 bg-white/10 mx-3" />
+
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => setShowUploadModal(true)}
+                        title="Carregar PDF Diari"
+                        className="flex items-center justify-center w-12 h-12 bg-white/10 hover:bg-fgc-green hover:text-fgc-grey rounded-xl transition-all group"
+                      >
+                        <Download size={22} className="group-hover:scale-110 transition-transform" />
+                      </button>
+
+                      <div className="relative">
                         <button
-                          onClick={() => setIsDarkMode(!isDarkMode)}
-                          className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group"
+                          ref={!isProNav ? (settingsRef as any) : null}
+                          onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                          className={`flex items-center justify-center w-12 h-12 rounded-xl transition-all group ${isSettingsOpen && !isProNav ? 'bg-fgc-green text-fgc-grey shadow-lg' : 'bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white'}`}
                         >
-                          <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-xl bg-gray-100 dark:bg-white/10 text-fgc-grey dark:text-gray-300 group-hover:scale-110 transition-transform">
-                              {isDarkMode ? <Moon size={18} /> : <Sun size={18} />}
-                            </div>
-                            <span className="text-sm font-bold text-fgc-grey dark:text-gray-200">Mode Fosc</span>
-                          </div>
-                          <div className={`w-12 h-6 rounded-full relative transition-colors duration-300 border ${isDarkMode ? 'bg-fgc-green border-fgc-green' : 'bg-gray-200 border-gray-300'
-                            }`}>
-                            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-300 ${isDarkMode ? 'left-7' : 'left-1'
-                              }`} />
-                          </div>
+                          <Settings size={22} className={`transition-transform duration-500 ${isSettingsOpen && !isProNav ? 'rotate-90' : 'group-hover:rotate-45'}`} />
                         </button>
-
-                        <div className="mx-3 mt-4 mb-2 p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
-                          <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2">Cerca Intel·ligent</p>
-                          <div className="flex flex-col gap-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 italic">Atall Windows</span>
-                              <span className="px-1.5 py-0.5 bg-white dark:bg-white/10 rounded border border-gray-200 dark:border-white/10 text-[10px] font-bold text-fgc-grey dark:text-gray-300">CTRL + K</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 italic">Atall macOS</span>
-                              <span className="px-1.5 py-0.5 bg-white dark:bg-white/10 rounded border border-gray-200 dark:border-white/10 text-[10px] font-bold text-fgc-grey dark:text-gray-300">⌘ + K</span>
-                            </div>
-                          </div>
-                        </div>
                       </div>
                     </div>
-                  )}
+                  </div>
+
+                  <div className="md:hidden flex items-center gap-2">
+                    <button
+                      onClick={() => setIsDarkMode(!isDarkMode)}
+                      className="p-2 rounded-lg text-white hover:bg-white/10 transition-colors"
+                    >
+                      {isDarkMode ? <Moon size={24} /> : <Sun size={24} />}
+                    </button>
+                    <button
+                      onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                      className="p-2 rounded-lg text-white hover:bg-white/10 transition-transform active:scale-90"
+                    >
+                      <div className={`transition-all duration-500 ${isMobileMenuOpen ? 'rotate-90 scale-110' : 'rotate-0 scale-100'}`}>
+                        {isMobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className={`md:hidden space-y-1 overflow-hidden dynamic-island-menu ${isMobileMenuOpen ? 'dynamic-island-menu-open' : ''}`}>
+                {navItems.map((item, index) => (
+                  <button
+                    key={item.id}
+                    onClick={() => handleTabChange(item.id)}
+                    className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-lg font-bold transition-all active:scale-95 menu-item-stagger ${activeTab === item.id ? 'bg-fgc-green text-fgc-grey' : 'text-fgc-grey/70 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5'}`}
+                    style={{ transitionDelay: `${index * 50}ms` }}
+                  >
+                    {item.icon}
+                    {item.label}
+                  </button>
+                ))}
+                <button
+                  onClick={() => {
+                    setShowUploadModal(true);
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="w-full flex items-center gap-4 px-6 py-4 text-fgc-green font-bold text-lg border-t border-black/5 dark:border-white/5 mt-4 menu-item-stagger"
+                  style={{ transitionDelay: `${navItems.length * 50}ms` }}
+                >
+                  <Download size={20} />
+                  Carregar PDF Diari
+                </button>
+              </div>
+            </nav>
+          )}
+
+          {/* Settings Dropdown - Now always accessible and correctly positioned */}
+          {isSettingsOpen && (
+            <div
+              className={`fixed ${isProNav ? 'left-20 bottom-6 ml-4 z-[100]' : 'right-4 top-24 z-[100]'} w-64 bg-white dark:bg-[#4D5358] rounded-[24px] shadow-2xl border border-gray-100 dark:border-white/10 py-3 animate-in fade-in slide-in-from-top-4 duration-200`}
+              ref={settingsRef}
+            >
+              <div className="px-6 py-3 border-b border-gray-100 dark:border-white/5">
+                <h4 className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Ajustes</h4>
+              </div>
+              <div className="px-3 pt-2">
+                {/* Profile Section inside Settings */}
+                <button
+                  onClick={() => {
+                    setIsProfileModalOpen(true);
+                    setIsSettingsOpen(false);
+                  }}
+                  className="w-full flex items-center gap-3 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group mb-1"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-gray-700 to-gray-900 border border-white/10 flex items-center justify-center font-bold text-white text-xs shrink-0 shadow-lg capitalize">
+                    {userProfile.firstName?.[0] || 'M'}{userProfile.lastName?.[0] || 'L'}
+                  </div>
+                  <div className="flex-1 text-left min-w-0">
+                    <p className="text-sm font-black text-fgc-grey dark:text-white uppercase leading-none truncate">
+                      {userProfile.firstName} {userProfile.lastName}
+                    </p>
+                    <p className="text-[10px] text-gray-500 font-bold mt-1 uppercase tracking-tighter truncate">
+                      {userProfile.role}
+                    </p>
+                  </div>
+                  <div className="p-1.5 rounded-lg bg-fgc-green/10 text-fgc-green group-hover:scale-110 transition-transform">
+                    <Settings size={14} />
+                  </div>
+                </button>
+
+                <div className="h-px bg-gray-100 dark:bg-white/5 mx-3 mb-2" />
+                <button
+                  onClick={() => {
+                    setIsDarkMode(!isDarkMode);
+                    setIsSettingsOpen(false);
+                  }}
+                  className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-gray-100 dark:bg-white/10 text-fgc-grey dark:text-gray-300 group-hover:scale-110 transition-transform">
+                      {isDarkMode ? <Moon size={18} /> : <Sun size={18} />}
+                    </div>
+                    <span className="text-sm font-bold text-fgc-grey dark:text-gray-200">Mode Fosc</span>
+                  </div>
+                  <div className={`w-12 h-6 rounded-full relative transition-colors duration-300 border ${isDarkMode ? 'bg-fgc-green border-fgc-green' : 'bg-gray-200 border-gray-300'}`}>
+                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-300 ${isDarkMode ? 'left-7' : 'left-1'}`} />
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setIsProNav(!isProNav);
+                    setIsSettingsOpen(false);
+                  }}
+                  className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-gray-100 dark:bg-white/10 text-fgc-grey dark:text-gray-300 group-hover:scale-110 transition-transform">
+                      <Layers size={18} />
+                    </div>
+                    <span className="text-sm font-bold text-fgc-grey dark:text-gray-200">
+                      Navegació
+                    </span>
+                  </div>
+                  <div className={`w-12 h-6 rounded-full relative transition-colors duration-300 border ${isProNav ? 'bg-fgc-green border-fgc-green' : 'bg-gray-200 border-gray-300'}`}>
+                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-300 ${isProNav ? 'left-7' : 'left-1'}`} />
+                  </div>
+                </button>
+
+                <div className="mx-3 mt-4 mb-2 p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
+                  <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2">Cerca Intel·ligent</p>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 italic">Atall Windows</span>
+                      <span className="px-1.5 py-0.5 bg-white dark:bg-white/10 rounded border border-gray-200 dark:border-white/10 text-[10px] font-bold text-fgc-grey dark:text-gray-300">CTRL + K</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 italic">Atall macOS</span>
+                      <span className="px-1.5 py-0.5 bg-white dark:bg-white/10 rounded border border-gray-200 dark:border-white/10 text-[10px] font-bold text-fgc-grey dark:text-gray-300">⌘ + K</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
+          )}
 
-            {/* Mobile menu button */}
-            <div className="md:hidden flex items-center gap-2">
-              <button
-                onClick={() => setIsDarkMode(!isDarkMode)}
-                className="p-2 rounded-lg text-white hover:bg-white/10 transition-colors"
-              >
-                {isDarkMode ? <Moon size={24} /> : <Sun size={24} />}
-              </button>
-              <button
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="p-2 rounded-lg text-white hover:bg-white/10 transition-transform active:scale-90"
-              >
-                <div className={`transition-all duration-500 ${isMobileMenuOpen ? 'rotate-90 scale-110' : 'rotate-0 scale-100'}`}>
-                  {isMobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
-                </div>
-              </button>
+          <div className="flex-1 overflow-y-auto w-full py-8 safe-bottom max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 overflow-x-hidden">
+            <div className={`${activeTab === AppTab.Dashboard ? 'block animate-in fade-in slide-in-from-right-8 duration-500' : 'hidden'}`}>
+              <DashboardView />
+            </div>
+            <div className={`${activeTab === AppTab.Cercar ? 'block animate-in fade-in slide-in-from-right-8 duration-500' : 'hidden'}`}>
+              <CercarView
+                isPrivacyMode={isPrivacyMode}
+                externalSearch={globalSearch}
+                onExternalSearchHandled={() => setGlobalSearch(null)}
+              />
+            </div>
+            <div className={`${activeTab === AppTab.Organitza ? 'block animate-in fade-in slide-in-from-right-8 duration-500' : 'hidden'}`}>
+              <OrganitzaView
+                isPrivacyMode={isPrivacyMode}
+                onNavigateToSearch={handleNavigateToSearch}
+              />
+            </div>
+            <div className={`${activeTab === AppTab.Incidencia ? 'block animate-in fade-in slide-in-from-right-8 duration-500' : 'hidden'}`}>
+              <IncidenciaView
+                showSecretMenu={showSecretMenu}
+                parkedUnits={parkedUnits}
+                onParkedUnitsChange={fetchParkedUnits}
+                isPrivacyMode={isPrivacyMode}
+              />
+            </div>
+            <div className={`${activeTab === AppTab.Cicles ? 'block animate-in fade-in slide-in-from-right-8 duration-500' : 'hidden'}`}>
+              <CiclesView parkedUnits={parkedUnits} onParkedUnitsChange={fetchParkedUnits} />
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Mobile menu (Notch expansion style) */}
-        <div className={`md:hidden space-y-1 overflow-hidden dynamic-island-menu ${isMobileMenuOpen ? 'dynamic-island-menu-open' : ''}`}>
-          {navItems.map((item, index) => (
-            <button
-              key={item.id}
-              onClick={() => handleTabChange(item.id)}
-              className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-lg font-bold transition-all active:scale-95 menu-item-stagger ${activeTab === item.id ? 'bg-fgc-green text-fgc-grey' : 'text-fgc-grey/70 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5'
-                }`}
-              style={{ transitionDelay: `${index * 50}ms` }}
-            >
-              {item.icon}
-              {item.label}
-            </button>
-          ))}
-          <button
-            onClick={() => {
-              setShowUploadModal(true);
-              setIsMobileMenuOpen(false);
-            }}
-            className="w-full flex items-center gap-4 px-6 py-4 text-fgc-green font-bold text-lg border-t border-black/5 dark:border-white/5 mt-4 menu-item-stagger"
-            style={{ transitionDelay: `${navItems.length * 50}ms` }}
-          >
-            <Download size={20} />
-            Carregar PDF Diari
-          </button>
-        </div>
-      </nav>
-
-      {/* Main Content: Mantenim les vistes muntades però ocultes per preservar l'estat */}
-      <main className="flex-1 w-full py-8 safe-bottom max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 overflow-x-hidden">
-        <div className={`${activeTab === AppTab.Dashboard ? 'block animate-in fade-in slide-in-from-right-8 duration-500' : 'hidden'}`}>
-          <DashboardView />
-        </div>
-        <div className={`${activeTab === AppTab.Cercar ? 'block animate-in fade-in slide-in-from-right-8 duration-500' : 'hidden'}`}>
-          <CercarView
-            isPrivacyMode={isPrivacyMode}
-            externalSearch={globalSearch}
-            onExternalSearchHandled={() => setGlobalSearch(null)}
-          />
-        </div>
-        <div className={`${activeTab === AppTab.Organitza ? 'block animate-in fade-in slide-in-from-right-8 duration-500' : 'hidden'}`}>
-          <OrganitzaView
-            isPrivacyMode={isPrivacyMode}
-            onNavigateToSearch={handleNavigateToSearch}
-          />
-        </div>
-        <div className={`${activeTab === AppTab.Incidencia ? 'block animate-in fade-in slide-in-from-right-8 duration-500' : 'hidden'}`}>
-          <IncidenciaView
-            showSecretMenu={showSecretMenu}
-            parkedUnits={parkedUnits}
-            onParkedUnitsChange={fetchParkedUnits}
-            isPrivacyMode={isPrivacyMode}
-          />
-        </div>
-        <div className={`${activeTab === AppTab.Cicles ? 'block animate-in fade-in slide-in-from-right-8 duration-500' : 'hidden'}`}>
-          <CiclesView parkedUnits={parkedUnits} onParkedUnitsChange={fetchParkedUnits} />
-        </div>
-
-      </main >
-
-      {/* Floating Smart Search Button (Mobile ONLY) */}
-      < button
+      <button
         ref={searchButtonRef}
         onClick={(e) => {
           feedback.click();
@@ -417,7 +502,7 @@ const App: React.FC = () => {
         title="Búsqueda Inteligente"
       >
         <Search size={28} strokeWidth={3} />
-      </button >
+      </button>
 
       {showUploadModal && <FileUploadModal onClose={() => setShowUploadModal(false)} />}
       <CommandPalette
@@ -426,7 +511,14 @@ const App: React.FC = () => {
         onSelect={handleCommandSelect}
         triggerRect={searchTriggerRect}
       />
-    </div >
+
+      <ProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        currentProfile={userProfile}
+        onSave={handleProfileUpdate}
+      />
+    </div>
   );
 };
 
