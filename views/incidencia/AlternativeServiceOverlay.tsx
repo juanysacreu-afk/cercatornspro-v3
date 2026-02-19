@@ -1199,8 +1199,6 @@ const AlternativeServiceOverlay: React.FC<AlternativeServiceOverlayProps> = ({
       groups[uId].push({ ...c, originId: sOrigin, destId: sDest, y1: y1Index * 50, y2: y2Index * 50 });
     });
 
-    const terminalOvershoots: Record<string, number> = { 'PC': 40, 'NA': -40, 'PN': -40, 'TB': -40, 'RE': -40, 'SR': 40 };
-
     return (
       <div className="space-y-4 animate-in slide-in-from-right duration-500 overflow-hidden flex flex-col" style={{ minHeight: '700px' }}>
         <div className="flex items-center justify-between">
@@ -1287,8 +1285,12 @@ const AlternativeServiceOverlay: React.FC<AlternativeServiceOverlayProps> = ({
                               const color = colorMap(c.linia);
                               const ny1 = next.y1;
 
-                              const yDir = terminalOvershoots[c.destId];
-                              if (yDir !== undefined && c.destId === next.originId) {
+                              // Dynamically calculate the curve direction (yDir) so and any turnaround gets a proper loop
+                              // If the station is in the top half of the graph, curve up (-40), otherwise curve down (+40)
+                              const destIndex = sortedStations.indexOf(c.destId);
+                              const yDir = destIndex < sortedStations.length / 2 ? -40 : 40;
+
+                              if (destIndex !== -1 && c.destId === next.originId) {
                                 return (
                                   <path
                                     key={`loop-${uId}-${i}`}
