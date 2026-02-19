@@ -96,13 +96,23 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, currentPro
                             </div>
                             <div>
                                 <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Departament / Rol</label>
-                                <input
-                                    type="text"
-                                    value={formData.role}
-                                    onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                                    className="w-full bg-black/20 border border-white/10 rounded-2xl px-4 py-3 text-white font-bold placeholder:text-gray-600 focus:outline-none focus:border-fgc-green/50 transition-colors"
-                                    placeholder="Ex: FGC Operacions"
-                                />
+                                <div className="relative">
+                                    <select
+                                        value={formData.role}
+                                        onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                                        className="w-full bg-black/20 border border-white/10 rounded-2xl px-4 py-3 text-white font-bold focus:outline-none focus:border-fgc-green/50 transition-colors appearance-none cursor-pointer"
+                                    >
+                                        <option value="" disabled className="bg-gray-800">Selecciona un rol...</option>
+                                        <option value="Supervisor de Grup" className="bg-gray-800">Supervisor de Grup</option>
+                                        <option value="Responsable d'area" className="bg-gray-800">Responsable d'àrea</option>
+                                        <option value="Cap" className="bg-gray-800">Cap</option>
+                                    </select>
+                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="m6 9 6 6 6-6" />
+                                        </svg>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 

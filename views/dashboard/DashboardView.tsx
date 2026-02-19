@@ -157,13 +157,22 @@ const DashboardViewComponent: React.FC = () => {
         setTimeout(() => setIsRefreshing(false), 600);
     };
 
+    const formattedDate = useMemo(() => {
+        return new Date().toLocaleDateString('ca-ES', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+        });
+    }, []);
+
     const formatTime = (date: Date) =>
         date.toLocaleTimeString('ca-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
     const criticalAlerts = useMemo(() => alerts.filter(a => a.severity === 'critical'), [alerts]);
     const warningAlerts = useMemo(() => alerts.filter(a => a.severity !== 'critical'), [alerts]);
 
-    const serviceLabel: Record<string, string> = { '0': 'Laborable', '100': 'Divendres', '400': 'Dissabte', '500': 'Festiu' };
+    const serviceLabel: Record<string, string> = { '0': '000 Laborable', '100': '100 Divendres', '400': '400 Dissabte', '500': '500 Festiu' };
 
     if (loading) {
         return (
@@ -194,8 +203,11 @@ const DashboardViewComponent: React.FC = () => {
                         <Zap className="text-fgc-green" size={28} strokeWidth={2.5} />
                         CCO — Supervisió Operativa
                     </h1>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 font-medium tracking-tight mt-0.5">
-                        Servei {serviceLabel[serviceToday] || serviceToday} · Última actualització: {formatTime(lastRefresh)}
+                    <p className="text-sm text-gray-500 dark:text-gray-400 font-medium tracking-tight mt-1 capitalize">
+                        Servei {serviceLabel[serviceToday] || serviceToday.padStart(3, '0')} · {formattedDate}
+                    </p>
+                    <p className="text-[11px] text-gray-400 dark:text-gray-500 font-bold uppercase tracking-wider mt-0.5">
+                        Última actualització: {formatTime(lastRefresh)}
                     </p>
                 </div>
                 <button
@@ -218,11 +230,14 @@ const DashboardViewComponent: React.FC = () => {
                     pulse={kpis.serviceCoverage < 80}
                 />
                 <KpiCard
-                    label="Personal Actiu"
-                    value={kpis.activePersonnel}
-                    subtitle={`de ${kpis.totalPersonnel} assignats`}
+                    label="Planificació Diària"
+                    value={`${kpis.planningCoverage}%`}
+                    subtitle={kpis.assignedPersonnel < kpis.totalPersonnel
+                        ? `${kpis.totalPersonnel - kpis.assignedPersonnel} torns sense cobrir`
+                        : "Tot el servei planificat"}
                     icon={<Users size={22} strokeWidth={2.5} />}
-                    color="#6366F1"
+                    color={kpis.planningCoverage === 100 ? "#6366F1" : "#EF4444"}
+                    pulse={kpis.planningCoverage < 100}
                 />
                 <KpiCard
                     label="Reserves"

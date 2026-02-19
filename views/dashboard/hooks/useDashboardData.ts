@@ -5,10 +5,12 @@ import { getFgcMinutes, getShortTornId, isServiceVisible, resolveStationId } fro
 
 // ── Types ──────────────────────────────────────────────
 export interface DashboardKPIs {
-    serviceCoverage: number;       // 0-100 %
+    serviceCoverage: number;       // 0-100 % (Live)
+    planningCoverage: number;      // 0-100 % (Daily total)
     activeTrains: number;
     scheduledTrains: number;
     totalPersonnel: number;
+    assignedPersonnel: number;
     activePersonnel: number;
     reserveAvailable: number;
     availableTrainUnits: number;
@@ -45,8 +47,8 @@ export interface LineStatus {
 export function useDashboardData() {
     const [loading, setLoading] = useState(true);
     const [kpis, setKpis] = useState<DashboardKPIs>({
-        serviceCoverage: 0, activeTrains: 0, scheduledTrains: 0,
-        totalPersonnel: 0, activePersonnel: 0, reserveAvailable: 0,
+        serviceCoverage: 0, planningCoverage: 0, activeTrains: 0, scheduledTrains: 0,
+        totalPersonnel: 0, assignedPersonnel: 0, activePersonnel: 0, reserveAvailable: 0,
         availableTrainUnits: 0, brokenTrainUnits: 0, totalTrainUnits: 0
     });
     const [alerts, setAlerts] = useState<PersonnelAlert[]>([]);
@@ -159,16 +161,17 @@ export function useDashboardData() {
                 return false;
             });
 
-            // ── Circulations (scheduled vs active) ──
-            const allScheduledCircIds = new Set<string>(); // Total daily unique circs
-            const currentScheduledCircIds = new Set<string>(); // Circs scheduled NOW
+            // ── Account for Driver Assignments in Coverage ──
+            const assignedTornsGlobal = new Set(assignments.map(a => a.torn));
+            const currentActiveCircIds = new Set<string>();
+            const currentScheduledCircIds = new Set<string>();
 
             shifts.forEach(s => {
+                const shiftHasDriver = assignedTornsGlobal.has(getShortTornId(s.id)) || assignedTornsGlobal.has(s.id);
+
                 ((s.circulations as any[]) || []).forEach(c => {
                     const codi = typeof c === 'string' ? c : c?.codi;
                     if (codi && codi !== 'Viatger') {
-                        allScheduledCircIds.add(codi);
-
                         // Resolve Start/End times
                         let start: number | null = null;
                         let end: number | null = null;
@@ -184,27 +187,21 @@ export function useDashboardData() {
                             if (times) { start = times.start; end = times.end; }
                         }
 
-                        // Check if active (handle overnight)
                         if (start !== null && end !== null) {
                             if (end < start) end += 1440;
                             if (currentMin >= start && currentMin <= end) {
                                 currentScheduledCircIds.add(codi);
+                                if (shiftHasDriver) {
+                                    currentActiveCircIds.add(codi);
+                                }
                             }
                         }
                     }
                 });
             });
 
-            // KPI Logic: 
-            // Scheduled Trains (Context: Dashboard) -> Usually means "Trains that SHOULD be here now".
-            // Active Trains -> "Trains that ARE here now". (Without live cancellation data, this equals Scheduled Now).
-            // Service Coverage -> Active Now / Scheduled Now.
-
-            const totalDailyTrains = allScheduledCircIds.size; // 1712
-            const scheduledNow = currentScheduledCircIds.size; // e.g. 150
-            const activeNow = scheduledNow; // Assuming 100% reliability for now as we don't have Cancellations inputs
-
-            // If user wants to see "X de Y trens", Y should likely be the current requirement.
+            const scheduledNow = currentScheduledCircIds.size;
+            const activeNow = currentActiveCircIds.size;
             const coverage = scheduledNow > 0 ? Math.round((activeNow / scheduledNow) * 100) : 100;
 
             // Update semantic mapping for UI
@@ -339,17 +336,23 @@ export function useDashboardData() {
             // ── Alerts ──
             const alertList: PersonnelAlert[] = [];
 
-            // Missing assignments: shifts without a corresponding daily_assignment
-            activeShifts.forEach(s => {
+            // Missing assignments: Detect ALL uncovered shifts for the day
+            shifts.forEach(s => {
                 const shortId = getShortTornId(s.id);
-                const hasAssignment = assignments.some(a => a.torn === shortId);
+                const hasAssignment = assignedTornsGlobal.has(shortId) || assignedTornsGlobal.has(s.id);
+
                 if (!hasAssignment) {
+                    const sMin = getFgcMinutes(s.inici_torn);
+                    const eMin = getFgcMinutes(s.final_torn);
+                    const isActive = sMin !== null && currentMin >= sMin && currentMin <= (eMin! < sMin! ? eMin! + 1440 : eMin!);
+                    const isUpcoming = sMin !== null && sMin > currentMin && sMin < currentMin + 120; // Starts in next 2 hours
+
                     alertList.push({
                         id: `missing-${s.id}`,
                         type: 'missing',
-                        severity: 'critical',
-                        title: `Torn ${s.id} sense maquinista`,
-                        subtitle: `Dep: ${s.dependencia} | ${s.inici_torn}-${s.final_torn}`,
+                        severity: isActive ? 'critical' : (isUpcoming ? 'warning' : 'info'),
+                        title: `Torn ${s.id} SENSE MAQUINISTA`,
+                        subtitle: `${isActive ? '🔴 ACTIU ARA' : (isUpcoming ? '🟠 PROXIMAMENT' : '⚪ PROGRAMAT')} | Dep: ${s.dependencia} | ${s.inici_torn}-${s.final_torn}`,
                         tornId: s.id
                     });
                 }
@@ -378,11 +381,17 @@ export function useDashboardData() {
             });
 
             // ── Set State ──
+            const totalShiftsToday = shifts.length;
+            const assignedShiftsTodayCount = shifts.filter(s => assignedTornsGlobal.has(getShortTornId(s.id)) || assignedTornsGlobal.has(s.id)).length;
+            const planningCov = totalShiftsToday > 0 ? Math.round((assignedShiftsTodayCount / totalShiftsToday) * 100) : 100;
+
             setKpis({
                 serviceCoverage: coverage,
+                planningCoverage: planningCov,
                 activeTrains: activeNow,
                 scheduledTrains: scheduledNow,
-                totalPersonnel: assignments.length,
+                totalPersonnel: totalShiftsToday,
+                assignedPersonnel: assignedShiftsTodayCount,
                 activePersonnel: activeAssignments.length,
                 reserveAvailable: reserveSlots.reduce((sum, r) => sum + r.count, 0),
                 availableTrainUnits: totalFleet - brokenCount,

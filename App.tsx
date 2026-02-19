@@ -258,6 +258,7 @@ const App: React.FC = () => {
             toggleAdminMode={toggleAdminMode}
             onSettingsClick={() => setIsSettingsOpen(!isSettingsOpen)}
             onProfileClick={() => setIsProfileModalOpen(true)}
+            onUploadClick={() => setShowUploadModal(true)}
             isDarkMode={isDarkMode}
             userProfile={userProfile}
             onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}

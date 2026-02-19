@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AppTab } from '../../types';
-import { Settings, Moon, Sun } from 'lucide-react';
+import { Settings, Moon, Sun, Upload } from 'lucide-react';
 import { feedback } from '../../utils/feedback';
 
 interface SidebarProps {
@@ -11,6 +11,7 @@ interface SidebarProps {
     toggleAdminMode: () => void;
     onSettingsClick: () => void;
     onProfileClick: () => void;
+    onUploadClick: () => void;
     isDarkMode: boolean;
     userProfile: { firstName: string, lastName: string, role: string };
     onToggleDarkMode: () => void;
@@ -24,6 +25,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     toggleAdminMode,
     onSettingsClick,
     onProfileClick,
+    onUploadClick,
     isDarkMode,
     onToggleDarkMode,
     settingsButtonRef,
@@ -93,19 +95,19 @@ const Sidebar: React.FC<SidebarProps> = ({
 
             {/* Bottom Section */}
             <div className="p-4 space-y-4 border-t border-white/5 bg-black/5">
-                {/* Theme Toggle */}
+                {/* Upload Trigger */}
                 <button
                     onClick={() => {
-                        onToggleDarkMode();
+                        onUploadClick();
                         feedback.click();
                     }}
-                    className="w-full flex items-center px-4 py-3.5 rounded-2xl transition-all text-gray-400 hover:bg-white/5 hover:text-white group"
+                    className="w-full flex items-center px-4 py-3.5 rounded-2xl transition-all text-gray-400 hover:bg-fgc-green/10 hover:text-white group"
                 >
-                    <div className="shrink-0 group-hover:rotate-12 transition-transform">
-                        {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+                    <div className="shrink-0 group-hover:-translate-y-1 transition-transform duration-300">
+                        <Upload size={20} />
                     </div>
                     <span className={`ml-4 text-[11px] font-bold uppercase tracking-widest transition-all duration-500 whitespace-nowrap ${isExpanded ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4 pointer-events-none'}`}>
-                        {isDarkMode ? 'Mode Clar' : 'Mode Fosc'}
+                        Carregar Dades
                     </span>
                 </button>
 
@@ -124,23 +126,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                     <span className={`ml-4 text-[11px] font-bold uppercase tracking-widest transition-all duration-500 whitespace-nowrap ${isExpanded ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4 pointer-events-none'}`}>
                         Configuració
                     </span>
-                </button>
-
-                <button
-                    onClick={onProfileClick}
-                    className={`flex items-center py-2 transition-all duration-500 w-full hover:bg-white/5 rounded-2xl group/profile ${isExpanded ? 'px-4 gap-4' : 'justify-center'}`}
-                >
-                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-gray-700 to-gray-900 border border-white/10 flex items-center justify-center font-bold text-white text-xs shrink-0 shadow-lg capitalize group-hover/profile:scale-105 transition-transform">
-                        {userProfile.firstName?.[0] || 'M'}{userProfile.lastName?.[0] || 'L'}
-                    </div>
-                    <div className={`transition-all duration-500 text-left ${isExpanded ? 'opacity-100 translate-x-0' : 'opacity-0 absolute -translate-x-4 pointer-events-none'}`}>
-                        <p className="text-[10px] font-black text-white uppercase leading-none tracking-tighter">
-                            {userProfile.firstName} {userProfile.lastName}
-                        </p>
-                        <p className="text-[9px] text-gray-500 font-bold mt-1 uppercase tracking-tighter">
-                            {userProfile.role}
-                        </p>
-                    </div>
                 </button>
             </div>
         </aside>
