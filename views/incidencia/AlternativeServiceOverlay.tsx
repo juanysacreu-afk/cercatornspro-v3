@@ -1285,10 +1285,11 @@ const AlternativeServiceOverlay: React.FC<AlternativeServiceOverlayProps> = ({
                               const color = colorMap(c.linia);
                               const ny1 = next.y1;
 
-                              // Dynamically calculate the curve direction (yDir) so and any turnaround gets a proper loop
-                              // If the station is in the top half of the graph, curve up (-40), otherwise curve down (+40)
+                              // Dynamically calculate the curve direction (yDir) based on train's travel direction
+                              // If train traveled down the screen (c.y2 > c.y1), the curve bulges further down (+40)
+                              // If train traveled up the screen (c.y2 < c.y1), the curve bulges further up (-40)
+                              const yDir = c.y2 > c.y1 ? 40 : -40;
                               const destIndex = sortedStations.indexOf(c.destId);
-                              const yDir = destIndex < sortedStations.length / 2 ? -40 : 40;
 
                               if (destIndex !== -1 && c.destId === next.originId) {
                                 return (
