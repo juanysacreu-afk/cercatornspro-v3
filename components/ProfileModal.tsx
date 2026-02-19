@@ -34,21 +34,21 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, currentPro
             />
 
             <div className="relative w-full max-w-md animate-in zoom-in-95 duration-300">
-                <GlassPanel className="overflow-hidden border border-white/20 shadow-2xl">
+                <GlassPanel className="overflow-hidden border border-gray-200 dark:border-white/10 shadow-2xl bg-white dark:bg-gray-900">
                     {/* Header */}
-                    <div className="p-6 border-b border-white/10 flex items-center justify-between bg-gradient-to-r from-fgc-green/10 to-transparent">
+                    <div className="p-6 border-b border-gray-100 dark:border-white/5 flex items-center justify-between bg-gradient-to-r from-fgc-green/10 to-transparent">
                         <div className="flex items-center gap-3">
                             <div className="p-2.5 bg-fgc-green/20 rounded-xl text-fgc-green">
                                 <User size={24} />
                             </div>
                             <div>
-                                <h3 className="text-lg font-black text-white uppercase tracking-tight">Perfil de Supervisor</h3>
-                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Configuració Personal</p>
+                                <h3 className="text-lg font-black text-gray-900 dark:text-white uppercase tracking-tight">Perfil de Supervisor</h3>
+                                <p className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest mt-0.5">Configuració Personal</p>
                             </div>
                         </div>
                         <button
                             onClick={onClose}
-                            className="p-2 hover:bg-white/5 rounded-xl text-gray-400 transition-colors"
+                            className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl text-gray-500 dark:text-gray-400 transition-colors"
                         >
                             <X size={20} />
                         </button>
@@ -58,14 +58,14 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, currentPro
                         {/* Avatar Section */}
                         <div className="flex flex-col items-center gap-4 mb-2">
                             <div className="relative group">
-                                <div className="w-24 h-24 rounded-[32px] bg-gradient-to-br from-gray-700 to-gray-900 border-2 border-white/20 flex items-center justify-center text-3xl font-black text-white shadow-2xl group-hover:scale-105 transition-transform duration-500">
+                                <div className="w-24 h-24 rounded-[32px] bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-950 border-2 border-white dark:border-white/10 flex items-center justify-center text-3xl font-black text-gray-800 dark:text-white shadow-xl group-hover:scale-105 transition-transform duration-500">
                                     {formData.firstName?.[0]}{formData.lastName?.[0]}
                                 </div>
-                                <div className="absolute -bottom-1 -right-1 p-2 bg-fgc-green rounded-xl text-fgc-grey shadow-lg scale-90 group-hover:scale-100 transition-transform cursor-pointer">
+                                <div className="absolute -bottom-1 -right-1 p-2 bg-fgc-green rounded-xl text-white shadow-lg scale-90 group-hover:scale-100 transition-transform cursor-pointer">
                                     <Camera size={16} strokeWidth={3} />
                                 </div>
                             </div>
-                            <div className="px-3 py-1 bg-white/5 rounded-full border border-white/5">
+                            <div className="px-3 py-1 bg-gray-100 dark:bg-white/5 rounded-full border border-gray-200 dark:border-white/5">
                                 <span className="text-[10px] font-black text-fgc-green uppercase tracking-widest flex items-center gap-1.5">
                                     <Shield size={10} strokeWidth={3} /> Supervisor Actiu
                                 </span>
@@ -75,37 +75,37 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, currentPro
                         {/* Form Fields */}
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Nom</label>
+                                <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-2 ml-1">Nom</label>
                                 <input
                                     type="text"
                                     value={formData.firstName}
                                     onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                                    className="w-full bg-black/20 border border-white/10 rounded-2xl px-4 py-3 text-white font-bold placeholder:text-gray-600 focus:outline-none focus:border-fgc-green/50 transition-colors"
+                                    className="w-full bg-gray-50 dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-2xl px-4 py-3 text-gray-900 dark:text-white font-bold placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:outline-none focus:border-fgc-green/50 focus:ring-1 focus:ring-fgc-green/50 transition-all"
                                     placeholder="Ex: Marcos"
                                 />
                             </div>
                             <div>
-                                <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Cognoms</label>
+                                <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-2 ml-1">Cognoms</label>
                                 <input
                                     type="text"
                                     value={formData.lastName}
                                     onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                                    className="w-full bg-black/20 border border-white/10 rounded-2xl px-4 py-3 text-white font-bold placeholder:text-gray-600 focus:outline-none focus:border-fgc-green/50 transition-colors"
+                                    className="w-full bg-gray-50 dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-2xl px-4 py-3 text-gray-900 dark:text-white font-bold placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:outline-none focus:border-fgc-green/50 focus:ring-1 focus:ring-fgc-green/50 transition-all"
                                     placeholder="Ex: Lopez"
                                 />
                             </div>
                             <div>
-                                <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Departament / Rol</label>
+                                <label className="block text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-2 ml-1">Departament / Rol</label>
                                 <div className="relative">
                                     <select
                                         value={formData.role}
                                         onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                                        className="w-full bg-black/20 border border-white/10 rounded-2xl px-4 py-3 text-white font-bold focus:outline-none focus:border-fgc-green/50 transition-colors appearance-none cursor-pointer"
+                                        className="w-full bg-gray-50 dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-2xl px-4 py-3 text-gray-900 dark:text-white font-bold focus:outline-none focus:border-fgc-green/50 focus:ring-1 focus:ring-fgc-green/50 transition-all appearance-none cursor-pointer"
                                     >
-                                        <option value="" disabled className="bg-gray-800">Selecciona un rol...</option>
-                                        <option value="Supervisor de Grup" className="bg-gray-800">Supervisor de Grup</option>
-                                        <option value="Responsable d'area" className="bg-gray-800">Responsable d'àrea</option>
-                                        <option value="Cap" className="bg-gray-800">Cap</option>
+                                        <option value="" disabled className="bg-white dark:bg-gray-800 text-gray-500">Selecciona un rol...</option>
+                                        <option value="Supervisor de Grup" className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">Supervisor de Grup</option>
+                                        <option value="Responsable d'area" className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">Responsable d'àrea</option>
+                                        <option value="Cap" className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">Cap</option>
                                     </select>
                                     <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
@@ -117,17 +117,17 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, currentPro
                         </div>
 
                         {/* Actions */}
-                        <div className="flex gap-3 pt-2">
+                        <div className="flex gap-3 pt-4">
                             <button
                                 type="button"
                                 onClick={onClose}
-                                className="flex-1 py-4 px-6 rounded-2xl border border-white/10 text-white text-xs font-black uppercase tracking-widest hover:bg-white/5 transition-colors"
+                                className="flex-1 py-4 px-6 rounded-2xl bg-gray-50 dark:bg-transparent border border-gray-200 dark:border-white/10 text-gray-600 dark:text-white text-xs font-black uppercase tracking-widest hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
                             >
                                 Cancel·lar
                             </button>
                             <button
                                 type="submit"
-                                className="flex-1 py-4 px-6 rounded-2xl bg-fgc-green text-fgc-grey text-xs font-black uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg shadow-fgc-green/20"
+                                className="flex-1 py-4 px-6 rounded-2xl bg-fgc-green text-white text-xs font-black uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg shadow-fgc-green/20"
                             >
                                 <Check size={16} strokeWidth={3} /> Desar Perfil
                             </button>
