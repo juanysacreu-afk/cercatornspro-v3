@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Shield, Check, X, Camera, Search, Loader2 } from 'lucide-react';
+import { User, Shield, Check, X, Search, Loader2 } from 'lucide-react';
 import GlassPanel from './common/GlassPanel';
 import { supabase } from '../supabaseClient';
 import { useToast } from './ToastProvider';
@@ -96,13 +96,8 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, currentPro
                     <form onSubmit={handleSubmit} className="p-8 space-y-6">
                         {/* Avatar Section */}
                         <div className="flex flex-col items-center gap-4 mb-2">
-                            <div className="relative group">
-                                <div className="w-24 h-24 rounded-[32px] bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-950 border-2 border-white dark:border-white/10 flex items-center justify-center text-3xl font-black text-gray-800 dark:text-white shadow-xl group-hover:scale-105 transition-transform duration-500">
-                                    {formData.firstName?.[0]}{formData.lastName?.[0]}
-                                </div>
-                                <div className="absolute -bottom-1 -right-1 p-2 bg-fgc-green rounded-xl text-white shadow-lg scale-90 group-hover:scale-100 transition-transform cursor-pointer">
-                                    <Camera size={16} strokeWidth={3} />
-                                </div>
+                            <div className="w-24 h-24 rounded-[32px] bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-950 border-2 border-white dark:border-white/10 flex items-center justify-center text-3xl font-black text-gray-800 dark:text-white shadow-xl">
+                                {formData.firstName?.[0]}{formData.lastName?.[0]}
                             </div>
                             <div className="px-3 py-1 bg-gray-100 dark:bg-white/5 rounded-full border border-gray-200 dark:border-white/5">
                                 <span className="text-[10px] font-black text-fgc-green uppercase tracking-widest flex items-center gap-1.5">
