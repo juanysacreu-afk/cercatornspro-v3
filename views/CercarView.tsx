@@ -605,13 +605,43 @@ const CercarViewComponent: React.FC<{
                   autoComplete="off"
                   data-1p-ignore="true"
                   placeholder={`Cerca per ${searchType.toUpperCase()}...`}
-                  className="relative z-10 w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] sm:rounded-[32px] py-4 sm:py-6 pl-14 sm:pl-16 pr-6 sm:pr-8 focus:ring-4 focus:ring-fgc-green/20 outline-none text-lg sm:text-2xl font-bold placeholder:text-gray-300 dark:text-white dark:placeholder:text-gray-600 transition-all shadow-inner"
+                  className="relative z-10 w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] sm:rounded-[32px] py-4 sm:py-6 pl-14 sm:pl-16 pr-14 sm:pr-16 focus:ring-4 focus:ring-fgc-green/20 outline-none text-lg sm:text-2xl font-bold placeholder:text-gray-300 dark:text-white dark:placeholder:text-gray-600 transition-all shadow-inner"
                   value={query}
                   onChange={(e) => handleInputChange(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && executeSearch()}
-                  onFocus={() => query.length >= 1 && setShowSuggestions(true)}
+                  onFocus={(e) => {
+                    e.target.select();
+                    if (query.length >= 1) setShowSuggestions(true);
+                  }}
                 />
-                {showSuggestions && suggestions.length > 0 && (<div className="absolute top-full left-2 right-2 mt-2 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md rounded-[24px] shadow-2xl border border-gray-100 dark:border-white/10 z-[200] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">{suggestions.map((id, sIdx) => (<button key={sIdx} onClick={() => handleSuggestionClick(id)} className="w-full text-left px-6 sm:px-8 py-3 sm:py-4 text-base sm:text-xl font-bold text-[#4D5358] dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-fgc-green transition-colors flex items-center justify-between group"><span>{id}</span><ArrowRight size={18} className="opacity-0 group-hover:opacity-100 transition-all scale-110" /></button>))}</div>)}
+                {query && (
+                  <button
+                    onClick={() => {
+                      setQuery('');
+                      setResults([]);
+                      setSuggestions([]);
+                      setShowSuggestions(false);
+                      feedback.click();
+                    }}
+                    className="absolute inset-y-0 right-6 z-20 flex items-center text-gray-400 dark:text-gray-500 hover:text-fgc-green transition-colors"
+                  >
+                    <X size={24} />
+                  </button>
+                )}
+                {showSuggestions && suggestions.length > 0 && (
+                  <div className="absolute top-full left-2 right-2 mt-2 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md rounded-[24px] shadow-2xl border border-gray-100 dark:border-white/10 z-[200] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                    {suggestions.map((id, sIdx) => (
+                      <button
+                        key={sIdx}
+                        onClick={() => handleSuggestionClick(id)}
+                        className="w-full text-left px-6 sm:px-8 py-3 sm:py-4 text-base sm:text-xl font-bold text-[#4D5358] dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-fgc-green transition-colors flex items-center justify-between group"
+                      >
+                        <span>{id}</span>
+                        <ArrowRight size={18} className="opacity-0 group-hover:opacity-100 transition-all scale-110" />
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               <button onClick={() => executeSearch()} className="bg-fgc-green text-[#4D5358] h-[60px] sm:h-[76px] px-8 sm:px-10 rounded-[24px] sm:rounded-[32px] text-lg sm:text-xl font-bold shadow-xl shadow-fgc-green/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3"><Search size={22} />CERCAR</button>
             </div>
