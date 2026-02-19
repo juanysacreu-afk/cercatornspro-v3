@@ -1,5 +1,5 @@
 import React, { useRef, useMemo, useState, useCallback } from 'react';
-import { Loader2, GanttChart, Users, AlertTriangle, RefreshCcw, Layers, GitBranch, Filter, Clock, Sun, Sunrise, Sunset, Moon } from 'lucide-react';
+import { Loader2, GanttChart, Users, AlertTriangle, RefreshCcw, Layers, GitBranch, Filter, Clock, Sun, Sunrise, Sunset, Moon, Search, Phone } from 'lucide-react';
 import GlassPanel from '../../components/common/GlassPanel';
 import { useGanttData, GANTT_START_MIN, GANTT_TOTAL_MINUTES, GanttBar, GanttGroup, GANTT_START_HOUR, GANTT_END_HOUR } from './hooks/useGanttData';
 import { getFgcMinutes } from '../../utils/stations';
@@ -83,9 +83,11 @@ interface ContextMenuProps {
     onMarkIncident: () => void;
     onMarkUncovered: () => void;
     onClearIncident: () => void;
+    onViewTurn: () => void;
+    isPrivacyMode: boolean;
 }
 
-const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, bar, clickedTime, onClose, onMarkIncident, onMarkUncovered, onClearIncident }) => {
+const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, bar, clickedTime, onClose, onMarkIncident, onMarkUncovered, onClearIncident, onViewTurn, isPrivacyMode }) => {
     // Add click outside listener
     React.useEffect(() => {
         const handleClickOutside = () => onClose();
@@ -134,6 +136,35 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, bar, clickedTime, onClo
                     <RefreshCcw size={12} />
                     Esborrar Marcació
                 </button>
+            )}
+
+            <div className="h-px bg-gray-100 dark:bg-gray-700 my-1" />
+
+            {/* Quick Actions */}
+            <button
+                onClick={onViewTurn}
+                className="w-full text-left px-3 py-2 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 flex items-center gap-2"
+            >
+                <Search size={12} />
+                Veure el torn (Cercar)
+            </button>
+
+            {bar.driverPhone && (
+                <a
+                    href={isPrivacyMode ? undefined : `tel:${bar.driverPhone}`}
+                    className={`w-full text-left px-3 py-2 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 flex items-center gap-2 ${isPrivacyMode ? 'cursor-default' : ''}`}
+                    onClick={(e) => {
+                        if (isPrivacyMode) {
+                            e.preventDefault();
+                            feedback.click();
+                        } else {
+                            feedback.click();
+                        }
+                    }}
+                >
+                    <Phone size={12} />
+                    {isPrivacyMode ? 'Trucar: *** ** ** **' : `Trucar: ${bar.driverPhone}`}
+                </a>
             )}
         </div>
     );
@@ -317,7 +348,10 @@ const GroupSection: React.FC<{
 };
 
 // ── Main Component ─────────────────────────────────────
-const OrganitzaGantt: React.FC = () => {
+const OrganitzaGantt: React.FC<{
+    onNavigateToSearch?: (type: string, query: string) => void;
+    isPrivacyMode?: boolean;
+}> = ({ onNavigateToSearch, isPrivacyMode = true }) => {
     const { loading, groups, stats, groupBy, setGroupBy, filterMode, setFilterMode, timeFilter, setTimeFilter, viewRange, nowMin, selectedService, setSelectedService, availableServices, refresh, updateIncidentTime } = useGanttData();
     const [tooltip, setTooltip] = useState<TooltipState | null>(null);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; bar: GanttBar; clickedTime: string } | null>(null);
@@ -390,6 +424,13 @@ const OrganitzaGantt: React.FC = () => {
     const handleClearIncident = async () => {
         if (!contextMenu?.bar.assignmentId) return;
         await updateIncidentTime(contextMenu.bar.assignmentId, null);
+        setContextMenu(null);
+    };
+
+    const handleViewTurn = () => {
+        if (!contextMenu?.bar.shortId) return;
+        feedback.deepClick();
+        onNavigateToSearch?.('torn', contextMenu.bar.shortId);
         setContextMenu(null);
     };
 
@@ -671,6 +712,8 @@ const OrganitzaGantt: React.FC = () => {
                     onMarkIncident={handleMarkIncident}
                     onMarkUncovered={handleMarkUncovered}
                     onClearIncident={handleClearIncident}
+                    onViewTurn={handleViewTurn}
+                    isPrivacyMode={isPrivacyMode}
                 />
             )}
         </div>

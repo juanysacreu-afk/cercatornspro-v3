@@ -23,6 +23,7 @@ export interface GanttBar {
     incidentStartTime: string | null; // HH:mm format for partial absence
     isAssigned: boolean;
     assignmentId: number | null;
+    driverPhone: string | null;
     circulations: GanttCircSegment[];
 }
 
@@ -87,18 +88,26 @@ export function useGanttData() {
 
             // Fetch shifts and assignments
             // Note: We fetch ALL daily assignments for today to ensure we catch "extras"
-            const [shiftsRes, assignRes] = await Promise.all([
+            const [shiftsRes, assignRes, agentsRes] = await Promise.all([
                 supabase.from('shifts').select('id, servei, inici_torn, final_torn, dependencia, circulations'),
                 supabase.from('daily_assignments')
                     .select('id, torn, cognoms, nom, abs_parc_c, empleat_id, incident_start_time, hora_inici, hora_fi, data_servei, observacions')
-                    .eq('data_servei', todayStr)
+                    .eq('data_servei', todayStr),
+                supabase.from('agents').select('nomina, phone')
             ]);
 
             const rawShifts = shiftsRes.data || [];
             // Filter shifts by selected service (client-side filtering as 'isServiceVisible' logic is complex)
             const shifts = rawShifts.filter(s => isServiceVisible(s.servei, selectedService));
-
             const assignments = assignRes.data || [];
+            const agents = agentsRes.data || [];
+
+            // Map agent phone numbers by nomina
+            const agentPhones: Record<string, string> = {};
+            agents.forEach(a => {
+                const nomina = String(a.nomina || '').trim().replace(/^0+/, '');
+                if (nomina && a.phone) agentPhones[nomina] = a.phone;
+            });
             const usedAssignmentIds = new Set<number>();
 
             // Helper to get short ID based on User's Description:
@@ -145,6 +154,9 @@ export function useGanttData() {
                 }
 
                 const driverName = assignment ? `${assignment.cognoms}, ${assignment.nom}` : null;
+                const driverNomina = assignment?.empleat_id ? String(assignment.empleat_id).trim().replace(/^0+/, '') : null;
+                const driverPhone = driverNomina ? agentPhones[driverNomina] : null;
+
                 const absType = assignment?.abs_parc_c || null;
                 const incidentStartTime = assignment?.incident_start_time || null;
 
@@ -192,6 +204,7 @@ export function useGanttData() {
                     incidentStartTime,
                     isAssigned: !!assignment,
                     assignmentId: assignment?.id || null,
+                    driverPhone,
                     circulations: segments
                 };
             });
@@ -265,6 +278,9 @@ export function useGanttData() {
 
                 if (endMin < startMin) endMin += 24 * 60;
 
+                const driverNomina = assign.empleat_id ? String(assign.empleat_id).trim().replace(/^0+/, '') : null;
+                const driverPhone = driverNomina ? agentPhones[driverNomina] : null;
+
                 return {
                     shiftId: `extra-${assign.id}`,
                     shortId: shortId,
@@ -277,6 +293,7 @@ export function useGanttData() {
                     incidentStartTime: assign.incident_start_time,
                     isAssigned: true,
                     assignmentId: assign.id,
+                    driverPhone,
                     circulations: []
                 };
             });

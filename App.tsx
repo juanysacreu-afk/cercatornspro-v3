@@ -35,6 +35,11 @@ const App: React.FC = () => {
     setActiveTab(tab);
   }, [activeTab]);
 
+  const handleNavigateToSearch = useCallback((type: string, query: string) => {
+    setGlobalSearch({ type, query });
+    handleTabChange(AppTab.Cercar);
+  }, [handleTabChange]);
+
   useEffect(() => {
     // Simulació de càrrega de dades inicials
     const interval = setInterval(() => {
@@ -383,6 +388,7 @@ const App: React.FC = () => {
         <div className={`${activeTab === AppTab.Organitza ? 'block animate-in fade-in slide-in-from-right-8 duration-500' : 'hidden'}`}>
           <OrganitzaView
             isPrivacyMode={isPrivacyMode}
+            onNavigateToSearch={handleNavigateToSearch}
           />
         </div>
         <div className={`${activeTab === AppTab.Incidencia ? 'block animate-in fade-in slide-in-from-right-8 duration-500' : 'hidden'}`}>

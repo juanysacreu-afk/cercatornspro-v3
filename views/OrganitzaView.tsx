@@ -16,8 +16,9 @@ const normalizeId = (id: any) => {
 };
 
 const OrganitzaViewComponent: React.FC<{
-  isPrivacyMode: boolean
-}> = ({ isPrivacyMode }) => {
+  isPrivacyMode: boolean,
+  onNavigateToSearch?: (type: string, query: string) => void
+}> = ({ isPrivacyMode, onNavigateToSearch }) => {
   const [organizeType, setOrganizeType] = useState<OrganizeType>(OrganizeType.Comparador);
 
   const [nowMin, setNowMin] = useState<number>(0);
@@ -656,7 +657,10 @@ const OrganitzaViewComponent: React.FC<{
           </div>
         ) : organizeType === OrganizeType.Malla ? (
           <div key="malla-view" className="animate-in fade-in slide-in-from-right-8 duration-700 ease-out-expo">
-            <OrganitzaGantt />
+            <OrganitzaGantt
+              onNavigateToSearch={onNavigateToSearch}
+              isPrivacyMode={isPrivacyMode}
+            />
           </div>
         ) : null}
       </div>
