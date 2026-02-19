@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, RefreshCcw, Train, Menu, X, Download, BookOpen, Settings, Moon, Sun, ShieldAlert, Eye, Layers } from 'lucide-react';
+import { Search, RefreshCcw, Train, Menu, X, Download, BookOpen, Settings, Moon, Sun, ShieldAlert, Eye, Layers, Volume2, VolumeX } from 'lucide-react';
 import { AppTab } from './types.ts';
 import { CercarView } from './views/CercarView.tsx';
 import OrganitzaView from './views/OrganitzaView.tsx';
@@ -94,6 +94,17 @@ const App: React.FC = () => {
     }
     return false;
   });
+
+  const [isSoundEnabled, setIsSoundEnabled] = useState(() => {
+    return feedback.isSoundsEnabled();
+  });
+
+  const handleToggleSound = () => {
+    const newState = !isSoundEnabled;
+    setIsSoundEnabled(newState);
+    feedback.setSoundsEnabled(newState);
+    if (newState) feedback.click();
+  };
 
   useEffect(() => {
     localStorage.setItem('proNav', isProNav.toString());
@@ -440,6 +451,23 @@ const App: React.FC = () => {
                   </div>
                   <div className={`w-12 h-6 rounded-full relative transition-colors duration-300 border ${isProNav ? 'bg-fgc-green border-fgc-green' : 'bg-gray-200 border-gray-300'}`}>
                     <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-300 ${isProNav ? 'left-7' : 'left-1'}`} />
+                  </div>
+                </button>
+
+                <button
+                  onClick={handleToggleSound}
+                  className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-gray-100 dark:bg-white/10 text-fgc-grey dark:text-gray-300 group-hover:scale-110 transition-transform">
+                      {isSoundEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
+                    </div>
+                    <span className="text-sm font-bold text-fgc-grey dark:text-gray-200">
+                      Sons de l'App
+                    </span>
+                  </div>
+                  <div className={`w-12 h-6 rounded-full relative transition-colors duration-300 border ${isSoundEnabled ? 'bg-fgc-green border-fgc-green' : 'bg-gray-200 border-gray-300'}`}>
+                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-300 ${isSoundEnabled ? 'left-7' : 'left-1'}`} />
                   </div>
                 </button>
 

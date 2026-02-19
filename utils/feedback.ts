@@ -6,14 +6,25 @@
 
 class FeedbackManager {
     private audioCtx: AudioContext | null = null;
+    private soundsEnabled: boolean = typeof localStorage !== 'undefined' ? localStorage.getItem('app_sounds_enabled') !== 'false' : true;
 
     private async initAudio() {
+        if (!this.soundsEnabled) return;
         if (!this.audioCtx) {
             this.audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
         }
         if (this.audioCtx.state === 'suspended') {
             await this.audioCtx.resume();
         }
+    }
+
+    setSoundsEnabled(enabled: boolean) {
+        this.soundsEnabled = enabled;
+        localStorage.setItem('app_sounds_enabled', enabled.toString());
+    }
+
+    isSoundsEnabled() {
+        return this.soundsEnabled;
     }
 
     /**
