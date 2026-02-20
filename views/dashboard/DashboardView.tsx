@@ -64,18 +64,18 @@ const KpiCard: React.FC<{
         {progress !== undefined ? (
             <div className="relative z-10 flex flex-col justify-end mt-1 mb-0.5">
                 <div className="flex items-center gap-4 sm:gap-5">
-                    <div className="relative w-20 h-20 sm:w-[92px] sm:h-[92px] shrink-0">
+                    <div className="relative w-22 h-22 sm:w-[96px] sm:h-[96px] shrink-0">
                         <svg className="w-full h-full transform -rotate-90 drop-shadow-sm" viewBox="0 0 36 36">
                             <path
                                 className="text-black/5 dark:text-white/5"
-                                strokeWidth="3.5"
+                                strokeWidth="2.8"
                                 stroke="currentColor"
                                 fill="none"
                                 d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                             />
                             <path
                                 strokeDasharray={`${progress}, 100`}
-                                strokeWidth="3.5"
+                                strokeWidth="2.8"
                                 strokeLinecap="round"
                                 stroke={color}
                                 fill="none"
@@ -85,8 +85,8 @@ const KpiCard: React.FC<{
                             />
                         </svg>
                         <div className="absolute inset-0 flex flex-col items-center justify-center">
-                            <span className="text-2xl sm:text-3xl font-black leading-none translate-y-[2px]" style={{ color }}>
-                                {progress}<span className="text-sm sm:text-lg opacity-70 ml-[1px]">%</span>
+                            <span className="text-[22px] sm:text-[28px] font-black leading-none tracking-tighter translate-y-[2px]" style={{ color }}>
+                                {progress}<span className="text-xs sm:text-base tracking-normal font-bold opacity-70 ml-[2px]">%</span>
                             </span>
                         </div>
                     </div>
