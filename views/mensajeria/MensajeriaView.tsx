@@ -255,8 +255,14 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                 {/* Messages List */}
                 <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 md:space-y-6 bg-gradient-to-b from-transparent to-black/[0.02] dark:to-white/[0.01]">
                     {messages.map((msg, index) => {
-                        const isMe = msg.sender_id === currentUserId;
-                        const showName = index === 0 || messages[index - 1].sender_id !== msg.sender_id;
+                        const myFullName = `${currentProfile.firstName} ${currentProfile.lastName}`.trim();
+                        // Identify it's me if the IDs match OR if the name matches (solves issue when using different devices)
+                        const isMe = msg.sender_id === currentUserId || msg.sender_name.trim() === myFullName;
+
+                        // Show name if it's the first message OR if the previous message was from a different person
+                        const showName = index === 0 ||
+                            (messages[index - 1].sender_id !== msg.sender_id &&
+                                messages[index - 1].sender_name.trim() !== msg.sender_name.trim());
 
                         if (msg.is_alert && !isMe) {
                             return (
@@ -272,7 +278,7 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                             )
                         }
 
-                        const canDelete = currentProfile.email === 'mlopezj@fgc.cat' || msg.sender_id === currentUserId;
+                        const canDelete = currentProfile.email === 'mlopezj@fgc.cat' || isMe;
 
                         return (
                             <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} animate-in slide-in-from-bottom-2 group/msg relative`}>
