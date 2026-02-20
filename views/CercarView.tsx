@@ -32,7 +32,9 @@ const CercarViewComponent: React.FC<{
   externalSearch?: { type: string, query: string } | null,
   onExternalSearchHandled?: () => void
 }> = ({ isPrivacyMode, externalSearch, onExternalSearchHandled }) => {
-  const [searchType, setSearchType] = useState<SearchType | 'general'>(SearchType.Torn);
+  const [searchType, setSearchType] = useState<SearchType | 'general'>(
+    typeof window !== 'undefined' && window.innerWidth < 768 ? 'general' : SearchType.Torn
+  );
   const { showToast } = useToast();
   const [selectedServei, setSelectedServei] = useState<string>(getServiceToday());
   const [query, setQuery] = useState('');
