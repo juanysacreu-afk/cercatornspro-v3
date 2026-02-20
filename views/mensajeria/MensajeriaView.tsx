@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Send, Hash, MoreVertical, MessageCircle, AlertTriangle, Paperclip, CheckCircle, Trash2 } from 'lucide-react';
 import GlassPanel from '../../components/common/GlassPanel';
 import { sendTelegramMessage, getTelegramUpdates, getTelegramMemberCount, deleteTelegramMessage } from '../../src/lib/telegram';
@@ -32,6 +32,15 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
 
     const currentUserId = currentProfile.id || 'current-user-id';
     const [lastUpdateId, setLastUpdateId] = useState<number | undefined>(undefined);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    };
+
+    useEffect(() => {
+        scrollToBottom();
+    }, [messages]);
 
     // Fetch initial chat data
     useEffect(() => {
@@ -308,6 +317,7 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                             </div>
                         );
                     })}
+                    <div ref={messagesEndRef} />
                 </div>
 
                 {/* Input Area */}
