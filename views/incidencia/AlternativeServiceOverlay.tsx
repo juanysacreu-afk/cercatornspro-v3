@@ -1091,7 +1091,7 @@ const AlternativeServiceOverlay: React.FC<AlternativeServiceOverlayProps> = ({
               if (lastManeuverNum % 2 === 0) lastManeuverNum++;
               if (lastManeuverNum > 999) lastManeuverNum = 801;
 
-              const prefix = targetDepot === 'NA' ? 'XA' : 'TA';
+              const prefix = 'TA'; // All S1 depot retirement moves use TA prefix
               retireId = `${prefix}${lastManeuverNum}`;
             }
 
@@ -1106,7 +1106,8 @@ const AlternativeServiceOverlay: React.FC<AlternativeServiceOverlayProps> = ({
               sortida: formatFgcTime(rStart),
               arribada: formatFgcTime(rEnd),
               route: `${fromStation} → ${targetDepot}`,
-              direction: 'RETIR',
+              direction: getDirection(fromStation, retireId),
+              isRetirement: true,
               startTimeMinutes: rStart,
               numValue: 999
             });
@@ -1780,7 +1781,12 @@ const AlternativeServiceOverlay: React.FC<AlternativeServiceOverlayProps> = ({
                           <div className="font-bold text-sm text-blue-600 dark:text-blue-400">{c.arribada}</div>
                           <div className="text-[10px] font-bold text-[#4D5358] dark:text-gray-300 truncate">{c.route}</div>
                           <div className="font-bold text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-tight">{c.nextId}</div>
-                          <div><span className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase border ${c.direction === 'ASCENDENT' ? 'bg-orange-50 text-orange-600 border-orange-100' : 'bg-fgc-green/10 text-fgc-green border-fgc-green/20'}`}>{c.direction}</span></div>
+                          <div><span className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase border ${c.direction === 'ASCENDENT' ? 'bg-orange-50 text-orange-600 border-orange-100 dark:bg-orange-500/10 dark:text-orange-400 dark:border-orange-500/20' :
+                              c.direction === 'DESCENDENT' ? 'bg-fgc-green/10 text-fgc-green border-fgc-green/20' :
+                                c.direction === 'MANIOBRA' ? 'bg-gray-100 text-gray-500 border-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600' :
+                                  c.direction === 'VIATGER' ? 'bg-blue-50 text-blue-600 border-blue-100 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20' :
+                                    'bg-gray-100 text-gray-400 border-gray-200 dark:bg-gray-700 dark:text-gray-500 dark:border-gray-600'
+                            }`}>{c.direction}</span></div>
                         </div>
                       ))}
                   </div>
