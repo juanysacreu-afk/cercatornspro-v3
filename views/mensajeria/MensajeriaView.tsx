@@ -164,7 +164,7 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                 id: data.message_id.toString(),
                 text: visualText,
                 sender_name: `${currentProfile.firstName} ${currentProfile.lastName}`,
-                sender_id: currentUserId,
+                sender_id: currentProfile.email || currentUserId,
                 is_alert: isAlert,
                 created_at: new Date().toISOString()
             };
@@ -255,14 +255,11 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                 {/* Messages List */}
                 <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 md:space-y-6 bg-gradient-to-b from-transparent to-black/[0.02] dark:to-white/[0.01]">
                     {messages.map((msg, index) => {
-                        const myFullName = `${currentProfile.firstName} ${currentProfile.lastName}`.trim();
-                        // Identify it's me if the IDs match OR if the name matches (solves issue when using different devices)
-                        const isMe = msg.sender_id === currentUserId || msg.sender_name.trim() === myFullName;
+                        // Identify it's me if the IDs match OR if the corporate email matches
+                        const isMe = msg.sender_id === currentProfile.email || msg.sender_id === currentUserId;
 
-                        // Show name if it's the first message OR if the previous message was from a different person
-                        const showName = index === 0 ||
-                            (messages[index - 1].sender_id !== msg.sender_id &&
-                                messages[index - 1].sender_name.trim() !== msg.sender_name.trim());
+                        // Show name if it's the first message OR if the previous message was from a different sender
+                        const showName = index === 0 || messages[index - 1].sender_id !== msg.sender_id;
 
                         if (msg.is_alert && !isMe) {
                             return (
