@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Send, Hash, MoreVertical, MessageCircle, AlertTriangle, Paperclip, CheckCircle } from 'lucide-react';
+import { Send, Hash, MoreVertical, MessageCircle, AlertTriangle, Paperclip, CheckCircle, Trash2 } from 'lucide-react';
 import GlassPanel from '../../components/common/GlassPanel';
-import { sendTelegramMessage, getTelegramUpdates, getTelegramMemberCount } from '../../src/lib/telegram';
+import { sendTelegramMessage, getTelegramUpdates, getTelegramMemberCount, deleteTelegramMessage } from '../../src/lib/telegram';
 import { supabase } from '../../supabaseClient';
 
 interface UserProfile {
@@ -65,6 +65,10 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                     if (prev.find(m => m.id === newMsg.id)) return prev;
                     return [...prev, newMsg];
                 });
+            })
+            .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'telegram_messages' }, payload => {
+                const oldMsg = payload.old;
+                setMessages(prev => prev.filter(m => m.id !== oldMsg.id));
             })
             .subscribe();
 
@@ -168,6 +172,17 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
         }
     };
 
+    const handleDeleteMessage = async (msgId: string) => {
+        // Optimistic delete
+        setMessages(prev => prev.filter(m => m.id !== msgId));
+
+        // Delete from DB
+        await supabase.from('telegram_messages').delete().eq('id', msgId);
+
+        // Delete from Telegram
+        await deleteTelegramMessage(msgId);
+    };
+
     const formatTime = (isoString: string) => {
         const d = new Date(isoString);
         return d.toLocaleTimeString('ca-ES', { hour: '2-digit', minute: '2-digit' });
@@ -248,23 +263,47 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                             )
                         }
 
+                        const canDelete = currentProfile.email === 'mlopezj@fgc.cat' || msg.sender_id === currentUserId;
+
                         return (
-                            <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} animate-in slide-in-from-bottom-2`}>
+                            <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} animate-in slide-in-from-bottom-2 group/msg relative`}>
                                 {showName && !isMe && (
                                     <span className="text-[11px] font-bold text-gray-400 dark:text-gray-500 mb-1 ml-2">{msg.sender_name}</span>
                                 )}
                                 {showName && isMe && (
                                     <span className="text-[11px] font-bold text-gray-400 dark:text-gray-500 mb-1 mr-2">Tu</span>
                                 )}
-                                <div className={`relative max-w-[75%] px-4 py-2.5 rounded-2xl shadow-sm ${isMe
-                                    ? 'bg-fgc-green text-gray-900 rounded-tr-sm'
-                                    : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border border-gray-100 dark:border-white/5 rounded-tl-sm'
-                                    }`}>
-                                    <p className="text-[15px] leading-snug">{msg.text}</p>
-                                    <div className={`text-[10px] mt-1 flex items-center justify-end gap-1 ${isMe ? 'text-gray-900/60' : 'text-gray-400'}`}>
-                                        {formatTime(msg.created_at)}
-                                        {isMe && <CheckCircle size={10} className="opacity-70" />}
+                                <div className="flex items-center gap-2">
+                                    {canDelete && isMe && (
+                                        <button
+                                            onClick={() => handleDeleteMessage(msg.id)}
+                                            className="opacity-0 group-hover/msg:opacity-100 p-1.5 text-red-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-full transition-all"
+                                            title="Esborrar missatge"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    )}
+
+                                    <div className={`relative max-w-[75%] px-4 py-2.5 rounded-2xl shadow-sm ${isMe
+                                        ? 'bg-fgc-green text-gray-900 rounded-tr-sm'
+                                        : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border border-gray-100 dark:border-white/5 rounded-tl-sm'
+                                        }`}>
+                                        <p className="text-[15px] leading-snug">{msg.text}</p>
+                                        <div className={`text-[10px] mt-1 flex items-center justify-end gap-1 ${isMe ? 'text-gray-900/60' : 'text-gray-400'}`}>
+                                            {formatTime(msg.created_at)}
+                                            {isMe && <CheckCircle size={10} className="opacity-70" />}
+                                        </div>
                                     </div>
+
+                                    {canDelete && !isMe && (
+                                        <button
+                                            onClick={() => handleDeleteMessage(msg.id)}
+                                            className="opacity-0 group-hover/msg:opacity-100 p-1.5 text-red-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-full transition-all"
+                                            title="Esborrar missatge d'un altre"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         );

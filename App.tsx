@@ -28,6 +28,8 @@ const App: React.FC = () => {
   const [prevTab, setPrevTab] = useState<AppTab | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const [initProgress, setInitProgress] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  const activeTabRef = useRef(activeTab);
   const { showToast } = useToast();
 
   const handleTabChange = useCallback((tab: AppTab) => {
@@ -74,6 +76,41 @@ const App: React.FC = () => {
       role: 'FGC Operacions'
     };
   });
+
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+    if (activeTab === AppTab.Mensajeria) {
+      setUnreadMessages(0);
+      localStorage.setItem('mensajeriaLastRead', new Date().toISOString());
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    const initUnread = async () => {
+      const lastRead = localStorage.getItem('mensajeriaLastRead') || new Date(0).toISOString();
+      const { count, error } = await supabase
+        .from('telegram_messages')
+        .select('*', { count: 'exact', head: true })
+        .gt('created_at', lastRead);
+
+      if (!error && count !== null) {
+        setUnreadMessages(count);
+      }
+    };
+    initUnread();
+
+    const subs = supabase.channel('telegram_messages_unread')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'telegram_messages' }, () => {
+        if (activeTabRef.current !== AppTab.Mensajeria) {
+          setUnreadMessages(prev => prev + 1);
+        } else {
+          localStorage.setItem('mensajeriaLastRead', new Date().toISOString());
+        }
+      })
+      .subscribe();
+
+    return () => { subs.unsubscribe(); };
+  }, []);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -363,9 +400,12 @@ const App: React.FC = () => {
                       <button
                         onClick={() => handleTabChange(AppTab.Mensajeria)}
                         title="Missatges"
-                        className={`flex items-center justify-center w-12 h-12 rounded-xl transition-all group ${activeTab === AppTab.Mensajeria ? 'bg-fgc-green text-fgc-grey shadow-lg' : 'bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white'}`}
+                        className={`relative flex items-center justify-center w-12 h-12 rounded-xl transition-all group ${activeTab === AppTab.Mensajeria ? 'bg-fgc-green text-fgc-grey shadow-lg' : 'bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white'}`}
                       >
-                        <MessageCircle size={22} className={activeTab === AppTab.Mensajeria ? '' : 'group-hover:scale-110 transition-transform'} />
+                        <div className="relative">
+                          <MessageCircle size={22} className={activeTab === AppTab.Mensajeria ? '' : 'group-hover:scale-110 transition-transform'} />
+                          {unreadMessages > 0 && <span className="absolute -top-1.5 -right-1.5 flex h-[18px] w-[18px] items-center justify-center rounded-full bg-red-500 ring-2 ring-[#4D5358] dark:ring-[#222222] text-[10px] font-bold text-white shadow-sm animate-in zoom-in">{unreadMessages}</span>}
+                        </div>
                       </button>
 
                       <button

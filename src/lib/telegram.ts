@@ -107,3 +107,44 @@ export async function getTelegramMemberCount(chatId?: string): Promise<{ success
         return { success: false, error: error.message };
     }
 }
+
+/**
+ * Elimina un missatge enviat de Telegram.
+ */
+export async function deleteTelegramMessage(messageId: string | number, chatId?: string): Promise<{ success: boolean; error?: string }> {
+    if (!TELEGRAM_BOT_TOKEN) {
+        return { success: false, error: 'Token del bot no configurat' };
+    }
+
+    const targetChatId = chatId || DEFAULT_GROUP_CHAT_ID;
+    if (!targetChatId) {
+        return { success: false, error: 'Siusplau, configura el Chat ID del grup' };
+    }
+
+    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/deleteMessage`;
+
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                chat_id: targetChatId,
+                message_id: messageId
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.ok) {
+            return { success: true };
+        } else {
+            console.error('Telegram API Error eliminant:', data.description);
+            return { success: false, error: data.description };
+        }
+    } catch (error: any) {
+        console.error('Error eliminant missatge de Telegram:', error);
+        return { success: false, error: error.message };
+    }
+}
