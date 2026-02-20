@@ -241,7 +241,7 @@ const CercarViewComponent: React.FC<{
   };
 
   const filterButtons = [
-    { id: 'general' as const, label: 'Torn / Maq / Circ', icon: <Hash size={16} />, mobileOnly: true },
+    { id: 'general' as const, label: 'General', icon: <Search size={16} />, mobileOnly: true },
     { id: SearchType.Torn, label: 'Torn', icon: <Hash size={16} />, desktopOnly: true },
     { id: SearchType.Maquinista, label: 'Maquinista', icon: <User size={16} />, desktopOnly: true },
     { id: SearchType.Circulacio, label: 'Circulació', icon: <Train size={16} />, desktopOnly: true },
