@@ -249,9 +249,11 @@ const CercarViewComponent: React.FC<{
     const firstStart = getFgcMinutes(circs[0].sortida);
     if (nowMin < firstStart) {
       const remaining = firstStart - nowMin;
+      const totalGap = firstStart - start;
+      const isDescans = totalGap >= 15;
       return {
-        label: `${(firstStart - start) >= 15 ? 'Descans' : 'Temps'}: ${remaining} min`,
-        color: (firstStart - start) >= 15 ? 'bg-fgc-green text-[#4D5358] shadow-sm' : 'bg-yellow-400 text-[#4D5358] shadow-sm',
+        label: `${isDescans ? 'Descans' : 'Temps'}: Resten ${Math.round(remaining)} min de ${Math.round(totalGap)}`,
+        color: isDescans ? 'bg-fgc-green text-[#4D5358] shadow-sm' : 'bg-yellow-400 text-[#4D5358] shadow-sm',
         targetId: `gap-pre-${shiftIdx}`
       };
     }
@@ -262,9 +264,10 @@ const CercarViewComponent: React.FC<{
       if (nowMin >= currentEnd && nowMin < nextStart) {
         const gapDuration = nextStart - currentEnd;
         const remaining = nextStart - nowMin;
+        const isDescans = gapDuration >= 15;
         return {
-          label: `${gapDuration >= 15 ? 'Descans' : 'Temps'}: ${remaining} min`,
-          color: gapDuration >= 15 ? 'bg-fgc-green text-[#4D5358] shadow-sm' : 'bg-yellow-400 text-[#4D5358] shadow-sm',
+          label: `${isDescans ? 'Descans' : 'Temps'}: Resten ${Math.round(remaining)} min de ${Math.round(gapDuration)}`,
+          color: isDescans ? 'bg-fgc-green text-[#4D5358] shadow-sm' : 'bg-yellow-400 text-[#4D5358] shadow-sm',
           targetId: `gap-row-${shiftIdx}-${i}`
         };
       }

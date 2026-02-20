@@ -345,7 +345,7 @@ const App: React.FC = () => {
         <div className="blob blob-3 parallax-blob" data-speed="0.03" />
       </div>
 
-      <div className={`flex flex-1 overflow-hidden ${isProNav ? 'flex-row' : 'flex-col'}`}>
+      <div className={`flex flex-1 ${isProNav ? 'flex-row' : 'flex-col'}`}>
         {isProNav && (
           <Sidebar
             activeTab={activeTab}
@@ -363,10 +363,10 @@ const App: React.FC = () => {
           />
         )}
 
-        <div className={`flex-1 flex flex-col min-w-0 relative ${isProNav ? 'lg:pl-20' : ''}`}>
+        <div className="flex-1 flex flex-col min-w-0 relative">
           {(!isProNav || isMobileMenuOpen) && (
             <nav style={{ backgroundColor: isDarkMode ? '#222222' : '#4D5358' }} className="sticky top-0 z-40 dark:backdrop-blur-md text-white shadow-md safe-top border-b border-white/5 transition-all w-full">
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="w-full px-4 sm:px-6 lg:px-8">
                 <div className="flex items-center justify-between h-20 sm:h-24">
                   <div
                     className="flex items-center gap-4 cursor-pointer select-none group"
@@ -592,7 +592,7 @@ const App: React.FC = () => {
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto w-full py-8 safe-bottom max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 overflow-x-hidden">
+          <div className="flex-1 overflow-y-auto w-full py-8 safe-bottom px-4 sm:px-6 lg:px-8 overflow-x-hidden">
             <div className={`${activeTab === AppTab.Dashboard ? 'block animate-in fade-in slide-in-from-bottom-8 duration-500 ease-out-expo' : 'hidden'}`}>
               <DashboardView />
             </div>

@@ -95,48 +95,59 @@ const ReserveCard: React.FC<{ slot: ReserveSlot }> = ({ slot }) => {
     );
 };
 
-const LineStatusBar: React.FC<{ line: LineStatus }> = ({ line }) => (
-    <div className="flex items-center gap-3 group">
-        <div className="w-12 h-8 rounded-lg flex items-center justify-center text-white font-black text-xs shrink-0 shadow-sm" style={{ backgroundColor: line.color }}>
-            {line.linia}
-        </div>
-        <div className="flex-1">
-            <div className="w-full h-2.5 rounded-full bg-gray-200/60 dark:bg-white/5 overflow-hidden">
-                <div
-                    className="h-full rounded-full transition-all duration-1000 ease-out"
-                    style={{
-                        width: `${line.coveragePercent}%`,
-                        backgroundColor: line.coveragePercent > 80 ? '#10B981' : line.coveragePercent > 50 ? '#F59E0B' : '#EF4444'
-                    }}
-                />
-            </div>
-        </div>
-        <span className="text-xs font-bold text-gray-500 dark:text-gray-400 w-16 text-right tabular-nums">
-            {line.activeCirculations}/{line.totalCirculations}
-        </span>
-    </div>
-);
+const CoverageBarChart: React.FC<{ lineStatuses: any[] }> = ({ lineStatuses }) => {
+    // Definir el orden explícito de las líneas requerido (L6, L7, L12, S1, S2)
+    const order = ['L6', 'L7', 'L12', 'S1', 'S2'];
+    const DEFAULT_COLORS: Record<string, string> = {
+        'L6': '#7C73B4', 'L7': '#9D4900', 'L12': '#C3BDE0', 'S1': '#E46608', 'S2': '#80B134'
+    };
 
-// ── Service Coverage Ring ──────────────────────────────
-const CoverageRing: React.FC<{ percent: number }> = ({ percent }) => {
-    const radius = 54;
-    const circumference = 2 * Math.PI * radius;
-    const offset = circumference - (percent / 100) * circumference;
-    const color = percent > 85 ? '#10B981' : percent > 60 ? '#F59E0B' : '#EF4444';
+    // Forzamos a que aparezcan siempre las líneas solicitadas, incluso si el hook
+    // no detecta circulaciones activas y las filtra temporalmente.
+    const sortedLines = order.map(linia => {
+        const found = lineStatuses.find(ls => ls.linia.toUpperCase() === linia.toUpperCase());
+        return found || {
+            linia,
+            color: DEFAULT_COLORS[linia] || '#4D5358',
+            activeCirculations: 0,
+            totalCirculations: 0,
+            coveragePercent: 0
+        };
+    });
+
+    const maxActive = Math.max(15, ...sortedLines.map(l => l.activeCirculations));
 
     return (
-        <div className="relative w-36 h-36 mx-auto">
-            <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
-                <circle cx="60" cy="60" r={radius} fill="none" stroke="currentColor" strokeWidth="8"
-                    className="text-gray-200/40 dark:text-white/5" />
-                <circle cx="60" cy="60" r={radius} fill="none" stroke={color} strokeWidth="8"
-                    strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={offset}
-                    className="transition-all duration-1000 ease-out" />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-3xl font-black text-[#4D5358] dark:text-white">{percent}%</span>
-                <span className="text-xs font-semibold text-gray-400">Cobertura</span>
-            </div>
+        <div className="flex items-end justify-between h-[180px] pt-4 pb-2 px-1 sm:px-2 w-full mt-2">
+            {sortedLines.map(line => {
+                // Height based on active trains mapping to a max ceiling of ~15-30, avoiding 1% heights
+                const p = line.activeCirculations > 0 ? Math.min(100, Math.round((line.activeCirculations / maxActive) * 100)) : 0;
+                return (
+                    <div key={line.linia} className="flex flex-col items-center gap-2 group w-10 sm:w-14">
+                        <span className="text-[10px] sm:text-xs font-bold text-gray-400 dark:text-gray-500 tabular-nums text-center leading-tight transition-all duration-300 group-hover:text-[#4D5358] dark:group-hover:text-white group-hover:scale-110">
+                            {line.totalCirculations > 0 ? line.activeCirculations : '-'}<br /><span className="opacity-50">/ {line.totalCirculations > 0 ? line.totalCirculations : '-'}</span>
+                        </span>
+                        <div className="relative w-8 sm:w-10 h-28 bg-gray-100 dark:bg-white/5 rounded-t-xl overflow-hidden shadow-inner flex items-end">
+                            <div
+                                className="w-full rounded-t-xl transition-all duration-1000 ease-out flex items-start justify-center pt-2 relative overflow-hidden"
+                                style={{
+                                    height: p > 0 ? `${Math.max(8, p)}%` : '4px', // minimum 8% if there are any trains to show a visible bar
+                                    backgroundColor: line.color,
+                                    opacity: p > 0 ? 1 : 0.3
+                                }}
+                            >
+                                <div className="absolute top-0 left-0 w-full h-1/4 bg-white/20" />
+                            </div>
+                        </div>
+                        <div
+                            className="w-8 sm:w-10 h-6 sm:h-7 rounded-lg flex items-center justify-center text-white font-black text-[10px] sm:text-[11px] shadow-sm transition-transform duration-300 group-hover:-translate-y-1"
+                            style={{ backgroundColor: line.color, opacity: p > 0 ? 1 : 0.5 }}
+                        >
+                            {line.linia}
+                        </div>
+                    </div>
+                )
+            })}
         </div>
     );
 };
@@ -172,8 +183,6 @@ const DashboardViewComponent: React.FC = () => {
     const criticalAlerts = useMemo(() => alerts.filter(a => a.severity === 'critical'), [alerts]);
     const warningAlerts = useMemo(() => alerts.filter(a => a.severity !== 'critical'), [alerts]);
 
-    const serviceLabel: Record<string, string> = { '0': '000 Laborable', '100': '100 Divendres', '400': '400 Dissabte', '500': '500 Festiu' };
-
     if (loading) {
         return (
             <div className="space-y-6 p-4 sm:p-8 animate-in fade-in duration-700">
@@ -204,7 +213,7 @@ const DashboardViewComponent: React.FC = () => {
                         CCO — Supervisió Operativa
                     </h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400 font-medium tracking-tight mt-1 capitalize">
-                        Servei {serviceLabel[serviceToday] || serviceToday.padStart(3, '0')} · {formattedDate}
+                        Servei {serviceToday.padStart(3, '0')} · {formattedDate}
                     </p>
                     <p className="text-[11px] text-gray-400 dark:text-gray-500 font-bold uppercase tracking-wider mt-0.5">
                         Última actualització: {formatTime(lastRefresh)}
@@ -267,16 +276,7 @@ const DashboardViewComponent: React.FC = () => {
                         <h2 className="text-base font-bold text-[#4D5358] dark:text-white uppercase tracking-wider">Cobertura de Xarxa</h2>
                     </div>
 
-                    <CoverageRing percent={kpis.serviceCoverage} />
-
-                    <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
-                        {lineStatuses.map(ls => (
-                            <LineStatusBar key={ls.linia} line={ls} />
-                        ))}
-                        {lineStatuses.length === 0 && (
-                            <p className="text-sm text-gray-400 text-center py-4">Cap línia configurada pel servei actual</p>
-                        )}
-                    </div>
+                    <CoverageBarChart lineStatuses={lineStatuses} />
                 </GlassPanel>
 
                 {/* Alerts Panel */}

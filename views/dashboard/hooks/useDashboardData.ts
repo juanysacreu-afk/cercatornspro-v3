@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../../../supabaseClient';
 import { getServiceToday } from '../../../utils/serviceCalendar';
-import { getFgcMinutes, getShortTornId, isServiceVisible, resolveStationId } from '../../../utils/stations';
+import { getFgcMinutes, getShortTornId, isServiceVisible, resolveStationId, mainLiniaForFilter } from '../../../utils/stations';
 
 // ── Types ──────────────────────────────────────────────
 export interface DashboardKPIs {
@@ -291,23 +291,11 @@ export function useDashboardData() {
 
             // ── Line Statuses ──
             const LINE_DEFS: { linia: string; color: string }[] = [
-                { linia: 'S1', color: '#E8432D' },
-                { linia: 'S2', color: '#1B79C9' },
-                { linia: 'L6', color: '#9C56B4' },
-                { linia: 'L7', color: '#D4881F' },
-                { linia: 'L12', color: '#A8D017' },
-                { linia: 'S3', color: '#E8432D' },
-                { linia: 'S4', color: '#1B79C9' },
-                { linia: 'S8', color: '#E8432D' },
-                { linia: 'S9', color: '#1B79C9' },
-                { linia: 'R5', color: '#1B79C9' },
-                { linia: 'R6', color: '#E8432D' },
-                { linia: 'R50', color: '#1B79C9' },
-                { linia: 'R60', color: '#E8432D' },
-                { linia: 'RL1', color: '#00A650' },
-                { linia: 'RL2', color: '#FF6600' },
-                { linia: 'RL3', color: '#9C56B4' },
-                { linia: 'RL4', color: '#FFC726' },
+                { linia: 'L6', color: '#7C73B4' },
+                { linia: 'L7', color: '#9D4900' },
+                { linia: 'L12', color: '#C3BDE0' },
+                { linia: 'S1', color: '#E46608' },
+                { linia: 'S2', color: '#80B134' },
             ];
 
             const lineStats: LineStatus[] = LINE_DEFS.map(({ linia, color }) => {
@@ -315,14 +303,33 @@ export function useDashboardData() {
                 let active = 0;
                 shifts.forEach(s => {
                     ((s.circulations as any[]) || []).forEach(c => {
-                        const cLinia = typeof c === 'object' ? (c.linia || '') : '';
                         const codi = typeof c === 'object' ? (c.codi || '') : c;
-                        if (cLinia.toUpperCase() === linia.toUpperCase() && codi !== 'Viatger') {
+                        let cLiniaRaw = typeof c === 'object' ? (c.linia || '') : '';
+                        if (!cLiniaRaw && codi) {
+                            cLiniaRaw = codi;
+                        }
+                        const cLinia = mainLiniaForFilter(cLiniaRaw);
+                        if (cLinia === linia.toUpperCase() && codi !== 'Viatger') {
                             total++;
-                            const sortida = typeof c === 'object' ? getFgcMinutes(c.sortida || '') : null;
-                            const arribada = typeof c === 'object' ? getFgcMinutes(c.arribada || '') : null;
-                            if (sortida !== null && arribada !== null && currentMin >= sortida && currentMin <= arribada) {
-                                active++;
+                            let start: number | null = null;
+                            let end: number | null = null;
+
+                            if (typeof c === 'object' && c.sortida && c.arribada) {
+                                start = getFgcMinutes(c.sortida);
+                                end = getFgcMinutes(c.arribada);
+                            } else if (typeof c === 'string' && circMap.has(c)) {
+                                const times = circMap.get(c);
+                                if (times) { start = times.start; end = times.end; }
+                            } else if (typeof c === 'object' && c.id && circMap.has(c.id)) {
+                                const times = circMap.get(c.id);
+                                if (times) { start = times.start; end = times.end; }
+                            }
+
+                            if (start !== null && end !== null) {
+                                if (end < start) end += 1440;
+                                if (currentMin >= start && currentMin <= end) {
+                                    active++;
+                                }
                             }
                         }
                     });

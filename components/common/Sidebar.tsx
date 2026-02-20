@@ -40,7 +40,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
     return (
         <aside
-            className={`hidden lg:flex flex-col h-screen fixed left-0 top-0 bg-[#4D5358]/95 dark:bg-[#222222]/95 backdrop-blur-xl border-r border-white/5 transition-all duration-500 z-50 shadow-2xl ${isExpanded ? 'w-64' : 'w-20'}`}
+            className={`hidden lg:flex flex-col h-screen sticky left-0 top-0 bg-[#4D5358]/95 dark:bg-[#222222]/95 backdrop-blur-xl border-r border-white/5 transition-all duration-500 z-50 shadow-2xl shrink-0 ${isExpanded ? 'w-64' : 'w-20'}`}
             onMouseEnter={() => setIsExpanded(true)}
             onMouseLeave={() => setIsExpanded(false)}
         >
