@@ -241,14 +241,19 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+    >
       <div className="absolute inset-0 bg-fgc-grey/60 backdrop-blur-md animate-in fade-in duration-500 ease-out-expo" onClick={onClose} />
       <div className="relative bg-white dark:bg-fgc-grey w-full max-w-lg rounded-[32px] overflow-hidden shadow-2xl border border-gray-100 dark:border-white/10 animate-modal-premium">
         <div className="p-6 border-b border-gray-100 dark:border-white/5 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-fgc-green/10 rounded-lg text-fgc-green"><Download size={20} /></div>
             <div>
-              <h2 className="text-xl font-bold text-fgc-grey dark:text-white">Carregar PDF Diari</h2>
+              <h2 id="modal-title" className="text-xl font-bold text-fgc-grey dark:text-white">Carregar PDF Diari</h2>
               {lastUploadDate && (
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-0.5">
                   Última càrrega: <span className="text-fgc-green">{new Date(lastUploadDate).toLocaleDateString('ca-ES')}</span>

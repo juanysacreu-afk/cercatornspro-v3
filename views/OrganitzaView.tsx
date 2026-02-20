@@ -535,117 +535,22 @@ const OrganitzaViewComponent: React.FC<{
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {filteredMaquinistes.map((maquinista) => {
                       const contact = contacts[normalizeId(maquinista.empleat_id)] || { phones: [], email: null };
-                      const phones = contact.phones;
-                      const email = contact.email;
                       const isFOR = maquinista.torn.startsWith('FOR');
                       const isDIS = maquinista.torn.startsWith('DIS');
                       const isDES = maquinista.torn.startsWith('DES');
                       const isAssigned = !isFOR && !isDIS && !isDES && !['VAC', 'DAG', 'ABS', 'LLIB', 'AJN', 'S/N', 'S/A'].some(p => maquinista.torn.startsWith(p));
 
                       return (
-                        <div
+                        <MemoizedMaquinistaCard
                           key={maquinista.empleat_id}
-                          className={`bg-white dark:bg-gray-800 rounded-[28px] p-5 border transition-all flex flex-col h-full gap-4 group hover:shadow-xl ${isAssigned ? 'border-blue-200 dark:border-blue-500/20 bg-blue-50/10 dark:bg-blue-500/5 hover:border-blue-300' :
-                            isFOR ? 'border-yellow-200 dark:border-yellow-500/20 bg-yellow-50/10 dark:bg-yellow-500/5 hover:border-yellow-300' :
-                              isDIS ? 'border-orange-200 dark:border-orange-500/20 bg-orange-50/10 dark:bg-orange-500/5 hover:border-orange-300' :
-                                isDES ? 'border-fgc-green/30 dark:border-fgc-green/20 bg-fgc-green/10 dark:bg-fgc-green/5 hover:border-fgc-green/30' :
-                                  'border-gray-100 dark:border-white/5 hover:border-fgc-green/30'
-                            }`}
-                        >
-                          <div className="flex items-center gap-4">
-                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-xl shadow-md shrink-0 ${isAssigned ? 'bg-blue-600 text-white' :
-                              isFOR ? 'bg-yellow-500 text-white' :
-                                isDIS ? 'bg-orange-500 text-white' :
-                                  isDES ? 'bg-fgc-green text-[#4D5358]' :
-                                    'bg-fgc-grey dark:bg-black text-white'
-                              }`}>
-                              {maquinista.cognoms?.charAt(0) || maquinista.nom?.charAt(0)}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2">
-                                <h3 className="text-base font-bold text-[#4D5358] dark:text-white leading-tight uppercase truncate">{maquinista.cognoms}, {maquinista.nom}</h3>
-                                {maquinista.tipus_torn && (
-                                  <span className={`px-2 py-0.5 rounded text-[7px] font-bold uppercase border shrink-0 ${maquinista.tipus_torn === 'Reducció'
-                                    ? 'bg-purple-600 text-white border-purple-700'
-                                    : 'bg-blue-600 text-white border-blue-700'
-                                    }`}>
-                                    {maquinista.tipus_torn === 'Reducció' ? 'RED' : 'TORN'}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2 mt-0.5">
-                                <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500">#{maquinista.empleat_id}</span>
-                                <div className={`px-2 py-0.5 rounded text-[10px] font-bold ${isAssigned ? 'bg-blue-600 text-white' :
-                                  isFOR ? 'bg-yellow-500 text-white' :
-                                    isDIS ? 'bg-orange-500 text-white' :
-                                      isDES ? 'bg-fgc-green text-[#4D5358]' :
-                                        'bg-gray-100 dark:bg-black text-gray-400 dark:text-gray-600'
-                                  }`}>
-                                  {maquinista.torn}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="flex flex-col gap-2 pt-3 border-t border-gray-100/50 dark:border-white/5 transition-colors">
-                            <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
-                              <Clock size={12} className="text-fgc-green" />
-                              <span className="text-[11px] font-bold">{maquinista.hora_inici} — {maquinista.hora_fi}</span>
-                            </div>
-                            {(maquinista.abs_parc_c === 'S' || maquinista.dta === 'S' || maquinista.dpa === 'S') && (
-                              <div className="flex gap-2">
-                                {maquinista.abs_parc_c === 'S' && <span className="bg-red-50 text-red-600 text-[8px] font-bold px-1.5 py-0.5 rounded border border-red-100">ABS</span>}
-                                {maquinista.dta === 'S' && <span className="bg-blue-50 text-blue-600 text-[8px] font-bold px-1.5 py-0.5 rounded border border-blue-100">DTA</span>}
-                                {maquinista.dpa === 'S' && <span className="bg-purple-50 text-purple-600 text-[8px] font-bold px-1.5 py-0.5 rounded border border-purple-100">DPA</span>}
-                              </div>
-                            )}
-                            {maquinista.observacions && (
-                              <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
-                                <Info size={12} className="text-fgc-green" />
-                                <span className="text-[11px] font-bold truncate">{maquinista.observacions}</span>
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="flex flex-wrap gap-2 mt-auto">
-                            {phones.length > 0 || email ? (
-                              <>
-                                {phones.map((p, idx) => (
-                                  <a
-                                    key={`phone-${idx}`}
-                                    href={isPrivacyMode ? undefined : `tel:${p}`}
-                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all shadow-sm ${isAssigned ? 'bg-blue-600 text-white hover:bg-blue-700' :
-                                      isFOR ? 'bg-yellow-500 text-white hover:bg-yellow-600' :
-                                        isDIS ? 'bg-orange-500 text-white hover:bg-orange-600' :
-                                          isDES ? 'bg-fgc-green text-[#4D5358] hover:brightness-110' :
-                                            'bg-fgc-grey dark:bg-black text-white hover:bg-fgc-dark'
-                                      } ${isPrivacyMode ? 'cursor-default' : ''}`}
-                                  >
-                                    <Phone size={12} />
-                                    {isPrivacyMode ? '*** ** ** **' : p}
-                                  </a>
-                                ))}
-                                {email && (
-                                  <a
-                                    href={`mailto:${email}`}
-                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all shadow-sm ${isAssigned ? 'bg-blue-600/20 text-blue-600 dark:text-blue-400 border border-blue-600/20' :
-                                      isFOR ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 border border-yellow-500/20' :
-                                        isDIS ? 'bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/20' :
-                                          isDES ? 'bg-fgc-green/20 text-green-800 dark:text-fgc-green border border-fgc-green/20' :
-                                            'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 border border-gray-100 dark:border-white/5'
-                                      }`}
-                                    title={email}
-                                  >
-                                    <Mail size={12} />
-                                    {email.length > 20 ? 'Email' : email}
-                                  </a>
-                                )}
-                              </>
-                            ) : (
-                              <span className="text-[10px] font-bold text-gray-300 dark:text-gray-700 italic">Sense contacte</span>
-                            )}
-                          </div>
-                        </div>
+                          maquinista={maquinista}
+                          contact={contact}
+                          isAssigned={isAssigned}
+                          isFOR={isFOR}
+                          isDIS={isDIS}
+                          isDES={isDES}
+                          isPrivacyMode={isPrivacyMode}
+                        />
                       );
                     })}
                   </div>
@@ -867,6 +772,114 @@ const CompareInputSlot = ({ label, value, onChange, data, onClear, nowMin, getSe
     </div>
   );
 };
+
+const MemoizedMaquinistaCard = React.memo(({ maquinista, contact, isAssigned, isFOR, isDIS, isDES, isPrivacyMode }: any) => {
+  const { phones = [], email } = contact;
+  return (
+    <div
+      className={`bg-white dark:bg-gray-800 rounded-[28px] p-5 border transition-all flex flex-col h-full gap-4 group hover:shadow-xl ${isAssigned ? 'border-blue-200 dark:border-blue-500/20 bg-blue-50/10 dark:bg-blue-500/5 hover:border-blue-300' :
+        isFOR ? 'border-yellow-200 dark:border-yellow-500/20 bg-yellow-50/10 dark:bg-yellow-500/5 hover:border-yellow-300' :
+          isDIS ? 'border-orange-200 dark:border-orange-500/20 bg-orange-50/10 dark:bg-orange-500/5 hover:border-orange-300' :
+            isDES ? 'border-fgc-green/30 dark:border-fgc-green/20 bg-fgc-green/10 dark:bg-fgc-green/5 hover:border-fgc-green/30' :
+              'border-gray-100 dark:border-white/5 hover:border-fgc-green/30'
+        }`}
+    >
+      <div className="flex items-center gap-4">
+        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-xl shadow-md shrink-0 ${isAssigned ? 'bg-blue-600 text-white' :
+          isFOR ? 'bg-yellow-500 text-white' :
+            isDIS ? 'bg-orange-500 text-white' :
+              isDES ? 'bg-fgc-green text-[#4D5358]' :
+                'bg-fgc-grey dark:bg-black text-white'
+          }`}>
+          {maquinista.cognoms?.charAt(0) || maquinista.nom?.charAt(0)}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h3 className="text-base font-bold text-[#4D5358] dark:text-white leading-tight uppercase truncate">{maquinista.cognoms}, {maquinista.nom}</h3>
+            {maquinista.tipus_torn && (
+              <span className={`px-2 py-0.5 rounded text-[7px] font-bold uppercase border shrink-0 ${maquinista.tipus_torn === 'Reducció'
+                ? 'bg-purple-600 text-white border-purple-700'
+                : 'bg-blue-600 text-white border-blue-700'
+                }`}>
+                {maquinista.tipus_torn === 'Reducció' ? 'RED' : 'TORN'}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500">#{maquinista.empleat_id}</span>
+            <div className={`px-2 py-0.5 rounded text-[10px] font-bold ${isAssigned ? 'bg-blue-600 text-white' :
+              isFOR ? 'bg-yellow-500 text-white' :
+                isDIS ? 'bg-orange-500 text-white' :
+                  isDES ? 'bg-fgc-green text-[#4D5358]' :
+                    'bg-gray-100 dark:bg-black text-gray-400 dark:text-gray-600'
+              }`}>
+              {maquinista.torn}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2 pt-3 border-t border-gray-100/50 dark:border-white/5 transition-colors">
+        <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+          <Clock size={12} className="text-fgc-green" />
+          <span className="text-[11px] font-bold">{maquinista.hora_inici} — {maquinista.hora_fi}</span>
+        </div>
+        {(maquinista.abs_parc_c === 'S' || maquinista.dta === 'S' || maquinista.dpa === 'S') && (
+          <div className="flex gap-2">
+            {maquinista.abs_parc_c === 'S' && <span className="bg-red-50 text-red-600 text-[8px] font-bold px-1.5 py-0.5 rounded border border-red-100">ABS</span>}
+            {maquinista.dta === 'S' && <span className="bg-blue-50 text-blue-600 text-[8px] font-bold px-1.5 py-0.5 rounded border border-blue-100">DTA</span>}
+            {maquinista.dpa === 'S' && <span className="bg-purple-50 text-purple-600 text-[8px] font-bold px-1.5 py-0.5 rounded border border-purple-100">DPA</span>}
+          </div>
+        )}
+        {maquinista.observacions && (
+          <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+            <Info size={12} className="text-fgc-green" />
+            <span className="text-[11px] font-bold truncate">{maquinista.observacions}</span>
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-2 mt-auto">
+        {phones.length > 0 || email ? (
+          <>
+            {phones.map((p: any, idx: number) => (
+              <a
+                key={`phone-${idx}`}
+                href={isPrivacyMode ? undefined : `tel:${p}`}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all shadow-sm ${isAssigned ? 'bg-blue-600 text-white hover:bg-blue-700' :
+                  isFOR ? 'bg-yellow-500 text-white hover:bg-yellow-600' :
+                    isDIS ? 'bg-orange-500 text-white hover:bg-orange-600' :
+                      isDES ? 'bg-fgc-green text-[#4D5358] hover:brightness-110' :
+                        'bg-fgc-grey dark:bg-black text-white hover:bg-fgc-dark'
+                  } ${isPrivacyMode ? 'cursor-default' : ''}`}
+              >
+                <Phone size={12} />
+                {isPrivacyMode ? '*** ** ** **' : p}
+              </a>
+            ))}
+            {email && (
+              <a
+                href={`mailto:${email}`}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all shadow-sm ${isAssigned ? 'bg-blue-600/20 text-blue-600 dark:text-blue-400 border border-blue-600/20' :
+                  isFOR ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 border border-yellow-500/20' :
+                    isDIS ? 'bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/20' :
+                      isDES ? 'bg-fgc-green/20 text-green-800 dark:text-fgc-green border border-fgc-green/20' :
+                        'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 border border-gray-100 dark:border-white/5'
+                  }`}
+                title={email}
+              >
+                <Mail size={12} />
+                {email.length > 20 ? 'Email' : email}
+              </a>
+            )}
+          </>
+        ) : (
+          <span className="text-[10px] font-bold text-gray-300 dark:text-gray-700 italic">Sense contacte</span>
+        )}
+      </div>
+    </div>
+  );
+});
 
 export const OrganitzaView = React.memo(OrganitzaViewComponent);
 export default OrganitzaView;

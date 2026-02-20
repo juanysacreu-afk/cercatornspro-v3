@@ -1378,14 +1378,19 @@ const AlternativeServiceOverlay: React.FC<AlternativeServiceOverlayProps> = ({
   const totalAssigned = Object.values(lineCounts).reduce((a, b) => a + b, 0);
 
   return createPortal(
-    <div className="fixed inset-0 z-[9999] flex items-start justify-center p-4 sm:p-12 md:p-20 bg-slate-950/90 backdrop-blur-xl animate-in fade-in duration-500 ease-out-expo overflow-y-auto">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
+      className="fixed inset-0 z-[9999] flex items-start justify-center p-4 sm:p-12 md:p-20 bg-slate-950/90 backdrop-blur-xl animate-in fade-in duration-500 ease-out-expo overflow-y-auto"
+    >
       <GlassPanel className="w-full max-w-6xl !rounded-[40px] sm:!rounded-[56px] shadow-[0_32px_128px_-16px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col mb-12 relative animate-modal-premium">
         {/* Header */}
         <div className="p-8 border-b border-gray-100 dark:border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-6 bg-gray-50/50 dark:bg-black/20">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-fgc-green rounded-2xl text-[#4D5358] shadow-lg"><Activity size={24} /></div>
             <div>
-              <h3 className="text-xl font-bold text-[#4D5358] dark:text-white uppercase tracking-tight">Pla de Servei Alternatiu</h3>
+              <h3 id="modal-title" className="text-xl font-bold text-[#4D5358] dark:text-white uppercase tracking-tight">Pla de Servei Alternatiu</h3>
               <p className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">{islandLabel}</p>
             </div>
           </div>
