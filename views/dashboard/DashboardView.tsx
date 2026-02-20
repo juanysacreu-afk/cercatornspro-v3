@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
     Activity, AlertTriangle, Train, Users, Shield, RefreshCcw,
-    Clock, ChevronRight, Zap, Eye, Gauge, TrendingUp, Radio, MapPin
+    Clock, ChevronRight, Zap, Eye, Gauge, TrendingUp, Radio, MapPin, Info
 } from 'lucide-react';
 import GlassPanel from '../../components/common/GlassPanel';
 import ErrorBoundary from '../../components/common/ErrorBoundary';
@@ -18,10 +18,12 @@ const KpiCard: React.FC<{
     color: string;
     pulse?: boolean;
     trend?: 'up' | 'down' | 'neutral';
-}> = ({ label, value, subtitle, icon, color, pulse, trend }) => (
+    infoText?: string;
+    progress?: number;
+}> = ({ label, value, subtitle, icon, color, pulse, trend, infoText, progress }) => (
     <div className={`relative overflow-hidden rounded-3xl p-5 sm:p-6 transition-all duration-500 hover:scale-[1.02] hover:shadow-xl
         bg-white/70 dark:bg-white/[0.04] backdrop-blur-xl border border-white/20 dark:border-white/5
-        shadow-[0_4px_24px_0_rgba(31,38,135,0.06)] dark:shadow-[0_4px_24px_0_rgba(0,0,0,0.25)]`}
+        shadow-[0_4px_24px_0_rgba(31,38,135,0.06)] dark:shadow-[0_4px_24px_0_rgba(0,0,0,0.25)] flex flex-col justify-between`}
     >
         {/* Accent Glow */}
         <div className="absolute -top-8 -right-8 w-24 h-24 rounded-full blur-3xl opacity-20" style={{ backgroundColor: color }} />
@@ -30,21 +32,72 @@ const KpiCard: React.FC<{
             <div className={`p-2.5 rounded-2xl`} style={{ backgroundColor: color + '18' }}>
                 <span style={{ color }}>{icon}</span>
             </div>
-            {pulse && (
-                <span className="relative flex h-3 w-3">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500" />
-                </span>
-            )}
-            {trend && trend !== 'neutral' && (
-                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${trend === 'up' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'}`}>
-                    {trend === 'up' ? '↑' : '↓'}
-                </span>
-            )}
+
+            <div className="flex items-center gap-2">
+                {pulse && (
+                    <span className="relative flex h-3 w-3">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500" />
+                    </span>
+                )}
+                {trend && trend !== 'neutral' && (
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${trend === 'up' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'}`}>
+                        {trend === 'up' ? '↑' : '↓'}
+                    </span>
+                )}
+                {infoText && (
+                    <div className="group relative">
+                        <Info size={16} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors cursor-help" />
+                        <div className="pointer-events-none absolute bottom-full -right-2 w-48 mb-2 opacity-0 group-hover:opacity-100 transition-opacity z-50">
+                            <div className="bg-gray-900 border border-gray-700 text-white text-[11px] p-2 rounded-xl shadow-xl">
+                                {infoText}
+                            </div>
+                            <div className="w-2 h-2 bg-gray-900 border-b border-r border-gray-700 transform rotate-45 absolute -bottom-1 right-3"></div>
+                        </div>
+                    </div>
+                )}
+            </div>
         </div>
-        <div className="text-3xl sm:text-4xl font-black tracking-tight text-[#4D5358] dark:text-white">{value}</div>
-        <div className="text-sm font-semibold text-gray-500 dark:text-gray-400 mt-1">{label}</div>
-        {subtitle && <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{subtitle}</div>}
+
+        {progress !== undefined ? (
+            <div className="flex items-center gap-4 mt-2 mb-1">
+                <div className="relative w-14 h-14 shrink-0">
+                    <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                        <path
+                            className="text-gray-200 dark:text-white/10"
+                            strokeWidth="4"
+                            stroke="currentColor"
+                            fill="none"
+                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                        />
+                        <path
+                            strokeDasharray={`${progress}, 100`}
+                            strokeWidth="4"
+                            strokeLinecap="round"
+                            stroke={color}
+                            fill="none"
+                            className="transition-all duration-1000 ease-out drop-shadow-sm"
+                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                        />
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-xs font-black text-[#4D5358] dark:text-white" style={{ color: color, filter: 'brightness(0.9)' }}>
+                            {progress}%
+                        </span>
+                    </div>
+                </div>
+                <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold text-gray-500 dark:text-gray-400 leading-tight">{label}</div>
+                    {subtitle && <div className="text-xs text-gray-400 dark:text-gray-500 mt-1 truncate">{subtitle}</div>}
+                </div>
+            </div>
+        ) : (
+            <>
+                <div className="text-3xl sm:text-4xl font-black tracking-tight text-[#4D5358] dark:text-white mt-1">{value}</div>
+                <div className="text-sm font-semibold text-gray-500 dark:text-gray-400 mt-1">{label}</div>
+                {subtitle && <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{subtitle}</div>}
+            </>
+        )}
     </div>
 );
 
@@ -233,10 +286,12 @@ const DashboardViewComponent: React.FC = () => {
                 <KpiCard
                     label="Servei Cobert"
                     value={`${kpis.serviceCoverage}%`}
-                    subtitle={`${kpis.activeTrains} de ${kpis.scheduledTrains} trens`}
+                    subtitle={`${kpis.activeTrains} de ${kpis.scheduledTrains} trens actius`}
                     icon={<Gauge size={22} strokeWidth={2.5} />}
                     color={kpis.serviceCoverage > 85 ? '#10B981' : kpis.serviceCoverage > 60 ? '#F59E0B' : '#EF4444'}
                     pulse={kpis.serviceCoverage < 80}
+                    progress={kpis.serviceCoverage}
+                    infoText="Percentatge de circulacions actives teòriques cobertes en aquest precís instant."
                 />
                 <KpiCard
                     label="Planificació Diària"
@@ -247,6 +302,7 @@ const DashboardViewComponent: React.FC = () => {
                     icon={<Users size={22} strokeWidth={2.5} />}
                     color={kpis.planningCoverage === 100 ? "#6366F1" : "#EF4444"}
                     pulse={kpis.planningCoverage < 100}
+                    infoText="Indica quants dels torns planificats per avui s'han cobert respecte al total requerit de personal."
                 />
                 <KpiCard
                     label="Reserves"
@@ -255,6 +311,7 @@ const DashboardViewComponent: React.FC = () => {
                     icon={<Shield size={22} strokeWidth={2.5} />}
                     color="#A8D017"
                     pulse={kpis.reserveAvailable === 0}
+                    infoText="Número de maquinistes de recanvi lliures als seus corresponents destacaments, a l'espera de necessitats de servei."
                 />
                 <KpiCard
                     label="Flota Operativa"
@@ -263,6 +320,7 @@ const DashboardViewComponent: React.FC = () => {
                     icon={<Train size={22} strokeWidth={2.5} />}
                     color="#1B79C9"
                     pulse={kpis.brokenTrainUnits > 3}
+                    infoText="Número d'unitats de tren de FGC que es troben actualment disponibles per al servei, un cop restats els que tenen avaria en curs."
                 />
             </div>
 
@@ -271,9 +329,20 @@ const DashboardViewComponent: React.FC = () => {
 
                 {/* Coverage Ring + Line Status */}
                 <GlassPanel className="lg:col-span-4 p-6 space-y-5">
-                    <div className="flex items-center gap-2">
-                        <Radio size={18} className="text-fgc-green" />
-                        <h2 className="text-base font-bold text-[#4D5358] dark:text-white uppercase tracking-wider">Cobertura de Xarxa</h2>
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <Radio size={18} className="text-fgc-green" />
+                            <h2 className="text-base font-bold text-[#4D5358] dark:text-white uppercase tracking-wider">Cobertura de Xarxa</h2>
+                        </div>
+                        <div className="group relative">
+                            <Info size={16} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors cursor-help" />
+                            <div className="pointer-events-none absolute bottom-full -right-2 w-56 mb-2 opacity-0 group-hover:opacity-100 transition-opacity z-50">
+                                <div className="bg-gray-900 border border-gray-700 text-white text-[11px] p-2.5 rounded-xl shadow-xl">
+                                    Aquest gràfic interactiu monotoritza en temps real la quantitat de validacions per cada línia (circulacions en moviment actiu).
+                                </div>
+                                <div className="w-2 h-2 bg-gray-900 border-b border-r border-gray-700 transform rotate-45 absolute -bottom-1 right-3"></div>
+                            </div>
+                        </div>
                     </div>
 
                     <CoverageBarChart lineStatuses={lineStatuses} />
@@ -288,15 +357,26 @@ const DashboardViewComponent: React.FC = () => {
                                 Atenció Requerida
                             </h2>
                         </div>
-                        {alerts.length > 0 && (
-                            <span className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${criticalAlerts.length > 0
-                                ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'
-                                : 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400'
-                                }`}>
-                                <Zap size={12} />
-                                {alerts.length}
-                            </span>
-                        )}
+                        <div className="flex items-center gap-3">
+                            <div className="group relative">
+                                <Info size={16} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors cursor-help" />
+                                <div className="pointer-events-none absolute bottom-full right-0 w-64 mb-2 opacity-0 group-hover:opacity-100 transition-opacity z-50">
+                                    <div className="bg-gray-900 border border-gray-700 text-white text-[11px] p-2.5 rounded-xl shadow-xl">
+                                        Llistat d'alertes detectades al sistema de maquinistes (perfils incomplets principalment, com maquinistes assignats sense nom, o serveis mancats de registres).
+                                    </div>
+                                    <div className="w-2 h-2 bg-gray-900 border-b border-r border-gray-700 transform rotate-45 absolute -bottom-1 right-3"></div>
+                                </div>
+                            </div>
+                            {alerts.length > 0 && (
+                                <span className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${criticalAlerts.length > 0
+                                    ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'
+                                    : 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400'
+                                    }`}>
+                                    <Zap size={12} />
+                                    {alerts.length}
+                                </span>
+                            )}
+                        </div>
                     </div>
 
                     <div className="space-y-2 max-h-80 overflow-y-auto pr-1 custom-scrollbar">
@@ -314,9 +394,20 @@ const DashboardViewComponent: React.FC = () => {
 
                 {/* Reserves Panel */}
                 <GlassPanel className="lg:col-span-3 p-6 space-y-4">
-                    <div className="flex items-center gap-2">
-                        <MapPin size={18} className="text-fgc-green" />
-                        <h2 className="text-base font-bold text-[#4D5358] dark:text-white uppercase tracking-wider">Reserves</h2>
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <MapPin size={18} className="text-fgc-green" />
+                            <h2 className="text-base font-bold text-[#4D5358] dark:text-white uppercase tracking-wider">Reserves</h2>
+                        </div>
+                        <div className="group relative">
+                            <Info size={16} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors cursor-help" />
+                            <div className="pointer-events-none absolute bottom-full right-0 w-56 mb-2 opacity-0 group-hover:opacity-100 transition-opacity z-50">
+                                <div className="bg-gray-900 border border-gray-700 text-white text-[11px] p-2.5 rounded-xl shadow-xl">
+                                    Localització en directe i llistat nominal del personal de reserva classificat per estació d'assignació.
+                                </div>
+                                <div className="w-2 h-2 bg-gray-900 border-b border-r border-gray-700 transform rotate-45 absolute -bottom-1 right-3"></div>
+                            </div>
+                        </div>
                     </div>
 
                     <div className="space-y-2 max-h-80 overflow-y-auto pr-1 custom-scrollbar">
