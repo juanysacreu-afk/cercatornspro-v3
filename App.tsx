@@ -550,7 +550,7 @@ const App: React.FC = () => {
                     setIsProNav(!isProNav);
                     setIsSettingsOpen(false);
                   }}
-                  className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group"
+                  className="hidden lg:flex w-full items-center justify-between p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group"
                 >
                   <div className="flex items-center gap-3">
                     <div className="p-2 rounded-xl bg-gray-100 dark:bg-white/10 text-fgc-grey dark:text-gray-300 group-hover:scale-110 transition-transform">
