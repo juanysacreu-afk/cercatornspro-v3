@@ -364,126 +364,124 @@ const App: React.FC = () => {
         )}
 
         <div className="flex-1 flex flex-col min-w-0 relative">
-          {(!isProNav || isMobileMenuOpen) && (
-            <nav style={{ backgroundColor: isDarkMode ? '#222222' : '#4D5358' }} className="sticky top-0 z-40 dark:backdrop-blur-md text-white shadow-md safe-top border-b border-white/5 transition-all w-full">
-              <div className="w-full px-4 sm:px-6 lg:px-8">
-                <div className="flex items-center justify-between h-20 sm:h-24">
-                  <div
-                    className="flex items-center gap-4 cursor-pointer select-none group"
-                    onDoubleClick={toggleAdminMode}
-                  >
-                    <img
-                      src="https://www.fgc.cat/wp-content/uploads/2020/06/logo-FGC-square.png"
-                      alt="FGC Logo"
-                      className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg object-cover shadow-sm transition-transform active:scale-95 group-hover:brightness-110"
-                    />
-                    <span className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-                      <span className="text-white transition-colors duration-300">Cerca</span>
-                      <span className="text-fgc-green">Torns</span> <span className="pro-badge">PRO</span>
-                    </span>
-                  </div>
+          <nav style={{ backgroundColor: isDarkMode ? '#222222' : '#4D5358' }} className={`sticky top-0 z-40 dark:backdrop-blur-md text-white shadow-md safe-top border-b border-white/5 transition-all w-full ${isProNav ? 'lg:hidden' : ''}`}>
+            <div className="w-full px-4 sm:px-6 lg:px-8">
+              <div className="flex items-center justify-between h-20 sm:h-24">
+                <div
+                  className="flex items-center gap-4 cursor-pointer select-none group"
+                  onDoubleClick={toggleAdminMode}
+                >
+                  <img
+                    src="https://www.fgc.cat/wp-content/uploads/2020/06/logo-FGC-square.png"
+                    alt="FGC Logo"
+                    className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg object-cover shadow-sm transition-transform active:scale-95 group-hover:brightness-110"
+                  />
+                  <span className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+                    <span className="text-white transition-colors duration-300">Cerca</span>
+                    <span className="text-fgc-green">Torns</span> <span className="pro-badge">PRO</span>
+                  </span>
+                </div>
 
-                  <div className="hidden md:flex items-center gap-1">
-                    {navItems.filter((item) => item.id !== AppTab.Mensajeria).map((item) => (
-                      <button
-                        key={item.id}
-                        onClick={() => handleTabChange(item.id)}
-                        className={`relative flex items-center gap-2 px-5 py-2.5 rounded-xl text-base font-semibold transition-all group/nav ${activeTab === item.id
-                          ? 'bg-fgc-green text-fgc-grey shadow-lg shadow-fgc-green/20'
-                          : 'text-gray-300 hover:bg-white/10 hover:text-white'
-                          }`}
-                      >
-                        {item.icon}
-                        {item.label}
-                      </button>
-                    ))}
+                <div className="hidden md:flex items-center gap-1">
+                  {navItems.filter((item) => item.id !== AppTab.Mensajeria).map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => handleTabChange(item.id)}
+                      className={`relative flex items-center gap-2 px-5 py-2.5 rounded-xl text-base font-semibold transition-all group/nav ${activeTab === item.id
+                        ? 'bg-fgc-green text-fgc-grey shadow-lg shadow-fgc-green/20'
+                        : 'text-gray-300 hover:bg-white/10 hover:text-white'
+                        }`}
+                    >
+                      {item.icon}
+                      {item.label}
+                    </button>
+                  ))}
 
-                    <div className="w-px h-8 bg-white/10 mx-3" />
+                  <div className="w-px h-8 bg-white/10 mx-3" />
 
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => handleTabChange(AppTab.Mensajeria)}
-                        title="Missatges"
-                        className={`relative flex items-center justify-center w-12 h-12 rounded-xl transition-all group ${activeTab === AppTab.Mensajeria ? 'bg-fgc-green text-fgc-grey shadow-lg' : 'bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white'}`}
-                      >
-                        <div className="relative">
-                          <MessageCircle size={22} className={activeTab === AppTab.Mensajeria ? '' : 'group-hover:scale-110 transition-transform'} />
-                          {unreadMessages > 0 && <span className="absolute -top-1.5 -right-1.5 flex h-[18px] w-[18px] items-center justify-center rounded-full bg-red-500 ring-2 ring-[#4D5358] dark:ring-[#222222] text-[10px] font-bold text-white shadow-sm animate-in zoom-in">{unreadMessages}</span>}
-                        </div>
-                      </button>
-
-                      <button
-                        onClick={() => setShowUploadModal(true)}
-                        title="Carregar PDF Diari"
-                        className="flex items-center justify-center w-12 h-12 bg-white/10 hover:bg-fgc-green hover:text-fgc-grey rounded-xl transition-all group"
-                      >
-                        <Download size={22} className="group-hover:scale-110 transition-transform" />
-                      </button>
-
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => handleTabChange(AppTab.Mensajeria)}
+                      title="Missatges"
+                      className={`relative flex items-center justify-center w-12 h-12 rounded-xl transition-all group ${activeTab === AppTab.Mensajeria ? 'bg-fgc-green text-fgc-grey shadow-lg' : 'bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white'}`}
+                    >
                       <div className="relative">
-                        <button
-                          ref={!isProNav ? (settingsRef as any) : null}
-                          onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-                          className={`flex items-center justify-center w-12 h-12 rounded-xl transition-all group ${isSettingsOpen && !isProNav ? 'bg-fgc-green text-fgc-grey shadow-lg' : 'bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white'}`}
-                        >
-                          <Settings size={22} className={`transition-transform duration-500 ${isSettingsOpen && !isProNav ? 'rotate-90' : 'group-hover:rotate-45'}`} />
-                        </button>
+                        <MessageCircle size={22} className={activeTab === AppTab.Mensajeria ? '' : 'group-hover:scale-110 transition-transform'} />
+                        {unreadMessages > 0 && <span className="absolute -top-1.5 -right-1.5 flex h-[18px] w-[18px] items-center justify-center rounded-full bg-red-500 ring-2 ring-[#4D5358] dark:ring-[#222222] text-[10px] font-bold text-white shadow-sm animate-in zoom-in">{unreadMessages}</span>}
                       </div>
+                    </button>
+
+                    <button
+                      onClick={() => setShowUploadModal(true)}
+                      title="Carregar PDF Diari"
+                      className="flex items-center justify-center w-12 h-12 bg-white/10 hover:bg-fgc-green hover:text-fgc-grey rounded-xl transition-all group"
+                    >
+                      <Download size={22} className="group-hover:scale-110 transition-transform" />
+                    </button>
+
+                    <div className="relative">
+                      <button
+                        ref={!isProNav ? (settingsRef as any) : null}
+                        onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                        className={`flex items-center justify-center w-12 h-12 rounded-xl transition-all group ${isSettingsOpen && !isProNav ? 'bg-fgc-green text-fgc-grey shadow-lg' : 'bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white'}`}
+                      >
+                        <Settings size={22} className={`transition-transform duration-500 ${isSettingsOpen && !isProNav ? 'rotate-90' : 'group-hover:rotate-45'}`} />
+                      </button>
                     </div>
                   </div>
+                </div>
 
-                  <div className="md:hidden flex items-center gap-2">
-                    <button
-                      ref={settingsRef as any}
-                      onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-                      className={`p-2 rounded-lg text-white hover:bg-white/10 transition-colors ${isSettingsOpen ? 'bg-white/10' : ''}`}
-                    >
-                      <Settings size={24} className={`transition-transform duration-500 ${isSettingsOpen ? 'rotate-90' : ''}`} />
-                    </button>
-                    <button
-                      onClick={() => setIsDarkMode(!isDarkMode)}
-                      className="p-2 rounded-lg text-white hover:bg-white/10 transition-colors"
-                    >
-                      {isDarkMode ? <Moon size={24} /> : <Sun size={24} />}
-                    </button>
-                    <button
-                      onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                      className="p-2 rounded-lg text-white hover:bg-white/10 transition-transform active:scale-90"
-                    >
-                      <div className={`transition-all duration-500 ${isMobileMenuOpen ? 'rotate-90 scale-110' : 'rotate-0 scale-100'}`}>
-                        {isMobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
-                      </div>
-                    </button>
-                  </div>
+                <div className="md:hidden flex items-center gap-2">
+                  <button
+                    ref={settingsRef as any}
+                    onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                    className={`p-2 rounded-lg text-white hover:bg-white/10 transition-colors ${isSettingsOpen ? 'bg-white/10' : ''}`}
+                  >
+                    <Settings size={24} className={`transition-transform duration-500 ${isSettingsOpen ? 'rotate-90' : ''}`} />
+                  </button>
+                  <button
+                    onClick={() => setIsDarkMode(!isDarkMode)}
+                    className="p-2 rounded-lg text-white hover:bg-white/10 transition-colors"
+                  >
+                    {isDarkMode ? <Moon size={24} /> : <Sun size={24} />}
+                  </button>
+                  <button
+                    onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                    className="p-2 rounded-lg text-white hover:bg-white/10 transition-transform active:scale-90"
+                  >
+                    <div className={`transition-all duration-500 ${isMobileMenuOpen ? 'rotate-90 scale-110' : 'rotate-0 scale-100'}`}>
+                      {isMobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
+                    </div>
+                  </button>
                 </div>
               </div>
+            </div>
 
-              <div className={`md:hidden space-y-1 overflow-hidden dynamic-island-menu ${isMobileMenuOpen ? 'dynamic-island-menu-open' : ''}`}>
-                {navItems.map((item, index) => (
-                  <button
-                    key={item.id}
-                    onClick={() => handleTabChange(item.id)}
-                    className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-lg font-bold transition-all active:scale-95 menu-item-stagger ${activeTab === item.id ? 'bg-fgc-green text-fgc-grey' : 'text-fgc-grey/70 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5'}`}
-                    style={{ transitionDelay: `${index * 50}ms` }}
-                  >
-                    {item.icon}
-                    {item.label}
-                  </button>
-                ))}
+            <div className={`md:hidden space-y-1 overflow-hidden dynamic-island-menu ${isMobileMenuOpen ? 'dynamic-island-menu-open' : ''}`}>
+              {navItems.map((item, index) => (
                 <button
-                  onClick={() => {
-                    setShowUploadModal(true);
-                    setIsMobileMenuOpen(false);
-                  }}
-                  className="w-full flex items-center gap-4 px-6 py-4 text-fgc-green font-bold text-lg border-t border-black/5 dark:border-white/5 mt-4 menu-item-stagger"
-                  style={{ transitionDelay: `${navItems.length * 50}ms` }}
+                  key={item.id}
+                  onClick={() => handleTabChange(item.id)}
+                  className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-lg font-bold transition-all active:scale-95 menu-item-stagger ${activeTab === item.id ? 'bg-fgc-green text-fgc-grey' : 'text-fgc-grey/70 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5'}`}
+                  style={{ transitionDelay: `${index * 50}ms` }}
                 >
-                  <Download size={20} />
-                  Carregar PDF Diari
+                  {item.icon}
+                  {item.label}
                 </button>
-              </div>
-            </nav>
-          )}
+              ))}
+              <button
+                onClick={() => {
+                  setShowUploadModal(true);
+                  setIsMobileMenuOpen(false);
+                }}
+                className="w-full flex items-center gap-4 px-6 py-4 text-fgc-green font-bold text-lg border-t border-black/5 dark:border-white/5 mt-4 menu-item-stagger"
+                style={{ transitionDelay: `${navItems.length * 50}ms` }}
+              >
+                <Download size={20} />
+                Carregar PDF Diari
+              </button>
+            </div>
+          </nav>
 
           {/* Settings Dropdown - Now always accessible and correctly positioned */}
           {isSettingsOpen && (
