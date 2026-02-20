@@ -62,20 +62,20 @@ const KpiCard: React.FC<{
         </div>
 
         {progress !== undefined ? (
-            <div className="relative z-10 flex flex-col justify-end mt-1 mb-0.5">
-                <div className="flex items-center gap-4 sm:gap-5">
-                    <div className="relative w-22 h-22 sm:w-[96px] sm:h-[96px] shrink-0">
+            <div className="relative z-10 flex flex-col justify-end mt-1 sm:mt-2 mb-0.5">
+                <div className="flex flex-col 2xl:flex-row items-start 2xl:items-center gap-3 sm:gap-4">
+                    <div className="relative w-[72px] h-[72px] sm:w-[84px] sm:h-[84px] 2xl:w-[96px] 2xl:h-[96px] shrink-0">
                         <svg className="w-full h-full transform -rotate-90 drop-shadow-sm" viewBox="0 0 36 36">
                             <path
                                 className="text-black/5 dark:text-white/5"
-                                strokeWidth="2.8"
+                                strokeWidth="3"
                                 stroke="currentColor"
                                 fill="none"
                                 d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                             />
                             <path
                                 strokeDasharray={`${progress}, 100`}
-                                strokeWidth="2.8"
+                                strokeWidth="3"
                                 strokeLinecap="round"
                                 stroke={color}
                                 fill="none"
@@ -85,14 +85,14 @@ const KpiCard: React.FC<{
                             />
                         </svg>
                         <div className="absolute inset-0 flex flex-col items-center justify-center">
-                            <span className="text-[22px] sm:text-[28px] font-black leading-none tracking-tighter translate-y-[2px]" style={{ color }}>
-                                {progress}<span className="text-xs sm:text-base tracking-normal font-bold opacity-70 ml-[2px]">%</span>
+                            <span className="text-xl sm:text-2xl 2xl:text-[28px] font-black leading-none tracking-tighter translate-y-[2px]" style={{ color }}>
+                                {progress}<span className="text-[10px] sm:text-sm 2xl:text-base tracking-normal font-bold opacity-70 ml-[2px]">%</span>
                             </span>
                         </div>
                     </div>
                     <div className="min-w-0 flex-1">
-                        <div className="text-base sm:text-lg font-bold text-[#4D5358] dark:text-white leading-tight uppercase tracking-wide">{label}</div>
-                        {subtitle && <div className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400 mt-1 sm:mt-1.5 leading-snug">{subtitle}</div>}
+                        <div className="text-sm sm:text-base 2xl:text-lg font-bold text-[#4D5358] dark:text-white leading-tight uppercase tracking-wide">{label}</div>
+                        {subtitle && <div className="text-[11px] sm:text-xs 2xl:text-sm font-medium text-gray-500 dark:text-gray-400 mt-1 leading-snug">{subtitle}</div>}
                     </div>
                 </div>
             </div>
