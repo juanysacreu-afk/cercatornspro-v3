@@ -195,6 +195,15 @@ const App: React.FC = () => {
     localStorage.setItem('proNav', isProNav.toString());
   }, [isProNav]);
 
+  // AUTO-RECOVERY: If user is trapped in ProNav on mobile due to a previous bug,
+  // forcefully disable it on load so they get their top navbar back.
+  useEffect(() => {
+    if (isProNav && window.innerWidth < 1024) {
+      setIsProNav(false);
+      localStorage.setItem('proNav', 'false');
+    }
+  }, []);
+
   const [parkedUnits, setParkedUnits] = useState<ParkedUnit[]>([]);
 
   const handleShare = useCallback(async (title: string, text: string, url: string = window.location.href, files?: File[]) => {
