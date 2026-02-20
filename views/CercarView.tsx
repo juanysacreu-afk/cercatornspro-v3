@@ -32,7 +32,7 @@ const CercarViewComponent: React.FC<{
   externalSearch?: { type: string, query: string } | null,
   onExternalSearchHandled?: () => void
 }> = ({ isPrivacyMode, externalSearch, onExternalSearchHandled }) => {
-  const [searchType, setSearchType] = useState<SearchType>(SearchType.Torn);
+  const [searchType, setSearchType] = useState<SearchType | 'general'>(SearchType.Torn);
   const { showToast } = useToast();
   const [selectedServei, setSelectedServei] = useState<string>(getServiceToday());
   const [query, setQuery] = useState('');
@@ -241,9 +241,10 @@ const CercarViewComponent: React.FC<{
   };
 
   const filterButtons = [
-    { id: SearchType.Torn, label: 'Torn', icon: <Hash size={16} /> },
-    { id: SearchType.Maquinista, label: 'Maquinista', icon: <User size={16} /> },
-    { id: SearchType.Circulacio, label: 'Circulació', icon: <Train size={16} /> },
+    { id: 'general' as const, label: 'Torn / Maq / Circ', icon: <Hash size={16} />, mobileOnly: true },
+    { id: SearchType.Torn, label: 'Torn', icon: <Hash size={16} />, desktopOnly: true },
+    { id: SearchType.Maquinista, label: 'Maquinista', icon: <User size={16} />, desktopOnly: true },
+    { id: SearchType.Circulacio, label: 'Circulació', icon: <Train size={16} />, desktopOnly: true },
     { id: SearchType.Estacio, label: 'Estació', icon: <MapPin size={16} /> },
     { id: SearchType.Cicle, label: 'Cicle', icon: <Hash size={16} /> },
   ];
@@ -342,18 +343,36 @@ const CercarViewComponent: React.FC<{
       if (searchType === SearchType.Cicle) { setSuggestions(availableCycles.slice(0, 12)); setShowSuggestions(true); } else { setSuggestions([]); setShowSuggestions(false); }
       return;
     }
-    if (searchType === SearchType.Torn) {
+
+    // For general search on mobile, predict the type
+    let st = searchType;
+    if (st === 'general') {
+      if (val.match(/\((\d+)\)/) || /[a-zA-Z]/.test(val) && !val.match(/^Q/i)) {
+        // looks like maquinista (has parens or letters that aren't starting with Q)
+        // checking if it looks like circulation (pure numbers mostly, 3-5 digits typically)
+        if (/^\d{3,5}$/.test(val) && !val.includes('(')) st = SearchType.Circulacio;
+        else st = SearchType.Maquinista;
+      } else if (/^\d+$/.test(val) || /^Q/i.test(val)) {
+        st = SearchType.Torn;
+      }
+    }
+
+    if (st === SearchType.Torn || (st as any) === 'general') {
       let q = supabase.from('shifts').select('id').ilike('id', `%${val}%`);
       if (selectedServei !== 'Tots') q = q.eq('servei', selectedServei);
       const { data } = await q.limit(8);
-      if (data) { setSuggestions((data as any[]).map(item => item.id as string)); setShowSuggestions(true); }
-    } else if (searchType === SearchType.Maquinista) {
+      if (data && data.length > 0) { setSuggestions((data as any[]).map(item => item.id as string)); setShowSuggestions(true); }
+      else if (searchType === 'general') {
+        const { data: d2 } = await supabase.from('daily_assignments').select('nom, cognoms, empleat_id').or(`nom.ilike.%${val}%,cognoms.ilike.%${val}%,empleat_id.ilike.%${val}%`).limit(8);
+        if (d2 && d2.length > 0) { const unique = Array.from(new Set((d2 as any[]).map(d => `${d.cognoms || ''}, ${d.nom || ''} (${d.empleat_id})`))) as string[]; setSuggestions(unique); setShowSuggestions(true); }
+      }
+    } else if (st === SearchType.Maquinista) {
       const { data } = await supabase.from('daily_assignments').select('nom, cognoms, empleat_id').or(`nom.ilike.%${val}%,cognoms.ilike.%${val}%,empleat_id.ilike.%${val}%`).limit(8);
       if (data) { const unique = Array.from(new Set((data as any[]).map(d => `${d.cognoms || ''}, ${d.nom || ''} (${d.empleat_id})`))) as string[]; setSuggestions(unique); setShowSuggestions(true); }
-    } else if (searchType === SearchType.Circulacio) {
+    } else if (st === SearchType.Circulacio) {
       const { data } = await supabase.from('circulations').select('id').ilike('id', `%${val}%`).limit(8);
       if (data) { setSuggestions((data as any[]).map(item => item.id as string)); setShowSuggestions(true); }
-    } else if (searchType === SearchType.Cicle) {
+    } else if (st === SearchType.Cicle) {
       const filtered = availableCycles.filter(c => normalizeStr(c).includes(normalizeStr(val))).slice(0, 12);
       setSuggestions(filtered); setShowSuggestions(true);
     }
@@ -479,8 +498,20 @@ const CercarViewComponent: React.FC<{
       } else {
         let turnIds: string[] = [];
 
+        let st = currentType;
+        if (st === 'general') {
+          if (searchVal.match(/\((\d+)\)/) || (/[a-zA-Z]/.test(searchVal) && !searchVal.match(/^Q/i))) {
+            if (/^\d{3,5}$/.test(searchVal) && !searchVal.includes('(')) st = SearchType.Circulacio;
+            else st = SearchType.Maquinista;
+          } else if (/^\d+$/.test(searchVal) || /^Q/i.test(searchVal)) {
+            st = SearchType.Torn;
+          } else {
+            st = SearchType.Circulacio; // fallback
+          }
+        }
+
         if (isOfflineMode) {
-          switch (currentType) {
+          switch (st) {
             case SearchType.Torn:
               turnIds = await offlineSearchTurnIds(searchVal, selectedServei);
               break;
@@ -493,7 +524,7 @@ const CercarViewComponent: React.FC<{
           }
           if (turnIds.length > 0) newResults = await offlineFetchFullTurns(turnIds.slice(0, 50), selectedServei === 'Tots' ? undefined : selectedServei); else newResults = [];
         } else {
-          switch (currentType) {
+          switch (st) {
             case SearchType.Torn:
               let qt = supabase.from('shifts').select('id');
               const isNumeric = /^\d+$/.test(searchVal);
@@ -605,7 +636,11 @@ const CercarViewComponent: React.FC<{
           <div className="absolute top-0 right-0 w-64 h-64 bg-fgc-green/5 blur-3xl -mr-32 -mt-32" />
         </div>
         <div className="flex overflow-x-auto w-full -mx-6 px-6 sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] gap-2 sm:gap-3 mb-6 sm:mb-8 pb-1">
-          {filterButtons.map((btn) => (<button key={btn.id} onClick={() => { feedback.click(); setSearchType(btn.id); setResults([]); setQuery(''); setSuggestions([]); setShowSuggestions(false); }} className={`flex-shrink-0 flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all ${searchType === btn.id ? 'bg-fgc-green text-[#4D5358] shadow-xl shadow-fgc-green/20' : 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/10'}`}>{btn.icon}{btn.label}</button>))}
+          {filterButtons.map((btn) => (
+            <button key={btn.id} onClick={() => { feedback.click(); setSearchType(btn.id); setResults([]); setQuery(''); setSuggestions([]); setShowSuggestions(false); }} className={`flex-shrink-0 flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all ${btn.mobileOnly ? 'md:hidden' : ''} ${btn.desktopOnly ? 'hidden md:flex' : ''} ${searchType === btn.id ? 'bg-fgc-green text-[#4D5358] shadow-xl shadow-fgc-green/20' : 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/10'}`}>
+              {btn.icon}{btn.label}
+            </button>
+          ))}
         </div>
         <div className="md:hidden w-full mb-6">
           <button onClick={handleSync} disabled={syncing || isOfflineMode} className={`w-full flex justify-center items-center gap-2 px-4 py-3 rounded-2xl text-sm font-bold transition-all border ${isOfflineMode ? 'opacity-50 cursor-not-allowed border-gray-200 dark:border-white/5 bg-gray-100 dark:bg-white/5 text-gray-400' : 'border-fgc-green/50 text-fgc-green hover:bg-fgc-green hover:text-[#4D5358] bg-fgc-green/10 group shadow-sm shadow-fgc-green/10'}`}>
@@ -678,7 +713,7 @@ const CercarViewComponent: React.FC<{
                   name="search-query"
                   autoComplete="off"
                   data-1p-ignore="true"
-                  placeholder={`Cerca per ${searchType.toUpperCase()}...`}
+                  placeholder={searchType === 'general' ? 'Cerca torn, maquinista o circulació...' : `Cerca per ${searchType.toUpperCase()}...`}
                   className="relative z-10 w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] sm:rounded-[32px] py-4 sm:py-6 pl-14 sm:pl-16 pr-14 sm:pr-16 focus:ring-4 focus:ring-fgc-green/20 outline-none text-lg sm:text-2xl font-bold placeholder:text-gray-300 dark:text-white dark:placeholder:text-gray-600 transition-all shadow-inner"
                   value={query}
                   onChange={(e) => handleInputChange(e.target.value)}
