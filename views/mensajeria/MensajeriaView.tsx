@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Send, Hash, MoreVertical, MessageCircle, AlertTriangle, Paperclip, CheckCircle } from 'lucide-react';
 import GlassPanel from '../../components/common/GlassPanel';
-import { sendTelegramMessage, getTelegramUpdates } from '../../src/lib/telegram';
+import { sendTelegramMessage, getTelegramUpdates, getTelegramMemberCount } from '../../src/lib/telegram';
+import { supabase } from '../../supabaseClient';
 
 interface UserProfile {
     id?: string;
@@ -24,41 +25,55 @@ interface Message {
     created_at: string;
 }
 
-const DUMMY_MESSAGES: Message[] = [
-    {
-        id: '1',
-        text: '⚠️ S1 interrompuda entre Sant Cugat i Terrassa per avaria d\'agulles a Rubí. Bus alternatiu en marxa.',
-        sender_name: 'Marcos Lopez',
-        sender_id: 'current-user-id', // Simulando que lo envió el bot / auto
-        is_alert: true,
-        created_at: new Date(Date.now() - 3600000).toISOString() // hace 1 hora
-    },
-    {
-        id: '2',
-        text: 'Entesos. He avisat a les estacions de la línia S1 afectades per megafonia.',
-        sender_name: 'Laura Sanchez',
-        sender_id: 'other',
-        is_alert: false,
-        created_at: new Date(Date.now() - 3500000).toISOString()
-    },
-    {
-        id: '3',
-        text: 'Tècnics ja treballant en la incidència. Temps estimat de resolució: 45 minuts.',
-        sender_name: 'Manteniment',
-        sender_id: 'bot',
-        is_alert: false,
-        created_at: new Date(Date.now() - 3000000).toISOString()
-    }
-];
-
 const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
-    const [messages, setMessages] = useState<Message[]>(DUMMY_MESSAGES);
+    const [messages, setMessages] = useState<Message[]>([]);
     const [inputText, setInputText] = useState('');
+    const [memberCount, setMemberCount] = useState<number>(0);
 
     const currentUserId = currentProfile.id || 'current-user-id';
     const [lastUpdateId, setLastUpdateId] = useState<number | undefined>(undefined);
 
-    // Sistema de validación (Polling) per escoltar missatges nous
+    // Fetch initial chat data
+    useEffect(() => {
+        const fetchInitialData = async () => {
+            // 1. Get real member count
+            const { success: mcSuccess, data: mcData } = await getTelegramMemberCount();
+            if (mcSuccess && mcData) {
+                setMemberCount(mcData);
+            }
+
+            // 2. Load last 24h messages from Supabase
+            const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+            const { data, error } = await supabase
+                .from('telegram_messages')
+                .select('*')
+                .gte('created_at', twentyFourHoursAgo)
+                .order('created_at', { ascending: true });
+
+            if (data && !error) {
+                setMessages(data as Message[]);
+            }
+        };
+
+        fetchInitialData();
+
+        // 3. Subscribe to real-time incoming messages from other supervisors
+        const subscription = supabase.channel('telegram_messages_changes')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'telegram_messages' }, payload => {
+                const newMsg = payload.new as Message;
+                setMessages(prev => {
+                    if (prev.find(m => m.id === newMsg.id)) return prev;
+                    return [...prev, newMsg];
+                });
+            })
+            .subscribe();
+
+        return () => {
+            subscription.unsubscribe();
+        };
+    }, []);
+
+    // Sistema de validación (Polling) per escoltar missatges nous de Telegram directly
     useEffect(() => {
         let isMounted = true;
         let intervalId: any;
@@ -87,11 +102,15 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                 });
 
                 if (newMsgs.length > 0 && isMounted) {
+                    // Actualitzem localment
                     setMessages(prev => {
                         const existingIds = new Set(prev.map(m => m.id));
                         const filtered = newMsgs.filter(m => !existingIds.has(m.id));
                         return [...prev, ...filtered];
                     });
+
+                    // Ho desem directament a Supabase per sincronitzar history amb la resta
+                    await supabase.from('telegram_messages').upsert(newMsgs, { onConflict: 'id' });
                 }
 
                 if (maxUpdateId >= (lastUpdateId || 0) && isMounted) {
@@ -123,23 +142,29 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
         // We will format the text sent to Telegram to show who sent it
         const formattedTelegramMsg = `👤 <b>${currentProfile.firstName} ${currentProfile.lastName}</b>\n💬 ${visualText}`;
 
-        const newMessage: Message = {
-            id: Date.now().toString(),
-            text: visualText,
-            sender_name: `${currentProfile.firstName} ${currentProfile.lastName}`,
-            sender_id: currentUserId,
-            is_alert: isAlert,
-            created_at: new Date().toISOString()
-        };
+        // Send to Telegram API FIRST to know it was delivered safely (optional, but good practice here)
+        const { success, data, error } = await sendTelegramMessage(formattedTelegramMsg);
 
-        setMessages((prev) => [...prev, newMessage]);
+        if (success && data) {
+            // Create the permanent record locally and on DB exactly with the official ID so it doesn't double-poll
+            const newMessage: Message = {
+                id: data.message_id.toString(),
+                text: visualText,
+                sender_name: `${currentProfile.firstName} ${currentProfile.lastName}`,
+                sender_id: currentUserId,
+                is_alert: isAlert,
+                created_at: new Date().toISOString()
+            };
 
-        // Actually send to Telegram API
-        const { success, error } = await sendTelegramMessage(formattedTelegramMsg);
+            setMessages((prev) => {
+                if (prev.find(m => m.id === newMessage.id)) return prev;
+                return [...prev, newMessage];
+            });
 
-        if (!success) {
+            // Store it in the DB to make sure history is synced for other Web clients
+            await supabase.from('telegram_messages').upsert([newMessage], { onConflict: 'id' });
+        } else {
             console.error("Failed to send to Telegram", error);
-            // Optionally could show a toast or remove the message
         }
     };
 
@@ -195,7 +220,7 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                         <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-2">
                             <span className="flex items-center gap-1"><CheckCircle className="text-fgc-green" size={12} /> Telegram Sincronitzat</span>
                             <span className="opacity-50">•</span>
-                            <span>12 membres</span>
+                            <span>{memberCount > 0 ? `${memberCount} membres` : 'Cargant...'}</span>
                         </div>
                     </div>
                     <button className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
