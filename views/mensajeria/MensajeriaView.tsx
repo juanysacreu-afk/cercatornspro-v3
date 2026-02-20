@@ -199,9 +199,9 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
 
     // Group messages logically (just a simple mapping for now)
     return (
-        <div className="h-full flex gap-6 pb-6">
+        <div className="h-full flex flex-col md:flex-row gap-4 md:gap-6 pb-20 md:pb-6">
             {/* Sidebar: Chats / Canales */}
-            <GlassPanel className="w-80 flex-shrink-0 flex flex-col overflow-hidden bg-white/80 dark:bg-gray-950/80 border border-gray-100 dark:border-white/5 shadow-xl">
+            <GlassPanel className="hidden md:flex w-80 flex-shrink-0 flex-col overflow-hidden bg-white/80 dark:bg-gray-950/80 border border-gray-100 dark:border-white/5 shadow-xl">
                 <div className="p-5 border-b border-gray-100 dark:border-white/5">
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
                         <MessageCircle className="text-fgc-green" /> Centre de Missatgeria
@@ -235,14 +235,14 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
             </GlassPanel>
 
             {/* Main Chat Area */}
-            <GlassPanel className="flex-1 flex flex-col overflow-hidden bg-white/90 dark:bg-gray-950/90 border border-gray-100 dark:border-white/5 shadow-xl relative">
-                <div className="p-[22px] border-b border-gray-100 dark:border-white/5 flex justify-between items-center bg-white/50 dark:bg-black/20 backdrop-blur-md z-10">
+            <GlassPanel className="flex-1 flex flex-col overflow-hidden bg-white/90 dark:bg-gray-950/90 border border-gray-100 dark:border-white/5 shadow-xl relative w-full">
+                <div className="p-4 md:p-[22px] border-b border-gray-100 dark:border-white/5 flex justify-between items-center bg-white/50 dark:bg-black/20 backdrop-blur-md z-10">
                     <div>
-                        <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                            <Hash className="text-gray-400" size={20} /> Grup de Supervisors Operatius
+                        <h2 className="text-base md:text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                            <Hash className="text-gray-400" size={18} /> Grup de Supervisors Operatius
                         </h2>
                         <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-2">
-                            <span className="flex items-center gap-1"><CheckCircle className="text-fgc-green" size={12} /> Telegram Sincronitzat</span>
+                            <span className="flex items-center gap-1"><CheckCircle className="text-fgc-green" size={12} /> Sincronitzat</span>
                             <span className="opacity-50">•</span>
                             <span>{memberCount > 0 ? `${memberCount} membres` : 'Cargant...'}</span>
                         </div>
@@ -253,7 +253,7 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                 </div>
 
                 {/* Messages List */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-gradient-to-b from-transparent to-black/[0.02] dark:to-white/[0.01]">
+                <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 md:space-y-6 bg-gradient-to-b from-transparent to-black/[0.02] dark:to-white/[0.01]">
                     {messages.map((msg, index) => {
                         const isMe = msg.sender_id === currentUserId;
                         const showName = index === 0 || messages[index - 1].sender_id !== msg.sender_id;
@@ -282,22 +282,22 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                                 {showName && isMe && (
                                     <span className="text-[11px] font-bold text-gray-400 dark:text-gray-500 mb-1 mr-2">Tu</span>
                                 )}
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1 md:gap-2 w-full max-w-[85%] md:max-w-[75%]">
                                     {canDelete && isMe && (
                                         <button
                                             onClick={() => handleDeleteMessage(msg.id)}
-                                            className="opacity-0 group-hover/msg:opacity-100 p-1.5 text-red-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-full transition-all"
+                                            className="opacity-100 md:opacity-0 group-hover/msg:opacity-100 p-1.5 text-red-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-full transition-all flex-shrink-0"
                                             title="Esborrar missatge"
                                         >
                                             <Trash2 size={14} />
                                         </button>
                                     )}
 
-                                    <div className={`relative max-w-[75%] px-4 py-2.5 rounded-2xl shadow-sm ${isMe
+                                    <div className={`relative px-3 py-2 md:px-4 md:py-2.5 rounded-2xl shadow-sm w-full ${isMe
                                         ? 'bg-fgc-green text-gray-900 rounded-tr-sm'
                                         : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border border-gray-100 dark:border-white/5 rounded-tl-sm'
                                         }`}>
-                                        <p className="text-[15px] leading-snug">{msg.text}</p>
+                                        <p className="text-[14px] md:text-[15px] leading-snug break-words">{msg.text}</p>
                                         <div className={`text-[10px] mt-1 flex items-center justify-end gap-1 ${isMe ? 'text-gray-900/60' : 'text-gray-400'}`}>
                                             {formatTime(msg.created_at)}
                                             {isMe && <CheckCircle size={10} className="opacity-70" />}
@@ -307,7 +307,7 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                                     {canDelete && !isMe && (
                                         <button
                                             onClick={() => handleDeleteMessage(msg.id)}
-                                            className="opacity-0 group-hover/msg:opacity-100 p-1.5 text-red-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-full transition-all"
+                                            className="opacity-100 md:opacity-0 group-hover/msg:opacity-100 p-1.5 text-red-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-full transition-all flex-shrink-0"
                                             title="Esborrar missatge d'un altre"
                                         >
                                             <Trash2 size={14} />
@@ -321,22 +321,22 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                 </div>
 
                 {/* Input Area */}
-                <div className="p-4 bg-white dark:bg-gray-950 border-t border-gray-100 dark:border-white/5">
-                    <form onSubmit={handleSendMessage} className="flex gap-2">
-                        <button type="button" className="p-3 text-gray-400 hover:text-fgc-green hover:bg-fgc-green/10 rounded-xl transition-colors">
+                <div className="p-3 md:p-4 bg-white dark:bg-gray-950 border-t border-gray-100 dark:border-white/5">
+                    <form onSubmit={handleSendMessage} className="flex gap-1 md:gap-2">
+                        <button type="button" className="p-2 md:p-3 text-gray-400 hover:text-fgc-green hover:bg-fgc-green/10 rounded-xl transition-colors shrink-0">
                             <Paperclip size={20} />
                         </button>
                         <input
                             type="text"
                             value={inputText}
                             onChange={(e) => setInputText(e.target.value)}
-                            placeholder="Escriu un missatge al grup de Telegram..."
-                            className="flex-1 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:border-fgc-green focus:ring-1 focus:ring-fgc-green transition-all"
+                            placeholder="Escriu un missatge..."
+                            className="flex-1 min-w-0 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-3 py-2.5 md:px-4 md:py-3 text-sm md:text-base text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:border-fgc-green focus:ring-1 focus:ring-fgc-green transition-all"
                         />
                         <button
                             type="submit"
                             disabled={!inputText.trim()}
-                            className="p-3 bg-fgc-green text-white rounded-xl hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 transition-all flex items-center justify-center shadow-lg shadow-fgc-green/20"
+                            className="p-2 md:p-3 bg-fgc-green text-white rounded-xl hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 transition-all flex items-center justify-center shadow-lg shadow-fgc-green/20 shrink-0"
                         >
                             <Send size={20} className={inputText.trim() ? "translate-x-0.5 -translate-y-0.5" : ""} />
                         </button>
