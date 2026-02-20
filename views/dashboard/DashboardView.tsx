@@ -262,9 +262,9 @@ const DashboardViewComponent: React.FC = () => {
     }
 
     return (
-        <div className="space-y-6 sm:space-y-8 p-4 sm:p-8 animate-in fade-in duration-700">
+        <div className="flex flex-col lg:h-[calc(100vh-110px)] space-y-6 sm:space-y-8 p-4 sm:p-8 animate-in fade-in duration-700">
             {/* Header */}
-            <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+            <header className="flex-none flex flex-col sm:flex-row sm:items-end justify-between gap-4">
                 <div>
                     <h1 className="text-2xl sm:text-3xl font-bold text-[#4D5358] dark:text-white tracking-tight uppercase title-glow flex items-center gap-3">
                         <Zap className="text-fgc-green" size={28} strokeWidth={2.5} />
@@ -287,7 +287,7 @@ const DashboardViewComponent: React.FC = () => {
             </header>
 
             {/* KPI Cards Row */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="flex-none grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <KpiCard
                     label="Servei Cobert"
                     value={`${kpis.serviceCoverage}%`}
@@ -330,10 +330,10 @@ const DashboardViewComponent: React.FC = () => {
             </div>
 
             {/* Main Grid: Bento Layout */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-5">
 
                 {/* Coverage Ring + Line Status */}
-                <GlassPanel className="lg:col-span-4 p-6 space-y-5">
+                <GlassPanel className="lg:col-span-4 p-6 flex flex-col gap-5">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <Radio size={18} className="text-fgc-green" />
@@ -354,7 +354,7 @@ const DashboardViewComponent: React.FC = () => {
                 </GlassPanel>
 
                 {/* Alerts Panel */}
-                <GlassPanel className="lg:col-span-5 p-6 space-y-4">
+                <GlassPanel className="lg:col-span-5 p-6 flex flex-col overflow-hidden gap-4">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <AlertTriangle size={18} className="text-amber-500" />
@@ -384,7 +384,7 @@ const DashboardViewComponent: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="space-y-2 max-h-80 overflow-y-auto pr-1 custom-scrollbar">
+                    <div className="flex-1 min-h-0 overflow-y-auto pr-1 custom-scrollbar space-y-2">
                         {criticalAlerts.map(a => <AlertRow key={a.id} alert={a} />)}
                         {warningAlerts.map(a => <AlertRow key={a.id} alert={a} />)}
                         {alerts.length === 0 && (
@@ -398,7 +398,7 @@ const DashboardViewComponent: React.FC = () => {
                 </GlassPanel>
 
                 {/* Reserves Panel */}
-                <GlassPanel className="lg:col-span-3 p-6 space-y-4">
+                <GlassPanel className="lg:col-span-3 p-6 flex flex-col overflow-hidden gap-4">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <MapPin size={18} className="text-fgc-green" />
@@ -415,7 +415,7 @@ const DashboardViewComponent: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="space-y-2 max-h-80 overflow-y-auto pr-1 custom-scrollbar">
+                    <div className="flex-1 min-h-0 overflow-y-auto pr-1 custom-scrollbar space-y-2">
                         {reserves.map(r => <ReserveCard key={r.station} slot={r} />)}
                         {reserves.length === 0 && (
                             <div className="flex flex-col items-center justify-center py-8 text-gray-400">
@@ -426,7 +426,7 @@ const DashboardViewComponent: React.FC = () => {
                         )}
                     </div>
 
-                    <div className="pt-3 border-t border-gray-100 dark:border-white/5">
+                    <div className="flex-none pt-3 border-t border-gray-100 dark:border-white/5">
                         <div className="text-xs text-gray-400 dark:text-gray-500 flex justify-between">
                             <span>Total reserves</span>
                             <span className="font-bold text-[#4D5358] dark:text-white">{kpis.reserveAvailable}</span>
