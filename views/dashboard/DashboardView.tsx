@@ -21,14 +21,16 @@ const KpiCard: React.FC<{
     infoText?: string;
     progress?: number;
 }> = ({ label, value, subtitle, icon, color, pulse, trend, infoText, progress }) => (
-    <div className={`relative overflow-hidden rounded-3xl p-5 sm:p-6 transition-all duration-500 hover:scale-[1.02] hover:shadow-xl
+    <div className={`relative rounded-3xl p-5 sm:p-6 transition-all duration-500 hover:scale-[1.02] hover:shadow-xl
         bg-white/70 dark:bg-white/[0.04] backdrop-blur-xl border border-white/20 dark:border-white/5
         shadow-[0_4px_24px_0_rgba(31,38,135,0.06)] dark:shadow-[0_4px_24px_0_rgba(0,0,0,0.25)] flex flex-col justify-between`}
     >
         {/* Accent Glow */}
-        <div className="absolute -top-8 -right-8 w-24 h-24 rounded-full blur-3xl opacity-20" style={{ backgroundColor: color }} />
+        <div className="absolute inset-0 overflow-hidden rounded-3xl pointer-events-none">
+            <div className="absolute -top-8 -right-8 w-24 h-24 rounded-full blur-3xl opacity-20" style={{ backgroundColor: color }} />
+        </div>
 
-        <div className="flex items-start justify-between mb-3">
+        <div className="relative z-10 flex items-start justify-between mb-3">
             <div className={`p-2.5 rounded-2xl`} style={{ backgroundColor: color + '18' }}>
                 <span style={{ color }}>{icon}</span>
             </div>
@@ -60,7 +62,7 @@ const KpiCard: React.FC<{
         </div>
 
         {progress !== undefined ? (
-            <div className="flex items-center gap-4 mt-2 mb-1">
+            <div className="relative z-10 flex items-center gap-4 mt-2 mb-1">
                 <div className="relative w-14 h-14 shrink-0">
                     <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
                         <path
@@ -92,11 +94,11 @@ const KpiCard: React.FC<{
                 </div>
             </div>
         ) : (
-            <>
+            <div className="relative z-10">
                 <div className="text-3xl sm:text-4xl font-black tracking-tight text-[#4D5358] dark:text-white mt-1">{value}</div>
                 <div className="text-sm font-semibold text-gray-500 dark:text-gray-400 mt-1">{label}</div>
                 {subtitle && <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{subtitle}</div>}
-            </>
+            </div>
         )}
     </div>
 );
