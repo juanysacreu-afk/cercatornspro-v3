@@ -70,10 +70,10 @@ const App: React.FC = () => {
     const saved = localStorage.getItem('user_profile');
     if (saved) return JSON.parse(saved);
     return {
-      firstName: 'Marcos',
-      lastName: 'Lopez',
-      email: 'mlopez@fgc.cat',
-      role: 'FGC Operacions'
+      firstName: '',
+      lastName: '',
+      email: '',
+      role: ''
     };
   });
 
@@ -130,7 +130,11 @@ const App: React.FC = () => {
             setUserProfile(profile);
             localStorage.setItem('user_profile', JSON.stringify(profile));
           }
+        } else if (!parsed.email) {
+          setIsProfileModalOpen(true);
         }
+      } else {
+        setIsProfileModalOpen(true);
       }
     };
     fetchProfile();
@@ -649,6 +653,7 @@ const App: React.FC = () => {
         onClose={() => setIsProfileModalOpen(false)}
         currentProfile={userProfile}
         onSave={handleProfileUpdate}
+        isMandatory={!userProfile.email}
       />
     </div>
   );

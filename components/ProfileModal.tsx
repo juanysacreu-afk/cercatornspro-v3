@@ -18,9 +18,10 @@ interface ProfileModalProps {
     onClose: () => void;
     currentProfile: UserProfile;
     onSave: (profile: UserProfile) => void;
+    isMandatory?: boolean;
 }
 
-const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, currentProfile, onSave }) => {
+const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, currentProfile, onSave, isMandatory = false }) => {
     const [formData, setFormData] = useState<UserProfile>(currentProfile);
     const [isSearching, setIsSearching] = useState(false);
     const { showToast } = useToast();
@@ -29,8 +30,14 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, currentPro
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        if (isMandatory && (!formData.firstName || !formData.lastName || !formData.email)) {
+            showToast('Siusplau, completa totes les dades', 'error');
+            return;
+        }
         onSave(formData);
-        onClose();
+        if (!isMandatory || (formData.firstName && formData.lastName && formData.email)) {
+            onClose();
+        }
     };
 
     const handleLogin = async () => {
@@ -69,7 +76,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, currentPro
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
             <div
                 className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300"
-                onClick={onClose}
+                onClick={isMandatory ? undefined : onClose}
             />
 
             <div className="relative w-full max-w-md animate-in zoom-in-95 duration-300">
@@ -85,12 +92,14 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, currentPro
                                 <p className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest mt-0.5">Configuració Personal</p>
                             </div>
                         </div>
-                        <button
-                            onClick={onClose}
-                            className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl text-gray-500 dark:text-gray-400 transition-colors"
-                        >
-                            <X size={20} />
-                        </button>
+                        {!isMandatory && (
+                            <button
+                                onClick={onClose}
+                                className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl text-gray-500 dark:text-gray-400 transition-colors"
+                            >
+                                <X size={20} />
+                            </button>
+                        )}
                     </div>
 
                     <form onSubmit={handleSubmit} className="p-8 space-y-6">
@@ -173,18 +182,21 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, currentPro
 
                         {/* Actions */}
                         <div className="flex gap-3 pt-4">
-                            <button
-                                type="button"
-                                onClick={onClose}
-                                className="flex-1 py-4 px-6 rounded-2xl bg-gray-50 dark:bg-transparent border border-gray-200 dark:border-white/10 text-gray-600 dark:text-white text-xs font-black uppercase tracking-widest hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
-                            >
-                                Cancel·lar
-                            </button>
+                            {!isMandatory && (
+                                <button
+                                    type="button"
+                                    onClick={onClose}
+                                    className="flex-1 py-4 px-6 rounded-2xl bg-gray-50 dark:bg-transparent border border-gray-200 dark:border-white/10 text-gray-600 dark:text-white text-xs font-black uppercase tracking-widest hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+                                >
+                                    Cancel·lar
+                                </button>
+                            )}
                             <button
                                 type="submit"
-                                className="flex-1 py-4 px-6 rounded-2xl bg-fgc-green text-white text-xs font-black uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg shadow-fgc-green/20"
+                                disabled={isMandatory && (!formData.firstName || !formData.lastName || !formData.email || !formData.role)}
+                                className={`flex-1 py-4 px-6 rounded-2xl bg-fgc-green text-white text-xs font-black uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg shadow-fgc-green/20 ${isMandatory && (!formData.firstName || !formData.lastName || !formData.email || !formData.role) ? 'opacity-50 cursor-not-allowed hover:scale-100 active:scale-100' : ''}`}
                             >
-                                <Check size={16} strokeWidth={3} /> Desar Perfil
+                                <Check size={16} strokeWidth={3} /> {isMandatory ? 'Guardar i Continuar' : 'Desar Perfil'}
                             </button>
                         </div>
                     </form>
