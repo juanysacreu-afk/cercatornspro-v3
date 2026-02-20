@@ -3,6 +3,7 @@ import { Send, Hash, MoreVertical, MessageCircle, AlertTriangle, Paperclip, Chec
 import GlassPanel from '../../components/common/GlassPanel';
 import { sendTelegramMessage, getTelegramUpdates, getTelegramMemberCount, deleteTelegramMessage } from '../../src/lib/telegram';
 import { supabase } from '../../supabaseClient';
+import { playSendSound, playReceiveSound, requestNotificationPermission, showLocalNotification } from '../../utils/sounds';
 
 interface UserProfile {
     id?: string;
@@ -42,6 +43,11 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
         scrollToBottom();
     }, [messages]);
 
+    useEffect(() => {
+        // Request notification permission to show alerts when in background
+        requestNotificationPermission();
+    }, []);
+
     // Fetch initial chat data
     useEffect(() => {
         const fetchInitialData = async () => {
@@ -70,6 +76,12 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
         const subscription = supabase.channel('telegram_messages_changes')
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'telegram_messages' }, payload => {
                 const newMsg = payload.new as Message;
+
+                if (newMsg.sender_id !== currentUserId && newMsg.sender_id !== currentProfile.email?.toLowerCase()) {
+                    playReceiveSound();
+                    showLocalNotification(`Missatge de ${newMsg.sender_name}`, newMsg.text);
+                }
+
                 setMessages(prev => {
                     if (prev.find(m => m.id === newMsg.id)) return prev;
                     return [...prev, newMsg];
@@ -119,6 +131,14 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                     setMessages(prev => {
                         const existingIds = new Set(prev.map(m => m.id));
                         const filtered = newMsgs.filter(m => !existingIds.has(m.id));
+
+                        if (filtered.length > 0 && lastUpdateId !== undefined) {
+                            setTimeout(() => {
+                                playReceiveSound();
+                                showLocalNotification(`Nou enviament des de Telegram`, `Tens ${filtered.length} missatge(s)`);
+                            }, 50);
+                        }
+
                         return [...prev, ...filtered];
                     });
 
@@ -159,6 +179,7 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
         const { success, data, error } = await sendTelegramMessage(formattedTelegramMsg);
 
         if (success && data) {
+            playSendSound();
             // Create the permanent record locally and on DB exactly with the official ID so it doesn't double-poll
             const newMessage: Message = {
                 id: data.message_id.toString(),
