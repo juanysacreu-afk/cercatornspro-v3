@@ -237,7 +237,7 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                             <Hash size={20} />
                         </div>
                         <div className="flex-1 min-w-0">
-                            <h3 className="font-bold text-gray-900 dark:text-white truncate">Supervisors Op.</h3>
+                            <h3 className="font-bold text-gray-900 dark:text-white truncate">Supervisors BV</h3>
                             <p className="text-xs text-gray-500 truncate mt-0.5">Integrat amb Telegram</p>
                         </div>
                         <div className="w-2.5 h-2.5 bg-fgc-green rounded-full shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse"></div>
@@ -260,7 +260,7 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                 <div className="p-4 md:p-[22px] border-b border-gray-100 dark:border-white/5 flex justify-between items-center bg-white/50 dark:bg-black/20 backdrop-blur-md z-10">
                     <div>
                         <h2 className="text-base md:text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                            <Hash className="text-gray-400" size={18} /> Grup de Supervisors Operatius
+                            <Hash className="text-gray-400" size={18} /> Supervisors de Circulació BV
                         </h2>
                         <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-2">
                             <span className="flex items-center gap-1"><CheckCircle className="text-fgc-green" size={12} /> Sincronitzat</span>
@@ -367,7 +367,7 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                         </button>
                     </form>
                     <div className="text-center mt-2">
-                        <span className="text-[10px] text-gray-400">Els missatges s'enviaran automàticament al grup oficial de Supervisors Operatius.</span>
+                        <span className="text-[10px] text-gray-400">Els missatges s'enviaran automàticament al grup oficial de Supervisors de Circulació BV.</span>
                     </div>
                 </div>
             </GlassPanel>
