@@ -1378,8 +1378,8 @@ const AlternativeServiceOverlay: React.FC<AlternativeServiceOverlayProps> = ({
   const totalAssigned = Object.values(lineCounts).reduce((a, b) => a + b, 0);
 
   return createPortal(
-    <div className="fixed inset-0 z-[9999] flex items-start justify-center p-4 sm:p-12 md:p-20 bg-slate-950/90 backdrop-blur-xl animate-in fade-in duration-500 overflow-y-auto">
-      <GlassPanel className="w-full max-w-6xl !rounded-[40px] sm:!rounded-[56px] shadow-[0_32px_128px_-16px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col mb-12 relative animate-in zoom-in-95 duration-500">
+    <div className="fixed inset-0 z-[9999] flex items-start justify-center p-4 sm:p-12 md:p-20 bg-slate-950/90 backdrop-blur-xl animate-in fade-in duration-500 ease-out-expo overflow-y-auto">
+      <GlassPanel className="w-full max-w-6xl !rounded-[40px] sm:!rounded-[56px] shadow-[0_32px_128px_-16px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col mb-12 relative animate-modal-premium">
         {/* Header */}
         <div className="p-8 border-b border-gray-100 dark:border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-6 bg-gray-50/50 dark:bg-black/20">
           <div className="flex items-center gap-4">

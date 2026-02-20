@@ -40,4 +40,67 @@ body {
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+
+  /* Animaciones Premium - Fase 4 */
+  .ease-spring {
+    transition-timing-function: cubic-bezier(0.175, 0.885, 0.32, 1.1) !important;
+  }
+  
+  .ease-out-expo {
+    transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1) !important;
+  }
+
+  /* Animación de entrada modal/overlay */
+  @keyframes modal-enter {
+    0% {
+      opacity: 0;
+      transform: scale(0.96) translateY(10px);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+
+  /* Animación de entrada panel lateral izquierdo (Mensajería Sidebar) */
+  @keyframes slide-in-left-premium {
+    0% {
+      opacity: 0;
+      transform: translateX(-30px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  /* Animación de entrada panel lateral derecho (Configuraciones) */
+  @keyframes slide-in-right-premium {
+    0% {
+      opacity: 0;
+      transform: translateX(30px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  .animate-modal-premium {
+    animation: modal-enter 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  
+  .animate-slide-left-premium {
+    animation: slide-in-left-premium 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  
+  .animate-slide-right-premium {
+    animation: slide-in-right-premium 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  /* Retrasos en cascada para elementos internos */
+  .stagger-1 { animation-delay: 50ms; }
+  .stagger-2 { animation-delay: 100ms; }
+  .stagger-3 { animation-delay: 150ms; }
+  .stagger-4 { animation-delay: 200ms; }
 }

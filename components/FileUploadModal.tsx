@@ -242,8 +242,8 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-fgc-grey/60 backdrop-blur-md" onClick={onClose} />
-      <div className="relative bg-white dark:bg-fgc-grey w-full max-w-lg rounded-[32px] overflow-hidden shadow-2xl border border-gray-100 dark:border-white/10 animate-in zoom-in-95 duration-300">
+      <div className="absolute inset-0 bg-fgc-grey/60 backdrop-blur-md animate-in fade-in duration-500 ease-out-expo" onClick={onClose} />
+      <div className="relative bg-white dark:bg-fgc-grey w-full max-w-lg rounded-[32px] overflow-hidden shadow-2xl border border-gray-100 dark:border-white/10 animate-modal-premium">
         <div className="p-6 border-b border-gray-100 dark:border-white/5 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-fgc-green/10 rounded-lg text-fgc-green"><Download size={20} /></div>

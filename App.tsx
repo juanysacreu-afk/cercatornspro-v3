@@ -488,7 +488,7 @@ const App: React.FC = () => {
           {/* Settings Dropdown - Now always accessible and correctly positioned */}
           {isSettingsOpen && (
             <div
-              className={`fixed ${isProNav ? 'left-20 bottom-6 ml-4 z-[100]' : 'right-4 top-24 z-[100]'} w-64 bg-white dark:bg-[#4D5358] rounded-[24px] shadow-2xl border border-gray-100 dark:border-white/10 py-3 animate-in fade-in slide-in-from-top-4 duration-200`}
+              className={`fixed ${isProNav ? 'left-20 bottom-6 ml-4 z-[100]' : 'right-4 top-24 z-[100]'} w-64 bg-white dark:bg-[#4D5358] rounded-[24px] shadow-2xl border border-gray-100 dark:border-white/10 py-3 animate-modal-premium`}
               ref={settingsRef}
             >
               <div className="px-6 py-3 border-b border-gray-100 dark:border-white/5">
@@ -593,23 +593,23 @@ const App: React.FC = () => {
           )}
 
           <div className="flex-1 overflow-y-auto w-full py-8 safe-bottom max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 overflow-x-hidden">
-            <div className={`${activeTab === AppTab.Dashboard ? 'block animate-in fade-in slide-in-from-right-8 duration-500' : 'hidden'}`}>
+            <div className={`${activeTab === AppTab.Dashboard ? 'block animate-in fade-in slide-in-from-bottom-8 duration-500 ease-out-expo' : 'hidden'}`}>
               <DashboardView />
             </div>
-            <div className={`${activeTab === AppTab.Cercar ? 'block animate-in fade-in slide-in-from-right-8 duration-500' : 'hidden'}`}>
+            <div className={`${activeTab === AppTab.Cercar ? 'block animate-in fade-in slide-in-from-bottom-8 duration-500 ease-out-expo' : 'hidden'}`}>
               <CercarView
                 isPrivacyMode={isPrivacyMode}
                 externalSearch={globalSearch}
                 onExternalSearchHandled={() => setGlobalSearch(null)}
               />
             </div>
-            <div className={`${activeTab === AppTab.Organitza ? 'block animate-in fade-in slide-in-from-right-8 duration-500' : 'hidden'}`}>
+            <div className={`${activeTab === AppTab.Organitza ? 'block animate-in fade-in slide-in-from-bottom-8 duration-500 ease-out-expo' : 'hidden'}`}>
               <OrganitzaView
                 isPrivacyMode={isPrivacyMode}
                 onNavigateToSearch={handleNavigateToSearch}
               />
             </div>
-            <div className={`${activeTab === AppTab.Incidencia ? 'block animate-in fade-in slide-in-from-right-8 duration-500' : 'hidden'}`}>
+            <div className={`${activeTab === AppTab.Incidencia ? 'block animate-in fade-in slide-in-from-bottom-8 duration-500 ease-out-expo' : 'hidden'}`}>
               <IncidenciaView
                 showSecretMenu={showSecretMenu}
                 parkedUnits={parkedUnits}
@@ -617,10 +617,10 @@ const App: React.FC = () => {
                 isPrivacyMode={isPrivacyMode}
               />
             </div>
-            <div className={`${activeTab === AppTab.Cicles ? 'block animate-in fade-in slide-in-from-right-8 duration-500' : 'hidden'}`}>
+            <div className={`${activeTab === AppTab.Cicles ? 'block animate-in fade-in slide-in-from-bottom-8 duration-500 ease-out-expo' : 'hidden'}`}>
               <CiclesView parkedUnits={parkedUnits} onParkedUnitsChange={fetchParkedUnits} />
             </div>
-            <div className={`${activeTab === AppTab.Mensajeria ? 'block animate-in fade-in slide-in-from-right-8 duration-500 h-[calc(100vh-140px)]' : 'hidden'}`}>
+            <div className={`${activeTab === AppTab.Mensajeria ? 'block animate-in fade-in slide-in-from-bottom-8 duration-500 ease-out-expo h-[calc(100vh-140px)]' : 'hidden'}`}>
               <MensajeriaView currentProfile={userProfile} />
             </div>
           </div>
