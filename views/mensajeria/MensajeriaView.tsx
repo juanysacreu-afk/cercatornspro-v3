@@ -69,8 +69,7 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
         const visualText = textToSent;
 
         // We will format the text sent to Telegram to show who sent it
-        const role = currentProfile.role || 'Supervisor';
-        const formattedTelegramMsg = `👤 <b>${currentProfile.firstName} ${currentProfile.lastName}</b> (${role})\n💬 ${visualText}`;
+        const formattedTelegramMsg = `👤 <b>${currentProfile.firstName} ${currentProfile.lastName}</b>\n💬 ${visualText}`;
 
         const newMessage: Message = {
             id: Date.now().toString(),
