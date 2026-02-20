@@ -308,6 +308,31 @@ const AlternativeServiceOverlay: React.FC<AlternativeServiceOverlayProps> = ({
 
     const REST_STATIONS = ['PC', 'SR', 'RE', 'TB', 'NA', 'PN', 'RB'];
 
+    // ── Topological direction helper ───────────────────────────────────────────
+    // Stations whose origin definitively means the circulation is going AWAY from PC (ascending)
+    // PC is always the departure point of ascending trips
+    const ASCENDING_ORIGIN_STATIONS = new Set(['PC', 'PR']);
+    // Terminal/depot stations from which a circulation is going TOWARDS PC (descending)
+    // Includes: TB (L7 terminus), RE (L12 terminus), DNA/COR/DNA (depots), PN, NA, and COR (between HG and RB)
+    const DESCENDING_ORIGIN_STATIONS = new Set(['TB', 'NA', 'PN', 'TR', 'EN', 'RE', 'DNA', 'DPN', 'DRE', 'COR']);
+
+    /**
+     * Determine the direction of a circulation by its origin station.
+     * If origin is PC or PR → ASCENDENT (going away from Barcelona center).
+     * If origin is a terminus or depot (TB, NA, PN, RE, DNA, DPN, DRE, COR) → DESCENDENT.
+     * Falls back to number parity only when origin is ambiguous (mid-line departures).
+     */
+    const getDirection = (iniciFinal: string, circId: string, isManeuverArg = false, isViatgerArg = false): string => {
+      if (isManeuverArg) return 'MANIOBRA';
+      if (isViatgerArg) return 'VIATGER';
+      const origin = resolveStationId(iniciFinal || '');
+      if (ASCENDING_ORIGIN_STATIONS.has(origin)) return 'ASCENDENT';
+      if (DESCENDING_ORIGIN_STATIONS.has(origin)) return 'DESCENDENT';
+      // Fallback for mid-line origins: use number parity (FGC convention: odd=asc, even=desc)
+      const num = parseInt(circId.replace(/\D/g, '') || '1');
+      return num % 2 !== 0 ? 'ASCENDENT' : 'DESCENDENT';
+    };
+
     try {
       let theoryCircs: any[] = [];
       let fromIdx = 0;
@@ -538,7 +563,7 @@ const AlternativeServiceOverlay: React.FC<AlternativeServiceOverlayProps> = ({
             sortida: circ.sortida,
             arribada: circ.arribada,
             route: (circ as any).route || `${circ.inici} → ${circ.final}`,
-            direction: isManeuver ? 'MANIOBRA' : (isViatger ? 'VIATGER' : (parseInt(circ.id.replace(/\D/g, '') || '1') % 2 === 0 ? 'DESCENDENT' : 'ASCENDENT')),
+            direction: getDirection(circ.inici, circ.id, isManeuver, isViatger),
             startTimeMinutes: mStart,
             numValue: parseInt(circ.id.replace(/\D/g, '') || '0') || 900,
             isNormal: true,
@@ -884,7 +909,7 @@ const AlternativeServiceOverlay: React.FC<AlternativeServiceOverlayProps> = ({
           sortida: formatFgcTime(startTime),
           arribada: formatFgcTime(endTime),
           route: `${slot.origin} → ${slot.dest}`,
-          direction: slot.isAsc ? 'ASCENDENT' : 'DESCENDENT',
+          direction: getDirection(slot.origin, `${ctx.prefix}${tripNum}`),
           startTimeMinutes: startTime,
           numValue: tripNum
         });
