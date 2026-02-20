@@ -682,10 +682,11 @@ const CercarViewComponent: React.FC<{
         <div className="absolute inset-0 rounded-[32px] sm:rounded-[40px] overflow-hidden pointer-events-none">
           <div className="absolute top-0 right-0 w-64 h-64 bg-fgc-green/5 blur-3xl -mr-32 -mt-32" />
         </div>
-        <div className="flex overflow-x-auto w-full -mx-6 px-6 sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] gap-2 sm:gap-3 mb-6 sm:mb-8 pb-1">
+        <div className="w-full grid grid-cols-3 md:flex md:flex-wrap gap-2 sm:gap-3 mb-6 sm:mb-8">
           {filterButtons.map((btn) => (
-            <button key={btn.id} onClick={() => { feedback.click(); setSearchType(btn.id); setResults([]); setQuery(''); setSuggestions([]); setShowSuggestions(false); }} className={`flex-shrink-0 flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all ${btn.mobileOnly ? 'md:hidden' : ''} ${btn.desktopOnly ? 'hidden md:flex' : ''} ${searchType === btn.id ? 'bg-fgc-green text-[#4D5358] shadow-xl shadow-fgc-green/20' : 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/10'}`}>
-              {btn.icon}{btn.label}
+            <button key={btn.id} onClick={() => { feedback.click(); setSearchType(btn.id); setResults([]); setQuery(''); setSuggestions([]); setShowSuggestions(false); }} className={`flex items-center justify-center gap-1 sm:gap-2 px-1 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl text-[12px] sm:text-sm font-bold transition-all ${btn.mobileOnly ? 'md:hidden' : ''} ${btn.desktopOnly ? 'hidden md:flex' : ''} ${searchType === btn.id ? 'bg-fgc-green text-[#4D5358] shadow-xl shadow-fgc-green/20' : 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/10'}`}>
+              <span className="shrink-0">{btn.icon}</span>
+              <span className="truncate">{btn.label}</span>
             </button>
           ))}
         </div>
