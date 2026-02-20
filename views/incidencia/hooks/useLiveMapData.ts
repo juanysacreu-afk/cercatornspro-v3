@@ -137,8 +137,8 @@ export const useLiveMapData = ({
             }
 
             if (circDetailsData.length === 0) {
-                setLoading(false);
-                return;
+                // Don't bail out - shifts may have inline circulation data (objects with sortida/arribada)
+                console.warn(`[GeoTren/LiveMap] 0 circulation records found in DB for IDs: ${Array.from(requiredCircIds).join(', ')}. Will try inline circulation data.`);
             }
 
             const circDetailsMap = new Map<string, any>(circDetailsData.map((c: any) => [c.id.trim().toUpperCase(), c]));
@@ -160,17 +160,30 @@ export const useLiveMapData = ({
 
                     let circ = circDetailsMap.get(codi);
 
-                    // Fallback for object circulations
-                    if (!circ && typeof cRef === 'object' && cRef.sortida && cRef.arribada) {
-                        circ = {
-                            id: codi,
-                            linia: codi.startsWith('F') ? 'F' : (cRef.linia || 'S/L'),
-                            inici: cRef.inici || '?',
-                            final: cRef.final || '?',
-                            sortida: cRef.sortida,
-                            arribada: cRef.arribada,
-                            estacions: []
-                        };
+                    // Fallback for object circulations - handle many possible field naming conventions
+                    if (!circ && typeof cRef === 'object') {
+                        // Try to find departure/arrival time fields with various naming conventions
+                        const sortida = cRef.sortida || cRef.hora_inici || cRef.inici_circ;
+                        const arribada = cRef.arribada || cRef.hora_final || cRef.final_circ;
+                        const estacionsRaw = cRef.estacions || cRef.stops || [];
+
+                        // Use estacions if they have timing info
+                        const hasEstacions = Array.isArray(estacionsRaw) && estacionsRaw.length > 0 &&
+                            (estacionsRaw[0]?.hora || estacionsRaw[0]?.sortida || estacionsRaw[0]?.arribada);
+
+                        if (sortida || arribada || hasEstacions) {
+                            circ = {
+                                id: codi,
+                                linia: cRef.linia || (codi.startsWith('F') ? 'F' : 'S/L'),
+                                inici: cRef.inici || cRef.origen || (estacionsRaw[0]?.nom) || '?',
+                                final: cRef.final || cRef.desti || (estacionsRaw[estacionsRaw.length - 1]?.nom) || '?',
+                                sortida: sortida || (estacionsRaw[0]?.hora || estacionsRaw[0]?.sortida),
+                                arribada: arribada || (estacionsRaw[estacionsRaw.length - 1]?.hora || estacionsRaw[estacionsRaw.length - 1]?.arribada),
+                                via_inici: cRef.via_inici,
+                                via_final: cRef.via_final,
+                                estacions: estacionsRaw
+                            };
+                        }
                     }
 
                     if (circ) {
