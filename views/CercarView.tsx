@@ -651,7 +651,7 @@ const CercarViewComponent: React.FC<{
   };
 
   return (
-    <div className="space-y-6 sm:space-y-8 p-4 sm:p-8 animate-in fade-in duration-700">
+    <div className="space-y-6 sm:space-y-8 p-4 sm:p-8 animate-in fade-in duration-700 max-w-7xl mx-auto w-full">
       <header className="flex flex-col xl:flex-row xl:items-end justify-between gap-6 animate-in fade-in slide-in-from-top-4 duration-700 parallax-slow">
         <div className="flex flex-col gap-4">
           <div>

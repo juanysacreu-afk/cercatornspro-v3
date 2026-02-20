@@ -343,7 +343,7 @@ const OrganitzaViewComponent: React.FC<{
   };
 
   return (
-    <div className="space-y-6 sm:space-y-8 p-4 sm:p-8 animate-in fade-in duration-700">
+    <div className="space-y-6 sm:space-y-8 p-4 sm:p-8 animate-in fade-in duration-700 max-w-7xl mx-auto w-full">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div><h1 className="text-2xl sm:text-3xl font-bold text-[#4D5358] dark:text-white tracking-tight title-glow uppercase">Organització de Torn</h1><p className="text-sm sm:text-base text-gray-500 dark:text-gray-400 font-medium">Anàlisi comparativa i gestió.</p></div>
         <div className="flex bg-white/20 dark:bg-black/20 p-1.5 rounded-[20px] backdrop-blur-md border border-white/20 shadow-inner">
