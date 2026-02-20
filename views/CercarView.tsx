@@ -498,86 +498,133 @@ const CercarViewComponent: React.FC<{
       } else {
         let turnIds: string[] = [];
 
-        let st = currentType;
-        if (st === 'general') {
-          if (searchVal.match(/\((\d+)\)/) || (/[a-zA-Z]/.test(searchVal) && !searchVal.match(/^Q/i))) {
-            if (/^\d{3,5}$/.test(searchVal) && !searchVal.includes('(')) st = SearchType.Circulacio;
-            else st = SearchType.Maquinista;
-          } else if (/^\d+$/.test(searchVal) || /^Q/i.test(searchVal)) {
-            st = SearchType.Torn;
+        if (currentType === 'general') {
+          if (isOfflineMode) {
+            const [tIds, mIds, cIds] = await Promise.all([
+              offlineSearchTurnIds(searchVal, selectedServei),
+              offlineSearchMaquinistaTurnIds(searchVal, selectedServei),
+              offlineSearchCirculationTurnIds(searchVal, selectedServei)
+            ]);
+            turnIds = Array.from(new Set([...tIds, ...mIds, ...cIds]));
+            if (turnIds.length > 0) newResults = await offlineFetchFullTurns(turnIds.slice(0, 50), selectedServei === 'Tots' ? undefined : selectedServei); else newResults = [];
           } else {
-            st = SearchType.Circulacio; // fallback
-          }
-        }
+            // 1. Torn
+            let qt = supabase.from('shifts').select('id');
+            const isNumeric = /^\d+$/.test(searchVal);
+            if (isNumeric && selectedServei !== 'Tots') {
+              const prefix = selectedServei === '0' ? '0' : selectedServei.charAt(0);
+              const numPart = searchVal.padStart(3, '0');
+              const constructedId = `Q${prefix}${numPart}`;
+              if (selectedServei !== 'Tots') qt = qt.eq('servei', selectedServei);
+              qt = qt.ilike('id', constructedId);
+            } else {
+              if (selectedServei !== 'Tots') qt = qt.eq('servei', selectedServei);
+              qt = qt.ilike('id', `%${searchVal}%`);
+            }
 
-        if (isOfflineMode) {
-          switch (st) {
-            case SearchType.Torn:
-              turnIds = await offlineSearchTurnIds(searchVal, selectedServei);
-              break;
-            case SearchType.Maquinista:
-              turnIds = await offlineSearchMaquinistaTurnIds(searchVal, selectedServei);
-              break;
-            case SearchType.Circulacio:
-              turnIds = await offlineSearchCirculationTurnIds(searchVal, selectedServei);
-              break;
+            // 2. Maq
+            const nominaMatch = searchVal.match(/\((\d+)\)/);
+            const filterVal = nominaMatch ? nominaMatch[1] : searchVal.trim();
+            let qAssignments = supabase.from('daily_assignments').select('torn');
+            if (nominaMatch) qAssignments = qAssignments.eq('empleat_id', filterVal);
+            else qAssignments = qAssignments.or(`nom.ilike.%${filterVal}%,cognoms.ilike.%${filterVal}%,empleat_id.ilike.%${filterVal}%`);
+
+            // 3. Circ
+            let qc = supabase.from('shifts').select('id, circulations');
+            if (selectedServei !== 'Tots') qc = qc.eq('servei', selectedServei);
+
+            const [resT, resM, c] = await Promise.all([qt, qAssignments, fetchAllFromSupabase('shifts', qc)]);
+
+            const shortTorns = Array.from(new Set(resM.data?.map(x => x.torn?.trim().toUpperCase()) || []));
+            const simplifyId = (id: string) => id.replace(/^Q/i, '').replace(/^0+/, '');
+            const targetShortTornSimples = shortTorns.map(storn => simplifyId(storn));
+
+            let qm = supabase.from('shifts').select('id');
+            if (selectedServei !== 'Tots') qm = qm.eq('servei', selectedServei);
+            const { data: matchingShifts } = await qm;
+
+            const tIds = resT.data?.map(x => x.id as string) || [];
+            const mIds = matchingShifts?.filter(shift => {
+              const shiftId = shift.id as string;
+              const simpleShiftId = simplifyId(getShortTornId(shiftId));
+              return targetShortTornSimples.includes(simpleShiftId) || shortTorns.includes(getShortTornId(shiftId).toUpperCase());
+            }).map(x => x.id as string) || [];
+            const cIds = c?.filter(turn => (turn.circulations as any[])?.some((circ: any) => (typeof circ === 'string' ? circ : circ.codi)?.toLowerCase().includes(searchVal.toLowerCase()))).map(turn => turn.id as string) || [];
+
+            turnIds = Array.from(new Set([...tIds, ...mIds, ...cIds]));
+            if (turnIds.length > 0) newResults = await fetchFullTurnData(turnIds); else newResults = [];
           }
-          if (turnIds.length > 0) newResults = await offlineFetchFullTurns(turnIds.slice(0, 50), selectedServei === 'Tots' ? undefined : selectedServei); else newResults = [];
         } else {
-          switch (st) {
-            case SearchType.Torn:
-              let qt = supabase.from('shifts').select('id');
-              const isNumeric = /^\d+$/.test(searchVal);
+          let st = currentType as SearchType;
+          if (isOfflineMode) {
+            switch (st) {
+              case SearchType.Torn:
+                turnIds = await offlineSearchTurnIds(searchVal, selectedServei);
+                break;
+              case SearchType.Maquinista:
+                turnIds = await offlineSearchMaquinistaTurnIds(searchVal, selectedServei);
+                break;
+              case SearchType.Circulacio:
+                turnIds = await offlineSearchCirculationTurnIds(searchVal, selectedServei);
+                break;
+            }
+            if (turnIds.length > 0) newResults = await offlineFetchFullTurns(turnIds.slice(0, 50), selectedServei === 'Tots' ? undefined : selectedServei); else newResults = [];
+          } else {
+            switch (st) {
+              case SearchType.Torn:
+                let qt = supabase.from('shifts').select('id');
+                const isNumeric = /^\d+$/.test(searchVal);
 
-              if (isNumeric && selectedServei !== 'Tots') {
-                const prefix = selectedServei === '0' ? '0' : selectedServei.charAt(0);
-                const numPart = searchVal.padStart(3, '0');
-                const constructedId = `Q${prefix}${numPart}`;
-                if (selectedServei !== 'Tots') qt = qt.eq('servei', selectedServei);
-                qt = qt.ilike('id', constructedId);
-              } else {
-                if (selectedServei !== 'Tots') qt = qt.eq('servei', selectedServei);
-                qt = qt.ilike('id', `%${searchVal}%`);
-              }
+                if (isNumeric && selectedServei !== 'Tots') {
+                  const prefix = selectedServei === '0' ? '0' : selectedServei.charAt(0);
+                  const numPart = searchVal.padStart(3, '0');
+                  const constructedId = `Q${prefix}${numPart}`;
+                  if (selectedServei !== 'Tots') qt = qt.eq('servei', selectedServei);
+                  qt = qt.ilike('id', constructedId);
+                } else {
+                  if (selectedServei !== 'Tots') qt = qt.eq('servei', selectedServei);
+                  qt = qt.ilike('id', `%${searchVal}%`);
+                }
 
-              const { data: s } = await qt;
-              turnIds = s?.map(x => x.id as string) || [];
-              break;
-            case SearchType.Maquinista:
-              const nominaMatch = searchVal.match(/\((\d+)\)/); // More flexible regex
-              const filterVal = nominaMatch ? nominaMatch[1] : searchVal.trim();
+                const { data: s } = await qt;
+                turnIds = s?.map(x => x.id as string) || [];
+                break;
+              case SearchType.Maquinista:
+                const nominaMatch = searchVal.match(/\((\d+)\)/); // More flexible regex
+                const filterVal = nominaMatch ? nominaMatch[1] : searchVal.trim();
 
-              let qAssignments = supabase.from('daily_assignments').select('torn');
-              if (nominaMatch) {
-                qAssignments = qAssignments.eq('empleat_id', filterVal);
-              } else {
-                qAssignments = qAssignments.or(`nom.ilike.%${filterVal}%,cognoms.ilike.%${filterVal}%,empleat_id.ilike.%${filterVal}%`);
-              }
+                let qAssignments = supabase.from('daily_assignments').select('torn');
+                if (nominaMatch) {
+                  qAssignments = qAssignments.eq('empleat_id', filterVal);
+                } else {
+                  qAssignments = qAssignments.or(`nom.ilike.%${filterVal}%,cognoms.ilike.%${filterVal}%,empleat_id.ilike.%${filterVal}%`);
+                }
 
-              const { data: m } = await qAssignments;
-              const shortTorns = Array.from(new Set(m?.map(x => x.torn?.trim().toUpperCase()) || []));
+                const { data: m } = await qAssignments;
+                const shortTorns = Array.from(new Set(m?.map(x => x.torn?.trim().toUpperCase()) || []));
 
-              let qm = supabase.from('shifts').select('id');
-              if (selectedServei !== 'Tots') qm = qm.eq('servei', selectedServei);
-              const { data: matchingShifts } = await qm;
+                let qm = supabase.from('shifts').select('id');
+                if (selectedServei !== 'Tots') qm = qm.eq('servei', selectedServei);
+                const { data: matchingShifts } = await qm;
 
-              const simplifyId = (id: string) => id.replace(/^Q/i, '').replace(/^0+/, '');
-              const targetShortTornSimples = shortTorns.map(st => simplifyId(st));
+                const simplifyId = (id: string) => id.replace(/^Q/i, '').replace(/^0+/, '');
+                const targetShortTornSimples = shortTorns.map(st => simplifyId(st));
 
-              turnIds = matchingShifts?.filter(shift => {
-                const shiftId = shift.id as string;
-                const simpleShiftId = simplifyId(getShortTornId(shiftId));
-                return targetShortTornSimples.includes(simpleShiftId) || shortTorns.includes(getShortTornId(shiftId).toUpperCase());
-              }).map(x => x.id as string) || [];
-              break;
-            case SearchType.Circulacio:
-              let qc = supabase.from('shifts').select('id, circulations');
-              if (selectedServei !== 'Tots') qc = qc.eq('servei', selectedServei);
-              const c = await fetchAllFromSupabase('shifts', qc);
-              turnIds = c?.filter(turn => (turn.circulations as any[])?.some((circ: any) => (typeof circ === 'string' ? circ : circ.codi)?.toLowerCase().includes(searchVal.toLowerCase()))).map(turn => turn.id as string) || [];
-              break;
+                turnIds = matchingShifts?.filter(shift => {
+                  const shiftId = shift.id as string;
+                  const simpleShiftId = simplifyId(getShortTornId(shiftId));
+                  return targetShortTornSimples.includes(simpleShiftId) || shortTorns.includes(getShortTornId(shiftId).toUpperCase());
+                }).map(x => x.id as string) || [];
+                break;
+              case SearchType.Circulacio:
+                let qc = supabase.from('shifts').select('id, circulations');
+                if (selectedServei !== 'Tots') qc = qc.eq('servei', selectedServei);
+                const c = await fetchAllFromSupabase('shifts', qc);
+                turnIds = c?.filter(turn => (turn.circulations as any[])?.some((circ: any) => (typeof circ === 'string' ? circ : circ.codi)?.toLowerCase().includes(searchVal.toLowerCase()))).map(turn => turn.id as string) || [];
+                break;
+            }
+            if (turnIds.length > 0) newResults = await fetchFullTurnData(turnIds); else newResults = [];
           }
-          if (turnIds.length > 0) newResults = await fetchFullTurnData(turnIds); else newResults = [];
         }
       }
 
