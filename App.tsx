@@ -343,7 +343,7 @@ const App: React.FC = () => {
                   </div>
 
                   <div className="hidden md:flex items-center gap-1">
-                    {navItems.map((item) => (
+                    {navItems.filter((item) => item.id !== AppTab.Mensajeria).map((item) => (
                       <button
                         key={item.id}
                         onClick={() => handleTabChange(item.id)}
@@ -360,6 +360,14 @@ const App: React.FC = () => {
                     <div className="w-px h-8 bg-white/10 mx-3" />
 
                     <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => handleTabChange(AppTab.Mensajeria)}
+                        title="Missatges"
+                        className={`flex items-center justify-center w-12 h-12 rounded-xl transition-all group ${activeTab === AppTab.Mensajeria ? 'bg-fgc-green text-fgc-grey shadow-lg' : 'bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white'}`}
+                      >
+                        <MessageCircle size={22} className={activeTab === AppTab.Mensajeria ? '' : 'group-hover:scale-110 transition-transform'} />
+                      </button>
+
                       <button
                         onClick={() => setShowUploadModal(true)}
                         title="Carregar PDF Diari"
