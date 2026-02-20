@@ -9,6 +9,8 @@ import { getFgcMinutes, checkIfActive, calculateGap } from '../utils/time';
 import { fetchAllFromSupabase } from '../utils/supabase';
 import { getStatusColor, getLiniaColor, getShortTornId, getTrainPhone, ALL_STATIONS, STATION_CODE_MAP } from '../utils/fgc';
 import { fetchFullTurns, fetchPassengerInfo } from '../utils/queries';
+import { syncOfflineData } from '../utils/offlineSync';
+import { offlineFetchFullTurns, offlineSearchTurnIds, offlineSearchMaquinistaTurnIds, offlineSearchCirculationTurnIds } from '../utils/offlineQueries';
 import { ItineraryPoint } from '../components/ItineraryPoint';
 import { ShiftTimeline } from '../components/ShiftTimeline';
 import { TimeGapRow } from '../components/TimeGapRow';
@@ -46,6 +48,30 @@ const CercarViewComponent: React.FC<{
   const [selectedStation, setSelectedStation] = useState<string>('');
   const [trainStatuses, setTrainStatuses] = useState<Record<string, any>>({});
   const [selectedVia, setSelectedVia] = useState<string>('Tot');
+  const [isOfflineMode, setIsOfflineMode] = useState(!navigator.onLine);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState('');
+
+  useEffect(() => {
+    const handleOnline = () => setIsOfflineMode(false);
+    const handleOffline = () => setIsOfflineMode(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  const handleSync = async () => {
+    setSyncing(true);
+    await syncOfflineData((msg) => setSyncMsg(msg));
+    setTimeout(() => {
+      setSyncing(false);
+      setSyncMsg('');
+      showToast('Catxé actualitzada per a mode offline', 'success');
+    }, 2000);
+  };
 
   // Estat per al nou menú de gestió d'unitat
   const [editingCirc, setEditingCirc] = useState<{ circ: any, cycleId: string } | null>(null);
@@ -452,60 +478,76 @@ const CercarViewComponent: React.FC<{
         }];
       } else {
         let turnIds: string[] = [];
-        switch (currentType) {
-          case SearchType.Torn:
-            let qt = supabase.from('shifts').select('id');
-            const isNumeric = /^\d+$/.test(searchVal);
 
-            if (isNumeric && selectedServei !== 'Tots') {
-              const prefix = selectedServei === '0' ? '0' : selectedServei.charAt(0);
-              const numPart = searchVal.padStart(3, '0');
-              const constructedId = `Q${prefix}${numPart}`;
-              if (selectedServei !== 'Tots') qt = qt.eq('servei', selectedServei);
-              qt = qt.ilike('id', constructedId);
-            } else {
-              if (selectedServei !== 'Tots') qt = qt.eq('servei', selectedServei);
-              qt = qt.ilike('id', `%${searchVal}%`);
-            }
+        if (isOfflineMode) {
+          switch (currentType) {
+            case SearchType.Torn:
+              turnIds = await offlineSearchTurnIds(searchVal, selectedServei);
+              break;
+            case SearchType.Maquinista:
+              turnIds = await offlineSearchMaquinistaTurnIds(searchVal, selectedServei);
+              break;
+            case SearchType.Circulacio:
+              turnIds = await offlineSearchCirculationTurnIds(searchVal, selectedServei);
+              break;
+          }
+          if (turnIds.length > 0) newResults = await offlineFetchFullTurns(turnIds.slice(0, 50), selectedServei === 'Tots' ? undefined : selectedServei); else newResults = [];
+        } else {
+          switch (currentType) {
+            case SearchType.Torn:
+              let qt = supabase.from('shifts').select('id');
+              const isNumeric = /^\d+$/.test(searchVal);
 
-            const { data: s } = await qt;
-            turnIds = s?.map(x => x.id as string) || [];
-            break;
-          case SearchType.Maquinista:
-            const nominaMatch = searchVal.match(/\((\d+)\)/); // More flexible regex
-            const filterVal = nominaMatch ? nominaMatch[1] : searchVal.trim();
+              if (isNumeric && selectedServei !== 'Tots') {
+                const prefix = selectedServei === '0' ? '0' : selectedServei.charAt(0);
+                const numPart = searchVal.padStart(3, '0');
+                const constructedId = `Q${prefix}${numPart}`;
+                if (selectedServei !== 'Tots') qt = qt.eq('servei', selectedServei);
+                qt = qt.ilike('id', constructedId);
+              } else {
+                if (selectedServei !== 'Tots') qt = qt.eq('servei', selectedServei);
+                qt = qt.ilike('id', `%${searchVal}%`);
+              }
 
-            let qAssignments = supabase.from('daily_assignments').select('torn');
-            if (nominaMatch) {
-              qAssignments = qAssignments.eq('empleat_id', filterVal);
-            } else {
-              qAssignments = qAssignments.or(`nom.ilike.%${filterVal}%,cognoms.ilike.%${filterVal}%,empleat_id.ilike.%${filterVal}%`);
-            }
+              const { data: s } = await qt;
+              turnIds = s?.map(x => x.id as string) || [];
+              break;
+            case SearchType.Maquinista:
+              const nominaMatch = searchVal.match(/\((\d+)\)/); // More flexible regex
+              const filterVal = nominaMatch ? nominaMatch[1] : searchVal.trim();
 
-            const { data: m } = await qAssignments;
-            const shortTorns = Array.from(new Set(m?.map(x => x.torn?.trim().toUpperCase()) || []));
+              let qAssignments = supabase.from('daily_assignments').select('torn');
+              if (nominaMatch) {
+                qAssignments = qAssignments.eq('empleat_id', filterVal);
+              } else {
+                qAssignments = qAssignments.or(`nom.ilike.%${filterVal}%,cognoms.ilike.%${filterVal}%,empleat_id.ilike.%${filterVal}%`);
+              }
 
-            let qm = supabase.from('shifts').select('id');
-            if (selectedServei !== 'Tots') qm = qm.eq('servei', selectedServei);
-            const { data: matchingShifts } = await qm;
+              const { data: m } = await qAssignments;
+              const shortTorns = Array.from(new Set(m?.map(x => x.torn?.trim().toUpperCase()) || []));
 
-            const simplifyId = (id: string) => id.replace(/^Q/i, '').replace(/^0+/, '');
-            const targetShortTornSimples = shortTorns.map(st => simplifyId(st));
+              let qm = supabase.from('shifts').select('id');
+              if (selectedServei !== 'Tots') qm = qm.eq('servei', selectedServei);
+              const { data: matchingShifts } = await qm;
 
-            turnIds = matchingShifts?.filter(shift => {
-              const shiftId = shift.id as string;
-              const simpleShiftId = simplifyId(getShortTornId(shiftId));
-              return targetShortTornSimples.includes(simpleShiftId) || shortTorns.includes(getShortTornId(shiftId).toUpperCase());
-            }).map(x => x.id as string) || [];
-            break;
-          case SearchType.Circulacio:
-            let qc = supabase.from('shifts').select('id, circulations');
-            if (selectedServei !== 'Tots') qc = qc.eq('servei', selectedServei);
-            const c = await fetchAllFromSupabase('shifts', qc);
-            turnIds = c?.filter(turn => (turn.circulations as any[])?.some((circ: any) => (typeof circ === 'string' ? circ : circ.codi)?.toLowerCase().includes(searchVal.toLowerCase()))).map(turn => turn.id as string) || [];
-            break;
+              const simplifyId = (id: string) => id.replace(/^Q/i, '').replace(/^0+/, '');
+              const targetShortTornSimples = shortTorns.map(st => simplifyId(st));
+
+              turnIds = matchingShifts?.filter(shift => {
+                const shiftId = shift.id as string;
+                const simpleShiftId = simplifyId(getShortTornId(shiftId));
+                return targetShortTornSimples.includes(simpleShiftId) || shortTorns.includes(getShortTornId(shiftId).toUpperCase());
+              }).map(x => x.id as string) || [];
+              break;
+            case SearchType.Circulacio:
+              let qc = supabase.from('shifts').select('id, circulations');
+              if (selectedServei !== 'Tots') qc = qc.eq('servei', selectedServei);
+              const c = await fetchAllFromSupabase('shifts', qc);
+              turnIds = c?.filter(turn => (turn.circulations as any[])?.some((circ: any) => (typeof circ === 'string' ? circ : circ.codi)?.toLowerCase().includes(searchVal.toLowerCase()))).map(turn => turn.id as string) || [];
+              break;
+          }
+          if (turnIds.length > 0) newResults = await fetchFullTurnData(turnIds); else newResults = [];
         }
-        if (turnIds.length > 0) newResults = await fetchFullTurnData(turnIds); else newResults = [];
       }
 
       setResults(newResults);
@@ -533,7 +575,15 @@ const CercarViewComponent: React.FC<{
   return (
     <div className="space-y-6 sm:space-y-8 p-4 sm:p-8 animate-in fade-in duration-700">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 animate-in fade-in slide-in-from-top-4 duration-700 parallax-slow">
-        <div><h1 className="text-2xl sm:text-3xl font-bold text-[#4D5358] dark:text-white tracking-tight title-glow uppercase">Cerca de Servei</h1><p className="text-sm sm:text-base text-gray-500 dark:text-gray-400 font-medium">Informació de torns, circulacions i unitats de tren.</p></div>
+        <div>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl font-bold text-[#4D5358] dark:text-white tracking-tight title-glow uppercase">Cerca de Servei</h1>
+            {isOfflineMode && <span className="bg-red-500/20 text-red-500 text-xs px-2 py-1 rounded-full animate-pulse border border-red-500/30">Línia Caiguda: Offline</span>}
+          </div>
+          <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400 font-medium mt-1">
+            {syncing ? syncMsg || "Sincronitzant..." : "Informació de torns, circulacions i unitats de tren."}
+          </p>
+        </div>
         <div className="flex flex-col gap-2"><span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Filtre de Servei</span><div className="inline-flex glass-card p-1 rounded-2xl shadow-sm border border-gray-100 dark:border-white/5">{['Tots', ...serveiTypes].map(s => (<button key={s} onClick={() => { feedback.deepClick(); setSelectedServei(s); }} className={`px-3 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${selectedServei === s ? 'bg-fgc-grey dark:bg-fgc-green dark:text-[#4D5358] text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5'}`}>{s === 'Tots' ? 'Tots' : `S-${s}`}</button>))}</div></div>
       </header>
 
@@ -541,7 +591,14 @@ const CercarViewComponent: React.FC<{
         <div className="absolute inset-0 rounded-[32px] sm:rounded-[40px] overflow-hidden pointer-events-none">
           <div className="absolute top-0 right-0 w-64 h-64 bg-fgc-green/5 blur-3xl -mr-32 -mt-32" />
         </div>
-        <div className="flex flex-wrap gap-2 sm:gap-3 mb-6 sm:mb-8">{filterButtons.map((btn) => (<button key={btn.id} onClick={() => { feedback.click(); setSearchType(btn.id); setResults([]); setQuery(''); setSuggestions([]); setShowSuggestions(false); }} className={`flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all ${searchType === btn.id ? 'bg-fgc-green text-[#4D5358] shadow-xl shadow-fgc-green/20' : 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/10'}`}>{btn.icon}{btn.label}</button>))}</div>
+        <div className="flex flex-wrap gap-2 sm:gap-3 mb-6 sm:mb-8">
+          {filterButtons.map((btn) => (<button key={btn.id} onClick={() => { feedback.click(); setSearchType(btn.id); setResults([]); setQuery(''); setSuggestions([]); setShowSuggestions(false); }} className={`flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all ${searchType === btn.id ? 'bg-fgc-green text-[#4D5358] shadow-xl shadow-fgc-green/20' : 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/10'}`}>{btn.icon}{btn.label}</button>))}
+          <div className="flex-1" />
+          <button onClick={handleSync} disabled={syncing || isOfflineMode} className={`flex items-center gap-2 px-4 py-2 sm:py-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all ${isOfflineMode ? 'opacity-50 cursor-not-allowed' : 'hover:bg-fgc-green hover:text-[#4D5358] text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-white/5 group'}`}>
+            <Save size={16} className={syncing ? 'animate-bounce' : 'group-hover:scale-110 transition-transform'} />
+            {syncing ? 'Baixant...' : 'Baixar Catxé'}
+          </button>
+        </div>
 
         {searchType === SearchType.Estacio ? (
           <div className="space-y-6">
