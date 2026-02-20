@@ -430,6 +430,13 @@ const App: React.FC = () => {
 
                   <div className="md:hidden flex items-center gap-2">
                     <button
+                      ref={settingsRef as any}
+                      onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                      className={`p-2 rounded-lg text-white hover:bg-white/10 transition-colors ${isSettingsOpen ? 'bg-white/10' : ''}`}
+                    >
+                      <Settings size={24} className={`transition-transform duration-500 ${isSettingsOpen ? 'rotate-90' : ''}`} />
+                    </button>
+                    <button
                       onClick={() => setIsDarkMode(!isDarkMode)}
                       className="p-2 rounded-lg text-white hover:bg-white/10 transition-colors"
                     >

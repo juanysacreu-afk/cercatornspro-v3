@@ -164,7 +164,7 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                 id: data.message_id.toString(),
                 text: visualText,
                 sender_name: `${currentProfile.firstName} ${currentProfile.lastName}`,
-                sender_id: currentProfile.email || currentUserId,
+                sender_id: currentProfile.email ? currentProfile.email.toLowerCase() : currentUserId,
                 is_alert: isAlert,
                 created_at: new Date().toISOString()
             };
@@ -256,7 +256,8 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                 <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 md:space-y-6 bg-gradient-to-b from-transparent to-black/[0.02] dark:to-white/[0.01]">
                     {messages.map((msg, index) => {
                         // Identify it's me if the IDs match OR if the corporate email matches
-                        const isMe = msg.sender_id === currentProfile.email || msg.sender_id === currentUserId;
+                        const hasEmail = Boolean(currentProfile.email);
+                        const isMe = (hasEmail && msg.sender_id.toLowerCase() === currentProfile.email.toLowerCase()) || msg.sender_id === currentUserId;
 
                         // Show name if it's the first message OR if the previous message was from a different sender
                         const showName = index === 0 || messages[index - 1].sender_id !== msg.sender_id;
