@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Send, Hash, MoreVertical, MessageCircle, AlertTriangle, Paperclip, CheckCircle } from 'lucide-react';
 import GlassPanel from '../../components/common/GlassPanel';
-import { sendTelegramMessage } from '../../src/lib/telegram';
+import { sendTelegramMessage, getTelegramUpdates } from '../../src/lib/telegram';
 
 interface UserProfile {
     id?: string;
@@ -56,6 +56,58 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
     const [inputText, setInputText] = useState('');
 
     const currentUserId = currentProfile.id || 'current-user-id';
+    const [lastUpdateId, setLastUpdateId] = useState<number | undefined>(undefined);
+
+    // Sistema de validación (Polling) per escoltar missatges nous
+    useEffect(() => {
+        let isMounted = true;
+        let intervalId: any;
+
+        const pollMessages = async () => {
+            const { success, data } = await getTelegramUpdates(lastUpdateId);
+            if (success && data && data.length > 0) {
+                let maxUpdateId = lastUpdateId || 0;
+                const newMsgs: Message[] = [];
+
+                data.forEach(update => {
+                    if (update.update_id > maxUpdateId) {
+                        maxUpdateId = update.update_id;
+                    }
+
+                    if (update.message && update.message.text) {
+                        newMsgs.push({
+                            id: update.message.message_id.toString(),
+                            text: update.message.text,
+                            sender_name: update.message.from.first_name + (update.message.from.last_name ? ' ' + update.message.from.last_name : ''),
+                            sender_id: update.message.from.id.toString(),
+                            is_alert: false,
+                            created_at: new Date(update.message.date * 1000).toISOString()
+                        });
+                    }
+                });
+
+                if (newMsgs.length > 0 && isMounted) {
+                    setMessages(prev => {
+                        const existingIds = new Set(prev.map(m => m.id));
+                        const filtered = newMsgs.filter(m => !existingIds.has(m.id));
+                        return [...prev, ...filtered];
+                    });
+                }
+
+                if (maxUpdateId >= (lastUpdateId || 0) && isMounted) {
+                    setLastUpdateId(maxUpdateId + 1);
+                }
+            }
+        };
+
+        intervalId = setInterval(pollMessages, 3000); // 3 Segons
+        pollMessages();
+
+        return () => {
+            isMounted = false;
+            clearInterval(intervalId);
+        };
+    }, [lastUpdateId]);
 
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();

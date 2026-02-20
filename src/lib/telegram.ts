@@ -47,3 +47,32 @@ export async function sendTelegramMessage(text: string, chatId?: string): Promis
         return { success: false, error: error.message };
     }
 }
+
+/**
+ * Escolta o rep missatges (updates) de Telegram.
+ */
+export async function getTelegramUpdates(offset?: number): Promise<{ success: boolean; data?: any[]; error?: string }> {
+    if (!TELEGRAM_BOT_TOKEN) {
+        return { success: false, error: 'Token del bot no configurat' };
+    }
+
+    let url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getUpdates?allowed_updates=["message"]`;
+    if (offset) {
+        url += `&offset=${offset}`;
+    }
+
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.ok) {
+            return { success: true, data: data.result };
+        } else {
+            console.error('Telegram API Error:', data.description);
+            return { success: false, error: data.description };
+        }
+    } catch (error: any) {
+        console.error('Error rebent missatges de Telegram:', error);
+        return { success: false, error: error.message };
+    }
+}
