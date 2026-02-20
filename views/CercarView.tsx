@@ -574,29 +574,43 @@ const CercarViewComponent: React.FC<{
 
   return (
     <div className="space-y-6 sm:space-y-8 p-4 sm:p-8 animate-in fade-in duration-700">
-      <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 animate-in fade-in slide-in-from-top-4 duration-700 parallax-slow">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl sm:text-3xl font-bold text-[#4D5358] dark:text-white tracking-tight title-glow uppercase">Cerca de Servei</h1>
-            {isOfflineMode && <span className="bg-red-500/20 text-red-500 text-xs px-2 py-1 rounded-full animate-pulse border border-red-500/30">Línia Caiguda: Offline</span>}
+      <header className="flex flex-col xl:flex-row xl:items-end justify-between gap-6 animate-in fade-in slide-in-from-top-4 duration-700 parallax-slow">
+        <div className="flex flex-col gap-4">
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl sm:text-3xl font-bold text-[#4D5358] dark:text-white tracking-tight title-glow uppercase">Cerca de Servei</h1>
+              {isOfflineMode && <span className="bg-red-500/20 text-red-500 text-xs px-2 py-1 rounded-full animate-pulse border border-red-500/30">Línia Caiguda: Offline</span>}
+            </div>
+            <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400 font-medium mt-1">
+              {syncing ? syncMsg || "Sincronitzant..." : "Informació de torns, circulacions i unitats de tren."}
+            </p>
           </div>
-          <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400 font-medium mt-1">
-            {syncing ? syncMsg || "Sincronitzant..." : "Informació de torns, circulacions i unitats de tren."}
-          </p>
+          <button onClick={handleSync} disabled={syncing || isOfflineMode} className={`hidden md:flex self-start items-center gap-2 px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all border ${isOfflineMode ? 'opacity-50 cursor-not-allowed border-gray-200 dark:border-white/5 bg-gray-100 dark:bg-white/5 text-gray-400' : 'border-fgc-green/50 text-fgc-green hover:bg-fgc-green hover:text-[#4D5358] bg-fgc-green/10 group shadow-sm shadow-fgc-green/10'}`}>
+            <Save size={16} className={syncing ? 'animate-bounce' : 'group-hover:scale-110 transition-transform'} />
+            {syncing ? 'Baixant...' : 'Baixar Catxé per a Offline'}
+          </button>
         </div>
-        <div className="flex flex-col gap-2"><span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Filtre de Servei</span><div className="inline-flex glass-card p-1 rounded-2xl shadow-sm border border-gray-100 dark:border-white/5">{['Tots', ...serveiTypes].map(s => (<button key={s} onClick={() => { feedback.deepClick(); setSelectedServei(s); }} className={`px-3 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${selectedServei === s ? 'bg-fgc-grey dark:bg-fgc-green dark:text-[#4D5358] text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5'}`}>{s === 'Tots' ? 'Tots' : `S-${s}`}</button>))}</div></div>
+        <div className="flex flex-col gap-2">
+          <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Filtre de Servei</span>
+          <div className="flex overflow-x-auto w-full [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] -mx-4 px-4 md:mx-0 md:px-0">
+            <div className="inline-flex glass-card p-1 rounded-2xl shadow-sm border border-gray-100 dark:border-white/5 pb-0">
+              {['Tots', ...serveiTypes].map(s => (<button key={s} onClick={() => { feedback.deepClick(); setSelectedServei(s); }} className={`px-3 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex-shrink-0 ${selectedServei === s ? 'bg-fgc-grey dark:bg-fgc-green dark:text-[#4D5358] text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5'}`}>{s === 'Tots' ? 'Tots' : `S-${s}`}</button>))}
+            </div>
+          </div>
+        </div>
       </header>
 
       <GlassPanel className="p-6 sm:p-8 relative z-30">
         <div className="absolute inset-0 rounded-[32px] sm:rounded-[40px] overflow-hidden pointer-events-none">
           <div className="absolute top-0 right-0 w-64 h-64 bg-fgc-green/5 blur-3xl -mr-32 -mt-32" />
         </div>
-        <div className="flex flex-wrap gap-2 sm:gap-3 mb-6 sm:mb-8">
-          {filterButtons.map((btn) => (<button key={btn.id} onClick={() => { feedback.click(); setSearchType(btn.id); setResults([]); setQuery(''); setSuggestions([]); setShowSuggestions(false); }} className={`flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all ${searchType === btn.id ? 'bg-fgc-green text-[#4D5358] shadow-xl shadow-fgc-green/20' : 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/10'}`}>{btn.icon}{btn.label}</button>))}
-          <div className="flex-1" />
-          <button onClick={handleSync} disabled={syncing || isOfflineMode} className={`flex items-center gap-2 px-4 py-2 sm:py-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all ${isOfflineMode ? 'opacity-50 cursor-not-allowed' : 'hover:bg-fgc-green hover:text-[#4D5358] text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-white/5 group'}`}>
-            <Save size={16} className={syncing ? 'animate-bounce' : 'group-hover:scale-110 transition-transform'} />
-            {syncing ? 'Baixant...' : 'Baixar Catxé'}
+        <div className="flex overflow-x-auto w-full -mx-6 px-6 sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] gap-2 sm:gap-3 mb-6 sm:mb-8 pb-1">
+          {filterButtons.map((btn) => (<button key={btn.id} onClick={() => { feedback.click(); setSearchType(btn.id); setResults([]); setQuery(''); setSuggestions([]); setShowSuggestions(false); }} className={`flex-shrink-0 flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold transition-all ${searchType === btn.id ? 'bg-fgc-green text-[#4D5358] shadow-xl shadow-fgc-green/20' : 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/10'}`}>{btn.icon}{btn.label}</button>))}
+        </div>
+        <div className="md:hidden w-full mb-6">
+          <button onClick={handleSync} disabled={syncing || isOfflineMode} className={`w-full flex justify-center items-center gap-2 px-4 py-3 rounded-2xl text-sm font-bold transition-all border ${isOfflineMode ? 'opacity-50 cursor-not-allowed border-gray-200 dark:border-white/5 bg-gray-100 dark:bg-white/5 text-gray-400' : 'border-fgc-green/50 text-fgc-green hover:bg-fgc-green hover:text-[#4D5358] bg-fgc-green/10 group shadow-sm shadow-fgc-green/10'}`}>
+            <Save size={18} className={syncing ? 'animate-bounce' : 'group-hover:scale-110 transition-transform'} />
+            {syncing ? 'Baixant...' : 'Baixar dades Offline'}
           </button>
         </div>
 
