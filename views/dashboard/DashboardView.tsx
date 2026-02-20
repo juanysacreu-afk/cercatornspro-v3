@@ -62,9 +62,9 @@ const KpiCard: React.FC<{
         </div>
 
         {progress !== undefined ? (
-            <div className="relative z-10 flex flex-col justify-end mt-1 sm:mt-2 mb-0.5">
-                <div className="flex flex-col 2xl:flex-row items-start 2xl:items-center gap-3 sm:gap-4">
-                    <div className="relative w-[72px] h-[72px] sm:w-[84px] sm:h-[84px] 2xl:w-[96px] 2xl:h-[96px] shrink-0">
+            <div className="relative z-10 flex flex-col justify-end mt-1 sm:mt-2 lg:mt-auto mb-0.5">
+                <div className="flex flex-col xl:flex-row items-start xl:items-center gap-3 sm:gap-4 lg:gap-6">
+                    <div className="relative w-[72px] h-[72px] sm:w-[84px] sm:h-[84px] lg:w-[100px] lg:h-[100px] 2xl:w-[120px] 2xl:h-[120px] shrink-0 transition-all duration-500">
                         <svg className="w-full h-full transform -rotate-90 drop-shadow-sm" viewBox="0 0 36 36">
                             <path
                                 className="text-black/5 dark:text-white/5"
@@ -85,22 +85,22 @@ const KpiCard: React.FC<{
                             />
                         </svg>
                         <div className="absolute inset-0 flex flex-col items-center justify-center">
-                            <span className="text-xl sm:text-2xl 2xl:text-[28px] font-black leading-none tracking-tighter translate-y-[2px]" style={{ color }}>
-                                {progress}<span className="text-[10px] sm:text-sm 2xl:text-base tracking-normal font-bold opacity-70 ml-[2px]">%</span>
+                            <span className="text-xl sm:text-2xl lg:text-3xl 2xl:text-[34px] font-black leading-none tracking-tighter translate-y-[2px]" style={{ color }}>
+                                {progress}<span className="text-[10px] sm:text-sm lg:text-base 2xl:text-lg tracking-normal font-bold opacity-70 ml-[2px]">%</span>
                             </span>
                         </div>
                     </div>
                     <div className="min-w-0 flex-1">
-                        <div className="text-sm sm:text-base 2xl:text-lg font-bold text-[#4D5358] dark:text-white leading-tight uppercase tracking-wide">{label}</div>
-                        {subtitle && <div className="text-[11px] sm:text-xs 2xl:text-sm font-medium text-gray-500 dark:text-gray-400 mt-1 leading-snug">{subtitle}</div>}
+                        <div className="text-sm sm:text-base lg:text-lg 2xl:text-xl font-bold text-[#4D5358] dark:text-white leading-tight uppercase tracking-wide transition-all">{label}</div>
+                        {subtitle && <div className="text-[11px] sm:text-xs lg:text-sm 2xl:text-base font-medium text-gray-500 dark:text-gray-400 mt-1 lg:mt-1.5 leading-snug transition-all">{subtitle}</div>}
                     </div>
                 </div>
             </div>
         ) : (
-            <div className="relative z-10">
-                <div className="text-3xl sm:text-4xl font-black tracking-tight text-[#4D5358] dark:text-white mt-1">{value}</div>
-                <div className="text-sm font-semibold text-gray-500 dark:text-gray-400 mt-1">{label}</div>
-                {subtitle && <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{subtitle}</div>}
+            <div className="relative z-10 mt-auto">
+                <div className="text-3xl sm:text-4xl lg:text-5xl 2xl:text-6xl font-black tracking-tight text-[#4D5358] dark:text-white mt-1 lg:mt-4 transition-all duration-500" style={{ color }}>{value}</div>
+                <div className="text-sm lg:text-base 2xl:text-lg font-bold text-[#4D5358] dark:text-gray-300 mt-1 lg:mt-3 uppercase tracking-wide transition-all">{label}</div>
+                {subtitle && <div className="text-xs lg:text-sm 2xl:text-base text-gray-400 dark:text-gray-500 mt-0.5 lg:mt-1.5 font-medium transition-all">{subtitle}</div>}
             </div>
         )}
     </div>
