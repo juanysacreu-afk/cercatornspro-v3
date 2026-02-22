@@ -137,11 +137,12 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
         if (success && data) {
             playSendSound();
 
-            // Generate telegram link
-            // For group messages, the link is usually https://t.me/c/CHAT_ID_WITHOUT_100/MESSAGE_ID
+            // Generate deep link to open in Telegram App directly
+            // For private groups/channels: tg://privatepost?channel=ID&post=MSG_ID
             const rawChatId = data.chat.id.toString();
+            // Remove -100 prefix for private channel IDs in deep links
             const cleanChatId = rawChatId.startsWith('-100') ? rawChatId.substring(4) : rawChatId;
-            const telegramLink = `https://t.me/c/${cleanChatId}/${data.message_id}`;
+            const telegramLink = `tg://privatepost?channel=${cleanChatId}&post=${data.message_id}`;
 
             const newMessage: Message = {
                 id: data.message_id.toString(),
