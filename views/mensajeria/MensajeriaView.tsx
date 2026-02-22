@@ -30,6 +30,9 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputText, setInputText] = useState('');
     const [memberCount, setMemberCount] = useState<number>(0);
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
 
     const currentUserId = currentProfile.id || 'current-user-id';
     const [lastUpdateId, setLastUpdateId] = useState<number | undefined>(undefined);
@@ -98,68 +101,54 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
         };
     }, []);
 
-    // Sistema de validación (Polling) per escoltar missatges nous de Telegram directly
+    // Close menu when clicking outside
     useEffect(() => {
-        let isMounted = true;
-        let intervalId: any;
-
-        const pollMessages = async () => {
-            const { success, data } = await getTelegramUpdates(lastUpdateId);
-            if (success && data && data.length > 0) {
-                let maxUpdateId = lastUpdateId || 0;
-                const newMsgs: Message[] = [];
-
-                data.forEach(update => {
-                    if (update.update_id > maxUpdateId) {
-                        maxUpdateId = update.update_id;
-                    }
-
-                    if (update.message && update.message.text) {
-                        newMsgs.push({
-                            id: update.message.message_id.toString(),
-                            text: update.message.text,
-                            sender_name: update.message.from.first_name + (update.message.from.last_name ? ' ' + update.message.from.last_name : ''),
-                            sender_id: update.message.from.id.toString(),
-                            is_alert: false,
-                            created_at: new Date(update.message.date * 1000).toISOString()
-                        });
-                    }
-                });
-
-                if (newMsgs.length > 0 && isMounted) {
-                    // Actualitzem localment
-                    setMessages(prev => {
-                        const existingIds = new Set(prev.map(m => m.id));
-                        const filtered = newMsgs.filter(m => !existingIds.has(m.id));
-
-                        if (filtered.length > 0 && lastUpdateId !== undefined) {
-                            setTimeout(() => {
-                                playReceiveSound();
-                                showLocalNotification(`Nou enviament des de Telegram`, `Tens ${filtered.length} missatge(s)`);
-                            }, 50);
-                        }
-
-                        return [...prev, ...filtered];
-                    });
-
-                    // Ho desem directament a Supabase per sincronitzar history amb la resta
-                    await supabase.from('telegram_messages').upsert(newMsgs, { onConflict: 'id' });
-                }
-
-                if (maxUpdateId >= (lastUpdateId || 0) && isMounted) {
-                    setLastUpdateId(maxUpdateId + 1);
-                }
+        const handleClickOutside = (event: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+                setIsMenuOpen(false);
             }
         };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
-        intervalId = setInterval(pollMessages, 3000); // 3 Segons
-        pollMessages();
+    const handleClearHistory = async () => {
+        if (!window.confirm('Estàs segur que vols esborrar tot l\'historial local de missatges? (No s\'esborraran de Telegram)')) return;
 
-        return () => {
-            isMounted = false;
-            clearInterval(intervalId);
-        };
-    }, [lastUpdateId]);
+        setIsMenuOpen(false);
+        const { error } = await supabase.from('telegram_messages').delete().not('id', 'is', null);
+        if (!error) {
+            setMessages([]);
+        }
+    };
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        // Reset input immediately
+        if (fileInputRef.current) fileInputRef.current.value = '';
+
+        const msg = `📎 Ha compartit un fitxer: <b>${file.name}</b>`;
+        const formattedTelegramMsg = `👤 <b>${currentProfile.firstName} ${currentProfile.lastName}</b>\n${msg}`;
+
+        const { success, data } = await sendTelegramMessage(formattedTelegramMsg);
+
+        if (success && data) {
+            playSendSound();
+            const newMessage: Message = {
+                id: data.message_id.toString(),
+                text: `📎 Fitxer: ${file.name}`,
+                sender_name: `${currentProfile.firstName} ${currentProfile.lastName}`,
+                sender_id: currentProfile.email ? currentProfile.email.toLowerCase() : currentUserId,
+                is_alert: false,
+                created_at: new Date().toISOString()
+            };
+
+            setMessages(prev => [...prev, newMessage]);
+            await supabase.from('telegram_messages').upsert([newMessage], { onConflict: 'id' });
+        }
+    };
 
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -268,9 +257,37 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                             <span>{memberCount > 0 ? `${memberCount} membres` : 'Cargant...'}</span>
                         </div>
                     </div>
-                    <button className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
-                        <MoreVertical size={20} />
-                    </button>
+                    <div className="relative" ref={menuRef}>
+                        <button
+                            onClick={() => setIsMenuOpen(!isMenuOpen)}
+                            className={`p-2 rounded-xl transition-all ${isMenuOpen ? 'bg-fgc-green/10 text-fgc-green' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5'}`}
+                        >
+                            <MoreVertical size={20} />
+                        </button>
+
+                        {isMenuOpen && (
+                            <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 py-2 z-[100] animate-modal-premium">
+                                <div className="px-4 py-2 border-b border-gray-100 dark:border-white/5">
+                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Opcions de Canal</p>
+                                </div>
+                                <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-white/5 text-left transition-colors">
+                                    <MessageCircle size={16} className="text-fgc-green" />
+                                    <div>
+                                        <p className="text-sm font-bold text-gray-700 dark:text-gray-200">Informació</p>
+                                        <p className="text-[10px] text-gray-400">{memberCount} membres actius</p>
+                                    </div>
+                                </button>
+                                <div className="h-px bg-gray-100 dark:border-white/5 my-1 mx-2" />
+                                <button
+                                    onClick={handleClearHistory}
+                                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-red-50 dark:hover:bg-red-500/10 text-left transition-colors group"
+                                >
+                                    <Trash2 size={16} className="text-red-400 group-hover:text-red-500" />
+                                    <span className="text-sm font-bold text-red-500">Esborrar Historial</span>
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* Messages List */}
@@ -347,8 +364,18 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
 
                 {/* Input Area */}
                 <div className="p-3 md:p-4 bg-white dark:bg-gray-950 border-t border-gray-100 dark:border-white/5">
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileUpload}
+                        className="hidden"
+                    />
                     <form onSubmit={handleSendMessage} className="flex gap-1 md:gap-2">
-                        <button type="button" className="p-2 md:p-3 text-gray-400 hover:text-fgc-green hover:bg-fgc-green/10 rounded-xl transition-colors shrink-0">
+                        <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            className="p-2 md:p-3 text-gray-400 hover:text-fgc-green hover:bg-fgc-green/10 rounded-xl transition-colors shrink-0"
+                        >
                             <Paperclip size={20} />
                         </button>
                         <input
