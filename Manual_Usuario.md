@@ -72,11 +72,20 @@ Desde aquí puedes cruzar información y ver el detalle en profundidad de:
 ![Búsqueda Avanzada](public/manual_images/click_feedback_1771606694813.png)
 *Resultados al introducir un parámetro como "S1" en el buscador interactivo.*
 
+![Búsqueda Modo Claro Q0023](public/manual_images/nexus_light_cercar_q0023.png)
+*Ejemplo de búsqueda del turno Q0023 en Modo Claro (Servei 0).*
+
 ### 3.3 🔄 Organitza (Gestión de Malla)
 Para la gestión de los maquinistas, sus horarios, relevos y tiempos de descanso. Listados por cuadrantes e intercambios para gestionar ausencias imprevisibles.
 
 ![Organitza](public/manual_images/organitza_torn_1771605931424.png)
 *Organización y Malla de Servicios.*
+
+![Comparativa Modo Claro](public/manual_images/nexus_light_comparativa_q0002_q0004.png)
+*Análisis comparativo entre los turnos Q0002 y Q0004 en Modo Claro (Servei 0).*
+
+![Timeline de Coincidencias](public/manual_images/nexus_light_comparativa_timeline.png)
+*Detalle del Timeline de Coincidencias y encuentros detectados entre ambos turnos.*
 
 ### 3.4 🛡️ Incidència (Gestión de Problemas y Crisis)
 Todo lo que está provocando un problema entra aquí.
