@@ -47,17 +47,20 @@ const Sidebar: React.FC<SidebarProps> = ({
             {/* Logo Area */}
             <div className="h-24 flex items-center px-5 overflow-hidden border-b border-white/5">
                 <div
-                    className="flex items-center gap-4 cursor-pointer select-none group shrink-0"
+                    className="flex items-center gap-4 cursor-pointer select-none group shrink-0 w-full"
                     onDoubleClick={toggleAdminMode}
                 >
                     <img
                         src="https://www.fgc.cat/wp-content/uploads/2020/06/logo-FGC-square.png"
-                        alt="Logo"
+                        alt="FGC Icon"
                         className="w-10 h-10 rounded-lg shrink-0 group-active:scale-95 transition-transform"
                     />
-                    <div className={`transition-all duration-500 whitespace-nowrap ${isExpanded ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4 pointer-events-none'}`}>
-                        <span className="text-xl font-black text-white tracking-tighter">Cerca<span className="text-fgc-green">Torns</span></span>
-                        <span className="ml-1.5 px-1.5 py-0.5 bg-fgc-green text-fgc-grey text-[8px] font-black rounded uppercase">Pro</span>
+                    <div className={`transition-all duration-500 whitespace-nowrap overflow-hidden ${isExpanded ? 'opacity-100 translate-x-0 w-auto' : 'opacity-0 -translate-x-4 w-0 pointer-events-none'}`}>
+                        <img
+                            src="/logo-pro.png"
+                            alt="NEXUS"
+                            className="h-10 w-auto object-contain"
+                        />
                     </div>
                 </div>
             </div>

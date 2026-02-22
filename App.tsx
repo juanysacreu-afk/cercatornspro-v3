@@ -385,10 +385,11 @@ const App: React.FC = () => {
                     alt="FGC Logo"
                     className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg object-cover shadow-sm transition-transform active:scale-95 group-hover:brightness-110"
                   />
-                  <span className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-                    <span className="text-white transition-colors duration-300">Cerca</span>
-                    <span className="text-fgc-green">Torns</span> <span className="pro-badge">PRO</span>
-                  </span>
+                  <img
+                    src="/logo-pro.png"
+                    alt="CercaTorns PRO"
+                    className="h-10 sm:h-12 w-auto object-contain"
+                  />
                 </div>
 
                 <div className="hidden md:flex items-center gap-1">

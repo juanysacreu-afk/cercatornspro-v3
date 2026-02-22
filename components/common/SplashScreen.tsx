@@ -32,10 +32,11 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ progress, onComplete }) => 
             </div>
 
             <div className="text-center space-y-4 max-w-xs w-full px-8">
-                <h1 className="text-2xl font-black text-white uppercase tracking-tighter">
-                    Cerca<span className="text-fgc-green">Torns</span>
-                    <span className="ml-2 px-2 py-0.5 bg-fgc-green text-fgc-grey text-[10px] rounded-lg align-top">PRO</span>
-                </h1>
+                <img
+                    src="/logo-pro.png"
+                    alt="CercaTorns PRO"
+                    className="h-16 w-auto mx-auto object-contain mb-2"
+                />
 
                 <div className="relative h-1.5 w-full bg-white/10 rounded-full overflow-hidden border border-white/5">
                     <div
