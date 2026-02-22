@@ -47,7 +47,6 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ progress, onComplete }) => 
                 <video
                     ref={videoRef}
                     autoPlay
-                    muted
                     playsInline
                     onEnded={handleVideoEnded}
                     className="w-full h-full object-cover"
