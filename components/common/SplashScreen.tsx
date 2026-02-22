@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Train } from 'lucide-react';
+
 
 interface SplashScreenProps {
     progress: number;
@@ -26,8 +26,16 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ progress, onComplete }) => 
         <div className={`fixed inset-0 z-[10005] flex flex-col items-center justify-center bg-fgc-grey dark:bg-black transition-all duration-700 ${progress >= 100 ? 'opacity-0 scale-105 pointer-events-none' : 'opacity-100'}`}>
             <div className="relative mb-8">
                 <div className="absolute inset-0 bg-fgc-green/20 blur-3xl rounded-full scale-150 animate-pulse" />
-                <div className="relative flex items-center justify-center w-24 h-24 bg-white dark:bg-fgc-grey rounded-[32px] shadow-2xl border border-white/10 overflow-hidden">
-                    <Train size={48} className="text-fgc-green animate-bounce" />
+                <div className="relative flex items-center justify-center w-32 h-32 bg-black/40 rounded-[32px] shadow-2xl border border-white/10 overflow-hidden backdrop-blur-sm">
+                    <video
+                        autoPlay
+                        muted
+                        loop
+                        playsInline
+                        className="w-full h-full object-cover"
+                    >
+                        <source src="/loading.mp4" type="video/mp4" />
+                    </video>
                 </div>
             </div>
 
