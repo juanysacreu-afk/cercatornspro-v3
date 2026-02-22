@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, Hash, MoreVertical, MessageCircle, AlertTriangle, Paperclip, CheckCircle, Trash2 } from 'lucide-react';
 import GlassPanel from '../../components/common/GlassPanel';
-import { sendTelegramMessage, getTelegramUpdates, getTelegramMemberCount, deleteTelegramMessage } from '../../src/lib/telegram';
+import { sendTelegramMessage, getTelegramUpdates, getTelegramMemberCount, deleteTelegramMessage, sendTelegramFile } from '../../src/lib/telegram';
 import { supabase } from '../../supabaseClient';
 import { playSendSound, playReceiveSound, requestNotificationPermission, showLocalNotification } from '../../utils/sounds';
 
@@ -129,10 +129,9 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
         // Reset input immediately
         if (fileInputRef.current) fileInputRef.current.value = '';
 
-        const msg = `📎 Ha compartit un fitxer: <b>${file.name}</b>`;
-        const formattedTelegramMsg = `👤 <b>${currentProfile.firstName} ${currentProfile.lastName}</b>\n${msg}`;
+        const caption = `👤 <b>${currentProfile.firstName} ${currentProfile.lastName}</b>\n📎 Ha compartit un fitxer: <b>${file.name}</b>`;
 
-        const { success, data } = await sendTelegramMessage(formattedTelegramMsg);
+        const { success, data } = await sendTelegramFile(file, caption);
 
         if (success && data) {
             playSendSound();
