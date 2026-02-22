@@ -32,6 +32,7 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
     const [inputText, setInputText] = useState('');
     const [memberCount, setMemberCount] = useState<number>(0);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const menuRef = useRef<HTMLDivElement>(null);
 
@@ -132,7 +133,9 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
 
         const caption = `👤 <b>${currentProfile.firstName} ${currentProfile.lastName}</b>\n📎 Ha compartit un fitxer: <b>${file.name}</b>`;
 
-        const { success, data } = await sendTelegramFile(file, caption);
+        setIsUploading(true);
+        const { success, data, error } = await sendTelegramFile(file, caption);
+        setIsUploading(false);
 
         if (success && data) {
             playSendSound();
@@ -157,6 +160,8 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
 
             setMessages(prev => [...prev, newMessage]);
             await supabase.from('telegram_messages').upsert([newMessage], { onConflict: 'id' });
+        } else {
+            alert(`Error al compartir l'arxiu: ${error || 'Error desconegut'}`);
         }
     };
 
@@ -402,7 +407,8 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                         <button
                             type="button"
                             onClick={() => fileInputRef.current?.click()}
-                            className="p-2 md:p-3 text-gray-400 hover:text-fgc-green hover:bg-fgc-green/10 rounded-xl transition-colors shrink-0"
+                            disabled={isUploading}
+                            className={`p-2 md:p-3 text-gray-400 hover:text-fgc-green hover:bg-fgc-green/10 rounded-xl transition-colors shrink-0 ${isUploading ? 'animate-pulse' : ''}`}
                         >
                             <Paperclip size={20} />
                         </button>
