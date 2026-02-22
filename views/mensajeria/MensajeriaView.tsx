@@ -137,12 +137,13 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
         if (success && data) {
             playSendSound();
 
-            // Generate deep link to open in Telegram App directly
-            // For private groups/channels: tg://privatepost?channel=ID&post=MSG_ID
+            // Generate telegram link
             const rawChatId = data.chat.id.toString();
-            // Remove -100 prefix for private channel IDs in deep links
             const cleanChatId = rawChatId.startsWith('-100') ? rawChatId.substring(4) : rawChatId;
-            const telegramLink = `tg://privatepost?channel=${cleanChatId}&post=${data.message_id}`;
+            const msgId = data.message_id;
+
+            // We use the universal link format which is most reliable
+            const telegramLink = `https://t.me/c/${cleanChatId}/${msgId}`;
 
             const newMessage: Message = {
                 id: data.message_id.toString(),
@@ -351,9 +352,15 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                                         {msg.text.startsWith('📎 Fitxer:') ? (
                                             <a
                                                 href={msg.telegram_link}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
                                                 className={`flex items-center gap-2 font-bold hover:underline ${isMe ? 'text-gray-900' : 'text-fgc-green'}`}
+                                                onClick={(e) => {
+                                                    // Try to trigger the App via protocol as a priority
+                                                    const protocolLink = msg.telegram_link?.replace('https://t.me/c/', 'tg://privatepost?channel=').replace('/', '&post=');
+                                                    if (protocolLink) {
+                                                        window.location.href = protocolLink;
+                                                        // We don't prevent default, so if protocol fails, it falls back to the href
+                                                    }
+                                                }}
                                             >
                                                 {msg.text}
                                                 <Send size={12} className="rotate-45" />
