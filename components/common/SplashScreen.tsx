@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 
 
@@ -9,28 +9,47 @@ interface SplashScreenProps {
 
 const SplashScreen: React.FC<SplashScreenProps> = ({ progress, onComplete }) => {
     const [isVisible, setIsVisible] = useState(true);
+    const [videoFinished, setVideoFinished] = useState(false);
+    const videoRef = useRef<HTMLVideoElement>(null);
 
     useEffect(() => {
-        if (progress >= 100) {
+        const isMobile = window.innerWidth < 640;
+        const canClose = isMobile ? (progress >= 100 && videoFinished) : (progress >= 100);
+
+        if (canClose) {
             const timer = setTimeout(() => {
                 setIsVisible(false);
                 onComplete();
             }, 800);
             return () => clearTimeout(timer);
         }
-    }, [progress, onComplete]);
+    }, [progress, videoFinished, onComplete]);
+
+    const handleVideoEnded = () => {
+        if (progress < 100) {
+            // Restart video if still loading
+            videoRef.current?.play();
+        } else {
+            // Signal that video has finished its last loop
+            setVideoFinished(true);
+        }
+    };
 
     if (!isVisible) return null;
 
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
+    const isReadyToFade = isMobile ? (progress >= 100 && videoFinished) : (progress >= 100);
+
     return createPortal(
-        <div className={`fixed inset-0 z-[10005] flex flex-col items-center justify-end sm:justify-center bg-black transition-all duration-700 ${progress >= 100 ? 'opacity-0 scale-105 pointer-events-none' : 'opacity-100'}`}>
+        <div className={`fixed inset-0 z-[10005] flex flex-col items-center justify-end sm:justify-center bg-black transition-all duration-700 ${isReadyToFade ? 'opacity-0 scale-105 pointer-events-none' : 'opacity-100'}`}>
             {/* Fullscreen Video Background */}
             <div className="absolute inset-0 overflow-hidden">
                 <video
+                    ref={videoRef}
                     autoPlay
                     muted
-                    loop
                     playsInline
+                    onEnded={handleVideoEnded}
                     className="w-full h-full object-cover opacity-60"
                 >
                     <source src="/loading.mp4" type="video/mp4" />
