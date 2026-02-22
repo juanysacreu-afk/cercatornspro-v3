@@ -23,7 +23,7 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ progress, onComplete }) => 
     if (!isVisible) return null;
 
     return createPortal(
-        <div className={`fixed inset-0 z-[10005] flex flex-col items-center justify-center bg-black transition-all duration-700 ${progress >= 100 ? 'opacity-0 scale-105 pointer-events-none' : 'opacity-100'}`}>
+        <div className={`fixed inset-0 z-[10005] flex flex-col items-center justify-end sm:justify-center bg-black transition-all duration-700 ${progress >= 100 ? 'opacity-0 scale-105 pointer-events-none' : 'opacity-100'}`}>
             {/* Fullscreen Video Background */}
             <div className="absolute inset-0 overflow-hidden">
                 <video
@@ -39,13 +39,13 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ progress, onComplete }) => 
                 <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/80" />
             </div>
 
-            {/* Centered Content */}
-            <div className="relative z-10 text-center space-y-8 max-w-xs w-full px-8">
+            {/* Content positioned in bottom third for mobile */}
+            <div className="relative z-10 text-center space-y-8 max-w-xs w-full px-8 pb-[12vh] sm:pb-0">
                 <div className="space-y-2">
                     <img
                         src="/logo-pro.png"
                         alt="CercaTorns PRO"
-                        className="h-20 w-auto mx-auto object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]"
+                        className="h-16 sm:h-20 w-auto mx-auto object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]"
                     />
                 </div>
 
