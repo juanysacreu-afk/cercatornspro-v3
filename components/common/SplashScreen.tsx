@@ -50,12 +50,10 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ progress, onComplete }) => 
                     muted
                     playsInline
                     onEnded={handleVideoEnded}
-                    className="w-full h-full object-cover opacity-60"
+                    className="w-full h-full object-cover"
                 >
                     <source src="/loading.mp4" type="video/mp4" />
                 </video>
-                {/* Gradient Overlay for better readability */}
-                <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/80" />
             </div>
 
             {/* Content positioned in bottom third for mobile */}
