@@ -24,6 +24,7 @@ interface Message {
     sender_id: string;
     is_alert: boolean;
     created_at: string;
+    telegram_link?: string;
 }
 
 const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
@@ -135,13 +136,21 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
 
         if (success && data) {
             playSendSound();
+
+            // Generate telegram link
+            // For group messages, the link is usually https://t.me/c/CHAT_ID_WITHOUT_100/MESSAGE_ID
+            const rawChatId = data.chat.id.toString();
+            const cleanChatId = rawChatId.startsWith('-100') ? rawChatId.substring(4) : rawChatId;
+            const telegramLink = `https://t.me/c/${cleanChatId}/${data.message_id}`;
+
             const newMessage: Message = {
                 id: data.message_id.toString(),
                 text: `📎 Fitxer: ${file.name}`,
                 sender_name: `${currentProfile.firstName} ${currentProfile.lastName}`,
                 sender_id: currentProfile.email ? currentProfile.email.toLowerCase() : currentUserId,
                 is_alert: false,
-                created_at: new Date().toISOString()
+                created_at: new Date().toISOString(),
+                telegram_link: telegramLink
             };
 
             setMessages(prev => [...prev, newMessage]);
@@ -338,7 +347,19 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                                         ? 'bg-fgc-green text-gray-900 rounded-tr-sm'
                                         : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border border-gray-100 dark:border-white/5 rounded-tl-sm'
                                         }`}>
-                                        <p className="text-[14px] md:text-[15px] leading-snug break-words">{msg.text}</p>
+                                        {msg.text.startsWith('📎 Fitxer:') ? (
+                                            <a
+                                                href={msg.telegram_link}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className={`flex items-center gap-2 font-bold hover:underline ${isMe ? 'text-gray-900' : 'text-fgc-green'}`}
+                                            >
+                                                {msg.text}
+                                                <Send size={12} className="rotate-45" />
+                                            </a>
+                                        ) : (
+                                            <p className="text-[14px] md:text-[15px] leading-snug break-words">{msg.text}</p>
+                                        )}
                                         <div className={`text-[10px] mt-1 flex items-center justify-end gap-1 ${isMe ? 'text-gray-900/60' : 'text-gray-400'}`}>
                                             {formatTime(msg.created_at)}
                                             {isMe && <CheckCircle size={10} className="opacity-70" />}
