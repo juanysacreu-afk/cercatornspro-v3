@@ -400,7 +400,7 @@ const DashboardViewComponent: React.FC<{ onNavigateToSearch?: (type: string, que
                             <Info size={16} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors cursor-help" />
                             <div className="pointer-events-none absolute bottom-full -right-2 w-56 mb-2 opacity-0 group-hover:opacity-100 transition-opacity z-50">
                                 <div className="bg-gray-900 border border-gray-700 text-white text-[11px] p-2.5 rounded-xl shadow-xl">
-                                    Aquest gràfic interactiu monotoritza en temps real la quantitat de validacions per cada línia (circulacions en moviment actiu).
+                                    Aquest gràfic interactiu monotoritza en temps real la quantitat de circulacions per cada línia (circulacions en moviment actiu).
                                 </div>
                                 <div className="w-2 h-2 bg-gray-900 border-b border-r border-gray-700 transform rotate-45 absolute -bottom-1 right-3"></div>
                             </div>
