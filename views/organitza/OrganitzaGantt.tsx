@@ -402,9 +402,15 @@ const OrganitzaGantt: React.FC<{
         const currentMinutes = now.getMinutes();
         const timeStr = `${currentHours.toString().padStart(2, '0')}:${currentMinutes.toString().padStart(2, '0')}`;
 
+        const menuHeight = 180; // approximate max height of the context menu
+        let adjustedY = e.clientY - rect.top;
+        if (adjustedY + menuHeight > rect.height) {
+            adjustedY -= menuHeight;
+        }
+
         setContextMenu({
             x: e.clientX - rect.left,
-            y: e.clientY - rect.top,
+            y: adjustedY,
             bar,
             clickedTime: timeStr
         });
