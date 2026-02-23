@@ -26,6 +26,7 @@ export interface GanttBar {
     driverPhone: string | null;
     circulations: GanttCircSegment[];
     coveringShiftId?: string | null;
+    coveringDriverName?: string | null;
 }
 
 export interface GanttCircSegment {
@@ -143,12 +144,17 @@ export function useGanttData() {
                     !usedAssignmentIds.has(a.id) && a.torn === shortId
                 );
 
+                let isCoveredByExtra = false;
+
                 if (!assignment) {
                     assignment = assignments.find(a =>
                         !usedAssignmentIds.has(a.id) &&
                         a.observacions &&
                         a.observacions.toUpperCase().includes(shortId)
                     );
+                    if (assignment) {
+                        isCoveredByExtra = true;
+                    }
                 }
 
                 if (assignment) {
@@ -209,7 +215,8 @@ export function useGanttData() {
                     assignmentId: assignment?.id || null,
                     driverPhone,
                     circulations: segments,
-                    coveringShiftId: null
+                    coveringShiftId: null,
+                    coveringDriverName: isCoveredByExtra ? driverName : null
                 };
             });
 

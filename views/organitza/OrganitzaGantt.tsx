@@ -272,7 +272,14 @@ const ShiftBar: React.FC<{
             {/* Label inside bar */}
             {renderWidth > 2.5 && (
                 <div className="absolute inset-0 flex flex-col items-start justify-center px-1.5 text-white truncate select-none drop-shadow-sm leading-tight">
-                    <span className="text-[9px] sm:text-[10px] font-bold">{bar.shortId}</span>
+                    <div className="flex items-center gap-1 w-full pr-1">
+                        <span className="text-[9px] sm:text-[10px] font-bold shrink-0">{bar.shortId}</span>
+                        {bar.coveringDriverName && (
+                            <span className="text-[7px] font-bold text-white bg-purple-600/90 px-1 py-[2px] rounded-[4px] truncate leading-none border border-purple-400/50 shadow-sm tracking-wide">
+                                ↺ {bar.coveringDriverName.split(',')[0]?.split(' ')[0] || bar.coveringDriverName}
+                            </span>
+                        )}
+                    </div>
                     {bar.coveringShiftId && (
                         <span className="text-[7.5px] font-medium opacity-90 -mt-[1px] truncate max-w-full">
                             Cobreix {bar.coveringShiftId}
