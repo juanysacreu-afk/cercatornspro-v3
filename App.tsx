@@ -358,11 +358,10 @@ const App: React.FC = () => {
         <div className="blob blob-3 parallax-blob" data-speed="0.03" />
       </div>
 
-      <motion.div layout transition={{ type: "spring", bounce: 0.2, duration: 0.7 }} className={`flex flex-1 overflow-hidden ${isProNav ? 'flex-row' : 'flex-col'}`}>
+      <div className={`flex flex-1 overflow-hidden transition-[flex-direction] duration-500 ${isProNav ? 'flex-row' : 'flex-col'}`}>
         <AnimatePresence mode="popLayout" initial={false}>
           {isProNav && (
             <motion.div
-              layout
               key="sidebar"
               initial={{ width: 0, opacity: 0, scale: 0.95 }}
               animate={{ width: 'auto', opacity: 1, scale: 1 }}
@@ -388,11 +387,10 @@ const App: React.FC = () => {
           )}
         </AnimatePresence>
 
-        <motion.div layout transition={{ type: "spring", bounce: 0.2, duration: 0.7 }} className="flex-1 flex flex-col min-w-0 relative h-full overflow-hidden">
+        <div className="flex-1 flex flex-col min-w-0 relative h-full">
           <AnimatePresence mode="popLayout" initial={false}>
             {!isProNav && (
               <motion.nav
-                layout
                 key="topnav"
                 initial={{ height: 0, opacity: 0, scale: 0.95 }}
                 animate={{ height: 'auto', opacity: 1, scale: 1 }}
@@ -678,8 +676,8 @@ const App: React.FC = () => {
               );
             })}
           </div>
-        </motion.div>
-      </motion.div>
+        </div>
+      </div>
 
       <button
         ref={searchButtonRef}
