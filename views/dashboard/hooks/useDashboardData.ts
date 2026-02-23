@@ -1,12 +1,12 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { supabase } from '../../../supabaseClient';
 import { getServiceToday } from '../../../utils/serviceCalendar';
 import { getFgcMinutes, getShortTornId, isServiceVisible, resolveStationId, mainLiniaForFilter } from '../../../utils/stations';
 
 // ── Types ──────────────────────────────────────────────
 export interface DashboardKPIs {
-    serviceCoverage: number;       // 0-100 % (Live)
-    planningCoverage: number;      // 0-100 % (Daily total)
+    serviceCoverage: number;
+    planningCoverage: number;
     activeTrains: number;
     scheduledTrains: number;
     totalPersonnel: number;
@@ -20,19 +20,23 @@ export interface DashboardKPIs {
 
 export interface PersonnelAlert {
     id: string;
-    type: 'missing' | 'conflict' | 'broken_assigned' | 'late';
+    type: 'missing' | 'conflict' | 'broken_assigned' | 'late' | 'upcoming';
     severity: 'critical' | 'warning' | 'info';
     title: string;
     subtitle: string;
     tornId?: string;
     nomina?: string;
+    startsInMin?: number; // F2: minutes until shift starts
 }
 
 export interface ReserveSlot {
     station: string;
     stationLabel: string;
     count: number;
-    personnel: { nom: string; cognoms: string; torn: string }[];
+    personnel: { nom: string; cognoms: string; torn: string; isActive?: boolean }[];
+    // F4 – assignment history
+    assignmentHistory?: Record<string, string[]>;
+    previousAssignments?: { nom: string; cognoms: string; torn: string }[];
 }
 
 export interface LineStatus {
@@ -41,6 +45,7 @@ export interface LineStatus {
     activeCirculations: number;
     totalCirculations: number;
     coveragePercent: number;
+    shifts?: string[]; // V2 – shift IDs on this line
 }
 
 // ── Hook ───────────────────────────────────────────────
@@ -55,9 +60,12 @@ export function useDashboardData() {
     const [reserves, setReserves] = useState<ReserveSlot[]>([]);
     const [lineStatuses, setLineStatuses] = useState<LineStatus[]>([]);
     const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+    // V4 – seconds since refresh
+    const [secondsSinceRefresh, setSecondsSinceRefresh] = useState(0);
     const [nowMin, setNowMin] = useState(0);
     const serviceToday = getServiceToday();
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const realtimeConnectedRef = useRef(false);
 
     // Live clock
     useEffect(() => {
@@ -72,68 +80,65 @@ export function useDashboardData() {
         return () => clearInterval(id);
     }, []);
 
+    // V4 – "Actualitzat fa Xs" — ticks every second
+    useEffect(() => {
+        const id = setInterval(() => {
+            setSecondsSinceRefresh(prev => prev + 1);
+        }, 1000);
+        return () => clearInterval(id);
+    }, []);
+
+    // Reset counter when data refreshes
+    useEffect(() => {
+        setSecondsSinceRefresh(0);
+    }, [lastRefresh]);
+
     const fetchData = useCallback(async () => {
         try {
             // Independent fetches to prevent one failure from crashing the entire dashboard
-
-            // 1. Shifts (Core)
             let shiftsRes: { data: any[] | null } = { data: [] };
             try {
                 const res = await supabase.from('shifts').select('id, servei, inici_torn, final_torn, dependencia, circulations');
                 if (res.error) console.error('[Dashboard] Error fetching shifts:', res.error);
                 else shiftsRes = res;
-            } catch (e) {
-                console.error('[Dashboard] Unexpected error fetching shifts:', e);
-            }
+            } catch (e) { console.error('[Dashboard] Unexpected error fetching shifts:', e); }
 
-            // 2. Assignments (Core)
             let assignmentsRes: { data: any[] | null } = { data: [] };
             try {
                 const res = await supabase.from('daily_assignments').select('*');
                 if (res.error) console.error('[Dashboard] Error fetching assignments:', res.error);
                 else assignmentsRes = res;
-            } catch (e) {
-                console.error('[Dashboard] Unexpected error fetching assignments:', e);
-            }
+            } catch (e) { console.error('[Dashboard] Unexpected error fetching assignments:', e); }
 
-            // 3. Parked Units (Optional)
             let parkedRes: { data: any[] | null } = { data: [] };
             try {
                 const res = await supabase.from('parked_units').select('*');
                 if (res.error) console.error('[Dashboard] Error fetching parked_units:', res.error);
                 else parkedRes = res;
-            } catch (e) {
-                console.error('[Dashboard] Unexpected error fetching parked_units:', e);
-            }
+            } catch (e) { console.error('[Dashboard] Unexpected error fetching parked_units:', e); }
 
-            // 4. Fleet Status (Optional)
             let brokenRes: { data: any[] | null } = { data: [] };
             try {
                 const res = await supabase.from('train_status').select('*');
                 if (res.error) console.error('[Dashboard] Error fetching train_status:', res.error);
                 else brokenRes = res;
-            } catch (e) {
-                console.error('[Dashboard] Unexpected error fetching train_status:', e);
-            }
+            } catch (e) { console.error('[Dashboard] Unexpected error fetching train_status:', e); }
 
-            // 5. Circulations (Optional lookup)
             let circsRes: { data: any[] | null } = { data: [] };
             try {
                 const res = await supabase.from('circulations').select('id, codi, sortida, arribada');
                 if (res.error) console.warn('[Dashboard] Optional circulations fetch failed:', res.error);
                 else circsRes = res;
-            } catch (e) {
-                console.warn('Failed to fetch circulations, continuing without extra data', e);
-            }
+            } catch (e) { console.warn('Failed to fetch circulations', e); }
 
-            // Create timestamp lookup map for circulations
-            const circMap = new Map<string, { start: number, end: number }>();
+            // C2 – build circMap once (no re-creation on each render)
+            const circMap = new Map<string, { start: number; end: number }>();
             (circsRes.data || []).forEach((c: any) => {
                 const s = getFgcMinutes(c.sortida);
                 const e = getFgcMinutes(c.arribada);
                 if (s !== null && e !== null) {
-                    circMap.set(c.id, { start: s, end: e }); // Map by UUID
-                    circMap.set(c.codi, { start: s, end: e }); // Map by Code (fallback)
+                    circMap.set(c.id, { start: s, end: e });
+                    circMap.set(c.codi, { start: s, end: e });
                 }
             });
 
@@ -142,7 +147,6 @@ export function useDashboardData() {
                 (s.id && s.id.toUpperCase().startsWith('QR'))
             );
             const assignments = assignmentsRes.data || [];
-            const parkedUnits = parkedRes.data || [];
             const fleetStatus = brokenRes.data || [];
 
             const now = new Date();
@@ -155,46 +159,43 @@ export function useDashboardData() {
                 const sMin = getFgcMinutes(s.inici_torn);
                 let eMin = getFgcMinutes(s.final_torn);
                 if (sMin !== null && eMin !== null) {
-                    if (eMin < sMin) eMin += 1440; // Handle overnight shifts
+                    if (eMin < sMin) eMin += 1440;
                     return currentMin >= sMin && currentMin <= eMin;
                 }
                 return false;
             });
 
-            // ── Account for Driver Assignments in Coverage ──
-            const assignedTornsGlobal = new Set(assignments.map(a => a.torn));
+            const assignedTornsGlobal = new Set(assignments.map((a: any) => a.torn));
             const currentActiveCircIds = new Set<string>();
             const currentScheduledCircIds = new Set<string>();
 
+            // C2 – memoized helper for circulation time resolution
+            const resolveCircTimes = (c: any): { start: number | null; end: number | null } => {
+                if (typeof c === 'object' && c.sortida && c.arribada) {
+                    return { start: getFgcMinutes(c.sortida), end: getFgcMinutes(c.arribada) };
+                }
+                if (typeof c === 'string' && circMap.has(c)) {
+                    const t = circMap.get(c)!;
+                    return { start: t.start, end: t.end };
+                }
+                if (typeof c === 'object' && c.id && circMap.has(c.id)) {
+                    const t = circMap.get(c.id)!;
+                    return { start: t.start, end: t.end };
+                }
+                return { start: null, end: null };
+            };
+
             shifts.forEach(s => {
                 const shiftHasDriver = assignedTornsGlobal.has(getShortTornId(s.id)) || assignedTornsGlobal.has(s.id);
-
                 ((s.circulations as any[]) || []).forEach(c => {
                     const codi = typeof c === 'string' ? c : c?.codi;
-                    if (codi && codi !== 'Viatger') {
-                        // Resolve Start/End times
-                        let start: number | null = null;
-                        let end: number | null = null;
-
-                        if (typeof c === 'object' && c.sortida && c.arribada) {
-                            start = getFgcMinutes(c.sortida);
-                            end = getFgcMinutes(c.arribada);
-                        } else if (typeof c === 'string' && circMap.has(c)) {
-                            const times = circMap.get(c);
-                            if (times) { start = times.start; end = times.end; }
-                        } else if (typeof c === 'object' && c.id && circMap.has(c.id)) {
-                            const times = circMap.get(c.id);
-                            if (times) { start = times.start; end = times.end; }
-                        }
-
-                        if (start !== null && end !== null) {
-                            if (end < start) end += 1440;
-                            if (currentMin >= start && currentMin <= end) {
-                                currentScheduledCircIds.add(codi);
-                                if (shiftHasDriver) {
-                                    currentActiveCircIds.add(codi);
-                                }
-                            }
+                    if (!codi || codi === 'Viatger') return;
+                    const { start, end } = resolveCircTimes(c);
+                    if (start !== null && end !== null) {
+                        const adjEnd = end < start ? end + 1440 : end;
+                        if (currentMin >= start && currentMin <= adjEnd) {
+                            currentScheduledCircIds.add(codi);
+                            if (shiftHasDriver) currentActiveCircIds.add(codi);
                         }
                     }
                 });
@@ -204,18 +205,10 @@ export function useDashboardData() {
             const activeNow = currentActiveCircIds.size;
             const coverage = scheduledNow > 0 ? Math.round((activeNow / scheduledNow) * 100) : 100;
 
-            // Update semantic mapping for UI
-            // activeTrains: The number displayed as big number
-            // scheduledTrains: The number displayed in subtitle "X de Y"
-
             // ── Personnel ──
-            // ── Personnel ──
-            const assignedTorns = new Set(assignments.map(a => a.torn));
-            const activeAssignments = assignments.filter(a => {
-                // Priority: Use assignment specific times if available, otherwise fallback to shift def
+            const activeAssignments = assignments.filter((a: any) => {
                 let start = getFgcMinutes(a.hora_inici);
                 let end = getFgcMinutes(a.hora_fi);
-
                 if (start === null || end === null) {
                     const shift = shifts.find(s => getShortTornId(s.id) === a.torn || s.id === a.torn);
                     if (shift) {
@@ -223,7 +216,6 @@ export function useDashboardData() {
                         end = getFgcMinutes(shift.final_torn);
                     }
                 }
-
                 if (start !== null && end !== null) {
                     if (end < start) end += 1440;
                     return currentMin >= start && currentMin <= end;
@@ -232,61 +224,65 @@ export function useDashboardData() {
             });
 
             // ── Reserves ──
-            // ── Reserves ──
             const RESERVE_STATIONS: Record<string, string> = {
                 'PC': 'Pl. Catalunya', 'SR': 'Sarrià', 'RB': 'Rubí',
                 'NA': 'Nacions Unides', 'NO': 'Sabadell', 'EN': 'Terrassa',
                 'XX': 'Sense Ubicació'
             };
-            const reserveSlotsMap = new Map<string, { label: string, personnel: any[] }>();
-
-            // Initialize map
+            const reserveSlotsMap = new Map<string, { label: string; personnel: any[] }>();
             Object.entries(RESERVE_STATIONS).forEach(([k, v]) => reserveSlotsMap.set(k, { label: v, personnel: [] }));
 
-            // Iterate ASSIGNMENTS first (Source of Truth for "Who works now")
-            activeAssignments.forEach(a => {
+            // F4 – track ALL reserve assignments of the day (not just active)
+            const allReserveAssignments: any[] = [];
+            assignments.forEach((a: any) => {
+                const tornId = a.torn.toUpperCase();
+                if (tornId.startsWith('QR')) allReserveAssignments.push(a);
+            });
+
+            activeAssignments.forEach((a: any) => {
                 const tornId = a.torn.toUpperCase();
                 if (!tornId.startsWith('QR')) return;
-
-                // Find Shift Metadata for location
                 const shiftMeta = shifts.find(s => getShortTornId(s.id) === a.torn || s.id === a.torn);
                 let stationCode = shiftMeta?.dependencia ? resolveStationId(shiftMeta.dependencia) : '';
-
-                // Fallback: Infer station from ID if metadata missing or unresolved
-                // User: QRP=PC, QRS=SR, QRR=RB, QRN=NA (Nacions), QRF=Sabadell (NO or similar), QRT=Terrassa(EN)
                 if (!stationCode || !RESERVE_STATIONS[stationCode]) {
                     if (tornId.startsWith('QRP')) stationCode = 'PC';
                     else if (tornId.startsWith('QRS')) stationCode = 'SR';
                     else if (tornId.startsWith('QRR')) stationCode = 'RB';
                     else if (tornId.startsWith('QRN')) stationCode = 'NA';
-                    else if (tornId.startsWith('QRF')) stationCode = 'NO'; // Sabadell
-                    else if (tornId.startsWith('QRT')) stationCode = 'EN'; // Terrassa (Guessing QRT prefix exists for Terrassa if QRF is Sabadell?)
+                    else if (tornId.startsWith('QRF')) stationCode = 'NO';
+                    else if (tornId.startsWith('QRT')) stationCode = 'EN';
                     else stationCode = 'XX';
                 }
-
                 if (reserveSlotsMap.has(stationCode)) {
-                    reserveSlotsMap.get(stationCode)?.personnel.push({
-                        nom: a.nom,
-                        cognoms: a.cognoms,
-                        torn: a.torn
-                    });
-                } else if (shiftMeta?.dependencia) {
-                    // If we resolved a station code but it wasn't in our predefined list, add it dynamically?
-                    // For now, only track the main reserve stations as per UI requirements.
+                    reserveSlotsMap.get(stationCode)?.personnel.push({ nom: a.nom, cognoms: a.cognoms, torn: a.torn, isActive: true });
                 }
             });
 
-            // Convert map to array
             const reserveSlots: ReserveSlot[] = [];
             reserveSlotsMap.forEach((val, key) => {
                 if (val.personnel.length > 0 && key !== 'XX') {
-                    reserveSlots.push({ station: key, stationLabel: val.label, count: val.personnel.length, personnel: val.personnel });
+                    // F4 – build previous (non-active) reserve assignments for the station
+                    const previousAssignments = allReserveAssignments
+                        .filter(a => {
+                            const activeNames = val.personnel.map(p => p.torn);
+                            return !activeNames.includes(a.torn);
+                        })
+                        .map(a => ({ nom: a.nom, cognoms: a.cognoms, torn: a.torn }))
+                        .slice(0, 5); // max 5
+
+                    reserveSlots.push({
+                        station: key,
+                        stationLabel: val.label,
+                        count: val.personnel.length,
+                        personnel: val.personnel,
+                        previousAssignments: previousAssignments.length > 0 ? previousAssignments : undefined
+                    });
                 }
             });
 
             // ── Fleet ──
             const brokenTrains = fleetStatus.filter((f: any) => f.is_broken === true);
-            const totalFleet = 61; // FGC fleet size constant (22+19+5+15)
+            const totalFleet = 61;
             const brokenCount = brokenTrains.length;
 
             // ── Line Statuses ──
@@ -301,78 +297,74 @@ export function useDashboardData() {
             const lineStats: LineStatus[] = LINE_DEFS.map(({ linia, color }) => {
                 let total = 0;
                 let active = 0;
+                const shiftIdsOnLine: string[] = [];
+
                 shifts.forEach(s => {
                     ((s.circulations as any[]) || []).forEach(c => {
                         const codi = typeof c === 'object' ? (c.codi || '') : c;
                         let cLiniaRaw = typeof c === 'object' ? (c.linia || '') : '';
-                        if (!cLiniaRaw && codi) {
-                            cLiniaRaw = codi;
-                        }
+                        if (!cLiniaRaw && codi) cLiniaRaw = codi;
                         const cLinia = mainLiniaForFilter(cLiniaRaw);
                         if (cLinia === linia.toUpperCase() && codi !== 'Viatger') {
                             total++;
-                            let start: number | null = null;
-                            let end: number | null = null;
-
-                            if (typeof c === 'object' && c.sortida && c.arribada) {
-                                start = getFgcMinutes(c.sortida);
-                                end = getFgcMinutes(c.arribada);
-                            } else if (typeof c === 'string' && circMap.has(c)) {
-                                const times = circMap.get(c);
-                                if (times) { start = times.start; end = times.end; }
-                            } else if (typeof c === 'object' && c.id && circMap.has(c.id)) {
-                                const times = circMap.get(c.id);
-                                if (times) { start = times.start; end = times.end; }
-                            }
-
+                            const { start, end } = resolveCircTimes(c);
                             if (start !== null && end !== null) {
-                                if (end < start) end += 1440;
-                                if (currentMin >= start && currentMin <= end) {
+                                const adjEnd = end < start ? end + 1440 : end;
+                                if (currentMin >= start && currentMin <= adjEnd) {
                                     active++;
+                                    // V2 – collect shift IDs for tooltip
+                                    const shortId = getShortTornId(s.id);
+                                    if (!shiftIdsOnLine.includes(shortId)) shiftIdsOnLine.push(shortId);
                                 }
                             }
                         }
                     });
                 });
+
                 return {
-                    linia, color, activeCirculations: active, totalCirculations: total,
-                    coveragePercent: total > 0 ? Math.round((active / total) * 100) : 0
+                    linia, color,
+                    activeCirculations: active,
+                    totalCirculations: total,
+                    coveragePercent: total > 0 ? Math.round((active / total) * 100) : 0,
+                    shifts: shiftIdsOnLine // V2
                 };
             }).filter(ls => ls.totalCirculations > 0);
 
-            // ── Alerts ──
+            // ── Alerts (C2: computed inline, no redundant filters) ──
             const alertList: PersonnelAlert[] = [];
 
-            // Missing assignments & Manual "Torn Descobert" markings
             shifts.forEach(s => {
                 const shortId = getShortTornId(s.id);
-                const assignment = assignments.find(a => a.torn === shortId || a.torn === s.id);
+                const assignment = assignments.find((a: any) => a.torn === shortId || a.torn === s.id);
                 const hasRealAssignment = !!assignment;
                 const isManuallyUncovered = assignment?.incident_start_time === '00:00';
 
                 if (!hasRealAssignment || isManuallyUncovered) {
                     const sMin = getFgcMinutes(s.inici_torn);
-                    const eMin = getFgcMinutes(s.final_torn);
-                    const isActive = sMin !== null && currentMin >= sMin && currentMin <= (eMin! < sMin! ? eMin! + 1440 : eMin!);
-                    const isUpcoming = sMin !== null && sMin > currentMin && sMin < currentMin + 120; // Starts in next 2 hours
+                    const eMinRaw = getFgcMinutes(s.final_torn);
+                    const eMin = eMinRaw !== null && sMin !== null && eMinRaw < sMin ? eMinRaw + 1440 : eMinRaw;
+                    const isActive = sMin !== null && eMin !== null && currentMin >= sMin && currentMin <= eMin;
+                    const minutesUntilStart = sMin !== null ? sMin - currentMin : null;
+                    // F2 – upcoming: starts in next 2 hours
+                    const isUpcoming = minutesUntilStart !== null && minutesUntilStart > 0 && minutesUntilStart <= 120;
 
                     alertList.push({
                         id: `missing-${s.id}`,
-                        type: 'missing',
+                        type: isUpcoming ? 'upcoming' : 'missing',
                         severity: isActive ? 'critical' : (isUpcoming ? 'warning' : 'info'),
                         title: `Torn ${s.id} SENSE MAQUINISTA`,
-                        subtitle: `${isManuallyUncovered ? '⚠️ MARCAT COM DESCOBERT' : (isActive ? '🔴 ACTIU ARA' : (isUpcoming ? '🟠 PROXIMAMENT' : '⚪ PROGRAMAT'))} | Dep: ${s.dependencia} | ${s.inici_torn}-${s.final_torn}`,
-                        tornId: s.id
+                        subtitle: `${isManuallyUncovered ? '⚠️ MARCAT COM DESCOBERT' : (isActive ? '🔴 ACTIU ARA' : (isUpcoming ? `🟠 COMENÇA EN ${Math.round(minutesUntilStart!)}min` : '⚪ PROGRAMAT'))} | Dep: ${s.dependencia} | ${s.inici_torn}-${s.final_torn}`,
+                        tornId: s.id,
+                        startsInMin: minutesUntilStart ?? undefined
                     });
                 }
             });
 
-            // Indispositions (Manual markings + Absence codes)
-            assignments.forEach(a => {
+            // Indispositions
+            assignments.forEach((a: any) => {
                 const absType = (a.abs_parc_c || '').toUpperCase();
                 const isManuallyIndisposed = a.incident_start_time && a.incident_start_time !== '00:00';
                 const hasAbsenceCode = absType.includes('DIS') || absType.includes('DES') || absType.includes('VAC');
-
                 if (isManuallyIndisposed || hasAbsenceCode) {
                     alertList.push({
                         id: `conflict-${a.id}`,
@@ -386,18 +378,18 @@ export function useDashboardData() {
                 }
             });
 
-            // Sort: critical first
+            // C2 – sort once
             alertList.sort((a, b) => {
                 const order = { critical: 0, warning: 1, info: 2 };
                 return order[a.severity] - order[b.severity];
             });
 
-            // ── Set State ──
+            // ── KPIs ──
             const totalShiftsToday = shifts.length;
             const assignedShiftsTodayCount = shifts.filter(s => {
                 const shortId = getShortTornId(s.id);
-                const assignment = assignments.find(a => a.torn === shortId || a.torn === s.id);
-                return !!assignment && assignment.incident_start_time !== '00:00';
+                const a = assignments.find((a: any) => a.torn === shortId || a.torn === s.id);
+                return !!a && a.incident_start_time !== '00:00';
             }).length;
             const planningCov = totalShiftsToday > 0 ? Math.round((assignedShiftsTodayCount / totalShiftsToday) * 100) : 100;
 
@@ -425,17 +417,64 @@ export function useDashboardData() {
         }
     }, [serviceToday]);
 
-    // Initial fetch + auto-refresh every 30s
+    // Initial fetch + manual auto-refresh every 60s (F1 Realtime handles frequent updates)
     useEffect(() => {
         fetchData();
-        intervalRef.current = setInterval(fetchData, 30000);
+        intervalRef.current = setInterval(fetchData, 60000);
+        return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+    }, [fetchData]);
+
+    // F1 – Supabase Realtime subscription
+    useEffect(() => {
+        if (realtimeConnectedRef.current) return;
+        realtimeConnectedRef.current = true;
+
+        const channel = supabase
+            .channel('dashboard-realtime')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'daily_assignments' },
+                (payload) => {
+                    console.log('[Dashboard] Realtime: daily_assignments changed', payload.eventType);
+                    fetchData();
+                }
+            )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'train_status' },
+                (payload) => {
+                    console.log('[Dashboard] Realtime: train_status changed', payload.eventType);
+                    fetchData();
+                }
+            )
+            .subscribe();
+
         return () => {
-            if (intervalRef.current) clearInterval(intervalRef.current);
+            supabase.removeChannel(channel);
+            realtimeConnectedRef.current = false;
         };
     }, [fetchData]);
 
+    // C2 – derived alert counts, memoized
+    const criticalAlerts = useMemo(() => alerts.filter(a => a.severity === 'critical'), [alerts]);
+    const warningAlerts = useMemo(() => alerts.filter(a => a.severity !== 'critical'), [alerts]);
+    // F2 – alerts for upcoming unassigned shifts (next 2h)
+    const upcomingAlerts = useMemo(() =>
+        alerts.filter(a => a.type === 'upcoming' && a.startsInMin !== undefined && a.startsInMin > 0),
+        [alerts]
+    );
+
+    // V4 – human readable "fa Xs / Xmin"
+    const lastRefreshLabel = useMemo(() => {
+        if (secondsSinceRefresh < 10) return 'ara mateix';
+        if (secondsSinceRefresh < 60) return `fa ${secondsSinceRefresh}s`;
+        const mins = Math.floor(secondsSinceRefresh / 60);
+        return `fa ${mins}min`;
+    }, [secondsSinceRefresh]);
+
     return {
-        loading, kpis, alerts, reserves, lineStatuses,
-        lastRefresh, nowMin, serviceToday, refresh: fetchData
+        loading, kpis, alerts, criticalAlerts, warningAlerts, upcomingAlerts,
+        reserves, lineStatuses, lastRefresh, lastRefreshLabel,
+        nowMin, serviceToday, refresh: fetchData
     };
 }

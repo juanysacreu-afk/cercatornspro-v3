@@ -1,274 +1,131 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
     Activity, AlertTriangle, Train, Users, Shield, RefreshCcw,
-    Clock, ChevronRight, Zap, Eye, Gauge, TrendingUp, Radio, MapPin, Info
+    Clock, Zap, Gauge, TrendingUp, Radio, MapPin, Info,
+    Download, Timer
 } from 'lucide-react';
 import GlassPanel from '../../components/common/GlassPanel';
 import ErrorBoundary from '../../components/common/ErrorBoundary';
-import { useDashboardData, type PersonnelAlert, type ReserveSlot, type LineStatus } from './hooks/useDashboardData';
+import { useDashboardData } from './hooks/useDashboardData';
 import { feedback } from '../../utils/feedback';
 
-// ── Sub-Components ─────────────────────────────────────
+// ── Sub-components (C1 extractions) ────────────────────
+import { KpiCard } from './components/KpiCard';
+import { AlertRow } from './components/AlertRow';
+import { ReserveCard } from './components/ReserveCard';
+import { CoverageBarChart } from './components/CoverageBarChart';
 
-const KpiCard: React.FC<{
-    label: string;
-    value: string | number;
-    subtitle?: string;
-    icon: React.ReactNode;
-    color: string;
-    pulse?: boolean;
-    trend?: 'up' | 'down' | 'neutral';
-    infoText?: string;
-    progress?: number;
-    className?: string;
-}> = ({ label, value, subtitle, icon, color, pulse, trend, infoText, progress, className = '' }) => (
-    <div className={`relative rounded-3xl p-5 sm:p-6 transition-all duration-500 hover:scale-[1.02] hover:shadow-xl
-        bg-white/70 dark:bg-white/[0.04] backdrop-blur-xl border border-white/20 dark:border-white/5
-        shadow-[0_4px_24px_0_rgba(31,38,135,0.06)] dark:shadow-[0_4px_24px_0_rgba(0,0,0,0.25)] flex flex-col justify-between ${className}`}
-    >
-        {/* Accent Glow */}
-        <div className="absolute inset-0 overflow-hidden rounded-3xl pointer-events-none">
-            <div className="absolute -top-8 -right-8 w-24 h-24 rounded-full blur-3xl opacity-20" style={{ backgroundColor: color }} />
+// ── V1 – Live clock that ticks every second ────────────
+const LiveClock: React.FC = () => {
+    const [time, setTime] = useState(new Date());
+    useEffect(() => {
+        const id = setInterval(() => setTime(new Date()), 1000);
+        return () => clearInterval(id);
+    }, []);
+    const hh = time.getHours().toString().padStart(2, '0');
+    const mm = time.getMinutes().toString().padStart(2, '0');
+    const ss = time.getSeconds().toString().padStart(2, '0');
+    // Pulse the seconds digit
+    return (
+        <div className="flex items-center gap-1 font-mono text-2xl sm:text-3xl font-black text-[#4D5358] dark:text-white select-none tabular-nums">
+            <span>{hh}</span>
+            <span className="text-fgc-green animate-pulse">:</span>
+            <span>{mm}</span>
+            <span className="text-gray-400 dark:text-gray-500 text-lg sm:text-xl">:<span className="transition-all duration-200">{ss}</span></span>
         </div>
+    );
+};
 
-        <div className="relative z-10 flex items-start justify-between mb-3">
-            <div className={`p-2.5 rounded-2xl`} style={{ backgroundColor: color + '18' }}>
-                <span style={{ color }}>{icon}</span>
-            </div>
+// ── F2 – Upcoming uncovered shifts widget ──────────────
+interface UpcomingAlert {
+    id: string;
+    title: string;
+    subtitle: string;
+    startsInMin: number;
+    tornId?: string;
+}
 
+const UpcomingCoveragePanel: React.FC<{
+    upcomingAlerts: UpcomingAlert[];
+    onNavigate?: (type: string, query: string) => void;
+}> = ({ upcomingAlerts, onNavigate }) => {
+    if (upcomingAlerts.length === 0) return null;
+
+    return (
+        <GlassPanel className="p-4 sm:p-5 flex flex-col gap-3 border-l-4 border-l-amber-400 animate-in slide-in-from-right-4 duration-500">
             <div className="flex items-center gap-2">
-                {pulse && (
-                    <span className="relative flex h-3 w-3">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                        <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500" />
-                    </span>
-                )}
-                {trend && trend !== 'neutral' && (
-                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${trend === 'up' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'}`}>
-                        {trend === 'up' ? '↑' : '↓'}
-                    </span>
-                )}
-                {infoText && (
-                    <div className="group relative">
-                        <Info size={16} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors cursor-help" />
-                        <div className="pointer-events-none absolute bottom-full -right-2 w-48 mb-2 opacity-0 group-hover:opacity-100 transition-opacity z-50">
-                            <div className="bg-gray-900 border border-gray-700 text-white text-[11px] p-2 rounded-xl shadow-xl">
-                                {infoText}
-                            </div>
-                            <div className="w-2 h-2 bg-gray-900 border-b border-r border-gray-700 transform rotate-45 absolute -bottom-1 right-3"></div>
+                <Timer size={16} className="text-amber-500" />
+                <h2 className="text-sm font-bold text-[#4D5358] dark:text-white uppercase tracking-wider">
+                    Pròximes cobertures
+                </h2>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400">
+                    {upcomingAlerts.length}
+                </span>
+            </div>
+            <div className="space-y-1.5 max-h-40 overflow-y-auto custom-scrollbar">
+                {upcomingAlerts.map(a => (
+                    <div
+                        key={a.id}
+                        onClick={() => { if (a.tornId && onNavigate) { feedback.click(); onNavigate('torn', a.tornId); } }}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-xl border border-amber-200/60 dark:border-amber-500/20 bg-amber-50/50 dark:bg-amber-500/[0.05] transition-all ${a.tornId ? 'cursor-pointer hover:shadow-md hover:scale-[1.01]' : ''}`}
+                    >
+                        <div className="shrink-0 flex flex-col items-center justify-center w-10 h-10 rounded-xl bg-amber-400/20 text-amber-600 dark:text-amber-400">
+                            <span className="text-xs font-black leading-tight">{Math.round(a.startsInMin)}</span>
+                            <span className="text-[8px] font-bold opacity-70">min</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <div className="text-xs font-bold text-[#4D5358] dark:text-white truncate">{a.title.replace('SENSE MAQUINISTA', '').trim()}</div>
+                            <div className="text-[10px] text-gray-500 dark:text-gray-400 truncate">{a.subtitle.split('|').slice(1).join('|').trim()}</div>
                         </div>
                     </div>
-                )}
+                ))}
             </div>
-        </div>
-
-        {progress !== undefined ? (
-            <div className="relative z-10 flex flex-col justify-end mt-1 sm:mt-2 lg:mt-auto mb-0.5">
-                <div className="flex flex-col xl:flex-row items-start xl:items-center gap-3 sm:gap-4 lg:gap-6">
-                    <div className="relative w-[72px] h-[72px] sm:w-[84px] sm:h-[84px] lg:w-[100px] lg:h-[100px] 2xl:w-[120px] 2xl:h-[120px] shrink-0 transition-all duration-500">
-                        <svg className="w-full h-full transform -rotate-90 drop-shadow-sm" viewBox="0 0 36 36">
-                            <path
-                                className="text-black/5 dark:text-white/5"
-                                strokeWidth="3"
-                                stroke="currentColor"
-                                fill="none"
-                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                            />
-                            <path
-                                strokeDasharray={`${progress}, 100`}
-                                strokeWidth="3"
-                                strokeLinecap="round"
-                                stroke={color}
-                                fill="none"
-                                className="transition-all duration-1000 ease-out"
-                                style={{ filter: 'drop-shadow(0px 2px 4px rgba(0,0,0,0.15))' }}
-                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                            />
-                        </svg>
-                        <div className="absolute inset-0 flex flex-col items-center justify-center">
-                            <span className="text-xl sm:text-2xl lg:text-3xl 2xl:text-[34px] font-black leading-none tracking-tighter translate-y-[2px]" style={{ color }}>
-                                {progress}<span className="text-[10px] sm:text-sm lg:text-base 2xl:text-lg tracking-normal font-bold opacity-70 ml-[2px]">%</span>
-                            </span>
-                        </div>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                        <div className="text-sm sm:text-base lg:text-lg 2xl:text-xl font-bold text-[#4D5358] dark:text-white leading-tight uppercase tracking-wide transition-all">{label}</div>
-                        {subtitle && <div className="text-[11px] sm:text-xs lg:text-sm 2xl:text-base font-medium text-gray-500 dark:text-gray-400 mt-1 lg:mt-1.5 leading-snug transition-all">{subtitle}</div>}
-                    </div>
-                </div>
-            </div>
-        ) : (
-            <div className="relative z-10 mt-auto">
-                <div className="text-3xl sm:text-4xl lg:text-5xl 2xl:text-6xl font-black tracking-tight text-[#4D5358] dark:text-white mt-1 lg:mt-4 transition-all duration-500" style={{ color }}>{value}</div>
-                <div className="text-sm lg:text-base 2xl:text-lg font-bold text-[#4D5358] dark:text-gray-300 mt-1 lg:mt-3 uppercase tracking-wide transition-all">{label}</div>
-                {subtitle && <div className="text-xs lg:text-sm 2xl:text-base text-gray-400 dark:text-gray-500 mt-0.5 lg:mt-1.5 font-medium transition-all">{subtitle}</div>}
-            </div>
-        )}
-    </div>
-);
-
-const AlertRow: React.FC<{ alert: PersonnelAlert; onNavigate?: (type: string, query: string) => void }> = ({ alert, onNavigate }) => {
-    const handleRowClick = () => {
-        if (alert.tornId && onNavigate) {
-            feedback.click();
-            onNavigate('torn', alert.tornId);
-        }
-    };
-
-    const severityStyles = {
-        critical: 'border-l-red-500 bg-red-50/60 dark:bg-red-500/[0.06]',
-        warning: 'border-l-amber-500 bg-amber-50/60 dark:bg-amber-500/[0.06]',
-        info: 'border-l-blue-500 bg-blue-50/60 dark:bg-blue-500/[0.06]'
-    };
-    const severityIcons = {
-        critical: <AlertTriangle size={16} className="text-red-500" />,
-        warning: <Clock size={16} className="text-amber-500" />,
-        info: <Eye size={16} className="text-blue-500" />
-    };
-    return (
-        <div
-            onClick={handleRowClick}
-            className={`flex items-center gap-3 p-3.5 mx-1 rounded-2xl border-l-4 transition-all ${alert.tornId ? 'cursor-pointer hover:shadow-md hover:scale-[1.01] active:scale-[0.99]' : ''} ${severityStyles[alert.severity]}`}
-        >
-
-            <div className="shrink-0">{severityIcons[alert.severity]}</div>
-            <div className="flex-1 min-w-0">
-                <div className="text-sm font-bold text-[#4D5358] dark:text-white truncate">{alert.title}</div>
-                <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{alert.subtitle}</div>
-            </div>
-            <ChevronRight size={14} className="text-gray-300 shrink-0" />
-        </div>
+        </GlassPanel>
     );
 };
 
-const ReserveCard: React.FC<{ slot: ReserveSlot }> = ({ slot }) => {
-    const [isExpanded, setIsExpanded] = useState(false);
-    const stationColors: Record<string, string> = {
-        'PC': '#1B79C9', 'SR': '#9C56B4', 'RB': '#E85D8A', 'RE': '#9C56B4',
-        'NA': '#F97316', 'PN': '#A8D017'
-    };
-    const color = stationColors[slot.station] || '#6B7280';
-
-    return (
-        <div className="flex flex-col gap-2">
-            <div
-                onClick={() => {
-                    if (slot.count > 0) {
-                        feedback.click();
-                        setIsExpanded(!isExpanded);
-                    }
-                }}
-                className={`flex items-center gap-3 p-3 rounded-2xl bg-white/60 dark:bg-white/[0.03] border border-white/20 dark:border-white/5 transition-all outline-none ${slot.count > 0 ? 'cursor-pointer hover:shadow-md hover:scale-[1.01] active:scale-[0.99] group' : ''}`}
-            >
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-xs shrink-0 shadow-sm" style={{ backgroundColor: color }}>
-                    {slot.station}
-                </div>
-                <div className="flex-1 min-w-0">
-                    <div className="text-sm font-bold text-[#4D5358] dark:text-white leading-tight">{slot.stationLabel}</div>
-                    <div className="text-[11px] text-gray-500 dark:text-gray-400 truncate opacity-80">
-                        {slot.personnel.map(p => `${p.cognoms}`).join(', ')}
-                    </div>
-                </div>
-                <div className="flex flex-col items-end gap-1 shrink-0">
-                    <span className="text-lg font-black text-[#4D5358] dark:text-white leading-none">{slot.count}</span>
-                    {slot.count > 0 && (
-                        <ChevronRight
-                            size={14}
-                            className={`text-gray-300 transition-transform duration-300 ${isExpanded ? 'rotate-90 text-fgc-green' : 'group-hover:translate-x-0.5'}`}
-                        />
-                    )}
-                </div>
-            </div>
-
-            {isExpanded && slot.count > 0 && (
-                <div className="grid grid-cols-1 gap-1.5 ml-1 pt-1 animate-in slide-in-from-top-1 duration-300">
-                    {slot.personnel.map((p, idx) => (
-                        <div
-                            key={idx}
-                            className="flex items-center justify-between py-2 px-4 rounded-xl bg-gray-50/50 dark:bg-white/[0.02] border border-gray-100/50 dark:border-white/[0.02]"
-                        >
-                            <div className="flex flex-col">
-                                <span className="text-xs font-bold text-[#4D5358] dark:text-gray-200">
-                                    {p.nom} {p.cognoms}
-                                </span>
-                            </div>
-                            <div className="px-2 py-0.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-white/5 shadow-sm">
-                                <span className="text-[10px] font-black text-fgc-green uppercase tracking-wider">
-                                    {p.torn}
-                                </span>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            )}
-        </div>
-    );
-};
-
-
-const CoverageBarChart: React.FC<{ lineStatuses: any[] }> = ({ lineStatuses }) => {
-    // Definir el orden explícito de las líneas requerido (L6, L7, L12, S1, S2)
-    const order = ['L6', 'L7', 'L12', 'S1', 'S2'];
-    const DEFAULT_COLORS: Record<string, string> = {
-        'L6': '#7C73B4', 'L7': '#9D4900', 'L12': '#C3BDE0', 'S1': '#E46608', 'S2': '#80B134'
-    };
-
-    // Forzamos a que aparezcan siempre las líneas solicitadas, incluso si el hook
-    // no detecta circulaciones activas y las filtra temporalmente.
-    const sortedLines = order.map(linia => {
-        const found = lineStatuses.find(ls => ls.linia.toUpperCase() === linia.toUpperCase());
-        return found || {
-            linia,
-            color: DEFAULT_COLORS[linia] || '#4D5358',
-            activeCirculations: 0,
-            totalCirculations: 0,
-            coveragePercent: 0
-        };
-    });
-
-    const maxActive = Math.max(15, ...sortedLines.map(l => l.activeCirculations));
-
-    return (
-        <div className="flex items-end justify-between h-[180px] pt-4 pb-2 px-1 sm:px-2 w-full mt-2">
-            {sortedLines.map(line => {
-                // Height based on active trains mapping to a max ceiling of ~15-30, avoiding 1% heights
-                const p = line.activeCirculations > 0 ? Math.min(100, Math.round((line.activeCirculations / maxActive) * 100)) : 0;
-                return (
-                    <div key={line.linia} className="flex flex-col items-center gap-2 group w-10 sm:w-14">
-                        <span className="text-[10px] sm:text-xs font-bold text-gray-400 dark:text-gray-500 tabular-nums text-center leading-tight transition-all duration-300 group-hover:text-[#4D5358] dark:group-hover:text-white group-hover:scale-110">
-                            {line.totalCirculations > 0 ? line.activeCirculations : '-'}<br /><span className="opacity-50">/ {line.totalCirculations > 0 ? line.totalCirculations : '-'}</span>
-                        </span>
-                        <div className="relative w-8 sm:w-10 h-28 bg-gray-100 dark:bg-white/5 rounded-t-xl overflow-hidden shadow-inner flex items-end">
-                            <div
-                                className="w-full rounded-t-xl transition-all duration-1000 ease-out flex items-start justify-center pt-2 relative overflow-hidden"
-                                style={{
-                                    height: p > 0 ? `${Math.max(8, p)}%` : '4px', // minimum 8% if there are any trains to show a visible bar
-                                    backgroundColor: line.color,
-                                    opacity: p > 0 ? 1 : 0.3
-                                }}
-                            >
-                                <div className="absolute top-0 left-0 w-full h-1/4 bg-white/20" />
-                            </div>
-                        </div>
-                        <div
-                            className="w-8 sm:w-10 h-6 sm:h-7 rounded-lg flex items-center justify-center text-white font-black text-[10px] sm:text-[11px] shadow-sm transition-transform duration-300 group-hover:-translate-y-1"
-                            style={{ backgroundColor: line.color, opacity: p > 0 ? 1 : 0.5 }}
-                        >
-                            {line.linia}
-                        </div>
-                    </div>
-                )
-            })}
-        </div>
-    );
-};
+// ── F5 – Export to CSV ─────────────────────────────────
+function exportDashboardCSV(kpis: any, alerts: any[], reserves: any[]) {
+    const lines: string[] = [
+        'NEXUS — Resum Operacional',
+        `Data,${new Date().toLocaleDateString('ca-ES')}`,
+        `Hora exportació,${new Date().toLocaleTimeString('ca-ES')}`,
+        '',
+        '--- KPIs ---',
+        `Cobertura servei,${kpis.serviceCoverage}%`,
+        `Planificació diària,${kpis.planningCoverage}%`,
+        `Circulacions actives,${kpis.activeTrains}`,
+        `Circulacions programades,${kpis.scheduledTrains}`,
+        `Total torns,${kpis.totalPersonnel}`,
+        `Torns assignats,${kpis.assignedPersonnel}`,
+        `Personal actiu ara,${kpis.activePersonnel}`,
+        `Reserves disponibles,${kpis.reserveAvailable}`,
+        `Unitats operatives,${kpis.availableTrainUnits}`,
+        `Unitats avariades,${kpis.brokenTrainUnits}`,
+        '',
+        '--- ALERTES ---',
+        'Severitat,Títol,Detall',
+        ...alerts.map(a => `${a.severity},"${a.title}","${a.subtitle}"`),
+        '',
+        '--- RESERVES ---',
+        'Estació,Torn,Cognom,Nom',
+        ...reserves.flatMap(r => r.personnel.map((p: any) => `${r.station},"${p.torn}","${p.cognoms}","${p.nom}"`))
+    ];
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `nexus-resum-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+}
 
 // ── Main Dashboard ─────────────────────────────────────
 const DashboardViewComponent: React.FC<{ onNavigateToSearch?: (type: string, query: string) => void }> = ({ onNavigateToSearch }) => {
-
     const {
-        loading, kpis, alerts, reserves, lineStatuses,
-        lastRefresh, nowMin, serviceToday, refresh
+        loading, kpis, alerts, criticalAlerts, warningAlerts, upcomingAlerts,
+        reserves, lineStatuses, lastRefresh, lastRefreshLabel,
+        nowMin, serviceToday, refresh
     } = useDashboardData();
 
     const [isRefreshing, setIsRefreshing] = useState(false);
@@ -280,20 +137,17 @@ const DashboardViewComponent: React.FC<{ onNavigateToSearch?: (type: string, que
         setTimeout(() => setIsRefreshing(false), 600);
     };
 
+    // F5 – export handler
+    const handleExportCSV = useCallback(() => {
+        feedback.deepClick();
+        exportDashboardCSV(kpis, alerts, reserves);
+    }, [kpis, alerts, reserves]);
+
     const formattedDate = useMemo(() => {
         return new Date().toLocaleDateString('ca-ES', {
-            weekday: 'long',
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric'
+            weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
         });
     }, []);
-
-    const formatTime = (date: Date) =>
-        date.toLocaleTimeString('ca-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-
-    const criticalAlerts = useMemo(() => alerts.filter(a => a.severity === 'critical'), [alerts]);
-    const warningAlerts = useMemo(() => alerts.filter(a => a.severity !== 'critical'), [alerts]);
 
     if (loading) {
         return (
@@ -317,6 +171,7 @@ const DashboardViewComponent: React.FC<{ onNavigateToSearch?: (type: string, que
 
     return (
         <div className="flex flex-col lg:h-[calc(100vh-110px)] space-y-6 sm:space-y-8 p-4 sm:p-8 animate-in fade-in duration-700">
+
             {/* Header */}
             <header className="flex-none flex flex-col sm:flex-row sm:items-end justify-between gap-4 animate-fade-up-premium stagger-1">
                 <div>
@@ -327,18 +182,44 @@ const DashboardViewComponent: React.FC<{ onNavigateToSearch?: (type: string, que
                     <p className="text-sm text-gray-500 dark:text-gray-400 font-medium tracking-tight mt-1 capitalize">
                         Servei {serviceToday.padStart(3, '0')} · {formattedDate}
                     </p>
-                    <p className="text-[11px] text-gray-400 dark:text-gray-500 font-bold uppercase tracking-wider mt-0.5">
-                        Última actualització: {formatTime(lastRefresh)}
+                    {/* V4 – "Actualitzat fa Xs" */}
+                    <p className="text-[11px] text-gray-400 dark:text-gray-500 font-bold uppercase tracking-wider mt-0.5 flex items-center gap-1.5">
+                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-fgc-green animate-pulse" />
+                        Actualitzat {lastRefreshLabel}
                     </p>
                 </div>
-                <button
-                    onClick={handleRefresh}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/60 dark:bg-white/[0.04] border border-gray-100 dark:border-white/5 text-sm font-semibold text-[#4D5358] dark:text-gray-300 hover:bg-fgc-green/10 transition-all active:scale-95"
-                >
-                    <RefreshCcw size={16} className={`${isRefreshing ? 'animate-spin' : ''}`} />
-                    Actualitzar
-                </button>
+
+                {/* V1 – Live clock + actions */}
+                <div className="flex items-center gap-4">
+                    <LiveClock />
+                    <div className="flex items-center gap-2">
+                        {/* F5 – Export button */}
+                        <button
+                            onClick={handleExportCSV}
+                            className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-white/60 dark:bg-white/[0.04] border border-gray-100 dark:border-white/5 text-xs font-semibold text-[#4D5358] dark:text-gray-300 hover:bg-fgc-green/10 transition-all active:scale-95"
+                            title="Exportar resum operacional (CSV)"
+                        >
+                            <Download size={14} />
+                            Exportar
+                        </button>
+                        <button
+                            onClick={handleRefresh}
+                            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/60 dark:bg-white/[0.04] border border-gray-100 dark:border-white/5 text-sm font-semibold text-[#4D5358] dark:text-gray-300 hover:bg-fgc-green/10 transition-all active:scale-95"
+                        >
+                            <RefreshCcw size={16} className={`${isRefreshing ? 'animate-spin' : ''}`} />
+                            Actualitzar
+                        </button>
+                    </div>
+                </div>
             </header>
+
+            {/* F2 – Upcoming uncovered shifts widget (only shows when relevant) */}
+            {upcomingAlerts.length > 0 && (
+                <UpcomingCoveragePanel
+                    upcomingAlerts={upcomingAlerts as any}
+                    onNavigate={onNavigateToSearch}
+                />
+            )}
 
             {/* KPI Cards Row */}
             <div className="flex-none grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -372,7 +253,7 @@ const DashboardViewComponent: React.FC<{ onNavigateToSearch?: (type: string, que
                     icon={<Shield size={22} strokeWidth={2.5} />}
                     color="#A8D017"
                     pulse={kpis.reserveAvailable === 0}
-                    infoText="Número de maquinistes de recanvi lliures als seus corresponents destacaments, a l'espera de necessitats de servei."
+                    infoText="Número de maquinistes de recanvi lliures als seus corresponents destacaments."
                     className="animate-fade-up-premium stagger-4"
                 />
                 <KpiCard
@@ -382,14 +263,14 @@ const DashboardViewComponent: React.FC<{ onNavigateToSearch?: (type: string, que
                     icon={<Train size={22} strokeWidth={2.5} />}
                     color="#1B79C9"
                     pulse={kpis.brokenTrainUnits > 3}
-                    infoText="Número d'unitats de tren de FGC que es troben actualment disponibles per al servei, un cop restats els que tenen avaria en curs."
+                    infoText="Número d'unitats de tren disponibles per al servei, un cop restats els que tenen avaria."
                     className="animate-fade-up-premium stagger-5"
                 />
             </div>
 
             <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-5">
 
-                {/* Coverage Ring + Line Status */}
+                {/* Coverage Bar Chart */}
                 <GlassPanel className="lg:col-span-4 p-6 flex flex-col gap-5 animate-fade-up-premium stagger-5">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -400,13 +281,13 @@ const DashboardViewComponent: React.FC<{ onNavigateToSearch?: (type: string, que
                             <Info size={16} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors cursor-help" />
                             <div className="pointer-events-none absolute bottom-full -right-2 w-56 mb-2 opacity-0 group-hover:opacity-100 transition-opacity z-50">
                                 <div className="bg-gray-900 border border-gray-700 text-white text-[11px] p-2.5 rounded-xl shadow-xl">
-                                    Aquest gràfic interactiu monotoritza en temps real la quantitat de circulacions per cada línia (circulacions en moviment actiu).
+                                    Gràfic interactiu: passa el cursor sobre les barres per veure els torns actius de cada línia.
                                 </div>
-                                <div className="w-2 h-2 bg-gray-900 border-b border-r border-gray-700 transform rotate-45 absolute -bottom-1 right-3"></div>
+                                <div className="w-2 h-2 bg-gray-900 border-b border-r border-gray-700 transform rotate-45 absolute -bottom-1 right-3" />
                             </div>
                         </div>
                     </div>
-
+                    {/* V2 – Interactive chart with tooltips */}
                     <CoverageBarChart lineStatuses={lineStatuses} />
                 </GlassPanel>
 
@@ -424,9 +305,9 @@ const DashboardViewComponent: React.FC<{ onNavigateToSearch?: (type: string, que
                                 <Info size={16} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors cursor-help" />
                                 <div className="pointer-events-none absolute bottom-full right-0 w-64 mb-2 opacity-0 group-hover:opacity-100 transition-opacity z-50">
                                     <div className="bg-gray-900 border border-gray-700 text-white text-[11px] p-2.5 rounded-xl shadow-xl">
-                                        Llistat d'alertes detectades al sistema de maquinistes (perfils incomplets principalment, com maquinistes assignats sense nom, o serveis mancats de registres).
+                                        Alertes detectades al sistema. Es reactualitzen en temps real via Supabase Realtime.
                                     </div>
-                                    <div className="w-2 h-2 bg-gray-900 border-b border-r border-gray-700 transform rotate-45 absolute -bottom-1 right-3"></div>
+                                    <div className="w-2 h-2 bg-gray-900 border-b border-r border-gray-700 transform rotate-45 absolute -bottom-1 right-3" />
                                 </div>
                             </div>
                             {alerts.length > 0 && (
@@ -466,14 +347,15 @@ const DashboardViewComponent: React.FC<{ onNavigateToSearch?: (type: string, que
                             <Info size={16} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors cursor-help" />
                             <div className="pointer-events-none absolute bottom-full right-0 w-56 mb-2 opacity-0 group-hover:opacity-100 transition-opacity z-50">
                                 <div className="bg-gray-900 border border-gray-700 text-white text-[11px] p-2.5 rounded-xl shadow-xl">
-                                    Localització en directe i llistat nominal del personal de reserva classificat per estació d'assignació.
+                                    Clica sobre una estació per veure el detall dels maquinistes de reserva actius i l'historial d'assignacions del dia.
                                 </div>
-                                <div className="w-2 h-2 bg-gray-900 border-b border-r border-gray-700 transform rotate-45 absolute -bottom-1 right-3"></div>
+                                <div className="w-2 h-2 bg-gray-900 border-b border-r border-gray-700 transform rotate-45 absolute -bottom-1 right-3" />
                             </div>
                         </div>
                     </div>
 
                     <div className="flex-1 min-h-0 overflow-y-auto pr-1 custom-scrollbar space-y-2">
+                        {/* F4 – ReserveCard with expanded history */}
                         {reserves.map(r => <ReserveCard key={r.station} slot={r} />)}
                         {reserves.length === 0 && (
                             <div className="flex flex-col items-center justify-center py-8 text-gray-400">
@@ -504,4 +386,3 @@ const DashboardView: React.FC<{ onNavigateToSearch?: (type: string, query: strin
 );
 
 export default DashboardView;
-
