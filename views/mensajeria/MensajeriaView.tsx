@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Send, Hash, MoreVertical, MessageCircle, AlertTriangle, Paperclip, CheckCircle, Trash2 } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Send, Hash, MoreVertical, MessageCircle, AlertTriangle, Paperclip, CheckCircle, Trash2, Smile } from 'lucide-react';
 import GlassPanel from '../../components/common/GlassPanel';
-import { sendTelegramMessage, getTelegramUpdates, getTelegramMemberCount, deleteTelegramMessage, sendTelegramFile } from '../../src/lib/telegram';
+import { sendTelegramMessage, getTelegramMemberCount, deleteTelegramMessage, sendTelegramFile } from '../../src/lib/telegram';
 import { supabase } from '../../supabaseClient';
 import { playSendSound, playReceiveSound, requestNotificationPermission, showLocalNotification } from '../../utils/sounds';
 
+// ── Types ───────────────────────────────────────────────
 interface UserProfile {
     id?: string;
     firstName: string;
@@ -17,6 +18,7 @@ interface MensajeriaViewProps {
     currentProfile: UserProfile;
 }
 
+// reactions: { "👍": ["user@email", ...], ... }
 interface Message {
     id: string;
     text: string;
@@ -24,39 +26,73 @@ interface Message {
     sender_id: string;
     is_alert: boolean;
     created_at: string;
+    reactions?: Record<string, string[]>;
 }
 
+interface TypingUser {
+    id: string;
+    sender_name: string;
+    typing_at: string;
+}
+
+// ── Available quick-reactions ──────────────────────────
+const QUICK_REACTIONS = ['👍', '✅', '🚨', '⚠️', '👀', '❌'];
+
+// ── Typing indicator debounce (ms) ────────────────────
+const TYPING_DEBOUNCE_MS = 600;
+const TYPING_TTL_MS = 4000; // remove "is typing" after 4s
+
+// ── Component ─────────────────────────────────────────
 const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputText, setInputText] = useState('');
     const [memberCount, setMemberCount] = useState<number | null>(null);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
+    // msgId -> true means the emoji picker is open for that message
+    const [openPickerFor, setOpenPickerFor] = useState<string | null>(null);
+
     const fileInputRef = useRef<HTMLInputElement>(null);
     const menuRef = useRef<HTMLDivElement>(null);
-    const currentUserId = currentProfile.id || 'current-user-id';
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const cleanTypingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-    const scrollToBottom = () => {
+    const currentUserId = currentProfile.id || 'current-user-id';
+    const myEmail = currentProfile.email?.toLowerCase() ?? '';
+    const myName = `${currentProfile.firstName} ${currentProfile.lastName}`;
+
+    // ── Scroll helpers ─────────────────────────────────
+    const scrollToBottom = useCallback(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    };
-
-    useEffect(() => {
-        scrollToBottom();
-    }, [messages]);
-
-    useEffect(() => {
-        requestNotificationPermission();
     }, []);
 
-    // Fetch initial chat data
+    useEffect(() => { scrollToBottom(); }, [messages]);
+
+    // ── Notification permission ───────────────────────
+    useEffect(() => { requestNotificationPermission(); }, []);
+
+    // ── Click-outside: close menu & emoji picker ──────
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+                setIsMenuOpen(false);
+            }
+            // Close emoji picker if clicking outside any picker
+            const target = e.target as HTMLElement;
+            if (!target.closest('[data-emoji-picker]') && !target.closest('[data-emoji-trigger]')) {
+                setOpenPickerFor(null);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    // ── Initial data fetch + Realtime subscriptions ───
     useEffect(() => {
         const fetchInitialData = async () => {
             const { success: mcSuccess, data: mcData } = await getTelegramMemberCount();
-            if (mcSuccess && mcData) {
-                setMemberCount(mcData);
-            } else {
-                setMemberCount(0);
-            }
+            setMemberCount(mcSuccess && mcData ? mcData : 0);
 
             const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
             const { data, error } = await supabase
@@ -65,63 +101,125 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                 .gte('created_at', twentyFourHoursAgo)
                 .order('created_at', { ascending: true });
 
-            if (data && !error) {
-                setMessages(data as Message[]);
-            }
+            if (data && !error) setMessages(data as Message[]);
         };
 
         fetchInitialData();
 
-        const subscription = supabase.channel('telegram_messages_changes')
+        // ── Realtime: message inserts / deletes / reaction updates ──
+        const msgSub = supabase.channel('telegram_messages_changes')
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'telegram_messages' }, payload => {
                 const newMsg = payload.new as Message;
-                if (newMsg.sender_id !== currentUserId && newMsg.sender_id !== currentProfile.email?.toLowerCase()) {
+                if (newMsg.sender_id !== currentUserId && newMsg.sender_id !== myEmail) {
                     playReceiveSound();
                     showLocalNotification(`Missatge de ${newMsg.sender_name}`, newMsg.text);
                 }
-                setMessages(prev => {
-                    if (prev.find(m => m.id === newMsg.id)) return prev;
-                    return [...prev, newMsg];
-                });
+                setMessages(prev => prev.find(m => m.id === newMsg.id) ? prev : [...prev, newMsg]);
+            })
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'telegram_messages' }, payload => {
+                const updated = payload.new as Message;
+                setMessages(prev => prev.map(m => m.id === updated.id ? { ...m, reactions: updated.reactions } : m));
             })
             .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'telegram_messages' }, payload => {
-                const oldMsg = payload.old;
-                setMessages(prev => prev.filter(m => m.id !== oldMsg.id));
+                setMessages(prev => prev.filter(m => m.id !== payload.old.id));
             })
             .subscribe();
 
+        // ── Realtime: typing presence ──────────────────────────────
+        const presenceSub = supabase.channel('chat_presence_changes')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_presence' }, () => {
+                // Re-fetch current typers on any change
+                supabase
+                    .from('chat_presence')
+                    .select('*')
+                    .gte('typing_at', new Date(Date.now() - TYPING_TTL_MS).toISOString())
+                    .then(({ data }) => {
+                        if (data) {
+                            setTypingUsers((data as TypingUser[]).filter(u => u.id !== myEmail && u.id !== currentUserId));
+                        }
+                    });
+            })
+            .subscribe();
+
+        // Clean stale typing entries every 2s
+        cleanTypingRef.current = setInterval(() => {
+            setTypingUsers(prev =>
+                prev.filter(u => Date.now() - new Date(u.typing_at).getTime() < TYPING_TTL_MS)
+            );
+        }, 2000);
+
         return () => {
-            subscription.unsubscribe();
+            msgSub.unsubscribe();
+            presenceSub.unsubscribe();
+            if (cleanTypingRef.current) clearInterval(cleanTypingRef.current);
         };
     }, []);
 
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-                setIsMenuOpen(false);
+    // ── Typing presence: broadcast when typing ────────
+    const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        setInputText(e.target.value);
+
+        // Debounce: only upsert once per burst
+        if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+        typingTimerRef.current = setTimeout(async () => {
+            if (e.target.value.trim()) {
+                await supabase.from('chat_presence').upsert([{
+                    id: myEmail || currentUserId,
+                    sender_name: myName,
+                    typing_at: new Date().toISOString()
+                }], { onConflict: 'id' });
+            } else {
+                // Clear presence when input is empty
+                await supabase.from('chat_presence').delete().eq('id', myEmail || currentUserId);
             }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
+        }, TYPING_DEBOUNCE_MS);
+    };
 
+    const clearTypingPresence = useCallback(async () => {
+        if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+        await supabase.from('chat_presence').delete().eq('id', myEmail || currentUserId);
+    }, [myEmail, currentUserId]);
+
+    // ── Reactions ─────────────────────────────────────
+    const handleReaction = async (msgId: string, emoji: string) => {
+        setOpenPickerFor(null);
+        const msg = messages.find(m => m.id === msgId);
+        if (!msg) return;
+
+        const me = myEmail || currentUserId;
+        const current: Record<string, string[]> = { ...(msg.reactions ?? {}) };
+        const reactors = current[emoji] ?? [];
+
+        // Toggle: add or remove my reaction
+        if (reactors.includes(me)) {
+            current[emoji] = reactors.filter(r => r !== me);
+            if (current[emoji].length === 0) delete current[emoji];
+        } else {
+            current[emoji] = [...reactors, me];
+        }
+
+        // Optimistic update
+        setMessages(prev => prev.map(m => m.id === msgId ? { ...m, reactions: current } : m));
+
+        // Persist
+        await supabase.from('telegram_messages').update({ reactions: current }).eq('id', msgId);
+    };
+
+    // ── Clear history ─────────────────────────────────
     const handleClearHistory = async () => {
         if (!window.confirm('Estàs segur que vols esborrar tot l\'historial local de missatges? (No s\'esborraran de Telegram)')) return;
         setIsMenuOpen(false);
         const { error } = await supabase.from('telegram_messages').delete().not('id', 'is', null);
-        if (!error) {
-            setMessages([]);
-        }
+        if (!error) setMessages([]);
     };
 
+    // ── File upload ───────────────────────────────────
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
-
         if (fileInputRef.current) fileInputRef.current.value = '';
 
-        const caption = `👤 <b>${currentProfile.firstName} ${currentProfile.lastName}</b>\n📎 Ha compartit un fitxer: <b>${file.name}</b>`;
-
+        const caption = `👤 <b>${myName}</b>\n📎 Ha compartit un fitxer: <b>${file.name}</b>`;
         const { success, data, error } = await sendTelegramFile(file, caption);
 
         if (success && data) {
@@ -129,29 +227,29 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
             const newMessage: Message = {
                 id: data.message_id.toString(),
                 text: `📎 Fitxer enviat: ${file.name}`,
-                sender_name: `${currentProfile.firstName} ${currentProfile.lastName}`,
-                sender_id: currentProfile.email ? currentProfile.email.toLowerCase() : currentUserId,
+                sender_name: myName,
+                sender_id: myEmail || currentUserId,
                 is_alert: false,
                 created_at: new Date().toISOString()
             };
-
             setMessages(prev => [...prev, newMessage]);
             await supabase.from('telegram_messages').upsert([newMessage], { onConflict: 'id' });
         } else {
-            console.error("Error enviant fitxer Telegram:", error);
             alert(`Error al compartir l'arxiu: ${error || 'Error desconegut'}`);
         }
     };
 
+    // ── Send message ──────────────────────────────────
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
         const textToSent = inputText.trim();
         if (!textToSent) return;
 
         setInputText('');
-        const isAlert = textToSent.startsWith('!');
-        const formattedTelegramMsg = `👤 <b>${currentProfile.firstName} ${currentProfile.lastName}</b>\n💬 ${textToSent}`;
+        await clearTypingPresence();
 
+        const isAlert = textToSent.startsWith('!');
+        const formattedTelegramMsg = `👤 <b>${myName}</b>\n💬 ${textToSent}`;
         const { success, data, error } = await sendTelegramMessage(formattedTelegramMsg);
 
         if (success && data) {
@@ -159,38 +257,43 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
             const newMessage: Message = {
                 id: data.message_id.toString(),
                 text: textToSent,
-                sender_name: `${currentProfile.firstName} ${currentProfile.lastName}`,
-                sender_id: currentProfile.email ? currentProfile.email.toLowerCase() : currentUserId,
+                sender_name: myName,
+                sender_id: myEmail || currentUserId,
                 is_alert: isAlert,
                 created_at: new Date().toISOString()
             };
-
-            setMessages((prev) => {
-                if (prev.find(m => m.id === newMessage.id)) return prev;
-                return [...prev, newMessage];
-            });
-
+            setMessages(prev => prev.find(m => m.id === newMessage.id) ? prev : [...prev, newMessage]);
             await supabase.from('telegram_messages').upsert([newMessage], { onConflict: 'id' });
         } else {
-            console.error("Error enviant Telegram:", error);
             alert(`Error en enviar el missatge a Telegram: ${error || 'Desconegut'}`);
-            setInputText(textToSent); // Restore input
+            setInputText(textToSent);
         }
     };
 
+    // ── Delete message ────────────────────────────────
     const handleDeleteMessage = async (msgId: string) => {
         setMessages(prev => prev.filter(m => m.id !== msgId));
         await supabase.from('telegram_messages').delete().eq('id', msgId);
         await deleteTelegramMessage(msgId);
     };
 
+    // ── Time format ───────────────────────────────────
     const formatTime = (isoString: string) => {
-        const d = new Date(isoString);
-        return d.toLocaleTimeString('ca-ES', { hour: '2-digit', minute: '2-digit' });
+        return new Date(isoString).toLocaleTimeString('ca-ES', { hour: '2-digit', minute: '2-digit' });
     };
 
+    // ── Typing indicator string ───────────────────────
+    const typingLabel = (() => {
+        if (typingUsers.length === 0) return null;
+        if (typingUsers.length === 1) return `${typingUsers[0].sender_name.split(' ')[0]} està escrivint...`;
+        if (typingUsers.length === 2) return `${typingUsers[0].sender_name.split(' ')[0]} i ${typingUsers[1].sender_name.split(' ')[0]} estan escrivint...`;
+        return `${typingUsers.length} persones estan escrivint...`;
+    })();
+
+    // ── Render ────────────────────────────────────────
     return (
         <div className="h-full flex flex-col md:flex-row gap-4 md:gap-6">
+            {/* Sidebar */}
             <GlassPanel className="hidden md:flex w-80 flex-shrink-0 flex-col overflow-hidden bg-white/80 dark:bg-gray-950/80 border border-gray-100 dark:border-white/5 shadow-xl animate-slide-left-premium">
                 <div className="p-5 border-b border-gray-100 dark:border-white/5">
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -198,7 +301,6 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                     </h2>
                     <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mt-1">Canals Actius</p>
                 </div>
-
                 <div className="flex-1 overflow-y-auto p-3 space-y-2">
                     <div className="px-4 py-3 bg-fgc-green/10 border border-fgc-green/20 rounded-2xl flex items-center gap-4 cursor-pointer">
                         <div className="w-10 h-10 rounded-full bg-fgc-green text-white flex items-center justify-center font-bold text-lg shadow-sm">
@@ -211,9 +313,20 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                         <div className="w-2.5 h-2.5 bg-fgc-green rounded-full shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse"></div>
                     </div>
                 </div>
+                {/* Emoji legend in sidebar */}
+                <div className="p-4 border-t border-gray-100 dark:border-white/5">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Reaccions ràpides</p>
+                    <div className="flex gap-2 flex-wrap">
+                        {QUICK_REACTIONS.map(e => (
+                            <span key={e} className="text-lg cursor-default select-none" title={e}>{e}</span>
+                        ))}
+                    </div>
+                </div>
             </GlassPanel>
 
+            {/* Main chat panel */}
             <GlassPanel className="flex-1 flex flex-col overflow-hidden bg-white/90 dark:bg-gray-950/90 border border-gray-100 dark:border-white/5 shadow-xl relative w-full">
+                {/* Header */}
                 <div className="p-4 md:p-[22px] border-b border-gray-100 dark:border-white/5 flex justify-between items-center bg-white/50 dark:bg-black/20 backdrop-blur-md z-10">
                     <div>
                         <h2 className="text-base md:text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -258,12 +371,17 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                     </div>
                 </div>
 
+                {/* Messages area */}
                 <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 md:space-y-6 bg-gradient-to-b from-transparent to-black/[0.02] dark:to-white/[0.01]">
                     {messages.map((msg, index) => {
                         const hasEmail = Boolean(currentProfile.email);
-                        const isMe = (hasEmail && msg.sender_id.toLowerCase() === currentProfile.email.toLowerCase()) || msg.sender_id === currentUserId;
+                        const isMe = (hasEmail && msg.sender_id.toLowerCase() === myEmail) || msg.sender_id === currentUserId;
                         const showName = index === 0 || messages[index - 1].sender_id !== msg.sender_id;
+                        const canDelete = currentProfile.email === 'mlopezj@fgc.cat' || isMe;
+                        const reactionEntries = Object.entries(msg.reactions ?? {}).filter(([, users]) => users.length > 0);
+                        const isPickerOpen = openPickerFor === msg.id;
 
+                        // Alert-style message
                         if (msg.is_alert && !isMe) {
                             return (
                                 <div key={msg.id} className="flex justify-center my-4">
@@ -275,10 +393,8 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                                         <span className="text-[10px] text-orange-400/80 mt-2 block">{formatTime(msg.created_at)}</span>
                                     </div>
                                 </div>
-                            )
+                            );
                         }
-
-                        const canDelete = currentProfile.email === 'mlopezj@fgc.cat' || isMe;
 
                         return (
                             <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} animate-in slide-in-from-bottom-2 group/msg relative`}>
@@ -288,51 +404,122 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                                 {showName && isMe && (
                                     <span className="text-[11px] font-bold text-gray-400 dark:text-gray-500 mb-1 mr-2">Tu</span>
                                 )}
-                                <div className="flex items-center gap-1 md:gap-2 w-full max-w-[85%] md:max-w-[75%]">
-                                    {canDelete && isMe && (
+
+                                <div className={`flex items-end gap-1 md:gap-2 w-full max-w-[85%] md:max-w-[75%] ${isMe ? 'flex-row-reverse self-end' : 'flex-row'}`}>
+                                    {/* Delete button */}
+                                    {canDelete && (
                                         <button
                                             onClick={() => handleDeleteMessage(msg.id)}
-                                            className="opacity-100 md:opacity-0 group-hover/msg:opacity-100 p-1.5 text-red-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-full transition-all flex-shrink-0"
+                                            className="opacity-0 group-hover/msg:opacity-100 p-1.5 text-red-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-full transition-all flex-shrink-0 mb-1"
                                             title="Esborrar missatge"
                                         >
-                                            <Trash2 size={14} />
+                                            <Trash2 size={13} />
                                         </button>
                                     )}
 
-                                    <div className={`relative px-3 py-2 md:px-4 md:py-2.5 rounded-2xl shadow-sm w-full ${isMe
-                                        ? 'bg-fgc-green text-gray-900 rounded-tr-sm'
-                                        : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border border-gray-100 dark:border-white/5 rounded-tl-sm'
-                                        }`}>
-                                        <p className="text-[14px] md:text-[15px] leading-snug break-words">{msg.text}</p>
-                                        <div className={`text-[10px] mt-1 flex items-center justify-end gap-1 ${isMe ? 'text-gray-900/60' : 'text-gray-400'}`}>
-                                            {formatTime(msg.created_at)}
-                                            {isMe && <CheckCircle size={10} className="opacity-70" />}
+                                    {/* Bubble + reactions wrapper */}
+                                    <div className="flex flex-col gap-1 min-w-0 flex-1">
+                                        {/* Bubble */}
+                                        <div className={`relative px-3 py-2 md:px-4 md:py-2.5 rounded-2xl shadow-sm ${isMe
+                                            ? 'bg-fgc-green text-gray-900 rounded-tr-sm'
+                                            : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border border-gray-100 dark:border-white/5 rounded-tl-sm'
+                                            }`}>
+                                            <p className="text-[14px] md:text-[15px] leading-snug break-words">{msg.text}</p>
+                                            <div className={`text-[10px] mt-1 flex items-center justify-end gap-1 ${isMe ? 'text-gray-900/60' : 'text-gray-400'}`}>
+                                                {formatTime(msg.created_at)}
+                                                {isMe && <CheckCircle size={10} className="opacity-70" />}
+                                            </div>
                                         </div>
+
+                                        {/* Existing reactions row */}
+                                        {reactionEntries.length > 0 && (
+                                            <div className={`flex flex-wrap gap-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
+                                                {reactionEntries.map(([emoji, users]) => {
+                                                    const iReacted = users.includes(myEmail || currentUserId);
+                                                    return (
+                                                        <button
+                                                            key={emoji}
+                                                            onClick={() => handleReaction(msg.id, emoji)}
+                                                            title={users.join(', ')}
+                                                            className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border transition-all active:scale-95
+                                                                ${iReacted
+                                                                    ? 'bg-fgc-green/20 border-fgc-green/40 text-fgc-green font-bold'
+                                                                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-300 hover:border-fgc-green/40'
+                                                                }`}
+                                                        >
+                                                            <span>{emoji}</span>
+                                                            <span className="font-bold tabular-nums">{users.length}</span>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
                                     </div>
 
-                                    {canDelete && !isMe && (
+                                    {/* Emoji trigger button (shown on hover) */}
+                                    <div className="relative flex-shrink-0 mb-1 self-center">
                                         <button
-                                            onClick={() => handleDeleteMessage(msg.id)}
-                                            className="opacity-100 md:opacity-0 group-hover/msg:opacity-100 p-1.5 text-red-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-full transition-all flex-shrink-0"
-                                            title="Esborrar missatge d'un altre"
+                                            data-emoji-trigger
+                                            onClick={() => setOpenPickerFor(isPickerOpen ? null : msg.id)}
+                                            className="opacity-0 group-hover/msg:opacity-100 p-1.5 text-gray-400 hover:text-fgc-green hover:bg-fgc-green/10 rounded-full transition-all"
+                                            title="Afegir reacció"
                                         >
-                                            <Trash2 size={14} />
+                                            <Smile size={15} />
                                         </button>
-                                    )}
+
+                                        {/* Emoji picker popup */}
+                                        {isPickerOpen && (
+                                            <div
+                                                data-emoji-picker
+                                                className={`absolute bottom-full mb-2 z-50 bg-white dark:bg-gray-900 border border-gray-100 dark:border-white/10 rounded-2xl shadow-2xl p-2 flex gap-1 animate-modal-premium
+                                                    ${isMe ? 'right-0' : 'left-0'}`}
+                                            >
+                                                {QUICK_REACTIONS.map(emoji => (
+                                                    <button
+                                                        key={emoji}
+                                                        onClick={() => handleReaction(msg.id, emoji)}
+                                                        className="text-xl w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100 dark:hover:bg-white/10 transition-all hover:scale-125 active:scale-95"
+                                                        title={emoji}
+                                                    >
+                                                        {emoji}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         );
                     })}
+
                     <div ref={messagesEndRef} />
                 </div>
 
+                {/* ── Typing indicator ──────────────────────────── */}
+                <div className={`px-5 transition-all duration-300 overflow-hidden ${typingLabel ? 'h-7 opacity-100' : 'h-0 opacity-0'}`}>
+                    <div className="flex items-center gap-2">
+                        {/* Animated dots */}
+                        <div className="flex gap-0.5 items-end h-4">
+                            {[0, 1, 2].map(i => (
+                                <span
+                                    key={i}
+                                    className="w-1.5 h-1.5 rounded-full bg-gray-400 dark:bg-gray-500"
+                                    style={{
+                                        animation: 'typing-bounce 1.2s ease-in-out infinite',
+                                        animationDelay: `${i * 0.2}s`
+                                    }}
+                                />
+                            ))}
+                        </div>
+                        <span className="text-[11px] text-gray-400 dark:text-gray-500 font-medium italic">
+                            {typingLabel}
+                        </span>
+                    </div>
+                </div>
+
+                {/* Input bar */}
                 <div className="p-3 md:p-4 bg-white dark:bg-gray-950 border-t border-gray-100 dark:border-white/5">
-                    <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleFileUpload}
-                        className="hidden"
-                    />
+                    <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
                     <form onSubmit={handleSendMessage} className="flex gap-1 md:gap-2">
                         <button
                             type="button"
@@ -344,7 +531,8 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                         <input
                             type="text"
                             value={inputText}
-                            onChange={(e) => setInputText(e.target.value)}
+                            onChange={handleInputChange}
+                            onBlur={clearTypingPresence}
                             placeholder="Escriu un missatge..."
                             className="flex-1 min-w-0 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-3 py-2.5 md:px-4 md:py-3 text-sm md:text-base text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:border-fgc-green focus:ring-1 focus:ring-fgc-green transition-all"
                         />
