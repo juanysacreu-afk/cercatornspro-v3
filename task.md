@@ -1,4 +1,4 @@
-# Tareas del Proyecto CercaTorns Pro
+# Tareas del Proyecto Nexus
 
 ## ✅ FASE 1: Cimientos de Roca (COMPLETADA)
 - [x] **Refactoring IncidenciaView (Modularización)**

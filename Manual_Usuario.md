@@ -1,7 +1,5 @@
 # Manual de Usuario: NEXUS 🦅
-
-**NEXUS** (anteriormente conocida como Cercatorns Pro) es el Centro de Mando Integral (CCO) definitivo para supervisores de la red ferroviaria (FGC). Bautizada con este nombre para reflejar su capacidad de ser el nexo de unión entre todo el operativo de la red, esta aplicación está diseñada para pasar de una mera "consulta de datos" a una herramienta predictiva y de control total. Permite obtener visibilidad global, gestionar crisis, administrar al personal (maquinistas y turnos), resolver incidencias y coordinar el parque de trenes en tiempo real.
-
+**NEXUS** es el Centro de Mando Integral (CCO) definitivo para supervisores de la red ferroviaria (FGC). Bautizada con este nombre para reflejar su capacidad de ser el nexo de unión entre todo el operativo de la red, esta aplicación está diseñada para pasar de una mera "consulta de datos" a una herramienta predictiva y de control total. Permite obtener visibilidad global, gestionar crisis, administrar al personal (maquinistas y turnos), resolver incidencias y coordinar el parque de trenes en tiempo real.
 ![Logo Nexus app](Logo Nexus app.png)
 
 ![Dashboard Nexus](public/manual_images/dashboard_cco_1771605898960.png)
