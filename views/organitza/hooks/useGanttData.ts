@@ -262,15 +262,23 @@ export function useGanttData() {
                 let startMin = getFgcMinutes(assign.hora_inici) ?? 0;
                 let endMin = getFgcMinutes(assign.hora_fi) ?? 0;
                 let shortId = assign.torn;
+                let parsedCoverTarget: string | null = null;
 
                 // Priority Logic for Extras: Check Observacions
                 if (assign.observacions) {
                     const obs = assign.observacions.toUpperCase();
 
-                    // 1. Look for Shift ID Override (e.g. QRR8)
-                    // Matches Q followed by alphanumeric chars (e.g. QRR8, Q113)
+                    // 1. Look for Cobreix to avoid overriding shortId with the covered shift
+                    const coverMatch = obs.match(/COBREIX\s+([A-Z0-9]+)/);
+                    if (coverMatch) {
+                        parsedCoverTarget = coverMatch[1];
+                    }
+
+                    // 2. Look for Shift ID Override (e.g. QRR8)
+                    // Matches Q followed by alphanumeric chars. Only override if not already explicitly stated it covers.
+                    // If there's an explicit "Cobreix QN02", we don't want QN02 to overwrite shortId.
                     const shiftMatch = obs.match(/\bQ[A-Z0-9]{2,5}\b/);
-                    if (shiftMatch) {
+                    if (shiftMatch && (!parsedCoverTarget || shiftMatch[0] !== parsedCoverTarget)) {
                         shortId = shiftMatch[0];
                     }
 
@@ -309,7 +317,7 @@ export function useGanttData() {
                     assignmentId: assign.id,
                     driverPhone,
                     circulations: [],
-                    coveringShiftId: assignmentToShiftMap.get(assign.id) || null
+                    coveringShiftId: assignmentToShiftMap.get(assign.id) || parsedCoverTarget || null
                 };
             });
 
