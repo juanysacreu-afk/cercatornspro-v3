@@ -60,8 +60,8 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ progress, onComplete }) => 
             <div className="relative z-10 text-center space-y-8 max-w-xs w-full px-8 pb-[12vh] sm:pb-0">
                 <div className="space-y-2">
                     <img
-                        src="/logo-pro.png"
-                        alt="CercaTorns PRO"
+                        src="/logoNX.png"
+                        alt="Nexus"
                         className="h-16 sm:h-20 w-auto mx-auto object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]"
                     />
                 </div>

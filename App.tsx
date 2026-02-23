@@ -387,7 +387,7 @@ const App: React.FC = () => {
                   />
                   <img
                     src="/logo-pro.png"
-                    alt="CercaTorns PRO"
+                    alt="Nexus"
                     className="h-10 sm:h-12 w-auto object-contain"
                   />
                 </div>
