@@ -326,7 +326,7 @@ const GroupSection: React.FC<{
             </div>
 
             {/* Timeline rows */}
-            <div className="relative bg-white/30 dark:bg-white/[.03] rounded-lg border border-gray-100/50 dark:border-white/5 overflow-hidden transition-all duration-500">
+            <div className="relative bg-white/30 dark:bg-white/[.03] rounded-lg border border-gray-100/50 dark:border-white/5 transition-all duration-500 mt-2">
                 {/* Grid lines every hour */}
                 {Array.from({ length: 32 }, (_, i) => {
                     const left = toPercent(i * 60);
