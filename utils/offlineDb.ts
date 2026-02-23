@@ -39,7 +39,7 @@ interface CycleAssignment {
     updated_at?: string;
 }
 
-export const db = new Dexie('CercatornsOfflineDB') as Dexie & {
+export const db = new Dexie('NexusOfflineDB') as Dexie & {
     shifts: EntityTable<Shift, 'id'>;
     circulations: EntityTable<Circulation, 'id'>;
     daily_assignments: EntityTable<Assignment, 'torn'>;
