@@ -397,7 +397,7 @@ const App: React.FC = () => {
                 exit={{ height: 0, opacity: 0, scale: 0.95 }}
                 transition={{ type: "spring", bounce: 0.2, duration: 0.7 }}
                 style={{ backgroundColor: isDarkMode ? '#222222' : '#4D5358' }}
-                className="sticky top-0 z-40 dark:backdrop-blur-md text-white shadow-md safe-top border-b border-white/5 w-full shrink-0 overflow-hidden origin-top"
+                className="sticky top-0 z-50 dark:backdrop-blur-md text-white shadow-md safe-top border-b border-white/5 w-full shrink-0 origin-top"
               >
                 <div className="w-full px-4 sm:px-6 lg:px-8">
                   <div className="flex items-center justify-between h-20 sm:h-24">
