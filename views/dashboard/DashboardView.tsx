@@ -128,7 +128,7 @@ const AlertRow: React.FC<{ alert: PersonnelAlert; onNavigate?: (type: string, qu
     return (
         <div
             onClick={handleRowClick}
-            className={`flex items-center gap-3 p-3.5 rounded-2xl border-l-4 transition-all ${alert.tornId ? 'cursor-pointer hover:shadow-md hover:scale-[1.01] active:scale-[0.99]' : ''} ${severityStyles[alert.severity]}`}
+            className={`flex items-center gap-3 p-3.5 mx-1 rounded-2xl border-l-4 transition-all ${alert.tornId ? 'cursor-pointer hover:shadow-md hover:scale-[1.01] active:scale-[0.99]' : ''} ${severityStyles[alert.severity]}`}
         >
 
             <div className="shrink-0">{severityIcons[alert.severity]}</div>
