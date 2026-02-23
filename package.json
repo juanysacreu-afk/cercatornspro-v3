@@ -12,6 +12,7 @@
     "@supabase/supabase-js": "^2.48.1",
     "dexie": "^4.3.0",
     "dexie-react-hooks": "^4.2.0",
+    "framer-motion": "^12.34.3",
     "lucide-react": "^0.475.0",
     "pdfjs-dist": "^5.4.530",
     "react": "^19.0.0",

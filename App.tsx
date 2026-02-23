@@ -15,6 +15,7 @@ import { feedback } from './utils/feedback';
 import { useToast } from './components/ToastProvider';
 import ProfileModal from './components/ProfileModal.tsx';
 import { syncOfflineData } from './utils/offlineSync';
+import { motion } from 'framer-motion';
 
 interface ParkedUnit {
   unit_number: string;
@@ -603,37 +604,54 @@ const App: React.FC = () => {
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto w-full py-8 safe-bottom px-4 sm:px-6 lg:px-8 overflow-x-hidden">
-            <div className={`${activeTab === AppTab.Dashboard ? 'block animate-in fade-in slide-in-from-bottom-8 duration-500 ease-out-expo' : 'hidden'}`}>
-              <DashboardView />
-            </div>
-            <div className={`${activeTab === AppTab.Cercar ? 'block animate-in fade-in slide-in-from-bottom-8 duration-500 ease-out-expo' : 'hidden'}`}>
-              <CercarView
-                isPrivacyMode={isPrivacyMode}
-                externalSearch={globalSearch}
-                onExternalSearchHandled={() => setGlobalSearch(null)}
-              />
-            </div>
-            <div className={`${activeTab === AppTab.Organitza ? 'block animate-in fade-in slide-in-from-bottom-8 duration-500 ease-out-expo' : 'hidden'}`}>
-              <OrganitzaView
-                isPrivacyMode={isPrivacyMode}
-                onNavigateToSearch={handleNavigateToSearch}
-              />
-            </div>
-            <div className={`${activeTab === AppTab.Incidencia ? 'block animate-in fade-in slide-in-from-bottom-8 duration-500 ease-out-expo' : 'hidden'}`}>
-              <IncidenciaView
-                showSecretMenu={showSecretMenu}
-                parkedUnits={parkedUnits}
-                onParkedUnitsChange={fetchParkedUnits}
-                isPrivacyMode={isPrivacyMode}
-              />
-            </div>
-            <div className={`${activeTab === AppTab.Cicles ? 'block animate-in fade-in slide-in-from-bottom-8 duration-500 ease-out-expo' : 'hidden'}`}>
-              <CiclesView parkedUnits={parkedUnits} onParkedUnitsChange={fetchParkedUnits} />
-            </div>
-            <div className={`${activeTab === AppTab.Mensajeria ? 'block animate-in fade-in slide-in-from-bottom-8 duration-500 ease-out-expo h-[calc(100vh-140px)]' : 'hidden'}`}>
-              <MensajeriaView currentProfile={userProfile} />
-            </div>
+          <div className="flex-1 w-full relative overflow-hidden">
+            {[
+              { id: AppTab.Dashboard, Component: <DashboardView /> },
+              {
+                id: AppTab.Cercar, Component: <CercarView
+                  isPrivacyMode={isPrivacyMode}
+                  externalSearch={globalSearch}
+                  onExternalSearchHandled={() => setGlobalSearch(null)}
+                />
+              },
+              {
+                id: AppTab.Organitza, Component: <OrganitzaView
+                  isPrivacyMode={isPrivacyMode}
+                  onNavigateToSearch={handleNavigateToSearch}
+                />
+              },
+              {
+                id: AppTab.Incidencia, Component: <IncidenciaView
+                  showSecretMenu={showSecretMenu}
+                  parkedUnits={parkedUnits}
+                  onParkedUnitsChange={fetchParkedUnits}
+                  isPrivacyMode={isPrivacyMode}
+                />
+              },
+              { id: AppTab.Cicles, Component: <CiclesView parkedUnits={parkedUnits} onParkedUnitsChange={fetchParkedUnits} /> },
+              { id: AppTab.Mensajeria, Component: <MensajeriaView currentProfile={userProfile} /> }
+            ].map(tab => {
+              const isActive = activeTab === tab.id;
+              return (
+                <motion.div
+                  key={tab.id}
+                  initial={false}
+                  animate={{
+                    opacity: isActive ? 1 : 0,
+                    y: isActive ? 0 : 15,
+                    scale: isActive ? 1 : 0.98,
+                    pointerEvents: isActive ? 'auto' : 'none',
+                    zIndex: isActive ? 10 : 0
+                  }}
+                  transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                  className="absolute inset-0 overflow-y-auto overflow-x-hidden w-full py-8 safe-bottom px-4 sm:px-6 lg:px-8 border-none no-scrollbar"
+                >
+                  <div className={tab.id === AppTab.Mensajeria ? 'min-h-[calc(100vh-140px)]' : ''}>
+                    {tab.Component}
+                  </div>
+                </motion.div>
+              );
+            })}
           </div>
         </div>
       </div>
