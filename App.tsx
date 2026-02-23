@@ -358,8 +358,8 @@ const App: React.FC = () => {
         <div className="blob blob-3 parallax-blob" data-speed="0.03" />
       </div>
 
-      <div className={`flex flex-1 overflow-hidden transition-[flex-direction] duration-500 ${isProNav ? 'flex-row' : 'flex-col'}`}>
-        <AnimatePresence mode="popLayout" initial={false}>
+      <div className="flex flex-1 overflow-hidden flex-row">
+        <AnimatePresence initial={false}>
           {isProNav && (
             <motion.div
               key="sidebar"
@@ -387,8 +387,8 @@ const App: React.FC = () => {
           )}
         </AnimatePresence>
 
-        <div className="flex-1 flex flex-col min-w-0 relative h-full">
-          <AnimatePresence mode="popLayout" initial={false}>
+        <div className="flex-1 flex flex-col min-w-0 relative">
+          <AnimatePresence initial={false}>
             {!isProNav && (
               <motion.nav
                 key="topnav"
