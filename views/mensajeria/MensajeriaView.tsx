@@ -191,7 +191,7 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
     };
 
     return (
-        <div className="h-full flex flex-col md:flex-row gap-4 md:gap-6 pb-20 md:pb-6">
+        <div className="h-full flex flex-col md:flex-row gap-4 md:gap-6">
             <GlassPanel className="hidden md:flex w-80 flex-shrink-0 flex-col overflow-hidden bg-white/80 dark:bg-gray-950/80 border border-gray-100 dark:border-white/5 shadow-xl animate-slide-left-premium">
                 <div className="p-5 border-b border-gray-100 dark:border-white/5">
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
