@@ -20,10 +20,11 @@ const KpiCard: React.FC<{
     trend?: 'up' | 'down' | 'neutral';
     infoText?: string;
     progress?: number;
-}> = ({ label, value, subtitle, icon, color, pulse, trend, infoText, progress }) => (
+    className?: string;
+}> = ({ label, value, subtitle, icon, color, pulse, trend, infoText, progress, className = '' }) => (
     <div className={`relative rounded-3xl p-5 sm:p-6 transition-all duration-500 hover:scale-[1.02] hover:shadow-xl
         bg-white/70 dark:bg-white/[0.04] backdrop-blur-xl border border-white/20 dark:border-white/5
-        shadow-[0_4px_24px_0_rgba(31,38,135,0.06)] dark:shadow-[0_4px_24px_0_rgba(0,0,0,0.25)] flex flex-col justify-between`}
+        shadow-[0_4px_24px_0_rgba(31,38,135,0.06)] dark:shadow-[0_4px_24px_0_rgba(0,0,0,0.25)] flex flex-col justify-between ${className}`}
     >
         {/* Accent Glow */}
         <div className="absolute inset-0 overflow-hidden rounded-3xl pointer-events-none">
@@ -264,7 +265,7 @@ const DashboardViewComponent: React.FC = () => {
     return (
         <div className="flex flex-col lg:h-[calc(100vh-110px)] space-y-6 sm:space-y-8 p-4 sm:p-8 animate-in fade-in duration-700">
             {/* Header */}
-            <header className="flex-none flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+            <header className="flex-none flex flex-col sm:flex-row sm:items-end justify-between gap-4 animate-fade-up-premium stagger-1">
                 <div>
                     <h1 className="text-2xl sm:text-3xl font-bold text-[#4D5358] dark:text-white tracking-tight uppercase title-glow flex items-center gap-3">
                         <Zap className="text-fgc-green" size={28} strokeWidth={2.5} />
@@ -297,6 +298,7 @@ const DashboardViewComponent: React.FC = () => {
                     pulse={kpis.serviceCoverage < 80}
                     progress={kpis.serviceCoverage}
                     infoText="Percentatge de circulacions actives teòriques cobertes en aquest precís instant."
+                    className="animate-fade-up-premium stagger-2"
                 />
                 <KpiCard
                     label="Planificació Diària"
@@ -308,6 +310,7 @@ const DashboardViewComponent: React.FC = () => {
                     color={kpis.planningCoverage === 100 ? "#6366F1" : "#EF4444"}
                     pulse={kpis.planningCoverage < 100}
                     infoText="Indica quants dels torns planificats per avui s'han cobert respecte al total requerit de personal."
+                    className="animate-fade-up-premium stagger-3"
                 />
                 <KpiCard
                     label="Reserves"
@@ -317,6 +320,7 @@ const DashboardViewComponent: React.FC = () => {
                     color="#A8D017"
                     pulse={kpis.reserveAvailable === 0}
                     infoText="Número de maquinistes de recanvi lliures als seus corresponents destacaments, a l'espera de necessitats de servei."
+                    className="animate-fade-up-premium stagger-4"
                 />
                 <KpiCard
                     label="Flota Operativa"
@@ -326,14 +330,14 @@ const DashboardViewComponent: React.FC = () => {
                     color="#1B79C9"
                     pulse={kpis.brokenTrainUnits > 3}
                     infoText="Número d'unitats de tren de FGC que es troben actualment disponibles per al servei, un cop restats els que tenen avaria en curs."
+                    className="animate-fade-up-premium stagger-5"
                 />
             </div>
 
-            {/* Main Grid: Bento Layout */}
             <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-5">
 
                 {/* Coverage Ring + Line Status */}
-                <GlassPanel className="lg:col-span-4 p-6 flex flex-col gap-5">
+                <GlassPanel className="lg:col-span-4 p-6 flex flex-col gap-5 animate-fade-up-premium stagger-5">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <Radio size={18} className="text-fgc-green" />
@@ -354,7 +358,7 @@ const DashboardViewComponent: React.FC = () => {
                 </GlassPanel>
 
                 {/* Alerts Panel */}
-                <GlassPanel className="lg:col-span-5 p-6 flex flex-col overflow-hidden gap-4">
+                <GlassPanel className="lg:col-span-5 p-6 flex flex-col overflow-hidden gap-4 animate-fade-up-premium stagger-6">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <AlertTriangle size={18} className="text-amber-500" />
@@ -398,7 +402,7 @@ const DashboardViewComponent: React.FC = () => {
                 </GlassPanel>
 
                 {/* Reserves Panel */}
-                <GlassPanel className="lg:col-span-3 p-6 flex flex-col overflow-hidden gap-4">
+                <GlassPanel className="lg:col-span-3 p-6 flex flex-col overflow-hidden gap-4 animate-fade-up-premium stagger-6">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <MapPin size={18} className="text-fgc-green" />
