@@ -86,10 +86,11 @@ interface ContextMenuProps {
     onMarkUncovered: () => void;
     onClearIncident: () => void;
     onViewTurn: () => void;
+    onAssignAnother: () => void;
     isPrivacyMode: boolean;
 }
 
-const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, bar, clickedTime, onClose, onMarkIncident, onMarkUncovered, onClearIncident, onViewTurn, isPrivacyMode }) => {
+const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, bar, clickedTime, onClose, onMarkIncident, onMarkUncovered, onClearIncident, onViewTurn, onAssignAnother, isPrivacyMode }) => {
     // Add click outside listener
     React.useEffect(() => {
         const handleClickOutside = () => onClose();
@@ -150,6 +151,16 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, bar, clickedTime, onClo
                 <Search size={12} />
                 Veure el torn (Cercar)
             </button>
+
+            {(bar.dependencia === 'EXTRA' || /R/i.test(bar.shortId)) && (
+                <button
+                    onClick={onAssignAnother}
+                    className="w-full text-left px-3 py-2 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 flex items-center gap-2"
+                >
+                    <GitBranch size={12} />
+                    Assignar a un altre torn
+                </button>
+            )}
 
             {bar.driverPhone && (
                 <a
@@ -721,6 +732,11 @@ const OrganitzaGantt: React.FC<{
                     onMarkUncovered={handleMarkUncovered}
                     onClearIncident={handleClearIncident}
                     onViewTurn={handleViewTurn}
+                    onAssignAnother={() => {
+                        feedback.deepClick();
+                        onNavigateToSearch?.('maquinista', contextMenu.bar.driverNomina || contextMenu.bar.driverName || '');
+                        setContextMenu(null);
+                    }}
                     isPrivacyMode={isPrivacyMode}
                 />
             )}
