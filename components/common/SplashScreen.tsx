@@ -4,10 +4,11 @@ import { createPortal } from 'react-dom';
 
 interface SplashScreenProps {
     progress: number;
+    message?: string;
     onComplete: () => void;
 }
 
-const SplashScreen: React.FC<SplashScreenProps> = ({ progress, onComplete }) => {
+const SplashScreen: React.FC<SplashScreenProps> = ({ progress, message, onComplete }) => {
     const [isVisible, setIsVisible] = useState(true);
     const [videoFinished, setVideoFinished] = useState(false);
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -74,7 +75,7 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ progress, onComplete }) => 
                 </div>
 
                 <p className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] animate-pulse">
-                    {progress < 100 ? 'Sincronitzant dades...' : 'Sincronització completa'}
+                    {progress < 100 ? (message || 'Sincronitzant dades...') : 'Sincronització completa'}
                 </p>
             </div>
 

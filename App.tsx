@@ -14,6 +14,7 @@ import { supabase } from './supabaseClient.ts';
 import { feedback } from './utils/feedback';
 import { useToast } from './components/ToastProvider';
 import ProfileModal from './components/ProfileModal.tsx';
+import { syncOfflineData } from './utils/offlineSync';
 
 interface ParkedUnit {
   unit_number: string;
@@ -28,6 +29,7 @@ const App: React.FC = () => {
   const [prevTab, setPrevTab] = useState<AppTab | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const [initProgress, setInitProgress] = useState(0);
+  const [initMessage, setInitMessage] = useState('Sincronitzant dades...');
   const [unreadMessages, setUnreadMessages] = useState(0);
   const activeTabRef = useRef(activeTab);
   const { showToast } = useToast();
@@ -46,17 +48,18 @@ const App: React.FC = () => {
   }, [handleTabChange]);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setInitProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          return 100;
+    const doSync = async () => {
+      await syncOfflineData((msg, progressValue) => {
+        setInitMessage(msg);
+        if (progressValue !== undefined) {
+          setInitProgress(progressValue);
         }
-        return prev + Math.random() * 20;
       });
-    }, 200);
+      setInitProgress(100);
+    };
 
-    return () => clearInterval(interval);
+    const timer = setTimeout(doSync, 500);
+    return () => clearTimeout(timer);
   }, []);
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -346,7 +349,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-transparent flex flex-col transition-colors duration-300">
-      <SplashScreen progress={initProgress} onComplete={() => setIsInitializing(false)} />
+      <SplashScreen progress={initProgress} message={initMessage} onComplete={() => setIsInitializing(false)} />
 
       <div className="mesh-bg">
         <div className="blob blob-1 parallax-blob" data-speed="0.05" />
