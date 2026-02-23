@@ -275,8 +275,8 @@ const ShiftBar: React.FC<{
                     <div className="flex items-center gap-1 w-full pr-1">
                         <span className="text-[9px] sm:text-[10px] font-bold shrink-0">{bar.shortId}</span>
                         {bar.coveringDriverName && (
-                            <span className="text-[7px] font-bold text-white bg-purple-600/90 px-1 py-[2px] rounded-[4px] truncate leading-none border border-purple-400/50 shadow-sm tracking-wide">
-                                ↺ {bar.coveringDriverName.split(',')[0]?.split(' ')[0] || bar.coveringDriverName}
+                            <span className="text-[7.5px] font-bold text-white bg-purple-600/90 px-1.5 py-[2px] rounded-md truncate leading-none border border-purple-400/50 shadow-sm tracking-wide">
+                                ↺ {bar.coveringExtraShiftId ? `${bar.coveringExtraShiftId} - ` : ''}{bar.coveringDriverName.split(',')[0]?.split(' ')[0] || bar.coveringDriverName}
                             </span>
                         )}
                     </div>

@@ -27,6 +27,7 @@ export interface GanttBar {
     circulations: GanttCircSegment[];
     coveringShiftId?: string | null;
     coveringDriverName?: string | null;
+    coveringExtraShiftId?: string | null;
 }
 
 export interface GanttCircSegment {
@@ -216,7 +217,8 @@ export function useGanttData() {
                     driverPhone,
                     circulations: segments,
                     coveringShiftId: null,
-                    coveringDriverName: isCoveredByExtra ? driverName : null
+                    coveringDriverName: isCoveredByExtra ? driverName : null,
+                    coveringExtraShiftId: isCoveredByExtra ? assignment?.torn : null
                 };
             });
 
