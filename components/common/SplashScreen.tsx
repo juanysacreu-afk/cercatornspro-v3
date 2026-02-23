@@ -41,7 +41,7 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ progress, onComplete }) => 
     const isReadyToFade = isMobile ? (progress >= 100 && videoFinished) : (progress >= 100);
 
     return createPortal(
-        <div className={`fixed inset-0 z-[10005] flex flex-col items-center justify-end sm:justify-center bg-black transition-all duration-700 ${isReadyToFade ? 'opacity-0 scale-105 pointer-events-none' : 'opacity-100'}`}>
+        <div className={`fixed inset-0 z-[10005] flex flex-col items-center justify-end bg-black transition-all duration-700 ${isReadyToFade ? 'opacity-0 scale-105 pointer-events-none' : 'opacity-100'}`}>
             {/* Fullscreen Video Background */}
             <div className="absolute inset-0 overflow-hidden flex justify-center">
                 <video
@@ -56,8 +56,8 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ progress, onComplete }) => 
                 </video>
             </div>
 
-            {/* Content positioned in bottom third for mobile */}
-            <div className="relative z-10 text-center space-y-8 max-w-xs w-full px-8 pb-[12vh] sm:pb-0">
+            {/* Content positioned in bottom third for mobile and desktop */}
+            <div className="relative z-10 text-center space-y-8 max-w-xs w-full px-8 pb-[12vh] sm:pb-[15vh]">
                 <div className="space-y-2">
                     <img
                         src="/logo-pro.png"
