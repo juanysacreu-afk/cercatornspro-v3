@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '../../../supabaseClient';
 import { getServiceToday } from '../../../utils/serviceCalendar';
 import { getShortTornId } from '../../../utils/fgc';
@@ -49,15 +49,22 @@ export type GanttFilterMode = 'all' | 'unassigned' | 'conflicts';
 export type GanttTimeFilter = 'all' | 'mati' | 'tarda' | 'nit';
 
 // ── Hook ───────────────────────────────────────────────
+// F1 – Zoom levels (hours shown)
+export type GanttZoomLevel = 'full' | '12h' | '8h' | '4h';
+
 export function useGanttData() {
     const [loading, setLoading] = useState(true);
     const [allBars, setAllBars] = useState<GanttBar[]>([]);
     const [groupBy, setGroupBy] = useState<GanttGroupBy>('dependencia');
     const [filterMode, setFilterMode] = useState<GanttFilterMode>('all');
     const [timeFilter, setTimeFilter] = useState<GanttTimeFilter>('all');
+    const [zoomLevel, setZoomLevel] = useState<GanttZoomLevel>('full'); // F1
     const [nowMin, setNowMin] = useState(0);
     const [selectedService, setSelectedService] = useState<string>(getServiceToday());
     const [availableServices, setAvailableServices] = useState<string[]>([]);
+    // C3 – stable ref for selectedService to avoid fetchData re-creation on every service change
+    const selectedServiceRef = useRef(selectedService);
+    selectedServiceRef.current = selectedService;
 
     // Live clock
     useEffect(() => {
@@ -84,13 +91,13 @@ export function useGanttData() {
         loadServices();
     }, []);
 
+    // C3 – fetchData uses a ref for selectedService so it only gets created once
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
             const todayStr = new Date().toISOString().split('T')[0];
+            const svc = selectedServiceRef.current;
 
-            // Fetch shifts and assignments
-            // Note: We fetch ALL daily assignments for today to ensure we catch "extras"
             const [shiftsRes, assignRes, agentsRes] = await Promise.all([
                 supabase.from('shifts').select('id, servei, inici_torn, final_torn, dependencia, circulations'),
                 supabase.from('daily_assignments')
@@ -98,6 +105,9 @@ export function useGanttData() {
                     .eq('data_servei', todayStr),
                 supabase.from('agents').select('nomina, phone')
             ]);
+
+            // Reassign local variable to ref value (stable reference)
+            const selectedService = svc;
 
             const rawShifts = shiftsRes.data || [];
             // Filter shifts by selected service (client-side filtering as 'isServiceVisible' logic is complex)
@@ -131,7 +141,10 @@ export function useGanttData() {
                 const startMin = getFgcMinutes(shift.inici_torn) ?? 0;
                 let endMin = getFgcMinutes(shift.final_torn) ?? 0;
 
-                if (endMin < startMin) {
+                // C2 – Handle midnight crossing correctly
+                // FGC day goes 04:00 → 30:00 (next-day 06:00)
+                // If endMin is before startMin and the shift straddles midnight, add 24h
+                if (endMin <= startMin) {
                     endMin += 24 * 60;
                 }
 
@@ -332,7 +345,8 @@ export function useGanttData() {
         } finally {
             setLoading(false);
         }
-    }, [selectedService]); // Dep on selectedService
+        // C3 – no deps needed: selectedService is read via ref, fetchData is stable
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
         fetchData();
@@ -456,16 +470,28 @@ export function useGanttData() {
         }
     };
 
-    // ── Dynamic View Range (Zoom) ──
+    // ── Dynamic View Range (Zoom F1) ──
     const viewRange = useMemo(() => {
+        // Time-filter presets take priority
         if (timeFilter === 'mati') return { start: 4 * 60, end: 16 * 60, total: 12 * 60 };
         if (timeFilter === 'tarda') return { start: 12 * 60, end: 24 * 60, total: 12 * 60 };
         if (timeFilter === 'nit') return { start: 20 * 60, end: 32 * 60, total: 12 * 60 };
+
+        // F1 – Manual zoom: centre window around "now" (or 14:00 if before service start)
+        if (zoomLevel !== 'full') {
+            const zoomHours = zoomLevel === '4h' ? 4 : zoomLevel === '8h' ? 8 : 12;
+            const halfH = (zoomHours / 2) * 60;
+            const centre = Math.max(GANTT_START_MIN + halfH, Math.min(nowMin, GANTT_START_MIN + GANTT_TOTAL_MINUTES - halfH));
+            return { start: centre - halfH, end: centre + halfH, total: zoomHours * 60 };
+        }
+
         return { start: GANTT_START_MIN, end: GANTT_START_MIN + GANTT_TOTAL_MINUTES, total: GANTT_TOTAL_MINUTES };
-    }, [timeFilter]);
+    }, [timeFilter, zoomLevel, nowMin]);
 
     return {
-        loading, groups, stats, groupBy, setGroupBy, filterMode, setFilterMode, timeFilter, setTimeFilter,
-        viewRange, nowMin, selectedService, setSelectedService, availableServices, refresh: fetchData, updateIncidentTime, assignToShift
+        loading, groups, stats, groupBy, setGroupBy, filterMode, setFilterMode,
+        timeFilter, setTimeFilter, zoomLevel, setZoomLevel,
+        viewRange, nowMin, selectedService, setSelectedService, availableServices,
+        refresh: fetchData, updateIncidentTime, assignToShift
     };
 }

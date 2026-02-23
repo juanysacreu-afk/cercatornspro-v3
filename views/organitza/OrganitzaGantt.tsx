@@ -1,9 +1,20 @@
 import React, { useRef, useMemo, useState, useCallback } from 'react';
-import { Loader2, GanttChart, Users, AlertTriangle, RefreshCcw, Layers, GitBranch, Filter, Clock, Sun, Sunrise, Sunset, Moon, Search, Phone } from 'lucide-react';
+import {
+    Loader2, GanttChart, Users, AlertTriangle, RefreshCcw, Layers,
+    GitBranch, Filter, Clock, Sunrise, Sunset, Moon, Search, ZoomIn, ZoomOut,
+    Download, X
+} from 'lucide-react';
 import GlassPanel from '../../components/common/GlassPanel';
-import { useGanttData, GANTT_START_MIN, GANTT_TOTAL_MINUTES, GanttBar, GanttGroup, GANTT_START_HOUR, GANTT_END_HOUR } from './hooks/useGanttData';
+import {
+    useGanttData,
+    GANTT_START_MIN, GANTT_TOTAL_MINUTES,
+    GanttBar, GanttGroup,
+    GanttZoomLevel
+} from './hooks/useGanttData';
 import { getFgcMinutes } from '../../utils/stations';
 import { feedback } from '../../utils/feedback';
+import { GanttContextMenu } from './components/GanttContextMenu';
+import { GanttShiftBar } from './components/GanttShiftBar';
 
 // ── Helper: position as % ──────────────────────────────
 const calculatePercent = (minutes: number, start: number, total: number): number => {
@@ -63,235 +74,32 @@ const HourHeader: React.FC<{ viewRange: { start: number, end: number, total: num
     );
 };
 
-// ── Now Marker ─────────────────────────────────────────
+// ── Now Marker (V2: with past-time gradient) ───────────
 const NowMarker: React.FC<{ nowMin: number, toPercent: (min: number) => number }> = ({ nowMin, toPercent }) => {
     const left = toPercent(nowMin);
     if (left <= 0 || left >= 100) return null;
     return (
-        <div className="absolute top-0 bottom-0 z-30 pointer-events-none transition-all duration-500" style={{ left: `${left}%` }}>
-            <div className="w-0.5 h-full bg-red-500 dark:bg-red-400 opacity-80" />
-            <div className="absolute -top-1 -left-1.5 w-3.5 h-3.5 rounded-full bg-red-500 dark:bg-red-400 border-2 border-white dark:border-fgc-grey shadow-lg" />
-        </div>
-    );
-};
-
-// ── Context Menu ───────────────────────────────────────
-interface ContextMenuProps {
-    x: number;
-    y: number;
-    bar: GanttBar;
-    clickedTime: string;
-    onClose: () => void;
-    onMarkIncident: () => void;
-    onMarkUncovered: () => void;
-    onClearIncident: () => void;
-    onViewTurn: () => void;
-    onAssignAnother: () => void;
-    isPrivacyMode: boolean;
-}
-
-const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, bar, clickedTime, onClose, onMarkIncident, onMarkUncovered, onClearIncident, onViewTurn, onAssignAnother, isPrivacyMode }) => {
-    // Add click outside listener
-    React.useEffect(() => {
-        const handleClickOutside = () => onClose();
-        document.addEventListener('click', handleClickOutside);
-        return () => document.removeEventListener('click', handleClickOutside);
-    }, [onClose]);
-
-    return (
-        <div
-            className="absolute z-[200] bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 py-1 min-w-[200px] animate-in fade-in zoom-in-95 duration-100"
-            style={{ left: x, top: y }}
-            onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside
-        >
-            <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-700 mb-1">
-                <div className="flex items-center justify-between">
-                    <span className="font-bold text-xs text-gray-800 dark:text-gray-200">{bar.shortId}</span>
-                    <span className="flex items-center gap-1 text-[10px] sm:text-[10px] font-mono text-gray-500 bg-gray-100 dark:bg-white/5 px-1.5 py-0.5 rounded">
-                        <Clock size={10} />
-                        {clickedTime}
-                    </span>
-                </div>
-                <div className="text-[10px] text-gray-500 mt-0.5">{bar.driverName || 'Sense conductor'}</div>
+        <>
+            {/* V2 – semi-transparent gradient over the past time */}
+            <div
+                className="absolute top-0 bottom-0 z-10 pointer-events-none"
+                style={{
+                    left: 0,
+                    width: `${left}%`,
+                    background: 'linear-gradient(to right, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.10) 100%)',
+                }}
+            />
+            {/* Red line */}
+            <div className="absolute top-0 bottom-0 z-30 pointer-events-none transition-all duration-500" style={{ left: `${left}%` }}>
+                <div className="w-0.5 h-full bg-red-500 dark:bg-red-400 opacity-80" />
+                <div className="absolute -top-1 -left-1.5 w-3.5 h-3.5 rounded-full bg-red-500 dark:bg-red-400 border-2 border-white dark:border-fgc-grey shadow-lg" />
             </div>
-            {!bar.incidentStartTime ? (
-                <>
-                    <button
-                        onClick={onMarkIncident}
-                        className="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 hover:text-amber-600 flex items-center gap-2"
-                    >
-                        <AlertTriangle size={12} className="text-amber-500" />
-                        Marcar Indisposició
-                    </button>
-                    <button
-                        onClick={onMarkUncovered}
-                        className="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 flex items-center gap-2"
-                    >
-                        <AlertTriangle size={12} className="text-red-500" />
-                        Marcar Torn Descobert
-                    </button>
-                </>
-            ) : (
-                <button
-                    onClick={onClearIncident}
-                    className="w-full text-left px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
-                >
-                    <RefreshCcw size={12} />
-                    Esborrar Marcació
-                </button>
-            )}
-
-            <div className="h-px bg-gray-100 dark:bg-gray-700 my-1" />
-
-            {/* Quick Actions */}
-            <button
-                onClick={onViewTurn}
-                className="w-full text-left px-3 py-2 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 flex items-center gap-2"
-            >
-                <Search size={12} />
-                Veure el torn (Cercar)
-            </button>
-
-            {(bar.dependencia === 'EXTRA' || /R/i.test(bar.shortId)) && (
-                <button
-                    onClick={onAssignAnother}
-                    className="w-full text-left px-3 py-2 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 flex items-center gap-2"
-                >
-                    <GitBranch size={12} />
-                    Assignar a un altre torn
-                </button>
-            )}
-
-            {bar.driverPhone && (
-                <a
-                    href={isPrivacyMode ? undefined : `tel:${bar.driverPhone}`}
-                    className={`w-full text-left px-3 py-2 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 flex items-center gap-2 ${isPrivacyMode ? 'cursor-default' : ''}`}
-                    onClick={(e) => {
-                        if (isPrivacyMode) {
-                            e.preventDefault();
-                            feedback.click();
-                        } else {
-                            feedback.click();
-                        }
-                    }}
-                >
-                    <Phone size={12} />
-                    {isPrivacyMode ? 'Trucar: *** ** ** **' : `Trucar: ${bar.driverPhone}`}
-                </a>
-            )}
-        </div>
-    );
-};
-
-// ── Single Bar ─────────────────────────────────────────
-const ShiftBar: React.FC<{
-    bar: GanttBar;
-    toPercent: (min: number) => number;
-    onClick: (bar: GanttBar, e: React.MouseEvent) => void;
-    onContextMenu: (bar: GanttBar, e: React.MouseEvent) => void;
-    isSelected: boolean;
-}> = ({ bar, toPercent, onClick, onContextMenu, isSelected }) => {
-    const startLeft = toPercent(bar.startMin);
-    const endRight = toPercent(bar.endMin);
-    const width = endRight - startLeft;
-
-    // Filter bars out of view
-    if (startLeft > 100 || endRight < 0) return null;
-    const renderLeft = Math.max(0, startLeft);
-    const renderWidth = Math.min(100 - renderLeft, width - (renderLeft > startLeft ? renderLeft - startLeft : 0));
-
-    const absCode = (bar.absType || '').toUpperCase();
-    const isAbsent = absCode.includes('DIS') || absCode.includes('DES') || absCode.includes('VAC') || absCode.includes('FOR');
-
-    // Default styles
-    let bgStyle: React.CSSProperties = {};
-    let borderClass = isSelected ? 'border-white dark:border-white ring-2 ring-indigo-500 z-30' : 'border-emerald-500/50';
-    let baseBgClass = 'bg-gradient-to-r from-emerald-400/90 to-emerald-500/90 dark:from-emerald-500/80 dark:to-emerald-600/80';
-
-    if (bar.coveringShiftId) {
-        baseBgClass = 'bg-gradient-to-r from-purple-500/90 to-purple-600/90 dark:from-purple-600/80 dark:to-purple-700/80';
-        borderClass = isSelected ? 'border-white dark:border-white ring-2 ring-indigo-500 z-30' : 'border-purple-500/50';
-    } else if (!bar.isAssigned) {
-        baseBgClass = 'bg-gradient-to-r from-gray-300/70 to-gray-400/70 dark:from-gray-600/60 dark:to-gray-700/60';
-        borderClass = isSelected ? 'border-white dark:border-white ring-2 ring-indigo-500 z-30' : 'border-gray-400/50 dark:border-gray-500/50 border-dashed';
-    } else if (isAbsent) {
-        baseBgClass = 'bg-gradient-to-r from-amber-400/80 to-amber-500/80 dark:from-amber-500/70 dark:to-amber-600/70';
-        borderClass = isSelected ? 'border-white dark:border-white ring-2 ring-indigo-500 z-30' : 'border-amber-500/50';
-    }
-
-    // Incident Styling Logic
-    if (bar.incidentStartTime && bar.isAssigned && !isAbsent) {
-        if (bar.incidentStartTime === '00:00') {
-            // Full uncovered
-            baseBgClass = 'bg-gradient-to-r from-red-500/90 to-red-600/90 dark:from-red-600/80 dark:to-red-700/80';
-            borderClass = isSelected ? 'border-white dark:border-white ring-2 ring-indigo-500 z-30' : 'border-red-500/50';
-        } else {
-            const incidentMin = getFgcMinutes(bar.incidentStartTime);
-            if (incidentMin && incidentMin > bar.startMin && incidentMin < bar.endMin) {
-                const splitPercent = ((incidentMin - bar.startMin) / (bar.endMin - bar.startMin)) * 100;
-                bgStyle = {
-                    background: `linear-gradient(90deg, 
-                        rgba(16, 185, 129, 0.9) 0%, rgba(16, 185, 129, 0.9) ${splitPercent}%, 
-                        rgba(245, 158, 11, 0.9) ${splitPercent}%, rgba(245, 158, 11, 0.9) 100%)`
-                };
-                borderClass = isSelected ? 'border-white dark:border-white ring-2 ring-indigo-500 z-30' : 'border-amber-500/50';
-            } else if (incidentMin && incidentMin <= bar.startMin) {
-                // Also treat as full amber if it starts before shift
-                baseBgClass = 'bg-gradient-to-r from-amber-400/80 to-amber-500/80 dark:from-amber-500/70 dark:to-amber-600/70';
-                borderClass = isSelected ? 'border-white dark:border-white ring-2 ring-indigo-500 z-30' : 'border-amber-500/50';
-            }
-        }
-    }
-
-    return (
-        <div
-            className={`absolute h-7 rounded-md border ${Object.keys(bgStyle).length === 0 ? baseBgClass : ''} ${borderClass} cursor-pointer transition-all duration-500 hover:scale-y-110 hover:z-20 hover:shadow-lg`}
-            style={{
-                left: `${renderLeft}%`,
-                width: `${Math.max(renderWidth, 0.3)}%`,
-                top: '2px',
-                ...bgStyle
-            }}
-            onClick={(e) => onClick(bar, e)}
-            onContextMenu={(e) => onContextMenu(bar, e)}
-        >
-            {/* Internal circulation segments */}
-            {width > 3 && bar.circulations.filter(c => c.type === 'circ').map((seg, i) => {
-                const segStartLeft = ((seg.startMin - bar.startMin) / (bar.endMin - bar.startMin)) * 100;
-                const segEndRight = ((seg.endMin - bar.startMin) / (bar.endMin - bar.startMin)) * 100;
-                const segWidth = segEndRight - segStartLeft;
-                return (
-                    <div
-                        key={i}
-                        className="absolute top-0 bottom-0 bg-white/15 dark:bg-white/10 border-l border-white/20"
-                        style={{ left: `${segStartLeft}%`, width: `${segWidth}%` }}
-                    />
-                );
-            })}
-
-            {/* Label inside bar */}
-            {renderWidth > 2.5 && (
-                <div className="absolute inset-0 flex flex-col items-start justify-center px-1.5 text-white truncate select-none drop-shadow-sm leading-tight">
-                    <div className="flex items-center gap-1 w-full pr-1">
-                        <span className="text-[9px] sm:text-[10px] font-bold shrink-0">{bar.shortId}</span>
-                        {bar.coveringDriverName && (
-                            <span className="text-[7.5px] font-bold text-white bg-purple-600/90 px-1.5 py-[2px] rounded-md truncate leading-none border border-purple-400/50 shadow-sm tracking-wide">
-                                ↺ {bar.coveringExtraShiftId ? `${bar.coveringExtraShiftId} - ` : ''}{bar.coveringDriverName.split(',')[0]?.split(' ')[0] || bar.coveringDriverName}
-                            </span>
-                        )}
-                    </div>
-                    {bar.coveringShiftId && (
-                        <span className="text-[7.5px] font-medium opacity-90 -mt-[1px] truncate max-w-full">
-                            Cobreix {bar.coveringShiftId}
-                        </span>
-                    )}
-                </div>
-            )}
-        </div>
+        </>
     );
 };
 
 // ── Group Row ──────────────────────────────────────────
+// C2 fix: lane algorithm handles midnight-crossing bars correctly
 const GroupSection: React.FC<{
     group: GanttGroup;
     viewRange: { start: number, end: number, total: number };
@@ -300,8 +108,14 @@ const GroupSection: React.FC<{
     onBarClick: (bar: GanttBar, e: React.MouseEvent) => void;
     onBarContextMenu: (bar: GanttBar, e: React.MouseEvent) => void;
     selectedBarId: string | null;
-}> = ({ group, viewRange, toPercent, nowMin, onBarClick, onBarContextMenu, selectedBarId }) => {
-    // Stacking: assign bars to "lanes" to avoid overlaps
+    staggerIndex: number; // V4
+    // F2 drag-and-drop
+    dragSourceBar: GanttBar | null;
+    onDragStart: (bar: GanttBar) => void;
+    onDragEnd: () => void;
+    onDrop: (target: GanttBar) => void;
+}> = ({ group, viewRange, toPercent, nowMin, onBarClick, onBarContextMenu, selectedBarId, staggerIndex, dragSourceBar, onDragStart, onDragEnd, onDrop }) => {
+    // C2 – Correct lane algorithm: use absolute endMin (already adjusted for midnight crossing in useGanttData)
     const lanes = useMemo(() => {
         const result: GanttBar[][] = [];
         const sorted = [...group.bars].sort((a, b) => a.startMin - b.startMin);
@@ -309,7 +123,8 @@ const GroupSection: React.FC<{
             let placed = false;
             for (const lane of result) {
                 const lastBar = lane[lane.length - 1];
-                if (bar.startMin >= lastBar.endMin) {
+                // C2 fix: use a small gap tolerance (0.5 min) to avoid visual overlap on adjacent bars
+                if (bar.startMin >= lastBar.endMin - 0.5) {
                     lane.push(bar);
                     placed = true;
                     break;
@@ -320,8 +135,17 @@ const GroupSection: React.FC<{
         return result;
     }, [group.bars]);
 
+    // V4 – stagger animation delay (50ms per group)
+    const animStyle: React.CSSProperties = {
+        animationDelay: `${staggerIndex * 55}ms`,
+        animationFillMode: 'both',
+    };
+
     return (
-        <div className="mb-3">
+        <div
+            className="mb-3 animate-in slide-in-from-bottom-2 fade-in duration-400"
+            style={animStyle}
+        >
             {/* Group label */}
             <div className="flex items-center gap-2 mb-1 px-1">
                 <span className="text-[10px] sm:text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
@@ -352,16 +176,28 @@ const GroupSection: React.FC<{
                 {/* Lanes */}
                 {lanes.map((lane, laneIdx) => (
                     <div key={laneIdx} className="relative" style={{ height: '32px' }}>
-                        {lane.map(bar => (
-                            <ShiftBar
-                                key={bar.shiftId}
-                                bar={bar}
-                                toPercent={toPercent}
-                                onClick={onBarClick}
-                                onContextMenu={onBarContextMenu}
-                                isSelected={selectedBarId === bar.shiftId}
-                            />
-                        ))}
+                        {lane.map(bar => {
+                            const isDragSource = dragSourceBar?.shiftId === bar.shiftId;
+                            // F2 – a bar is a valid drop target if it's uncovered and something is being dragged
+                            const isUncovered = !bar.isAssigned || bar.incidentStartTime === '00:00';
+                            const isDragTarget = !!dragSourceBar && !isDragSource && isUncovered;
+
+                            return (
+                                <GanttShiftBar
+                                    key={bar.shiftId}
+                                    bar={bar}
+                                    toPercent={toPercent}
+                                    onClick={onBarClick}
+                                    onContextMenu={onBarContextMenu}
+                                    isSelected={selectedBarId === bar.shiftId}
+                                    isDragSource={isDragSource}
+                                    isDragTarget={isDragTarget}
+                                    onDragStart={onDragStart}
+                                    onDragEnd={onDragEnd}
+                                    onDrop={onDrop}
+                                />
+                            );
+                        })}
                     </div>
                 ))}
 
@@ -375,24 +211,98 @@ const GroupSection: React.FC<{
     );
 };
 
+// ── V5 – Sticky mini-legend ────────────────────────────
+const GanttLegend: React.FC = () => (
+    <div className="sticky bottom-4 flex justify-center pointer-events-none z-40">
+        <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-3
+                        bg-white/80 dark:bg-gray-900/80 backdrop-blur-md
+                        border border-gray-200 dark:border-white/10
+                        rounded-2xl px-4 py-2 shadow-xl text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 font-medium">
+            <span className="flex items-center gap-1.5">
+                <span className="inline-block w-3 h-2.5 rounded-sm bg-gradient-to-r from-emerald-400 to-emerald-500" /> Matí Cobert
+            </span>
+            <span className="flex items-center gap-1.5">
+                <span className="inline-block w-3 h-2.5 rounded-sm bg-gradient-to-r from-amber-400 to-orange-500" /> Tarda Cobert
+            </span>
+            <span className="flex items-center gap-1.5">
+                <span className="inline-block w-3 h-2.5 rounded-sm bg-gradient-to-r from-indigo-500 to-violet-600" /> Nit Cobert
+            </span>
+            <span className="flex items-center gap-1.5">
+                <span className="inline-block w-3 h-2.5 rounded-sm bg-gradient-to-r from-gray-300 to-gray-400 border border-dashed border-gray-400/50" /> Sense assignar
+            </span>
+            <span className="flex items-center gap-1.5">
+                <span className="inline-block w-3 h-2.5 rounded-sm bg-gradient-to-r from-amber-400 to-amber-500" /> Indisposició
+            </span>
+            <span className="flex items-center gap-1.5">
+                <span className="inline-block w-3 h-2.5 rounded-sm bg-gradient-to-r from-red-500 to-red-600" /> Descobert
+            </span>
+            <span className="flex items-center gap-1.5">
+                <span className="inline-block w-3 h-2.5 rounded-sm bg-gradient-to-r from-purple-500 to-purple-600" /> Cobertura Extra
+            </span>
+            <span className="flex items-center gap-1.5">
+                <span className="inline-block w-0.5 h-3.5 bg-red-500 rounded" /> Ara
+            </span>
+        </div>
+    </div>
+);
+
+// ── F1 Zoom Buttons ─────────────────────────────────────
+const ZOOM_OPTIONS: { label: string; value: GanttZoomLevel }[] = [
+    { label: 'Tot', value: 'full' },
+    { label: '12h', value: '12h' },
+    { label: '8h', value: '8h' },
+    { label: '4h', value: '4h' },
+];
+
 // ── Main Component ─────────────────────────────────────
 const OrganitzaGantt: React.FC<{
     onNavigateToSearch?: (type: string, query: string) => void;
     isPrivacyMode?: boolean;
 }> = ({ onNavigateToSearch, isPrivacyMode = true }) => {
-    const { loading, groups, stats, groupBy, setGroupBy, filterMode, setFilterMode, timeFilter, setTimeFilter, viewRange, nowMin, selectedService, setSelectedService, availableServices, refresh, updateIncidentTime, assignToShift } = useGanttData();
+    const {
+        loading, groups, stats, groupBy, setGroupBy,
+        filterMode, setFilterMode, timeFilter, setTimeFilter,
+        zoomLevel, setZoomLevel,
+        viewRange, nowMin, selectedService, setSelectedService,
+        availableServices, refresh, updateIncidentTime, assignToShift,
+    } = useGanttData();
+
     const [tooltip, setTooltip] = useState<TooltipState | null>(null);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; bar: GanttBar; clickedTime: string } | null>(null);
     const [assigningModeBar, setAssigningModeBar] = useState<GanttBar | null>(null);
+    // F2 – drag state
+    const [dragSourceBar, setDragSourceBar] = useState<GanttBar | null>(null);
+    // F5 – group search
+    const [groupSearch, setGroupSearch] = useState('');
+    // F3 – export loading
+    const [exporting, setExporting] = useState(false);
+
     const containerRef = useRef<HTMLDivElement>(null);
+    const ganttBodyRef = useRef<HTMLDivElement>(null);
 
     // Dynamic Coordinate helper
     const toPercent = useCallback((minutes: number) => {
         return calculatePercent(minutes, viewRange.start, viewRange.total);
     }, [viewRange]);
 
+    // F5 – filtered groups
+    const visibleGroups = useMemo(() => {
+        if (!groupSearch.trim()) return groups;
+        const q = groupSearch.trim().toLowerCase();
+        return groups
+            .map(g => ({
+                ...g,
+                bars: g.bars.filter(b =>
+                    b.shortId.toLowerCase().includes(q) ||
+                    b.driverName?.toLowerCase().includes(q) ||
+                    b.dependencia.toLowerCase().includes(q)
+                )
+            }))
+            .filter(g => g.bars.length > 0 || g.label.toLowerCase().includes(q));
+    }, [groups, groupSearch]);
+
     const handleBarClick = useCallback(async (bar: GanttBar, e: React.MouseEvent) => {
-        e.stopPropagation(); // Stop propagation to avoid closing immediately if we add a global click listener
+        e.stopPropagation();
 
         if (assigningModeBar && assigningModeBar.assignmentId) {
             feedback.deepClick();
@@ -404,7 +314,6 @@ const OrganitzaGantt: React.FC<{
         const rect = containerRef.current?.getBoundingClientRect();
         if (!rect) return;
 
-        // Toggle if clicking the same bar
         if (tooltip?.bar.shiftId === bar.shiftId) {
             setTooltip(null);
             return;
@@ -413,11 +322,10 @@ const OrganitzaGantt: React.FC<{
         setTooltip({
             bar,
             clientX: e.clientX - rect.left,
-            clientY: e.clientY - rect.top
+            clientY: e.clientY - rect.top,
         });
-    }, [tooltip]);
+    }, [tooltip, assigningModeBar, assignToShift]);
 
-    // Close tooltip or assign mode when clicking background
     const handleBackgroundClick = useCallback(() => {
         if (tooltip) setTooltip(null);
         if (assigningModeBar) {
@@ -433,25 +341,18 @@ const OrganitzaGantt: React.FC<{
         const rect = containerRef.current?.getBoundingClientRect();
         if (!rect) return;
 
-        // Use NOW as the default time for incident
-        // Convert nowMin (minutes from 4AM) back to HH:MM string
-        // Note: nowMin is already calculated in useGanttData, but let's re-calculate perfectly for "now"
         const now = new Date();
-        const currentHours = now.getHours();
-        const currentMinutes = now.getMinutes();
-        const timeStr = `${currentHours.toString().padStart(2, '0')}:${currentMinutes.toString().padStart(2, '0')}`;
+        const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
 
-        const menuHeight = 180; // approximate max height of the context menu
+        const menuHeight = 180;
         let adjustedY = e.clientY - rect.top;
-        if (adjustedY + menuHeight > rect.height) {
-            adjustedY -= menuHeight;
-        }
+        if (adjustedY + menuHeight > rect.height) adjustedY -= menuHeight;
 
         setContextMenu({
             x: e.clientX - rect.left,
             y: adjustedY,
             bar,
-            clickedTime: timeStr
+            clickedTime: timeStr,
         });
     }, []);
 
@@ -463,7 +364,6 @@ const OrganitzaGantt: React.FC<{
 
     const handleMarkUncovered = async () => {
         if (!contextMenu?.bar.assignmentId) return;
-        // Use 00:00 as a special code for full uncovered
         await updateIncidentTime(contextMenu.bar.assignmentId, '00:00');
         setContextMenu(null);
     };
@@ -481,6 +381,54 @@ const OrganitzaGantt: React.FC<{
         setContextMenu(null);
     };
 
+    // F2 – drag handlers
+    const handleDragStart = useCallback((bar: GanttBar) => {
+        setDragSourceBar(bar);
+        feedback.click();
+    }, []);
+
+    const handleDragEnd = useCallback(() => {
+        setDragSourceBar(null);
+    }, []);
+
+    const handleDrop = useCallback(async (targetBar: GanttBar) => {
+        if (!dragSourceBar?.assignmentId) return;
+        feedback.deepClick();
+        await assignToShift(dragSourceBar.assignmentId, targetBar.shortId);
+        setDragSourceBar(null);
+    }, [dragSourceBar, assignToShift]);
+
+    // F3 – Export Gantt as PNG using html-to-image / canvas
+    const handleExportImage = useCallback(async () => {
+        const el = ganttBodyRef.current;
+        if (!el || exporting) return;
+        setExporting(true);
+        try {
+            // Dynamically import html2canvas (may not be installed)
+            // Fallback: open print dialog
+            const html2canvasModule = await import('html2canvas').catch(() => null);
+            if (html2canvasModule) {
+                const canvas = await html2canvasModule.default(el, {
+                    backgroundColor: document.documentElement.classList.contains('dark') ? '#111' : '#fff',
+                    scale: 1.5,
+                    useCORS: true,
+                });
+                const link = document.createElement('a');
+                link.download = `gantt-${new Date().toISOString().slice(0, 10)}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            } else {
+                // Fallback: print
+                window.print();
+            }
+        } catch (e) {
+            console.error('[Gantt] Export error:', e);
+            window.print();
+        } finally {
+            setExporting(false);
+        }
+    }, [exporting]);
+
     if (loading) {
         return (
             <div className="flex flex-col items-center justify-center py-20 gap-4">
@@ -494,7 +442,7 @@ const OrganitzaGantt: React.FC<{
         <div
             className={`space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-700 relative ${assigningModeBar ? 'cursor-crosshair' : ''}`}
             ref={containerRef}
-            onClick={handleBackgroundClick} // Close tooltip on background click
+            onClick={handleBackgroundClick}
         >
             {/* Assigning Mode Floating Banner */}
             {assigningModeBar && (
@@ -511,6 +459,22 @@ const OrganitzaGantt: React.FC<{
                     </button>
                 </div>
             )}
+
+            {/* Drag-mode banner */}
+            {dragSourceBar && (
+                <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[300] bg-fgc-green text-black px-5 py-3 rounded-2xl shadow-2xl border border-black/10 flex items-center gap-4 animate-in slide-in-from-top-4">
+                    <span className="text-xs sm:text-sm font-bold">
+                        ⠿ Arrossega «{dragSourceBar.shortId}» sobre un torn descobert per cobrir-lo
+                    </span>
+                    <button
+                        onClick={(e) => { e.stopPropagation(); setDragSourceBar(null); }}
+                        className="p-1 bg-black/10 hover:bg-black/20 rounded-lg transition-colors"
+                    >
+                        <X size={14} />
+                    </button>
+                </div>
+            )}
+
             {/* Stats Row */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <GlassPanel className="p-3 sm:p-4">
@@ -550,31 +514,31 @@ const OrganitzaGantt: React.FC<{
                 </GlassPanel>
             </div>
 
-            {/* Controls */}
-            <div className="flex items-center justify-between" onClick={(e) => e.stopPropagation()}>
+            {/* Controls ──────────────────────────────────────────── */}
+            <div className="flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
+
+                {/* Group by */}
                 <div className="flex bg-white/20 dark:bg-black/20 p-1 rounded-xl backdrop-blur-md border border-white/20 shadow-inner">
                     <button
                         onClick={() => setGroupBy('dependencia')}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all ${groupBy === 'dependencia' ? 'bg-fgc-grey dark:bg-fgc-green dark:text-[#4D5358] text-white shadow' : 'text-gray-400 hover:bg-white/10'}`}
                     >
-                        <Layers size={12} />
-                        Dependència
+                        <Layers size={12} />Dependència
                     </button>
                     <button
                         onClick={() => setGroupBy('horari')}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all ${groupBy === 'horari' ? 'bg-fgc-grey dark:bg-fgc-green dark:text-[#4D5358] text-white shadow' : 'text-gray-400 hover:bg-white/10'}`}
                     >
-                        <Clock size={12} />
-                        Horari
+                        <Clock size={12} />Horari
                     </button>
                 </div>
 
-                {/* Service Selector */}
-                <div className="flex bg-white/20 dark:bg-black/20 p-1 rounded-xl backdrop-blur-md border border-white/20 shadow-inner ml-3">
+                {/* Service selector */}
+                <div className="flex bg-white/20 dark:bg-black/20 p-1 rounded-xl backdrop-blur-md border border-white/20 shadow-inner">
                     {(availableServices.length > 0 ? ['Tots', ...availableServices] : ['Tots', '0', '100', '400', '500']).map(s => (
                         <button
                             key={s}
-                            onClick={() => { feedback.click(); setSelectedService(s); }}
+                            onClick={() => { feedback.click(); setSelectedService(s); refresh(); }}
                             className={`px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all ${selectedService === s ? 'bg-fgc-grey dark:bg-fgc-green dark:text-[#4D5358] text-white shadow' : 'text-gray-400 hover:bg-white/10'}`}
                         >
                             {s === 'Tots' ? 'Tots' : `S-${s}`}
@@ -582,79 +546,120 @@ const OrganitzaGantt: React.FC<{
                     ))}
                 </div>
 
-                <div className="flex bg-white/20 dark:bg-black/20 p-1 rounded-xl backdrop-blur-md border border-white/20 shadow-inner ml-3">
+                {/* Filter mode – F4: descoberts highlighted */}
+                <div className="flex bg-white/20 dark:bg-black/20 p-1 rounded-xl backdrop-blur-md border border-white/20 shadow-inner">
                     <button
                         onClick={() => setFilterMode('all')}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all ${filterMode === 'all' ? 'bg-indigo-500 text-white shadow' : 'text-gray-400 hover:bg-white/10'}`}
                     >
-                        <Filter size={12} />
-                        Tots
+                        <Filter size={12} />Tots
                     </button>
+                    {/* F4 – quick filter for uncovered */}
                     <button
-                        onClick={() => setFilterMode('unassigned')}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all ${filterMode === 'unassigned' ? 'bg-red-500 text-white shadow' : 'text-gray-400 hover:bg-white/10'}`}
+                        onClick={() => setFilterMode(filterMode === 'unassigned' ? 'all' : 'unassigned')}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all ${filterMode === 'unassigned' ? 'bg-red-500 text-white shadow ring-2 ring-red-300 dark:ring-red-700' : 'text-gray-400 hover:bg-white/10'}`}
+                        title="Mostra només torns descoberts"
                     >
-                        <AlertTriangle size={12} />
-                        Sense Cobrir
+                        <AlertTriangle size={12} />Descoberts
+                        {stats.unassigned > 0 && (
+                            <span className="ml-1 bg-red-600 text-white rounded-full px-1.5 py-px text-[9px] font-black">
+                                {stats.unassigned}
+                            </span>
+                        )}
                     </button>
                     <button
                         onClick={() => setFilterMode('conflicts')}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all ${filterMode === 'conflicts' ? 'bg-amber-500 text-white shadow' : 'text-gray-400 hover:bg-white/10'}`}
                     >
-                        <AlertTriangle size={12} />
-                        Indisposició
+                        <AlertTriangle size={12} />Indisposició
                     </button>
                 </div>
 
-                {/* Shift Timing Filters */}
-                <div className="flex bg-white/20 dark:bg-black/20 p-1 rounded-xl backdrop-blur-md border border-white/20 shadow-inner ml-3">
-                    <button
-                        onClick={() => setTimeFilter('all')}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all ${timeFilter === 'all' ? 'bg-fgc-grey dark:bg-white/20 text-white shadow' : 'text-gray-400 hover:bg-white/10'}`}
-                    >
-                        Tots
-                    </button>
-                    <button
-                        onClick={() => setTimeFilter('mati')}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all ${timeFilter === 'mati' ? 'bg-amber-400 text-black shadow' : 'text-gray-400 hover:bg-white/10'}`}
-                    >
-                        <Sunrise size={12} />
-                        Matí
-                    </button>
-                    <button
-                        onClick={() => setTimeFilter('tarda')}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all ${timeFilter === 'tarda' ? 'bg-orange-500 text-white shadow' : 'text-gray-400 hover:bg-white/10'}`}
-                    >
-                        <Sunset size={12} />
-                        Tarda
-                    </button>
-                    <button
-                        onClick={() => setTimeFilter('nit')}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all ${timeFilter === 'nit' ? 'bg-indigo-900 text-white shadow' : 'text-gray-400 hover:bg-white/10'}`}
-                    >
-                        <Moon size={12} />
-                        Nit
-                    </button>
+                {/* Time filters */}
+                <div className="flex bg-white/20 dark:bg-black/20 p-1 rounded-xl backdrop-blur-md border border-white/20 shadow-inner">
+                    {[
+                        { label: 'Tots', value: 'all', icon: null, activeClass: 'bg-fgc-grey dark:bg-white/20 text-white' },
+                        { label: 'Matí', value: 'mati', icon: <Sunrise size={12} />, activeClass: 'bg-amber-400 text-black' },
+                        { label: 'Tarda', value: 'tarda', icon: <Sunset size={12} />, activeClass: 'bg-orange-500 text-white' },
+                        { label: 'Nit', value: 'nit', icon: <Moon size={12} />, activeClass: 'bg-indigo-900 text-white' },
+                    ].map(tf => (
+                        <button
+                            key={tf.value}
+                            onClick={() => setTimeFilter(tf.value as any)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all ${timeFilter === tf.value ? tf.activeClass + ' shadow' : 'text-gray-400 hover:bg-white/10'}`}
+                        >
+                            {tf.icon}{tf.label}
+                        </button>
+                    ))}
                 </div>
 
-                <button
-                    onClick={refresh}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] sm:text-xs font-bold text-gray-400 hover:text-fgc-green hover:bg-white/10 dark:hover:bg-white/5 transition-all"
-                >
-                    <RefreshCcw size={12} />
-                    Actualitzar
-                </button>
+                {/* F1 – Zoom controls */}
+                <div className="flex bg-white/20 dark:bg-black/20 p-1 rounded-xl backdrop-blur-md border border-white/20 shadow-inner items-center gap-0.5">
+                    <ZoomIn size={12} className="text-gray-400 ml-1 mr-0.5" />
+                    {ZOOM_OPTIONS.map(zo => (
+                        <button
+                            key={zo.value}
+                            onClick={() => { feedback.click(); setZoomLevel(zo.value); }}
+                            className={`px-2.5 py-1.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all ${zoomLevel === zo.value ? 'bg-fgc-grey dark:bg-fgc-green dark:text-[#4D5358] text-white shadow' : 'text-gray-400 hover:bg-white/10'}`}
+                        >
+                            {zo.label}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="ml-auto flex items-center gap-2">
+                    {/* F5 – Group search */}
+                    <div className="relative">
+                        <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                            type="text"
+                            value={groupSearch}
+                            onChange={e => setGroupSearch(e.target.value)}
+                            placeholder="Cerca torns, dependència..."
+                            className="pl-8 pr-8 py-1.5 text-[11px] sm:text-xs bg-white/20 dark:bg-white/5 border border-white/30 dark:border-white/10 rounded-xl text-gray-700 dark:text-gray-300 placeholder:text-gray-400 focus:outline-none focus:border-fgc-green/50 focus:ring-1 focus:ring-fgc-green/30 transition-all w-44 sm:w-56"
+                            onClick={e => e.stopPropagation()}
+                        />
+                        {groupSearch && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setGroupSearch(''); }}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                            >
+                                <X size={12} />
+                            </button>
+                        )}
+                    </div>
+
+                    {/* F3 – Export */}
+                    <button
+                        onClick={handleExportImage}
+                        disabled={exporting}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] sm:text-xs font-bold text-gray-400 hover:text-fgc-green hover:bg-white/10 dark:hover:bg-white/5 transition-all disabled:opacity-50"
+                        title="Exportar Gantt com a imatge"
+                    >
+                        {exporting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+                        Exportar
+                    </button>
+
+                    {/* Refresh */}
+                    <button
+                        onClick={refresh}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] sm:text-xs font-bold text-gray-400 hover:text-fgc-green hover:bg-white/10 dark:hover:bg-white/5 transition-all"
+                    >
+                        <RefreshCcw size={12} />
+                        Actualitzar
+                    </button>
+                </div>
             </div>
 
-            {/* Timeline Container */}
-            <GlassPanel className="p-3 sm:p-4 overflow-x-auto">
+            {/* Timeline Container ───────────────────────────────── */}
+            <GlassPanel className="p-3 sm:p-4 overflow-x-auto" ref={ganttBodyRef}>
                 <div className="min-w-[700px]">
                     {/* Hour ruler */}
                     <HourHeader viewRange={viewRange} toPercent={toPercent} />
 
-                    {/* Groups */}
+                    {/* Groups – V4 stagger animation via staggerIndex */}
                     <div className="mt-2 space-y-1">
-                        {groups.map(group => (
+                        {visibleGroups.map((group, idx) => (
                             <GroupSection
                                 key={group.code}
                                 group={group}
@@ -664,48 +669,37 @@ const OrganitzaGantt: React.FC<{
                                 onBarClick={handleBarClick}
                                 onBarContextMenu={handleBarContextMenu}
                                 selectedBarId={tooltip?.bar.shiftId || null}
+                                staggerIndex={idx}
+                                dragSourceBar={dragSourceBar}
+                                onDragStart={handleDragStart}
+                                onDragEnd={handleDragEnd}
+                                onDrop={handleDrop}
                             />
                         ))}
                     </div>
 
-                    {groups.length === 0 && (
+                    {visibleGroups.length === 0 && (
                         <div className="py-12 text-center">
                             <GanttChart className="mx-auto mb-3 text-gray-300 dark:text-gray-600" size={40} />
                             <p className="text-sm text-gray-400 dark:text-gray-500 font-medium">
-                                Cap torn trobat per al servei {selectedService}
+                                {groupSearch ? `Sense resultats per «${groupSearch}»` : `Cap torn trobat per al servei ${selectedService}`}
                             </p>
                         </div>
                     )}
                 </div>
             </GlassPanel>
 
-            {/* Legend */}
-            <div className="flex flex-wrap items-center justify-center gap-4 text-[10px] sm:text-xs text-gray-400 dark:text-gray-500 font-medium">
-                <span className="flex items-center gap-1.5">
-                    <span className="inline-block w-3 h-2.5 rounded-sm bg-gradient-to-r from-emerald-400 to-emerald-500" /> Cobert
-                </span>
-                <span className="flex items-center gap-1.5">
-                    <span className="inline-block w-3 h-2.5 rounded-sm bg-gradient-to-r from-gray-300 to-gray-400 border border-dashed border-gray-400/50" /> Sense assignar
-                </span>
-                <span className="flex items-center gap-1.5">
-                    <span className="inline-block w-3 h-2.5 rounded-sm bg-gradient-to-r from-amber-400 to-amber-500" /> Indisposició / Absent
-                </span>
-                <span className="flex items-center gap-1.5">
-                    <span className="inline-block w-3 h-2.5 rounded-sm bg-gradient-to-r from-red-500 to-red-600" /> Torn Descobert
-                </span>
-                <span className="flex items-center gap-1.5">
-                    <span className="inline-block w-0.5 h-3 bg-red-500" /> Ara
-                </span>
-            </div>
+            {/* V5 – Sticky mini-legend */}
+            <GanttLegend />
 
-            {/* Tooltip - Absolute inside the relative container to avoid transform issues */}
+            {/* Tooltip ─────────────────────────────────────────── */}
             {tooltip && (
                 <div
                     className="absolute z-[100] animate-in fade-in zoom-in-95 duration-150"
                     style={{
                         left: `${tooltip.clientX}px`,
                         top: `${tooltip.clientY}px`,
-                        transform: 'translate(-50%, -110%)'
+                        transform: 'translate(-50%, -110%)',
                     }}
                     onClick={(e) => e.stopPropagation()}
                 >
@@ -725,7 +719,7 @@ const OrganitzaGantt: React.FC<{
                             </p>
                         )}
 
-                        {/* Incident Edit Section */}
+                        {/* Incident Edit */}
                         {tooltip.bar.incidentStartTime && (
                             <div className="mt-2 pt-2 border-t border-white/10">
                                 <label className="text-[9px] text-amber-400 font-bold flex items-center gap-1.5 mb-1.5">
@@ -741,20 +735,14 @@ const OrganitzaGantt: React.FC<{
                                             updateIncidentTime(tooltip.bar.assignmentId, e.target.value);
                                         }
                                     }}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                            e.currentTarget.blur();
-                                        }
-                                    }}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                                     onClick={(e) => e.stopPropagation()}
                                 />
                             </div>
                         )}
 
                         {tooltip.bar.absType && !tooltip.bar.incidentStartTime && (
-                            <p className="text-[10px] text-amber-400 font-bold mt-0.5">
-                                ⚠️ {tooltip.bar.absType}
-                            </p>
+                            <p className="text-[10px] text-amber-400 font-bold mt-0.5">⚠️ {tooltip.bar.absType}</p>
                         )}
 
                         {tooltip.bar.circulations.filter(c => c.type === 'circ').length > 0 && (
@@ -766,9 +754,9 @@ const OrganitzaGantt: React.FC<{
                 </div>
             )}
 
-            {/* Context Menu */}
+            {/* Context Menu ────────────────────────────────────── */}
             {contextMenu && (
-                <ContextMenu
+                <GanttContextMenu
                     {...contextMenu}
                     onClose={() => setContextMenu(null)}
                     onMarkIncident={handleMarkIncident}
@@ -786,4 +774,5 @@ const OrganitzaGantt: React.FC<{
         </div>
     );
 };
+
 export default OrganitzaGantt;
