@@ -343,12 +343,14 @@ export function useDashboardData() {
             // ── Alerts ──
             const alertList: PersonnelAlert[] = [];
 
-            // Missing assignments: Detect ALL uncovered shifts for the day
+            // Missing assignments & Manual "Torn Descobert" markings
             shifts.forEach(s => {
                 const shortId = getShortTornId(s.id);
-                const hasAssignment = assignedTornsGlobal.has(shortId) || assignedTornsGlobal.has(s.id);
+                const assignment = assignments.find(a => a.torn === shortId || a.torn === s.id);
+                const hasRealAssignment = !!assignment;
+                const isManuallyUncovered = assignment?.incident_start_time === '00:00';
 
-                if (!hasAssignment) {
+                if (!hasRealAssignment || isManuallyUncovered) {
                     const sMin = getFgcMinutes(s.inici_torn);
                     const eMin = getFgcMinutes(s.final_torn);
                     const isActive = sMin !== null && currentMin >= sMin && currentMin <= (eMin! < sMin! ? eMin! + 1440 : eMin!);
@@ -359,22 +361,25 @@ export function useDashboardData() {
                         type: 'missing',
                         severity: isActive ? 'critical' : (isUpcoming ? 'warning' : 'info'),
                         title: `Torn ${s.id} SENSE MAQUINISTA`,
-                        subtitle: `${isActive ? '🔴 ACTIU ARA' : (isUpcoming ? '🟠 PROXIMAMENT' : '⚪ PROGRAMAT')} | Dep: ${s.dependencia} | ${s.inici_torn}-${s.final_torn}`,
+                        subtitle: `${isManuallyUncovered ? '⚠️ MARCAT COM DESCOBERT' : (isActive ? '🔴 ACTIU ARA' : (isUpcoming ? '🟠 PROXIMAMENT' : '⚪ PROGRAMAT'))} | Dep: ${s.dependencia} | ${s.inici_torn}-${s.final_torn}`,
                         tornId: s.id
                     });
                 }
             });
 
-            // DIS/DES personnel conflicts  
+            // Indispositions (Manual markings + Absence codes)
             assignments.forEach(a => {
                 const absType = (a.abs_parc_c || '').toUpperCase();
-                if (absType.includes('DIS') || absType.includes('DES')) {
+                const isManuallyIndisposed = a.incident_start_time && a.incident_start_time !== '00:00';
+                const hasAbsenceCode = absType.includes('DIS') || absType.includes('DES') || absType.includes('VAC');
+
+                if (isManuallyIndisposed || hasAbsenceCode) {
                     alertList.push({
                         id: `conflict-${a.id}`,
                         type: 'conflict',
                         severity: 'warning',
-                        title: `${a.cognoms}, ${a.nom} — ${absType}`,
-                        subtitle: `Torn: ${a.torn}`,
+                        title: `${a.cognoms}, ${a.nom} — ${isManuallyIndisposed ? 'INDISPOSICIÓ' : absType}`,
+                        subtitle: `Torn: ${a.torn} ${isManuallyIndisposed ? `| Des de les ${a.incident_start_time}` : ''}`,
                         tornId: a.torn,
                         nomina: a.empleat_id
                     });
@@ -389,7 +394,11 @@ export function useDashboardData() {
 
             // ── Set State ──
             const totalShiftsToday = shifts.length;
-            const assignedShiftsTodayCount = shifts.filter(s => assignedTornsGlobal.has(getShortTornId(s.id)) || assignedTornsGlobal.has(s.id)).length;
+            const assignedShiftsTodayCount = shifts.filter(s => {
+                const shortId = getShortTornId(s.id);
+                const assignment = assignments.find(a => a.torn === shortId || a.torn === s.id);
+                return !!assignment && assignment.incident_start_time !== '00:00';
+            }).length;
             const planningCov = totalShiftsToday > 0 ? Math.round((assignedShiftsTodayCount / totalShiftsToday) * 100) : 100;
 
             setKpis({
