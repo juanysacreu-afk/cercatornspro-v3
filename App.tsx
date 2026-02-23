@@ -629,7 +629,7 @@ const App: React.FC = () => {
 
           <div className="flex-1 w-full relative overflow-hidden">
             {[
-              { id: AppTab.Dashboard, Component: <DashboardView /> },
+              { id: AppTab.Dashboard, Component: <DashboardView onNavigateToSearch={handleNavigateToSearch} /> },
               {
                 id: AppTab.Cercar, Component: <CercarView
                   isPrivacyMode={isPrivacyMode}

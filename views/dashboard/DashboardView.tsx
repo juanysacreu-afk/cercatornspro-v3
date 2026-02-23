@@ -107,7 +107,14 @@ const KpiCard: React.FC<{
     </div>
 );
 
-const AlertRow: React.FC<{ alert: PersonnelAlert }> = ({ alert }) => {
+const AlertRow: React.FC<{ alert: PersonnelAlert; onNavigate?: (type: string, query: string) => void }> = ({ alert, onNavigate }) => {
+    const handleRowClick = () => {
+        if (alert.tornId && onNavigate) {
+            feedback.click();
+            onNavigate('torn', alert.tornId);
+        }
+    };
+
     const severityStyles = {
         critical: 'border-l-red-500 bg-red-50/60 dark:bg-red-500/[0.06]',
         warning: 'border-l-amber-500 bg-amber-50/60 dark:bg-amber-500/[0.06]',
@@ -119,7 +126,11 @@ const AlertRow: React.FC<{ alert: PersonnelAlert }> = ({ alert }) => {
         info: <Eye size={16} className="text-blue-500" />
     };
     return (
-        <div className={`flex items-center gap-3 p-3.5 rounded-2xl border-l-4 transition-all hover:shadow-md ${severityStyles[alert.severity]}`}>
+        <div
+            onClick={handleRowClick}
+            className={`flex items-center gap-3 p-3.5 rounded-2xl border-l-4 transition-all ${alert.tornId ? 'cursor-pointer hover:shadow-md hover:scale-[1.01] active:scale-[0.99]' : ''} ${severityStyles[alert.severity]}`}
+        >
+
             <div className="shrink-0">{severityIcons[alert.severity]}</div>
             <div className="flex-1 min-w-0">
                 <div className="text-sm font-bold text-[#4D5358] dark:text-white truncate">{alert.title}</div>
@@ -212,7 +223,8 @@ const CoverageBarChart: React.FC<{ lineStatuses: any[] }> = ({ lineStatuses }) =
 };
 
 // ── Main Dashboard ─────────────────────────────────────
-const DashboardViewComponent: React.FC = () => {
+const DashboardViewComponent: React.FC<{ onNavigateToSearch?: (type: string, query: string) => void }> = ({ onNavigateToSearch }) => {
+
     const {
         loading, kpis, alerts, reserves, lineStatuses,
         lastRefresh, nowMin, serviceToday, refresh
@@ -389,8 +401,9 @@ const DashboardViewComponent: React.FC = () => {
                     </div>
 
                     <div className="flex-1 min-h-0 overflow-y-auto pr-1 custom-scrollbar space-y-2">
-                        {criticalAlerts.map(a => <AlertRow key={a.id} alert={a} />)}
-                        {warningAlerts.map(a => <AlertRow key={a.id} alert={a} />)}
+                        {criticalAlerts.map(a => <AlertRow key={a.id} alert={a} onNavigate={onNavigateToSearch} />)}
+                        {warningAlerts.map(a => <AlertRow key={a.id} alert={a} onNavigate={onNavigateToSearch} />)}
+
                         {alerts.length === 0 && (
                             <div className="flex flex-col items-center justify-center py-8 text-gray-400">
                                 <Activity size={32} className="mb-2 opacity-40" />
@@ -443,10 +456,11 @@ const DashboardViewComponent: React.FC = () => {
 };
 
 // ── Wrapped export with ErrorBoundary ──────────────────
-const DashboardView: React.FC = () => (
+const DashboardView: React.FC<{ onNavigateToSearch?: (type: string, query: string) => void }> = ({ onNavigateToSearch }) => (
     <ErrorBoundary sectionName="CCO — Supervisió Operativa">
-        <DashboardViewComponent />
+        <DashboardViewComponent onNavigateToSearch={onNavigateToSearch} />
     </ErrorBoundary>
 );
 
 export default DashboardView;
+
