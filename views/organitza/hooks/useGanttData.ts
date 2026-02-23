@@ -25,6 +25,7 @@ export interface GanttBar {
     assignmentId: number | null;
     driverPhone: string | null;
     circulations: GanttCircSegment[];
+    coveringShiftId?: string | null;
 }
 
 export interface GanttCircSegment {
@@ -109,6 +110,7 @@ export function useGanttData() {
                 if (nomina && a.phone) agentPhones[nomina] = a.phone;
             });
             const usedAssignmentIds = new Set<number>();
+            const assignmentToShiftMap = new Map<number, string>();
 
             // Helper to get short ID based on User's Description:
             // Shift: Q + ServiceDigit + 3Digits (e.g. Q0001)
@@ -151,6 +153,7 @@ export function useGanttData() {
 
                 if (assignment) {
                     usedAssignmentIds.add(assignment.id);
+                    assignmentToShiftMap.set(assignment.id, shortId);
                 }
 
                 const driverName = assignment ? `${assignment.cognoms}, ${assignment.nom}` : null;
@@ -205,18 +208,17 @@ export function useGanttData() {
                     isAssigned: !!assignment,
                     assignmentId: assignment?.id || null,
                     driverPhone,
-                    circulations: segments
+                    circulations: segments,
+                    coveringShiftId: null
                 };
             });
 
-            // Process "Extra" Assignments (assignments not used yet)
+            // Process "Extra" Assignments (assignments not used yet, or used but is an Extra itself)
             const extraAssignments = assignments.filter(a => {
-                // If it was already used to cover a shift, skip it
-                if (usedAssignmentIds.has(a.id)) return false;
-
-                // User Request: Exclude specific codes from Extras
                 const tornCode = (a.torn || '').toUpperCase();
                 const EXCLUDED_CODES = ['VAC', 'AJN', 'DAG', 'DES', 'DIS', 'FOR'];
+
+                if (EXCLUDED_CODES.includes(tornCode)) return false;
 
                 // If the torn code contains one of these, or is exactly one of these, skip it.
                 // Assuming exact match or substring match is appropriate.
@@ -240,6 +242,11 @@ export function useGanttData() {
                 if (inferredService && !isServiceVisible(inferredService, selectedService)) {
                     return false;
                 }
+
+                // If the shift is a regular one (in DB), and it was used, skip it.
+                // We ONLY want to keep it if it's an Extra shift (not in DB).
+                const isRegularShift = rawShifts.some(s => getMatchId(s.id) === tornCode);
+                if (usedAssignmentIds.has(a.id) && isRegularShift) return false;
 
                 return true;
             });
@@ -294,7 +301,8 @@ export function useGanttData() {
                     isAssigned: true,
                     assignmentId: assign.id,
                     driverPhone,
-                    circulations: []
+                    circulations: [],
+                    coveringShiftId: assignmentToShiftMap.get(assign.id) || null
                 };
             });
 
@@ -414,9 +422,14 @@ export function useGanttData() {
 
     const assignToShift = async (assignmentId: number, targetShiftShortId: string) => {
         if (!assignmentId) return;
+
+        const { data } = await supabase.from('daily_assignments').select('observacions').eq('id', assignmentId).single();
+        const existingObs = data?.observacions || '';
+        const newObs = existingObs.length > 0 ? `${existingObs} - Cobreix ${targetShiftShortId}` : `Cobreix ${targetShiftShortId}`;
+
         const { error } = await supabase
             .from('daily_assignments')
-            .update({ torn: targetShiftShortId })
+            .update({ observacions: newObs })
             .eq('id', assignmentId);
 
         if (error) {

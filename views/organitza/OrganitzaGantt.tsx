@@ -208,7 +208,10 @@ const ShiftBar: React.FC<{
     let borderClass = isSelected ? 'border-white dark:border-white ring-2 ring-indigo-500 z-30' : 'border-emerald-500/50';
     let baseBgClass = 'bg-gradient-to-r from-emerald-400/90 to-emerald-500/90 dark:from-emerald-500/80 dark:to-emerald-600/80';
 
-    if (!bar.isAssigned) {
+    if (bar.coveringShiftId) {
+        baseBgClass = 'bg-gradient-to-r from-purple-500/90 to-purple-600/90 dark:from-purple-600/80 dark:to-purple-700/80';
+        borderClass = isSelected ? 'border-white dark:border-white ring-2 ring-indigo-500 z-30' : 'border-purple-500/50';
+    } else if (!bar.isAssigned) {
         baseBgClass = 'bg-gradient-to-r from-gray-300/70 to-gray-400/70 dark:from-gray-600/60 dark:to-gray-700/60';
         borderClass = isSelected ? 'border-white dark:border-white ring-2 ring-indigo-500 z-30' : 'border-gray-400/50 dark:border-gray-500/50 border-dashed';
     } else if (isAbsent) {
@@ -268,9 +271,14 @@ const ShiftBar: React.FC<{
 
             {/* Label inside bar */}
             {renderWidth > 2.5 && (
-                <span className="absolute inset-0 flex items-center px-1.5 text-[9px] sm:text-[10px] font-bold text-white truncate select-none drop-shadow-sm">
-                    {bar.shortId}
-                </span>
+                <div className="absolute inset-0 flex flex-col items-start justify-center px-1.5 text-white truncate select-none drop-shadow-sm leading-tight">
+                    <span className="text-[9px] sm:text-[10px] font-bold">{bar.shortId}</span>
+                    {bar.coveringShiftId && (
+                        <span className="text-[7.5px] font-medium opacity-90 -mt-[1px] truncate max-w-full">
+                            Cobreix {bar.coveringShiftId}
+                        </span>
+                    )}
+                </div>
             )}
         </div>
     );
