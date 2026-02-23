@@ -43,14 +43,14 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ progress, onComplete }) => 
     return createPortal(
         <div className={`fixed inset-0 z-[10005] flex flex-col items-center justify-end sm:justify-center bg-black transition-all duration-700 ${isReadyToFade ? 'opacity-0 scale-105 pointer-events-none' : 'opacity-100'}`}>
             {/* Fullscreen Video Background */}
-            <div className="absolute inset-0 overflow-hidden">
+            <div className="absolute inset-0 overflow-hidden flex justify-center">
                 <video
                     ref={videoRef}
                     autoPlay
                     muted
                     playsInline
                     onEnded={handleVideoEnded}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover sm:w-auto sm:object-contain"
                 >
                     <source src="/loading.mp4" type="video/mp4" />
                 </video>
