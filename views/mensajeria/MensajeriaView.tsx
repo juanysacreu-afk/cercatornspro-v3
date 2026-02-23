@@ -29,7 +29,7 @@ interface Message {
 const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputText, setInputText] = useState('');
-    const [memberCount, setMemberCount] = useState<number>(0);
+    const [memberCount, setMemberCount] = useState<number | null>(null);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -55,6 +55,8 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
             const { success: mcSuccess, data: mcData } = await getTelegramMemberCount();
             if (mcSuccess && mcData) {
                 setMemberCount(mcData);
+            } else {
+                setMemberCount(0);
             }
 
             const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -121,7 +123,7 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
 
         const caption = `👤 <b>${currentProfile.firstName} ${currentProfile.lastName}</b>\n📎 Ha compartit un fitxer: <b>${file.name}</b>`;
 
-        const { success, data } = await sendTelegramFile(file, caption);
+        const { success, data, error } = await sendTelegramFile(file, caption);
 
         if (success && data) {
             playSendSound();
@@ -136,6 +138,9 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
 
             setMessages(prev => [...prev, newMessage]);
             await supabase.from('telegram_messages').upsert([newMessage], { onConflict: 'id' });
+        } else {
+            console.error("Error enviant fitxer Telegram:", error);
+            alert(`Error al compartir l'arxiu: ${error || 'Error desconegut'}`);
         }
     };
 
@@ -148,7 +153,7 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
         const isAlert = textToSent.startsWith('!');
         const formattedTelegramMsg = `👤 <b>${currentProfile.firstName} ${currentProfile.lastName}</b>\n💬 ${textToSent}`;
 
-        const { success, data } = await sendTelegramMessage(formattedTelegramMsg);
+        const { success, data, error } = await sendTelegramMessage(formattedTelegramMsg);
 
         if (success && data) {
             playSendSound();
@@ -167,6 +172,10 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
             });
 
             await supabase.from('telegram_messages').upsert([newMessage], { onConflict: 'id' });
+        } else {
+            console.error("Error enviant Telegram:", error);
+            alert(`Error en enviar el missatge a Telegram: ${error || 'Desconegut'}`);
+            setInputText(textToSent); // Restore input
         }
     };
 
@@ -214,7 +223,7 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                         <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-2">
                             <span className="flex items-center gap-1"><CheckCircle className="text-fgc-green" size={12} /> Sincronitzat</span>
                             <span className="opacity-50">•</span>
-                            <span>{memberCount > 0 ? `${memberCount} membres` : 'Cargant...'}</span>
+                            <span>{memberCount !== null ? `${memberCount} membres` : 'Carregant...'}</span>
                         </div>
                     </div>
                     <div className="relative" ref={menuRef}>
