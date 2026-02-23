@@ -33,7 +33,6 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const menuRef = useRef<HTMLDivElement>(null);
-    const [activeMembersList, setActiveMembersList] = useState<string[]>([]);
     const currentUserId = currentProfile.id || 'current-user-id';
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -68,11 +67,6 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
 
             if (data && !error) {
                 setMessages(data as Message[]);
-            }
-
-            const { data: agentsData } = await supabase.from('agents').select('name, surname').eq('area', 'bv');
-            if (agentsData) {
-                setActiveMembersList(agentsData.map(a => `${a.name} ${a.surname}`));
             }
         };
 
@@ -244,24 +238,13 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                                 <div className="px-4 py-2 border-b border-gray-100 dark:border-white/5">
                                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Opcions de Canal</p>
                                 </div>
-                                <div className="w-full px-4 py-3 hover:bg-gray-50 dark:hover:bg-white/5 text-left transition-colors">
-                                    <div className="flex items-center gap-3">
-                                        <MessageCircle size={16} className="text-fgc-green" />
-                                        <div>
-                                            <p className="text-sm font-bold text-gray-700 dark:text-gray-200">Membres ({memberCount})</p>
-                                        </div>
+                                <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-white/5 text-left transition-colors">
+                                    <MessageCircle size={16} className="text-fgc-green" />
+                                    <div>
+                                        <p className="text-sm font-bold text-gray-700 dark:text-gray-200">Informació</p>
+                                        <p className="text-[10px] text-gray-400">{memberCount} membres actius</p>
                                     </div>
-                                    {activeMembersList.length > 0 && (
-                                        <div className="mt-3 pl-7 space-y-1.5 max-h-40 overflow-y-auto custom-scrollbar">
-                                            {activeMembersList.map((member, idx) => (
-                                                <div key={idx} className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
-                                                    <div className="w-1.5 h-1.5 rounded-full bg-fgc-green animate-pulse" />
-                                                    <span className="truncate">{member}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
+                                </button>
                                 <div className="h-px bg-gray-100 dark:border-white/5 my-1 mx-2" />
                                 <button
                                     onClick={handleClearHistory}
