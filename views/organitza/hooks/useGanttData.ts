@@ -412,6 +412,20 @@ export function useGanttData() {
         }
     };
 
+    const assignToShift = async (assignmentId: number, targetShiftShortId: string) => {
+        if (!assignmentId) return;
+        const { error } = await supabase
+            .from('daily_assignments')
+            .update({ torn: targetShiftShortId })
+            .eq('id', assignmentId);
+
+        if (error) {
+            console.error('Error assigning to shift:', error);
+        } else {
+            fetchData();
+        }
+    };
+
     // ── Dynamic View Range (Zoom) ──
     const viewRange = useMemo(() => {
         if (timeFilter === 'mati') return { start: 4 * 60, end: 16 * 60, total: 12 * 60 };
@@ -422,6 +436,6 @@ export function useGanttData() {
 
     return {
         loading, groups, stats, groupBy, setGroupBy, filterMode, setFilterMode, timeFilter, setTimeFilter,
-        viewRange, nowMin, selectedService, setSelectedService, availableServices, refresh: fetchData, updateIncidentTime
+        viewRange, nowMin, selectedService, setSelectedService, availableServices, refresh: fetchData, updateIncidentTime, assignToShift
     };
 }

@@ -365,9 +365,10 @@ const OrganitzaGantt: React.FC<{
     onNavigateToSearch?: (type: string, query: string) => void;
     isPrivacyMode?: boolean;
 }> = ({ onNavigateToSearch, isPrivacyMode = true }) => {
-    const { loading, groups, stats, groupBy, setGroupBy, filterMode, setFilterMode, timeFilter, setTimeFilter, viewRange, nowMin, selectedService, setSelectedService, availableServices, refresh, updateIncidentTime } = useGanttData();
+    const { loading, groups, stats, groupBy, setGroupBy, filterMode, setFilterMode, timeFilter, setTimeFilter, viewRange, nowMin, selectedService, setSelectedService, availableServices, refresh, updateIncidentTime, assignToShift } = useGanttData();
     const [tooltip, setTooltip] = useState<TooltipState | null>(null);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; bar: GanttBar; clickedTime: string } | null>(null);
+    const [assigningModeBar, setAssigningModeBar] = useState<GanttBar | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
 
     // Dynamic Coordinate helper
@@ -375,8 +376,16 @@ const OrganitzaGantt: React.FC<{
         return calculatePercent(minutes, viewRange.start, viewRange.total);
     }, [viewRange]);
 
-    const handleBarClick = useCallback((bar: GanttBar, e: React.MouseEvent) => {
+    const handleBarClick = useCallback(async (bar: GanttBar, e: React.MouseEvent) => {
         e.stopPropagation(); // Stop propagation to avoid closing immediately if we add a global click listener
+
+        if (assigningModeBar && assigningModeBar.assignmentId) {
+            feedback.deepClick();
+            await assignToShift(assigningModeBar.assignmentId, bar.shortId);
+            setAssigningModeBar(null);
+            return;
+        }
+
         const rect = containerRef.current?.getBoundingClientRect();
         if (!rect) return;
 
@@ -393,10 +402,14 @@ const OrganitzaGantt: React.FC<{
         });
     }, [tooltip]);
 
-    // Close tooltip when clicking background
+    // Close tooltip or assign mode when clicking background
     const handleBackgroundClick = useCallback(() => {
         if (tooltip) setTooltip(null);
-    }, [tooltip]);
+        if (assigningModeBar) {
+            setAssigningModeBar(null);
+            feedback.click();
+        }
+    }, [tooltip, assigningModeBar]);
 
     const handleBarContextMenu = useCallback((bar: GanttBar, e: React.MouseEvent) => {
         e.preventDefault();
@@ -464,10 +477,25 @@ const OrganitzaGantt: React.FC<{
 
     return (
         <div
-            className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-700 relative"
+            className={`space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-700 relative ${assigningModeBar ? 'cursor-crosshair' : ''}`}
             ref={containerRef}
             onClick={handleBackgroundClick} // Close tooltip on background click
         >
+            {/* Assigning Mode Floating Banner */}
+            {assigningModeBar && (
+                <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[300] bg-indigo-600 text-white px-5 py-3 rounded-2xl shadow-2xl border border-white/20 flex items-center gap-4 animate-in slide-in-from-top-4">
+                    <span className="text-xs sm:text-sm font-bold flex items-center gap-2">
+                        <GitBranch size={16} />
+                        Selecciona a la malla el torn on vols assignar a {assigningModeBar.driverName}...
+                    </span>
+                    <button
+                        onClick={(e) => { e.stopPropagation(); setAssigningModeBar(null); feedback.click(); }}
+                        className="px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-xs font-bold transition-colors"
+                    >
+                        Cancel·lar
+                    </button>
+                </div>
+            )}
             {/* Stats Row */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <GlassPanel className="p-3 sm:p-4">
@@ -733,8 +761,8 @@ const OrganitzaGantt: React.FC<{
                     onClearIncident={handleClearIncident}
                     onViewTurn={handleViewTurn}
                     onAssignAnother={() => {
-                        feedback.deepClick();
-                        onNavigateToSearch?.('maquinista', contextMenu.bar.driverNomina || contextMenu.bar.driverName || '');
+                        feedback.click();
+                        setAssigningModeBar(contextMenu.bar);
                         setContextMenu(null);
                     }}
                     isPrivacyMode={isPrivacyMode}
