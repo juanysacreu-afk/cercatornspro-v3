@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, RefreshCcw, Train, Menu, X, Download, BookOpen, Settings, Moon, Sun, ShieldAlert, Eye, Layers, Volume2, VolumeX, MessageCircle } from 'lucide-react';
+import { Search, RefreshCcw, Train, Menu, X, Download, BookOpen, Settings, Moon, Sun, ShieldAlert, Eye, Layers, Volume2, VolumeX, MessageCircle, HelpCircle } from 'lucide-react';
 import { AppTab } from './types.ts';
 import { CercarView } from './views/CercarView.tsx';
 import OrganitzaView from './views/OrganitzaView.tsx';
@@ -12,6 +12,7 @@ import CommandPalette from './components/CommandPalette.tsx';
 import Sidebar from './components/common/Sidebar.tsx';
 import { supabase } from './supabaseClient.ts';
 import { feedback } from './utils/feedback';
+import { OnboardingTour } from './components/common/OnboardingTour.tsx';
 import { useToast } from './components/ToastProvider';
 import ProfileModal from './components/ProfileModal.tsx';
 import { syncOfflineData } from './utils/offlineSync';
@@ -421,6 +422,7 @@ const App: React.FC = () => {
                       {navItems.filter((item) => item.id !== AppTab.Mensajeria).map((item) => (
                         <button
                           key={item.id}
+                          data-tour={`${item.id}-tab`}
                           onClick={() => handleTabChange(item.id)}
                           className={`relative flex items-center gap-2 px-5 py-2.5 rounded-xl text-base font-semibold transition-all group/nav ${activeTab === item.id
                             ? 'bg-fgc-green text-fgc-grey shadow-lg shadow-fgc-green/20'
@@ -436,6 +438,7 @@ const App: React.FC = () => {
 
                       <div className="flex items-center gap-3">
                         <button
+                          data-tour="mensajeria-tab"
                           onClick={() => handleTabChange(AppTab.Mensajeria)}
                           title="Missatges"
                           className={`relative flex items-center justify-center w-12 h-12 rounded-xl transition-all group ${activeTab === AppTab.Mensajeria ? 'bg-fgc-green text-fgc-grey shadow-lg' : 'bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white'}`}
@@ -452,6 +455,14 @@ const App: React.FC = () => {
                           className="flex items-center justify-center w-12 h-12 bg-white/10 hover:bg-fgc-green hover:text-fgc-grey rounded-xl transition-all group"
                         >
                           <Download size={22} className="group-hover:scale-110 transition-transform" />
+                        </button>
+
+                        <button
+                          onClick={() => (window as any).startAppTour?.()}
+                          title="Tour Guia"
+                          className="flex items-center justify-center w-12 h-12 bg-white/10 hover:bg-fgc-green hover:text-fgc-grey rounded-xl transition-all group"
+                        >
+                          <HelpCircle size={22} className="group-hover:scale-110 transition-transform" />
                         </button>
 
                         <div className="relative">
@@ -707,6 +718,8 @@ const App: React.FC = () => {
         onSave={handleProfileUpdate}
         isMandatory={!userProfile.email}
       />
+
+      <OnboardingTour />
     </div >
   );
 };

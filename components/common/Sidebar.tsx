@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AppTab } from '../../types';
-import { Settings, Moon, Sun, Upload } from 'lucide-react';
+import { Settings, Moon, Sun, Upload, HelpCircle } from 'lucide-react';
 import { feedback } from '../../utils/feedback';
 
 interface SidebarProps {
@@ -70,6 +70,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 {navItems.map((item) => (
                     <button
                         key={item.id}
+                        data-tour={`${item.id}-tab`}
                         onClick={() => handleTabClick(item.id)}
                         className={`w-full flex items-center px-4 py-4 rounded-2xl transition-all relative group overflow-hidden ${activeTab === item.id
                             ? 'bg-fgc-green text-fgc-grey shadow-lg shadow-fgc-green/20'
@@ -111,6 +112,23 @@ const Sidebar: React.FC<SidebarProps> = ({
                     </div>
                     <span className={`ml-4 text-[11px] font-bold uppercase tracking-widest transition-all duration-500 whitespace-nowrap ${isExpanded ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4 pointer-events-none'}`}>
                         Carregar Dades
+                    </span>
+                </button>
+
+                {/* Tour Trigger */}
+                <button
+                    onClick={() => {
+                        feedback.click();
+                        (window as any).startAppTour?.();
+                    }}
+                    className="w-full flex items-center px-4 py-3.5 rounded-2xl transition-all text-gray-400 hover:bg-amber-500/10 hover:text-amber-500 group"
+                    title="Reiniciar Tour Guia"
+                >
+                    <div className="shrink-0 group-hover:scale-110 transition-transform duration-300">
+                        <HelpCircle size={20} />
+                    </div>
+                    <span className={`ml-4 text-[11px] font-bold uppercase tracking-widest transition-all duration-500 whitespace-nowrap ${isExpanded ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4 pointer-events-none'}`}>
+                        Ajuda / Tour
                     </span>
                 </button>
 
