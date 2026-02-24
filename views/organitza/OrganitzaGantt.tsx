@@ -648,6 +648,12 @@ const OrganitzaGantt: React.FC<{
                         <RefreshCcw size={12} />
                         Actualitzar
                     </button>
+
+                    {/* N1 - Live indicator */}
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] sm:text-xs font-bold text-fgc-green bg-white/10 dark:bg-white/5 border border-fgc-green/20 select-none" title="Connectat en temps real">
+                        <span className="w-1.5 h-1.5 rounded-full bg-fgc-green animate-pulse" />
+                        EN VIVO
+                    </div>
                 </div>
             </div>
 

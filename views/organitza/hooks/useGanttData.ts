@@ -66,6 +66,9 @@ export function useGanttData() {
     const selectedServiceRef = useRef(selectedService);
     selectedServiceRef.current = selectedService;
 
+    // N1 - Realtime connection tracking
+    const realtimeConnectedRef = useRef(false);
+
     // Live clock
     useEffect(() => {
         const tick = () => {
@@ -350,6 +353,27 @@ export function useGanttData() {
 
     useEffect(() => {
         fetchData();
+
+        // N1 – Supabase Realtime subscription for Gantt updates
+        if (realtimeConnectedRef.current) return;
+        realtimeConnectedRef.current = true;
+
+        const channel = supabase
+            .channel('gantt-realtime')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'daily_assignments' },
+                (payload) => {
+                    console.log('[Gantt] Realtime: daily_assignments changed', payload.eventType);
+                    fetchData();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+            realtimeConnectedRef.current = false;
+        };
     }, [fetchData]);
 
     // ── Grouped Bars ──
