@@ -61,7 +61,7 @@ const DepotModal: React.FC<DepotModalProps> = ({
                         <text x="40" y={y + 5} fill="#666" fontSize="12" fontWeight="black" textAnchor="end" className="group-hover:fill-white transition-colors">Via {track}</text>
                         <line x1="60" y1={y} x2="95%" y2={y} stroke="#333" strokeWidth="6" strokeLinecap="round" className="group-hover:stroke-[#444] transition-colors" />
                         {unitsOnTrack(track).map((u, idx) => (
-                            <g key={u.unit_number} transform={`translate(${120 + idx * 100}, ${y})`} className="cursor-pointer hover:scale-110 transition-transform">
+                            <g key={u.unit_number} transform={`translate(${120 + idx * 100}, ${y})`} className="cursor-pointer opacity-90 hover:opacity-100 transition-opacity">
                                 <rect x="-40" y="-14" width="80" height="28" rx="6" fill="#3b82f6" stroke="white" strokeWidth="2" className="shadow-lg" />
                                 <text x="0" y="5" textAnchor="middle" fill="white" fontSize="11" fontWeight="black">{u.unit_number}</text>
                             </g>
@@ -92,7 +92,7 @@ const DepotModal: React.FC<DepotModalProps> = ({
                             <g key={t}>
                                 <text x="880" y={y + 5} fill="#666" fontSize="12" fontWeight="black" textAnchor="end">Via {t}</text>
                                 {unitsOnTrack(t).map((u, idx) => (
-                                    <g key={u.unit_number} transform={`translate(${160 + idx * 100}, ${y})`}>
+                                    <g key={u.unit_number} transform={`translate(${160 + idx * 100}, ${y})`} className="cursor-pointer opacity-90 hover:opacity-100 transition-opacity">
                                         <rect x="-40" y="-14" width="80" height="28" rx="6" fill="#3b82f6" stroke="white" strokeWidth="2" className="shadow-lg" />
                                         <text x="0" y="5" textAnchor="middle" fill="white" fontSize="11" fontWeight="black">{u.unit_number}</text>
                                     </g>
@@ -140,7 +140,7 @@ const DepotModal: React.FC<DepotModalProps> = ({
                                 <line x1={xStart} y1={y} x2={xEnd} y2={y} stroke="#333" strokeWidth="6" strokeLinecap="round" />
                                 <line x1={xEnd + 5} y1={y - 12} x2={xEnd + 5} y2={y + 12} stroke="#ef4444" strokeWidth="4" strokeLinecap="round" />
                                 {unitsOnTrack(t).map((u, idx) => (
-                                    <g key={u.unit_number} transform={`translate(${xStart + 100 + idx * 100}, ${y})`} className="cursor-pointer hover:scale-110 transition-transform">
+                                    <g key={u.unit_number} transform={`translate(${xStart + 100 + idx * 100}, ${y})`} className="cursor-pointer opacity-90 hover:opacity-100 transition-opacity">
                                         <rect x="-40" y="-14" width="80" height="28" rx="6" fill="#3b82f6" stroke="white" strokeWidth="2" className="shadow-lg" />
                                         <text x="0" y="5" textAnchor="middle" fill="white" fontSize="11" fontWeight="black">{u.unit_number}</text>
                                     </g>
