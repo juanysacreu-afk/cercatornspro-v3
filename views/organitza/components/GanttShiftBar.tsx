@@ -98,6 +98,7 @@ export const GanttShiftBar: React.FC<ShiftBarProps> = ({
     }
 
     // Partial Coverage Styling (from EXTRA shifts)
+    const isCoveredByExtra = !!bar.coveringDriverName;
     if (bar.isAssigned && !isAbsent && !bar.incidentStartTime && typeof bar.coveringExtraStartMin === 'number' && typeof bar.coveringExtraEndMin === 'number') {
         const cStart = Math.max(bar.startMin, bar.coveringExtraStartMin);
         const cEnd = Math.min(bar.endMin, bar.coveringExtraEndMin);
@@ -108,10 +109,14 @@ export const GanttShiftBar: React.FC<ShiftBarProps> = ({
             const splitEnd = ((cEnd - bar.startMin) / (bar.endMin - bar.startMin)) * 100;
 
             const grayColor = 'rgba(156, 163, 175, 0.5)'; // Unassigned look
-            let coveredColor = 'rgba(16, 185, 129, 0.9)'; // emerald
-            const hour = Math.floor(bar.startMin / 60) % 24;
-            if (hour >= 12 && hour < 21) coveredColor = 'rgba(245, 158, 11, 0.9)'; // amber
-            else if (hour >= 21 || hour < 4) coveredColor = 'rgba(99, 102, 241, 0.9)'; // indigo
+            // Use purple if it's a cover, otherwise palette color
+            let coveredColor = bar.coveringExtraShiftId ? 'rgba(147, 51, 234, 0.9)' : 'rgba(16, 185, 129, 0.9)'; // purple-600 vs emerald
+
+            if (!bar.coveringExtraShiftId) {
+                const hour = Math.floor(bar.startMin / 60) % 24;
+                if (hour >= 12 && hour < 21) coveredColor = 'rgba(245, 158, 11, 0.9)'; // amber
+                else if (hour >= 21 || hour < 4) coveredColor = 'rgba(99, 102, 241, 0.9)'; // indigo
+            }
 
             bgStyle = {
                 background: `linear-gradient(90deg, 
@@ -121,6 +126,12 @@ export const GanttShiftBar: React.FC<ShiftBarProps> = ({
             };
             baseBgClass = ''; // Clear base background to avoid clash
         }
+    }
+
+    // V3 Enhancement: If explicitly covered by extra, use purple base if not already gradient
+    if (isCoveredByExtra && Object.keys(bgStyle).length === 0) {
+        baseBgClass = 'bg-gradient-to-r from-purple-500/90 to-purple-600/90 dark:from-purple-600/80 dark:to-purple-700/80';
+        borderClass = selectedRing || 'border-purple-500/50';
     }
 
     // Incident Styling
@@ -206,10 +217,16 @@ export const GanttShiftBar: React.FC<ShiftBarProps> = ({
                                 </div>
                             </div>
                         )}
-                        {bar.coveringDriverName && (
+                        {bar.coveringDriverName ? (
                             <span className="text-[7.5px] font-bold text-white bg-purple-600/90 px-1.5 py-[2px] rounded-md truncate leading-none border border-purple-400/50 shadow-sm tracking-wide">
                                 ↺ {bar.coveringExtraShiftId ? `${bar.coveringExtraShiftId} - ` : ''}{bar.coveringDriverName.split(',')[0]?.split(' ')[0] || bar.coveringDriverName}
                             </span>
+                        ) : (
+                            bar.driverName && renderWidth > 6 && (
+                                <span className="text-[7.5px] font-medium text-white/90 px-1 truncate leading-none">
+                                    {bar.driverName.split(',')[0]}
+                                </span>
+                            )
                         )}
                         {/* F2 – drag handle indicator */}
                         {isDraggable && (

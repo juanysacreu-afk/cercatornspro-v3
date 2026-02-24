@@ -159,24 +159,35 @@ export function useGanttData() {
                 const shortId = getMatchId(shift.id);
 
                 // Find assigned driver
-                // Priority 1: Exact Match (torn === shortId)
-                // Priority 2: Observacions contains shortId (e.g. "Cobreix Q001")
-
-                let assignment = assignments.find(a =>
-                    !usedAssignmentIds.has(a.id) && a.torn === shortId
-                );
-
+                // Priority 1: Explicit Cover via Observacions (e.g. "Cobreix Q004")
+                // This ensures reserves moved to another shift are correctly targeted to that shift first.
                 let isCoveredByExtra = false;
+                let assignment = assignments.find(a => {
+                    if (usedAssignmentIds.has(a.id) || !a.observacions) return false;
+                    const obs = a.observacions.toUpperCase();
+                    // Match against short ID (e.g. Q004) or full ID (e.g. Q0004)
+                    return obs.includes(`COBREIX ${shortId}`) ||
+                        obs.includes(`COBREIX ${shift.id.toUpperCase()}`) ||
+                        obs.includes(`COBREIX: ${shortId}`) ||
+                        obs.includes(shortId) && obs.includes('COBREIX');
+                });
 
-                if (!assignment) {
+                if (assignment) {
+                    isCoveredByExtra = true;
+                } else {
+                    // Priority 2: Exact Match (torn === shortId)
+                    // We ONLY match here if the driver isn't explicitly covering something else
                     assignment = assignments.find(a => {
-                        if (usedAssignmentIds.has(a.id) || !a.observacions) return false;
-                        const obs = a.observacions.toUpperCase();
-                        return obs.includes(shortId) || obs.includes(shift.id.toUpperCase());
+                        if (usedAssignmentIds.has(a.id)) return false;
+                        const aTorn = getMatchId((a.torn || '').toUpperCase());
+                        if (aTorn !== shortId) return false;
+
+                        // If this driver is explicitly covering another shift, they don't belong here
+                        const obs = (a.observacions || '').toUpperCase();
+                        if (obs.includes('COBREIX') && !obs.includes(shortId)) return false;
+
+                        return true;
                     });
-                    if (assignment) {
-                        isCoveredByExtra = true;
-                    }
                 }
 
                 if (assignment) {
@@ -286,11 +297,10 @@ export function useGanttData() {
                     return false;
                 }
 
-                // If the shift is a regular one (in DB), and it was used, skip it.
-                // We ONLY want to keep it if it's an Extra shift (not in DB).
-                const isRegularShift = rawShifts.some(s => getMatchId(s.id) === tornCode);
-                if (usedAssignmentIds.has(a.id) && isRegularShift) return false;
+                // If the assignment is already assigned to a shift, skip it here.
+                if (usedAssignmentIds.has(a.id)) return false;
 
+                // Normal logic for extras
                 return true;
             });
 
@@ -498,8 +508,12 @@ export function useGanttData() {
         if (!assignmentId) return;
 
         const { data } = await supabase.from('daily_assignments').select('observacions').eq('id', assignmentId).single();
-        const existingObs = data?.observacions || '';
-        const newObs = existingObs.length > 0 ? `${existingObs} - Cobreix ${targetShiftShortId}` : `Cobreix ${targetShiftShortId}`;
+        let existingObs = data?.observacions || '';
+
+        // Remove any existing "Cobreix XXX" tags to avoid duplicates and conflicts
+        let cleanObs = existingObs.replace(/Cobreix\s+[A-Z0-9]+/gi, '').replace(/\s*-\s*$/, '').trim();
+
+        const newObs = cleanObs.length > 0 ? `${cleanObs} - Cobreix ${targetShiftShortId}` : `Cobreix ${targetShiftShortId}`;
 
         const { error } = await supabase
             .from('daily_assignments')
