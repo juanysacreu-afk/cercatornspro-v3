@@ -335,8 +335,17 @@ export function useDashboardData() {
 
             shifts.forEach(s => {
                 const shortId = getShortTornId(s.id);
+                // Check if assigned to driver directly OR if another driver's observation covers it
+                const explicitCover = assignments.find((a: any) => {
+                    if (!a.observacions) return false;
+                    const obs = a.observacions.toUpperCase();
+                    return obs.includes(`COBREIX ${shortId}`) || obs.includes(`COBREIX ${s.id.toUpperCase()}`);
+                });
+
                 const assignment = assignments.find((a: any) => a.torn === shortId || a.torn === s.id);
-                const hasRealAssignment = !!assignment;
+
+                // A shift is NOT missing if it has a driver OR an explicit cover
+                const hasRealAssignment = !!assignment || !!explicitCover;
                 const isManuallyUncovered = assignment?.incident_start_time === '00:00';
 
                 if (!hasRealAssignment || isManuallyUncovered) {
@@ -360,11 +369,13 @@ export function useDashboardData() {
                 }
             });
 
-            // Indispositions
+            // Indispositions and Reserve Warnings
             assignments.forEach((a: any) => {
                 const absType = (a.abs_parc_c || '').toUpperCase();
                 const isManuallyIndisposed = a.incident_start_time && a.incident_start_time !== '00:00';
                 const hasAbsenceCode = absType.includes('DIS') || absType.includes('DES') || absType.includes('VAC');
+                const tornId = a.torn.toUpperCase();
+
                 if (isManuallyIndisposed || hasAbsenceCode) {
                     alertList.push({
                         id: `conflict-${a.id}`,
@@ -374,6 +385,20 @@ export function useDashboardData() {
                         subtitle: `Torn: ${a.torn} ${isManuallyIndisposed ? `| Des de les ${a.incident_start_time}` : ''}`,
                         tornId: a.torn,
                         nomina: a.empleat_id
+                    });
+                }
+
+                // Reserve exhaustion warning: if a reserve shift (QR*) is covering another shift
+                if (tornId.startsWith('QR') && a.observacions && a.observacions.toUpperCase().includes('COBREIX')) {
+                    const match = a.observacions.toUpperCase().match(/COBREIX\s+([A-Z0-9]+)/);
+                    const target = match ? match[1] : 'altre torn';
+                    alertList.push({
+                        id: `reserve-exhausted-${a.id}`,
+                        type: 'conflict',
+                        severity: 'info',
+                        title: `RESERVA OCUPADA: ${tornId}`,
+                        subtitle: `${a.cognoms} ha sortit per cobrir ${target}`,
+                        tornId: a.torn
                     });
                 }
             });
@@ -388,8 +413,13 @@ export function useDashboardData() {
             const totalShiftsToday = shifts.length;
             const assignedShiftsTodayCount = shifts.filter(s => {
                 const shortId = getShortTornId(s.id);
-                const a = assignments.find((a: any) => a.torn === shortId || a.torn === s.id);
-                return !!a && a.incident_start_time !== '00:00';
+                const hasDriver = assignments.some((a: any) => a.torn === shortId || a.torn === s.id);
+                const isCovered = assignments.some((a: any) => {
+                    if (!a.observacions) return false;
+                    const obs = a.observacions.toUpperCase();
+                    return obs.includes(`COBREIX ${shortId}`) || obs.includes(`COBREIX ${s.id.toUpperCase()}`);
+                });
+                return hasDriver || isCovered;
             }).length;
             const planningCov = totalShiftsToday > 0 ? Math.round((assignedShiftsTodayCount / totalShiftsToday) * 100) : 100;
 
