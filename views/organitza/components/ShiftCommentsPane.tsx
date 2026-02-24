@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Send, MessageSquare, AlertTriangle, Loader2 } from 'lucide-react';
+import { X, Send, MessageSquare, AlertTriangle, Loader2, Trash2 } from 'lucide-react';
 import { supabase } from '../../../supabaseClient';
 import { GanttBar } from '../hooks/useGanttData';
 import { playSendSound } from '../../../utils/sounds';
@@ -80,12 +80,33 @@ export const ShiftCommentsPane: React.FC<ShiftCommentsPaneProps> = ({ bar, selec
                     setTimeout(scrollToBottom, 50);
                 }
             )
+            .on(
+                'postgres_changes',
+                {
+                    event: 'DELETE',
+                    schema: 'public',
+                    table: 'shift_comments'
+                },
+                (payload) => {
+                    const deletedId = (payload.old as { id: string }).id;
+                    setComments((prev) => prev.filter(c => c.id !== deletedId));
+                }
+            )
             .subscribe();
 
         return () => {
             supabase.removeChannel(subscription);
         };
     }, [bar.shiftId, selectedService]);
+
+    const handleDelete = async (commentId: string) => {
+        // Optimistic delete
+        setComments(prev => prev.filter(c => c.id !== commentId));
+        const { error } = await supabase.from('shift_comments').delete().eq('id', commentId);
+        if (error) {
+            console.error('Error deleting comment:', error);
+        }
+    };
 
     const handleSend = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -207,10 +228,19 @@ export const ShiftCommentsPane: React.FC<ShiftCommentsPaneProps> = ({ bar, selec
                                         {isMe ? 'Tu' : comment.author_name}
                                     </span>
                                 )}
-                                <div className={`px-4 py-2.5 rounded-2xl max-w-[85%] text-[13px] relative shadow-sm ${isMe
+                                <div className={`px-4 py-2.5 rounded-2xl max-w-[85%] text-[13px] relative shadow-sm group ${isMe
                                     ? 'bg-fgc-green text-gray-900 rounded-tr-sm'
                                     : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border border-gray-100 dark:border-white/5 rounded-tl-sm'
                                     }`}>
+                                    {isMe && (
+                                        <button
+                                            onClick={() => handleDelete(comment.id)}
+                                            className="absolute -left-8 top-1/2 -translate-y-1/2 p-2 text-red-500 opacity-0 group-hover:opacity-100 dark:bg-gray-800/80 rounded-full shadow-sm hover:bg-red-50 dark:hover:bg-red-500/20 transition-all z-10"
+                                            title="Esborrar comentari"
+                                        >
+                                            <Trash2 size={13} />
+                                        </button>
+                                    )}
                                     <p className="leading-snug break-words whitespace-pre-wrap">{comment.content}</p>
                                     <span className={`text-[9px] mt-1 block text-right opacity-60 font-medium ${isMe ? 'text-gray-800' : 'text-gray-400'}`}>
                                         {formatTime(comment.created_at)}
