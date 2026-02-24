@@ -219,12 +219,23 @@ export const GanttShiftBar: React.FC<ShiftBarProps> = ({
                         )}
                         {bar.coveringDriverName ? (
                             <span className="text-[7.5px] font-bold text-white bg-purple-600/90 px-1.5 py-[2px] rounded-md truncate leading-none border border-purple-400/50 shadow-sm tracking-wide">
-                                ↺ {bar.coveringExtraShiftId ? `${bar.coveringExtraShiftId} - ` : ''}{bar.coveringDriverName.split(',')[0]?.split(' ')[0] || bar.coveringDriverName}
+                                ↺ {bar.coveringExtraShiftId ? `${bar.coveringExtraShiftId} - ` : ''}
+                                {(() => {
+                                    const parts = bar.coveringDriverName.split(',');
+                                    const surname = parts[0]?.trim().split(' ')[0] || '';
+                                    const name = parts[1]?.trim().split(' ')[0] || '';
+                                    return name ? `${name} ${surname}` : surname;
+                                })()}
                             </span>
                         ) : (
                             bar.driverName && renderWidth > 6 && (
                                 <span className="text-[7.5px] font-medium text-white/90 px-1 truncate leading-none">
-                                    {bar.driverName.split(',')[0]}
+                                    {(() => {
+                                        const parts = bar.driverName.split(',');
+                                        const surname = parts[0]?.trim();
+                                        const name = parts[1]?.trim().split(' ')[0] || '';
+                                        return name ? `${name} ${surname}` : surname;
+                                    })()}
                                 </span>
                             )
                         )}
