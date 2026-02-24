@@ -15,6 +15,7 @@
     "framer-motion": "^12.34.3",
     "html2canvas": "^1.4.1",
     "lucide-react": "^0.475.0",
+    "node-fetch": "^3.3.2",
     "pdfjs-dist": "^5.4.530",
     "react": "^19.0.0",
     "react-dnd": "^16.0.1",

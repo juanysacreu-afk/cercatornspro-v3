@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, Hash, MoreVertical, MessageCircle, AlertTriangle, Paperclip, CheckCircle, Trash2, Smile, Pin, PinOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import GlassPanel from '../../components/common/GlassPanel';
-import { sendTelegramMessage, getTelegramMemberCount, deleteTelegramMessage, sendTelegramFile, getTelegramUpdates } from '../../src/lib/telegram';
+import { sendTelegramMessage, getTelegramMemberCount, deleteTelegramMessage, sendTelegramFile } from '../../src/lib/telegram';
 import { supabase } from '../../supabaseClient';
 import { playSendSound, playReceiveSound, requestNotificationPermission, showLocalNotification } from '../../utils/sounds';
 
@@ -59,8 +59,6 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const cleanTypingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-    const offsetRef = useRef<number>(0);
-    const isPollingRef = useRef<boolean>(false);
 
     const currentUserId = currentProfile.id || 'current-user-id';
     const myEmail = currentProfile.email?.toLowerCase() ?? '';
@@ -161,79 +159,6 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
         };
     }, []);
 
-    // ── Telegram updates polling ──────────────────────
-    useEffect(() => {
-        const poll = async () => {
-            if (isPollingRef.current) return;
-            isPollingRef.current = true;
-
-            try {
-                const res = await getTelegramUpdates(offsetRef.current);
-                if (res.success && res.data && res.data.length > 0) {
-                    let highestUpdateId = offsetRef.current;
-                    const newMessages: Message[] = [];
-
-                    for (const update of res.data) {
-                        highestUpdateId = Math.max(highestUpdateId, update.update_id + 1);
-
-                        // Ignorem missatges del propi bot i actualitzacions que no siguin text o fitxer
-                        if (update.message && update.message.from && !update.message.from.is_bot) {
-                            let msgText = '';
-                            if (update.message.text) {
-                                msgText = update.message.text;
-                            } else if (update.message.caption) {
-                                msgText = update.message.caption;
-                            } else if (update.message.document) {
-                                msgText = `📎 Fitxer enviat: ${update.message.document.file_name || 'Document'}`;
-                            } else if (update.message.photo) {
-                                msgText = '📷 Imatge enviada';
-                            } else if (update.message.voice || update.message.audio) {
-                                msgText = '🎤 Àudio enviat';
-                            } else if (update.message.sticker) {
-                                msgText = '📌 Sticker';
-                            } else if (update.message.video || update.message.video_note) {
-                                msgText = '📹 Vídeo enviat';
-                            } else if (update.message.location) {
-                                msgText = '📍 Ubicació compartida';
-                            } else if (update.message.poll) {
-                                msgText = '📊 Enquesta compartida';
-                            } else {
-                                // És un missatge de sistema (unió al grup, missatge fixat) o format no suportat.
-                                // L'ignorem per no omplir la pantalla de "Missatge rebut".
-                                continue;
-                            }
-
-                            const senderName = [update.message.from.first_name, update.message.from.last_name].filter(Boolean).join(' ').trim();
-
-                            newMessages.push({
-                                id: update.message.message_id.toString(),
-                                text: msgText,
-                                sender_name: senderName || 'Usuari Telegram',
-                                sender_id: update.message.from.id.toString(),
-                                is_alert: false,
-                                created_at: new Date(update.message.date * 1000).toISOString()
-                            });
-                        }
-                    }
-
-                    offsetRef.current = highestUpdateId;
-
-                    if (newMessages.length > 0) {
-                        await supabase.from('telegram_messages').upsert(newMessages, { onConflict: 'id' });
-                    }
-                }
-            } catch (error) {
-                console.error('Error en polling de Telegram:', error);
-            } finally {
-                isPollingRef.current = false;
-            }
-        };
-
-        const interval = setInterval(poll, 3000);
-        poll(); // Primera crida
-
-        return () => clearInterval(interval);
-    }, []);
 
     // ── Typing presence: broadcast when typing ────────
     const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
