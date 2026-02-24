@@ -122,8 +122,14 @@ function exportDashboardCSV(kpis: any, alerts: any[], reserves: any[]) {
     URL.revokeObjectURL(url);
 }
 
+interface DashboardProps {
+    onNavigateToSearch?: (type: string, query: string) => void;
+    isMonitorMode?: boolean;
+    setIsMonitorMode?: (val: boolean) => void;
+}
+
 // ── Main Dashboard ─────────────────────────────────────
-const DashboardViewComponent: React.FC<{ onNavigateToSearch?: (type: string, query: string) => void }> = ({ onNavigateToSearch }) => {
+const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, isMonitorMode, setIsMonitorMode }) => {
     const {
         loading, kpis, alerts, criticalAlerts, warningAlerts, upcomingAlerts,
         reserves, lineStatuses, lastRefresh, lastRefreshLabel,
@@ -131,7 +137,6 @@ const DashboardViewComponent: React.FC<{ onNavigateToSearch?: (type: string, que
     } = useDashboardData();
 
     const [isRefreshing, setIsRefreshing] = useState(false);
-    const [isMonitorMode, setIsMonitorMode] = useState(false);
 
     const handleRefresh = async () => {
         feedback.click();
@@ -172,7 +177,7 @@ const DashboardViewComponent: React.FC<{ onNavigateToSearch?: (type: string, que
         );
     }
 
-    if (isMonitorMode) {
+    if (isMonitorMode && setIsMonitorMode) {
         return (
             <MonitorView
                 kpis={kpis}
@@ -219,14 +224,16 @@ const DashboardViewComponent: React.FC<{ onNavigateToSearch?: (type: string, que
                             Exportar
                         </button>
                         {/* N4 - Monitor Mode */}
-                        <button
-                            onClick={() => setIsMonitorMode(true)}
-                            className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-white/60 dark:bg-white/[0.04] border border-gray-100 dark:border-white/5 text-xs font-semibold text-[#4D5358] dark:text-gray-300 hover:bg-fgc-green/10 transition-all active:scale-95 group"
-                            title="Desplegar Monitor CCO"
-                        >
-                            <Maximize2 size={14} className="group-hover:text-fgc-green transition-colors" />
-                            Monitor
-                        </button>
+                        {setIsMonitorMode && (
+                            <button
+                                onClick={() => setIsMonitorMode(true)}
+                                className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-white/60 dark:bg-white/[0.04] border border-gray-100 dark:border-white/5 text-xs font-semibold text-[#4D5358] dark:text-gray-300 hover:bg-fgc-green/10 transition-all active:scale-95 group"
+                                title="Desplegar Monitor CCO"
+                            >
+                                <Maximize2 size={14} className="group-hover:text-fgc-green transition-colors" />
+                                Monitor
+                            </button>
+                        )}
                         <button
                             onClick={handleRefresh}
                             className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/60 dark:bg-white/[0.04] border border-gray-100 dark:border-white/5 text-sm font-semibold text-[#4D5358] dark:text-gray-300 hover:bg-fgc-green/10 transition-all active:scale-95"
@@ -404,9 +411,9 @@ const DashboardViewComponent: React.FC<{ onNavigateToSearch?: (type: string, que
 };
 
 // ── Wrapped export with ErrorBoundary ──────────────────
-const DashboardView: React.FC<{ onNavigateToSearch?: (type: string, query: string) => void }> = ({ onNavigateToSearch }) => (
+const DashboardView: React.FC<DashboardProps> = (props) => (
     <ErrorBoundary sectionName="CCO — Supervisió Operativa">
-        <DashboardViewComponent onNavigateToSearch={onNavigateToSearch} />
+        <DashboardViewComponent {...props} />
     </ErrorBoundary>
 );
 

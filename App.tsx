@@ -66,6 +66,7 @@ const App: React.FC = () => {
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [isMonitorMode, setIsMonitorMode] = useState(false);
   const [showSecretMenu, setShowSecretMenu] = useState(false);
   const [isPrivacyMode, setIsPrivacyMode] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -361,7 +362,7 @@ const App: React.FC = () => {
 
       <div className="flex flex-1 overflow-hidden flex-row">
         <AnimatePresence initial={false}>
-          {isProNav && (
+          {isProNav && !isMonitorMode && (
             <motion.div
               key="sidebar"
               initial={{ width: 0, opacity: 0, scale: 0.95 }}
@@ -390,7 +391,7 @@ const App: React.FC = () => {
 
         <div className="flex-1 flex flex-col min-w-0 relative">
           <AnimatePresence initial={false}>
-            {!isProNav && (
+            {!isProNav && !isMonitorMode && (
               <motion.nav
                 key="topnav"
                 initial={{ height: 0, opacity: 0, scale: 0.95 }}
@@ -640,7 +641,7 @@ const App: React.FC = () => {
 
           <div className="flex-1 w-full relative overflow-hidden">
             {[
-              { id: AppTab.Dashboard, Component: <DashboardView onNavigateToSearch={handleNavigateToSearch} /> },
+              { id: AppTab.Dashboard, Component: <DashboardView onNavigateToSearch={handleNavigateToSearch} isMonitorMode={isMonitorMode} setIsMonitorMode={setIsMonitorMode} /> },
               {
                 id: AppTab.Cercar, Component: <CercarView
                   isPrivacyMode={isPrivacyMode}
