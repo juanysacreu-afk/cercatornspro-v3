@@ -98,14 +98,16 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
             const { success: mcSuccess, data: mcData } = await getTelegramMemberCount();
             setMemberCount(mcSuccess && mcData ? mcData : 0);
 
-            const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
             const { data, error } = await supabase
                 .from('telegram_messages')
                 .select('*')
-                .gte('created_at', twentyFourHoursAgo)
-                .order('created_at', { ascending: true });
+                .order('created_at', { ascending: false })
+                .limit(100);
 
-            if (data && !error) setMessages(data as Message[]);
+            if (data && !error) {
+                // Return them in chronological order
+                setMessages((data as Message[]).reverse());
+            }
         };
 
         fetchInitialData();
@@ -176,18 +178,32 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
 
                         // Ignorem missatges del propi bot i actualitzacions que no siguin text o fitxer
                         if (update.message && update.message.from && !update.message.from.is_bot) {
-                            let msgText = 'Missatge rebut';
+                            let msgText = '';
                             if (update.message.text) {
                                 msgText = update.message.text;
+                            } else if (update.message.caption) {
+                                msgText = update.message.caption;
                             } else if (update.message.document) {
                                 msgText = `📎 Fitxer enviat: ${update.message.document.file_name || 'Document'}`;
                             } else if (update.message.photo) {
                                 msgText = '📷 Imatge enviada';
-                            } else if (update.message.voice) {
+                            } else if (update.message.voice || update.message.audio) {
                                 msgText = '🎤 Àudio enviat';
+                            } else if (update.message.sticker) {
+                                msgText = '📌 Sticker';
+                            } else if (update.message.video || update.message.video_note) {
+                                msgText = '📹 Vídeo enviat';
+                            } else if (update.message.location) {
+                                msgText = '📍 Ubicació compartida';
+                            } else if (update.message.poll) {
+                                msgText = '📊 Enquesta compartida';
+                            } else {
+                                // És un missatge de sistema (unió al grup, missatge fixat) o format no suportat.
+                                // L'ignorem per no omplir la pantalla de "Missatge rebut".
+                                continue;
                             }
 
-                            const senderName = [update.message.from.first_name, update.message.from.last_name].filter(Boolean).join(' ');
+                            const senderName = [update.message.from.first_name, update.message.from.last_name].filter(Boolean).join(' ').trim();
 
                             newMessages.push({
                                 id: update.message.message_id.toString(),
