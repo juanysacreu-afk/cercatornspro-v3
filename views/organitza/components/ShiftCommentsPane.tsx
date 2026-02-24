@@ -25,7 +25,7 @@ export const ShiftCommentsPane: React.FC<ShiftCommentsPaneProps> = ({ bar, selec
     const [comments, setComments] = useState<ShiftComment[]>([]);
     const [inputText, setInputText] = useState('');
     const [isLoading, setIsLoading] = useState(true);
-    const messagesEndRef = useRef<HTMLDivElement>(null);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
 
     // Get current user profile
     const userProfileStr = localStorage.getItem('user_profile');
@@ -33,7 +33,12 @@ export const ShiftCommentsPane: React.FC<ShiftCommentsPaneProps> = ({ bar, selec
     const authorName = userProfile ? `${userProfile.firstName} ${userProfile.lastName}`.trim() || 'Usuari' : 'Usuari';
 
     const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollTo({
+                top: scrollContainerRef.current.scrollHeight,
+                behavior: 'smooth'
+            });
+        }
     };
 
     useEffect(() => {
@@ -178,7 +183,7 @@ export const ShiftCommentsPane: React.FC<ShiftCommentsPaneProps> = ({ bar, selec
             </div>
 
             {/* Chat Area */}
-            <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-gray-50/30 dark:bg-black/10">
+            <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-5 space-y-4 bg-gray-50/30 dark:bg-black/10">
                 {isLoading ? (
                     <div className="h-full flex flex-col items-center justify-center text-gray-400 gap-2">
                         <Loader2 size={24} className="animate-spin text-fgc-green" />
@@ -215,7 +220,6 @@ export const ShiftCommentsPane: React.FC<ShiftCommentsPaneProps> = ({ bar, selec
                         );
                     })
                 )}
-                <div ref={messagesEndRef} />
             </div>
 
             {/* Input Form */}
