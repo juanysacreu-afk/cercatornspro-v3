@@ -14,6 +14,7 @@ import { KpiCard } from './components/KpiCard';
 import { AlertRow } from './components/AlertRow';
 import { ReserveCard } from './components/ReserveCard';
 import { CoverageBarChart } from './components/CoverageBarChart';
+import { WeatherWidget } from '../../components/common/WeatherWidget';
 
 // ── V1 – Live clock that ticks every second ────────────
 const LiveClock: React.FC = () => {
@@ -191,6 +192,7 @@ const DashboardViewComponent: React.FC<{ onNavigateToSearch?: (type: string, que
 
                 {/* V1 – Live clock + actions */}
                 <div className="flex items-center gap-4">
+                    <WeatherWidget />
                     <LiveClock />
                     <div className="flex items-center gap-2">
                         {/* F5 – Export button */}

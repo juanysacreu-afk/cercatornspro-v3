@@ -163,3 +163,32 @@ body {
     }
   }
 }
+
+/* Modal and Print styles */
+@media print {
+  body {
+    background-color: white !important;
+    color: black !important;
+  }
+
+  #sidebar,
+  header,
+  nav,
+  .print-hidden {
+    display: none !important;
+  }
+
+  .glass-card,
+  .glass-panel {
+    box-shadow: none !important;
+    border: 1px solid #ccc !important;
+    background: transparent !important;
+  }
+
+  /* Gantt specific print styles */
+  .gantt-container {
+    width: 100% !important;
+    max-width: none !important;
+    overflow: visible !important;
+  }
+}
