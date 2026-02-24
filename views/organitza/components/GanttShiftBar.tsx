@@ -173,7 +173,12 @@ export const GanttShiftBar: React.FC<ShiftBarProps> = ({
                     <div className="flex items-center gap-1 w-full pr-1">
                         <span className="text-[9px] sm:text-[10px] font-bold shrink-0">{bar.shortId}</span>
                         {bar.hasComments && (
-                            <MessageSquare size={10} className="text-white drop-shadow-sm shrink-0 flex-none opacity-90 fill-white/20" />
+                            <div className="relative flex items-center justify-center ml-0.5" title="Aquest torn té notes d'operativa">
+                                <div className="absolute inset-0 bg-white/60 rounded-full blur-[2px] animate-pulse" />
+                                <div className="bg-white text-indigo-600 rounded-full p-[3px] shadow-md border border-indigo-100 z-10">
+                                    <MessageSquare size={9} strokeWidth={2.5} className="fill-indigo-100" />
+                                </div>
+                            </div>
                         )}
                         {bar.coveringDriverName && (
                             <span className="text-[7.5px] font-bold text-white bg-purple-600/90 px-1.5 py-[2px] rounded-md truncate leading-none border border-purple-400/50 shadow-sm tracking-wide">
