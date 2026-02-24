@@ -13,6 +13,7 @@ export interface DashboardKPIs {
     assignedPersonnel: number;
     activePersonnel: number;
     reserveAvailable: number;
+    reserveTotal: number;
     availableTrainUnits: number;
     brokenTrainUnits: number;
     totalTrainUnits: number;
@@ -53,7 +54,7 @@ export function useDashboardData() {
     const [loading, setLoading] = useState(true);
     const [kpis, setKpis] = useState<DashboardKPIs>({
         serviceCoverage: 0, planningCoverage: 0, activeTrains: 0, scheduledTrains: 0,
-        totalPersonnel: 0, assignedPersonnel: 0, activePersonnel: 0, reserveAvailable: 0,
+        totalPersonnel: 0, assignedPersonnel: 0, activePersonnel: 0, reserveAvailable: 0, reserveTotal: 0,
         availableTrainUnits: 0, brokenTrainUnits: 0, totalTrainUnits: 0
     });
     const [alerts, setAlerts] = useState<PersonnelAlert[]>([]);
@@ -280,7 +281,7 @@ export function useDashboardData() {
                     reserveSlots.push({
                         station: key,
                         stationLabel: val.label,
-                        count: val.personnel.filter(p => !p.isBusy).length,
+                        count: val.personnel.length,
                         personnel: val.personnel,
                         previousAssignments: previousAssignments.length > 0 ? previousAssignments : undefined
                     });
@@ -438,7 +439,8 @@ export function useDashboardData() {
                 totalPersonnel: totalShiftsToday,
                 assignedPersonnel: assignedShiftsTodayCount,
                 activePersonnel: activeAssignments.length,
-                reserveAvailable: reserveSlots.reduce((sum, r) => sum + r.count, 0),
+                reserveAvailable: reserveSlots.reduce((sum, r) => sum + r.personnel.filter(p => !p.isBusy).length, 0),
+                reserveTotal: reserveSlots.reduce((sum, r) => sum + r.personnel.length, 0),
                 availableTrainUnits: totalFleet - brokenCount,
                 brokenTrainUnits: brokenCount,
                 totalTrainUnits: totalFleet

@@ -280,8 +280,8 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                 />
                 <KpiCard
                     label="Reserves"
-                    value={kpis.reserveAvailable}
-                    subtitle="maquinistes disponibles"
+                    value={`${kpis.reserveAvailable}/${kpis.reserveTotal}`}
+                    subtitle="maquinistes lliures"
                     icon={<Shield size={22} strokeWidth={2.5} />}
                     color="#A8D017"
                     pulse={kpis.reserveAvailable === 0}
@@ -400,8 +400,8 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
 
                     <div className="flex-none pt-3 border-t border-gray-100 dark:border-white/5">
                         <div className="text-xs text-gray-400 dark:text-gray-500 flex justify-between">
-                            <span>Total reserves</span>
-                            <span className="font-bold text-[#4D5358] dark:text-white">{kpis.reserveAvailable}</span>
+                            <span>Disponibilitat reserves</span>
+                            <span className="font-bold text-[#4D5358] dark:text-white">{kpis.reserveAvailable} de {kpis.reserveTotal}</span>
                         </div>
                     </div>
                 </GlassPanel>
