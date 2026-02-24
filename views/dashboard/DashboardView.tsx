@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import {
     Activity, AlertTriangle, Train, Users, Shield, RefreshCcw,
     Clock, Zap, Gauge, TrendingUp, Radio, MapPin, Info,
-    Download, Timer
+    Download, Timer, Maximize2
 } from 'lucide-react';
 import GlassPanel from '../../components/common/GlassPanel';
 import ErrorBoundary from '../../components/common/ErrorBoundary';
@@ -15,6 +15,7 @@ import { AlertRow } from './components/AlertRow';
 import { ReserveCard } from './components/ReserveCard';
 import { CoverageBarChart } from './components/CoverageBarChart';
 import { WeatherWidget } from '../../components/common/WeatherWidget';
+import { MonitorView } from './MonitorView';
 
 // ── V1 – Live clock that ticks every second ────────────
 const LiveClock: React.FC = () => {
@@ -130,6 +131,7 @@ const DashboardViewComponent: React.FC<{ onNavigateToSearch?: (type: string, que
     } = useDashboardData();
 
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [isMonitorMode, setIsMonitorMode] = useState(false);
 
     const handleRefresh = async () => {
         feedback.click();
@@ -170,6 +172,18 @@ const DashboardViewComponent: React.FC<{ onNavigateToSearch?: (type: string, que
         );
     }
 
+    if (isMonitorMode) {
+        return (
+            <MonitorView
+                kpis={kpis}
+                criticalAlerts={criticalAlerts}
+                warningAlerts={warningAlerts}
+                lastRefreshLabel={lastRefreshLabel}
+                onClose={() => setIsMonitorMode(false)}
+            />
+        );
+    }
+
     return (
         <div className="flex flex-col lg:h-[calc(100vh-110px)] space-y-6 sm:space-y-8 p-4 sm:p-8 animate-in fade-in duration-700">
 
@@ -203,6 +217,15 @@ const DashboardViewComponent: React.FC<{ onNavigateToSearch?: (type: string, que
                         >
                             <Download size={14} />
                             Exportar
+                        </button>
+                        {/* N4 - Monitor Mode */}
+                        <button
+                            onClick={() => setIsMonitorMode(true)}
+                            className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-white/60 dark:bg-white/[0.04] border border-gray-100 dark:border-white/5 text-xs font-semibold text-[#4D5358] dark:text-gray-300 hover:bg-fgc-green/10 transition-all active:scale-95 group"
+                            title="Desplegar Monitor CCO"
+                        >
+                            <Maximize2 size={14} className="group-hover:text-fgc-green transition-colors" />
+                            Monitor
                         </button>
                         <button
                             onClick={handleRefresh}
