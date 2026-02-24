@@ -15,6 +15,7 @@ import { getFgcMinutes } from '../../utils/stations';
 import { feedback } from '../../utils/feedback';
 import { GanttContextMenu } from './components/GanttContextMenu';
 import { GanttShiftBar } from './components/GanttShiftBar';
+import { ShiftCommentsPane } from './components/ShiftCommentsPane';
 
 // ── Helper: position as % ──────────────────────────────
 const calculatePercent = (minutes: number, start: number, total: number): number => {
@@ -268,6 +269,7 @@ const OrganitzaGantt: React.FC<{
     } = useGanttData();
 
     const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+    const [selectedShiftForComments, setSelectedShiftForComments] = useState<GanttBar | null>(null);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; bar: GanttBar; clickedTime: string } | null>(null);
     const [assigningModeBar, setAssigningModeBar] = useState<GanttBar | null>(null);
     // F2 – drag state
@@ -311,28 +313,23 @@ const OrganitzaGantt: React.FC<{
             return;
         }
 
-        const rect = containerRef.current?.getBoundingClientRect();
-        if (!rect) return;
-
-        if (tooltip?.bar.shiftId === bar.shiftId) {
-            setTooltip(null);
+        if (selectedShiftForComments?.shiftId === bar.shiftId) {
+            setSelectedShiftForComments(null);
             return;
         }
 
-        setTooltip({
-            bar,
-            clientX: e.clientX - rect.left,
-            clientY: e.clientY - rect.top,
-        });
-    }, [tooltip, assigningModeBar, assignToShift]);
+        setSelectedShiftForComments(bar);
+        setTooltip(null);
+    }, [selectedShiftForComments, assigningModeBar, assignToShift]);
 
     const handleBackgroundClick = useCallback(() => {
         if (tooltip) setTooltip(null);
+        if (selectedShiftForComments) setSelectedShiftForComments(null);
         if (assigningModeBar) {
             setAssigningModeBar(null);
             feedback.click();
         }
-    }, [tooltip, assigningModeBar]);
+    }, [tooltip, selectedShiftForComments, assigningModeBar]);
 
     const handleBarContextMenu = useCallback((bar: GanttBar, e: React.MouseEvent) => {
         e.preventDefault();
@@ -775,6 +772,15 @@ const OrganitzaGantt: React.FC<{
                         setContextMenu(null);
                     }}
                     isPrivacyMode={isPrivacyMode}
+                />
+            )}
+
+            {/* Shift Comments ────────────────────────────────────── */}
+            {selectedShiftForComments && (
+                <ShiftCommentsPane
+                    bar={selectedShiftForComments}
+                    selectedService={selectedService}
+                    onClose={() => setSelectedShiftForComments(null)}
                 />
             )}
         </div>

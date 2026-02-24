@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, Hash, MoreVertical, MessageCircle, AlertTriangle, Paperclip, CheckCircle, Trash2, Smile } from 'lucide-react';
+import { Send, Hash, MoreVertical, MessageCircle, AlertTriangle, Paperclip, CheckCircle, Trash2, Smile, Pin, PinOff } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import GlassPanel from '../../components/common/GlassPanel';
 import { sendTelegramMessage, getTelegramMemberCount, deleteTelegramMessage, sendTelegramFile } from '../../src/lib/telegram';
 import { supabase } from '../../supabaseClient';
@@ -27,6 +28,7 @@ interface Message {
     is_alert: boolean;
     created_at: string;
     reactions?: Record<string, string[]>;
+    pinned?: boolean;
 }
 
 interface TypingUser {
@@ -277,6 +279,21 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
         await deleteTelegramMessage(msgId);
     };
 
+    // ── Pin message ───────────────────────────────────
+    const handleTogglePin = async (msgId: string, currentPinned: boolean) => {
+        const newPinned = !currentPinned;
+
+        // Optimistic 
+        setMessages(prev => prev.map(m => m.id === msgId ? { ...m, pinned: newPinned } : m));
+
+        const { error } = await supabase.from('telegram_messages').update({ pinned: newPinned }).eq('id', msgId);
+        if (error) {
+            // Revert on error
+            setMessages(prev => prev.map(m => m.id === msgId ? { ...m, pinned: currentPinned } : m));
+            alert('Error al fixar el missatge.');
+        }
+    };
+
     // ── Time format ───────────────────────────────────
     const formatTime = (isoString: string) => {
         return new Date(isoString).toLocaleTimeString('ca-ES', { hour: '2-digit', minute: '2-digit' });
@@ -371,6 +388,36 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                     </div>
                 </div>
 
+                {/* Pinned Messages Banner */}
+                {messages.filter(m => m.pinned).length > 0 && (
+                    <div className="bg-amber-50/90 dark:bg-amber-500/10 border-b border-amber-200/50 dark:border-amber-500/20 px-4 py-2.5 flex items-start gap-3 backdrop-blur-md z-10 w-full overflow-x-auto no-scrollbar shadow-sm">
+                        <Pin className="text-amber-500 mt-1 shrink-0" size={16} fill="currentColor" />
+                        <div className="flex flex-col gap-2 flex-1 min-w-0">
+                            {messages.filter(m => m.pinned).map(pinnedMsg => (
+                                <div key={pinnedMsg.id} className="flex justify-between items-center bg-white/50 dark:bg-black/20 rounded-lg p-2 gap-4 border border-amber-100/50 dark:border-white/5">
+                                    <div className="flex-1 min-w-0 bg-transparent" onClick={() => {
+                                        // Optional: Scroll to message
+                                    }}>
+                                        <p className="text-[10px] font-bold text-amber-600/80 dark:text-amber-400 uppercase tracking-widest leading-none mb-1">
+                                            {pinnedMsg.sender_name}
+                                        </p>
+                                        <p className="text-sm font-medium text-gray-800 dark:text-amber-100 truncate">
+                                            {pinnedMsg.text}
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => handleTogglePin(pinnedMsg.id, true)}
+                                        className="text-amber-500/50 hover:text-amber-600 bg-amber-500/10 hover:bg-amber-500/20 p-1.5 rounded-lg transition-colors shrink-0"
+                                        title="Desfixar"
+                                    >
+                                        <PinOff size={14} />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {/* Messages area */}
                 <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 md:space-y-6 bg-gradient-to-b from-transparent to-black/[0.02] dark:to-white/[0.01]">
                     {messages.map((msg, index) => {
@@ -426,6 +473,7 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                                             }`}>
                                             <p className="text-[14px] md:text-[15px] leading-snug break-words">{msg.text}</p>
                                             <div className={`text-[10px] mt-1 flex items-center justify-end gap-1 ${isMe ? 'text-gray-900/60' : 'text-gray-400'}`}>
+                                                {msg.pinned && <Pin size={10} className="mr-0.5 text-amber-500" fill="currentColor" />}
                                                 {formatTime(msg.created_at)}
                                                 {isMe && <CheckCircle size={10} className="opacity-70" />}
                                             </div>
@@ -456,8 +504,18 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                                         )}
                                     </div>
 
-                                    {/* Emoji trigger button (shown on hover) */}
-                                    <div className="relative flex-shrink-0 mb-1 self-center">
+                                    {/* Action buttons wrapper (hover) */}
+                                    <div className="relative flex-shrink-0 flex items-center mb-1 self-center gap-1">
+                                        {/* Pin/Unpin */}
+                                        <button
+                                            onClick={() => handleTogglePin(msg.id, !!msg.pinned)}
+                                            className={`opacity-0 group-hover/msg:opacity-100 p-1.5 rounded-full transition-all ${msg.pinned ? 'text-amber-500 hover:bg-amber-500/10' : 'text-gray-400 hover:text-amber-500 hover:bg-amber-500/10'}`}
+                                            title={msg.pinned ? "Desfixar" : "Fixar missatge"}
+                                        >
+                                            {msg.pinned ? <PinOff size={15} /> : <Pin size={15} />}
+                                        </button>
+
+                                        {/* Emoji trigger button (shown on hover) */}
                                         <button
                                             data-emoji-trigger
                                             onClick={() => setOpenPickerFor(isPickerOpen ? null : msg.id)}
