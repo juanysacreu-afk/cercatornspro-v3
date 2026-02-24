@@ -236,9 +236,9 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                         )}
                         <button
                             onClick={handleRefresh}
-                            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/60 dark:bg-white/[0.04] border border-gray-100 dark:border-white/5 text-sm font-semibold text-[#4D5358] dark:text-gray-300 hover:bg-fgc-green/10 transition-all active:scale-95"
+                            className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-white/60 dark:bg-white/[0.04] border border-gray-100 dark:border-white/5 text-xs font-semibold text-[#4D5358] dark:text-gray-300 hover:bg-fgc-green/10 transition-all active:scale-95"
                         >
-                            <RefreshCcw size={16} className={`${isRefreshing ? 'animate-spin' : ''}`} />
+                            <RefreshCcw size={14} className={`${isRefreshing ? 'animate-spin' : ''}`} />
                             Actualitzar
                         </button>
                     </div>

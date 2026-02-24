@@ -28,6 +28,8 @@ export interface GanttBar {
     coveringShiftId?: string | null;
     coveringDriverName?: string | null;
     coveringExtraShiftId?: string | null;
+    coveringExtraStartMin?: number | null;
+    coveringExtraEndMin?: number | null;
     hasComments?: boolean;
 }
 
@@ -167,11 +169,11 @@ export function useGanttData() {
                 let isCoveredByExtra = false;
 
                 if (!assignment) {
-                    assignment = assignments.find(a =>
-                        !usedAssignmentIds.has(a.id) &&
-                        a.observacions &&
-                        a.observacions.toUpperCase().includes(shortId)
-                    );
+                    assignment = assignments.find(a => {
+                        if (usedAssignmentIds.has(a.id) || !a.observacions) return false;
+                        const obs = a.observacions.toUpperCase();
+                        return obs.includes(shortId) || obs.includes(shift.id.toUpperCase());
+                    });
                     if (assignment) {
                         isCoveredByExtra = true;
                     }
@@ -221,6 +223,16 @@ export function useGanttData() {
                     segments.push({ codi: 'final', linia: '', startMin: currentPos, endMin: endMin, type: 'gap' });
                 }
 
+                let coveringExtraStartMin = null;
+                let coveringExtraEndMin = null;
+                if (isCoveredByExtra && assignment) {
+                    coveringExtraStartMin = getFgcMinutes(assignment.hora_inici) ?? null;
+                    coveringExtraEndMin = getFgcMinutes(assignment.hora_fi) ?? null;
+                    if (coveringExtraStartMin !== null && coveringExtraEndMin !== null && coveringExtraEndMin <= coveringExtraStartMin) {
+                        coveringExtraEndMin += 24 * 60;
+                    }
+                }
+
                 return {
                     shiftId: shift.id,
                     shortId, // Use the matched short ID for display
@@ -238,6 +250,8 @@ export function useGanttData() {
                     coveringShiftId: null,
                     coveringDriverName: isCoveredByExtra ? driverName : null,
                     coveringExtraShiftId: isCoveredByExtra ? assignment?.torn : null,
+                    coveringExtraStartMin,
+                    coveringExtraEndMin,
                     hasComments: commentsHashes.has(shift.id.toString())
                 };
             });

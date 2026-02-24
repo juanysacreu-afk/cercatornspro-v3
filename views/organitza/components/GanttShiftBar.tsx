@@ -97,6 +97,32 @@ export const GanttShiftBar: React.FC<ShiftBarProps> = ({
         borderClass = selectedRing || palette.assignedBorder;
     }
 
+    // Partial Coverage Styling (from EXTRA shifts)
+    if (bar.isAssigned && !isAbsent && !bar.incidentStartTime && typeof bar.coveringExtraStartMin === 'number' && typeof bar.coveringExtraEndMin === 'number') {
+        const cStart = Math.max(bar.startMin, bar.coveringExtraStartMin);
+        const cEnd = Math.min(bar.endMin, bar.coveringExtraEndMin);
+
+        // Apply gradient only if there's an intersection and it doesn't cover the whole bar
+        if (cStart < cEnd && (cStart > bar.startMin || cEnd < bar.endMin)) {
+            const splitStart = ((cStart - bar.startMin) / (bar.endMin - bar.startMin)) * 100;
+            const splitEnd = ((cEnd - bar.startMin) / (bar.endMin - bar.startMin)) * 100;
+
+            const grayColor = 'rgba(156, 163, 175, 0.5)'; // Unassigned look
+            let coveredColor = 'rgba(16, 185, 129, 0.9)'; // emerald
+            const hour = Math.floor(bar.startMin / 60) % 24;
+            if (hour >= 12 && hour < 21) coveredColor = 'rgba(245, 158, 11, 0.9)'; // amber
+            else if (hour >= 21 || hour < 4) coveredColor = 'rgba(99, 102, 241, 0.9)'; // indigo
+
+            bgStyle = {
+                background: `linear-gradient(90deg, 
+                    ${grayColor} 0%, ${grayColor} ${splitStart}%, 
+                    ${coveredColor} ${splitStart}%, ${coveredColor} ${splitEnd}%, 
+                    ${grayColor} ${splitEnd}%, ${grayColor} 100%)`
+            };
+            baseBgClass = ''; // Clear base background to avoid clash
+        }
+    }
+
     // Incident Styling
     if (bar.incidentStartTime && bar.isAssigned && !isAbsent) {
         if (bar.incidentStartTime === '00:00') {
