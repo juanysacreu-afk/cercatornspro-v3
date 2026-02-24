@@ -7,6 +7,8 @@ import { playSendSound } from '../../../utils/sounds';
 interface ShiftCommentsPaneProps {
     bar: GanttBar;
     selectedService: string;
+    clientX: number;
+    clientY: number;
     onClose: () => void;
 }
 
@@ -19,7 +21,7 @@ interface ShiftComment {
     created_at: string;
 }
 
-export const ShiftCommentsPane: React.FC<ShiftCommentsPaneProps> = ({ bar, selectedService, onClose }) => {
+export const ShiftCommentsPane: React.FC<ShiftCommentsPaneProps> = ({ bar, selectedService, clientX, clientY, onClose }) => {
     const [comments, setComments] = useState<ShiftComment[]>([]);
     const [inputText, setInputText] = useState('');
     const [isLoading, setIsLoading] = useState(true);
@@ -117,7 +119,13 @@ export const ShiftCommentsPane: React.FC<ShiftCommentsPaneProps> = ({ bar, selec
 
     return (
         <div
-            className="fixed bottom-0 right-0 sm:bottom-6 sm:right-6 h-[65vh] sm:h-[480px] w-full sm:w-[360px] z-[999] bg-white dark:bg-gray-900 border border-gray-200 dark:border-white/10 sm:rounded-3xl rounded-t-3xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.3)] flex flex-col animate-in slide-in-from-bottom-10 zoom-in-95 duration-300 overflow-hidden"
+            className="absolute z-[999] bg-white dark:bg-gray-900 border border-gray-200 dark:border-white/10 rounded-3xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.3)] flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden"
+            style={{
+                top: `min(${Math.max(10, clientY - 150)}px, calc(100% - 490px))`,
+                left: `min(${clientX + 20}px, calc(100% - 380px))`,
+                width: '360px',
+                height: '480px',
+            }}
             onClick={(e) => e.stopPropagation()}
         >
             {/* Header */}

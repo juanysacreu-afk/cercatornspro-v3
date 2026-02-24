@@ -269,7 +269,7 @@ const OrganitzaGantt: React.FC<{
     } = useGanttData();
 
     const [tooltip, setTooltip] = useState<TooltipState | null>(null);
-    const [selectedShiftForComments, setSelectedShiftForComments] = useState<GanttBar | null>(null);
+    const [selectedShiftForComments, setSelectedShiftForComments] = useState<{ bar: GanttBar; clientX: number; clientY: number } | null>(null);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; bar: GanttBar; clickedTime: string } | null>(null);
     const [assigningModeBar, setAssigningModeBar] = useState<GanttBar | null>(null);
     // F2 – drag state
@@ -313,12 +313,19 @@ const OrganitzaGantt: React.FC<{
             return;
         }
 
-        if (selectedShiftForComments?.shiftId === bar.shiftId) {
+        if (selectedShiftForComments?.bar.shiftId === bar.shiftId) {
             setSelectedShiftForComments(null);
             return;
         }
 
-        setSelectedShiftForComments(bar);
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (!rect) return;
+
+        setSelectedShiftForComments({
+            bar,
+            clientX: e.clientX - rect.left,
+            clientY: e.clientY - rect.top,
+        });
         setTooltip(null);
     }, [selectedShiftForComments, assigningModeBar, assignToShift]);
 
@@ -778,8 +785,10 @@ const OrganitzaGantt: React.FC<{
             {/* Shift Comments ────────────────────────────────────── */}
             {selectedShiftForComments && (
                 <ShiftCommentsPane
-                    bar={selectedShiftForComments}
+                    bar={selectedShiftForComments.bar}
                     selectedService={selectedService}
+                    clientX={selectedShiftForComments.clientX}
+                    clientY={selectedShiftForComments.clientY}
                     onClose={() => setSelectedShiftForComments(null)}
                 />
             )}
