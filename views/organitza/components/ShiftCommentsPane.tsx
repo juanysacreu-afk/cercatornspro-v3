@@ -117,7 +117,7 @@ export const ShiftCommentsPane: React.FC<ShiftCommentsPaneProps> = ({ bar, selec
 
     return (
         <div
-            className="fixed top-0 right-0 h-full w-full sm:w-[380px] z-[999] bg-white dark:bg-gray-900 border-l border-gray-100 dark:border-white/10 shadow-2xl flex flex-col animate-slide-left-premium"
+            className="fixed bottom-0 right-0 sm:bottom-6 sm:right-6 h-[65vh] sm:h-[480px] w-full sm:w-[360px] z-[999] bg-white dark:bg-gray-900 border border-gray-200 dark:border-white/10 sm:rounded-3xl rounded-t-3xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.3)] flex flex-col animate-in slide-in-from-bottom-10 zoom-in-95 duration-300 overflow-hidden"
             onClick={(e) => e.stopPropagation()}
         >
             {/* Header */}
@@ -195,8 +195,8 @@ export const ShiftCommentsPane: React.FC<ShiftCommentsPaneProps> = ({ bar, selec
                                     </span>
                                 )}
                                 <div className={`px-4 py-2.5 rounded-2xl max-w-[85%] text-[13px] relative shadow-sm ${isMe
-                                        ? 'bg-fgc-green text-gray-900 rounded-tr-sm'
-                                        : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border border-gray-100 dark:border-white/5 rounded-tl-sm'
+                                    ? 'bg-fgc-green text-gray-900 rounded-tr-sm'
+                                    : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border border-gray-100 dark:border-white/5 rounded-tl-sm'
                                     }`}>
                                     <p className="leading-snug break-words whitespace-pre-wrap">{comment.content}</p>
                                     <span className={`text-[9px] mt-1 block text-right opacity-60 font-medium ${isMe ? 'text-gray-800' : 'text-gray-400'}`}>
