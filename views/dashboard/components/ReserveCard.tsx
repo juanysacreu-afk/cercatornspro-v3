@@ -76,9 +76,14 @@ export const ReserveCard: React.FC<{ slot: ReserveSlot }> = ({ slot }) => {
                                         {p.torn}
                                     </span>
                                 </div>
+                                {p.isBusy && (
+                                    <div className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20">
+                                        <span className="text-[8px] font-black text-amber-700 dark:text-amber-400 uppercase">Ocupat</span>
+                                    </div>
+                                )}
                                 {/* Status dot */}
                                 {p.isActive !== undefined && (
-                                    <span className={`w-2 h-2 rounded-full ${p.isActive ? 'bg-emerald-400 animate-pulse' : 'bg-gray-300'}`} />
+                                    <span className={`w-2 h-2 rounded-full ${p.isBusy ? 'bg-amber-400' : (p.isActive ? 'bg-emerald-400 animate-pulse' : 'bg-gray-300')}`} />
                                 )}
                             </div>
                         </div>

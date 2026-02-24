@@ -33,7 +33,7 @@ export interface ReserveSlot {
     station: string;
     stationLabel: string;
     count: number;
-    personnel: { nom: string; cognoms: string; torn: string; isActive?: boolean }[];
+    personnel: { nom: string; cognoms: string; torn: string; isActive?: boolean; isBusy?: boolean }[];
     // F4 – assignment history
     assignmentHistory?: Record<string, string[]>;
     previousAssignments?: { nom: string; cognoms: string; torn: string }[];
@@ -254,7 +254,14 @@ export function useDashboardData() {
                     else stationCode = 'XX';
                 }
                 if (reserveSlotsMap.has(stationCode)) {
-                    reserveSlotsMap.get(stationCode)?.personnel.push({ nom: a.nom, cognoms: a.cognoms, torn: a.torn, isActive: true });
+                    const isBusy = !!(a.observacions && a.observacions.toUpperCase().includes('COBREIX'));
+                    reserveSlotsMap.get(stationCode)?.personnel.push({
+                        nom: a.nom,
+                        cognoms: a.cognoms,
+                        torn: a.torn,
+                        isActive: true,
+                        isBusy
+                    });
                 }
             });
 
@@ -273,7 +280,7 @@ export function useDashboardData() {
                     reserveSlots.push({
                         station: key,
                         stationLabel: val.label,
-                        count: val.personnel.length,
+                        count: val.personnel.filter(p => !p.isBusy).length,
                         personnel: val.personnel,
                         previousAssignments: previousAssignments.length > 0 ? previousAssignments : undefined
                     });
