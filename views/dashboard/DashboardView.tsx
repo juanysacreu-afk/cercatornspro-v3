@@ -211,9 +211,11 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
 
                 {/* V1 – Live clock + actions */}
                 <div className="flex flex-col sm:flex-row items-center sm:items-end gap-3 sm:gap-4 w-full sm:w-auto">
-                    <div className="flex items-center justify-between w-full sm:w-auto gap-4">
+                    <div className="flex items-center justify-center sm:justify-between w-full sm:w-auto gap-4">
                         <WeatherWidget />
-                        <LiveClock />
+                        <div className="hidden sm:block">
+                            <LiveClock />
+                        </div>
                     </div>
 
                     <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 w-full sm:w-auto justify-center sm:justify-end no-scrollbar">
