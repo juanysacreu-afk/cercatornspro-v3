@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { MessageSquare } from 'lucide-react';
 import type { GanttBar } from '../hooks/useGanttData';
 import { getFgcMinutes } from '../../../utils/stations';
 
@@ -171,6 +172,9 @@ export const GanttShiftBar: React.FC<ShiftBarProps> = ({
                 <div className="absolute inset-0 flex flex-col items-start justify-center px-1.5 text-white truncate select-none drop-shadow-sm leading-tight">
                     <div className="flex items-center gap-1 w-full pr-1">
                         <span className="text-[9px] sm:text-[10px] font-bold shrink-0">{bar.shortId}</span>
+                        {bar.hasComments && (
+                            <MessageSquare size={10} className="text-white drop-shadow-sm shrink-0 flex-none opacity-90 fill-white/20" />
+                        )}
                         {bar.coveringDriverName && (
                             <span className="text-[7.5px] font-bold text-white bg-purple-600/90 px-1.5 py-[2px] rounded-md truncate leading-none border border-purple-400/50 shadow-sm tracking-wide">
                                 ↺ {bar.coveringExtraShiftId ? `${bar.coveringExtraShiftId} - ` : ''}{bar.coveringDriverName.split(',')[0]?.split(' ')[0] || bar.coveringDriverName}

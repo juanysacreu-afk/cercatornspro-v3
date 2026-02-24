@@ -28,6 +28,7 @@ export interface GanttBar {
     coveringShiftId?: string | null;
     coveringDriverName?: string | null;
     coveringExtraShiftId?: string | null;
+    hasComments?: boolean;
 }
 
 export interface GanttCircSegment {
@@ -101,12 +102,13 @@ export function useGanttData() {
             const todayStr = new Date().toISOString().split('T')[0];
             const svc = selectedServiceRef.current;
 
-            const [shiftsRes, assignRes, agentsRes] = await Promise.all([
+            const [shiftsRes, assignRes, agentsRes, commentsRes] = await Promise.all([
                 supabase.from('shifts').select('id, servei, inici_torn, final_torn, dependencia, circulations'),
                 supabase.from('daily_assignments')
                     .select('id, torn, cognoms, nom, abs_parc_c, empleat_id, incident_start_time, hora_inici, hora_fi, data_servei, observacions')
                     .eq('data_servei', todayStr),
-                supabase.from('agents').select('nomina, phone')
+                supabase.from('agents').select('nomina, phone'),
+                supabase.from('shift_comments').select('shift_id').eq('date', svc)
             ]);
 
             // Reassign local variable to ref value (stable reference)
@@ -126,6 +128,7 @@ export function useGanttData() {
             });
             const usedAssignmentIds = new Set<number>();
             const assignmentToShiftMap = new Map<number, string>();
+            const commentsHashes = new Set((commentsRes.data || []).map(c => c.shift_id));
 
             // Helper to get short ID based on User's Description:
             // Shift: Q + ServiceDigit + 3Digits (e.g. Q0001)
@@ -234,7 +237,8 @@ export function useGanttData() {
                     circulations: segments,
                     coveringShiftId: null,
                     coveringDriverName: isCoveredByExtra ? driverName : null,
-                    coveringExtraShiftId: isCoveredByExtra ? assignment?.torn : null
+                    coveringExtraShiftId: isCoveredByExtra ? assignment?.torn : null,
+                    hasComments: commentsHashes.has(shift.id.toString())
                 };
             });
 
@@ -335,7 +339,8 @@ export function useGanttData() {
                     assignmentId: assign.id,
                     driverPhone,
                     circulations: [],
-                    coveringShiftId: assignmentToShiftMap.get(assign.id) || parsedCoverTarget || null
+                    coveringShiftId: assignmentToShiftMap.get(assign.id) || parsedCoverTarget || null,
+                    hasComments: commentsHashes.has(`extra-${assign.id}`)
                 };
             });
 
