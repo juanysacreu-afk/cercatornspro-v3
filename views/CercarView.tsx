@@ -331,6 +331,14 @@ const CercarViewComponent: React.FC<{
     }
   };
 
+  const handleCycleClick = (cycleId: string) => {
+    feedback.click();
+    setSearchType(SearchType.Cicle);
+    setQuery(cycleId);
+    executeSearch(cycleId, SearchType.Cicle);
+    scrollToElement('search-container');
+  };
+
   const handleSuggestionClick = (id: string) => { setQuery(id); setShowSuggestions(false); executeSearch(id); };
   const toggleItinerari = (id: string) => { setExpandedItinerari(expandedItinerari === id ? null : id); };
 
@@ -906,9 +914,9 @@ const CercarViewComponent: React.FC<{
                           return (
                             <div key={cIdx} className={`flex flex-col transition-all hover:bg-gray-50/50 dark:hover:bg-white/5 relative ${isActive ? 'ring-2 ring-inset ring-red-600 z-10' : ''}`}>
                               {isStationGroup ? (
-                                <StationRow circ={circ} itemKey={itemKey} nowMin={nowMin} trainStatuses={trainStatuses} getTrainPhone={getTrainPhone} getLiniaColor={getLiniaColor} getShiftCurrentStatus={getShiftCurrentStatus} openUnitMenu={openUnitMenu} toggleItinerari={toggleItinerari} isPrivacyMode={isPrivacyMode} />
+                                <StationRow circ={circ} itemKey={itemKey} nowMin={nowMin} trainStatuses={trainStatuses} getTrainPhone={getTrainPhone} getLiniaColor={getLiniaColor} getShiftCurrentStatus={getShiftCurrentStatus} openUnitMenu={openUnitMenu} toggleItinerari={toggleItinerari} isPrivacyMode={isPrivacyMode} onCycleClick={handleCycleClick} />
                               ) : (
-                                <CirculationRow circ={circ} itemKey={itemKey} nowMin={nowMin} trainStatuses={trainStatuses} getTrainPhone={getTrainPhone} getLiniaColor={getLiniaColor} openUnitMenu={openUnitMenu} toggleItinerari={toggleItinerari} isPrivacyMode={isPrivacyMode} />
+                                <CirculationRow circ={circ} itemKey={itemKey} nowMin={nowMin} trainStatuses={trainStatuses} getTrainPhone={getTrainPhone} getLiniaColor={getLiniaColor} openUnitMenu={openUnitMenu} toggleItinerari={toggleItinerari} isPrivacyMode={isPrivacyMode} onCycleClick={handleCycleClick} />
                               )}
                               {expandedItinerari === itemKey && (
                                 <div className="p-4 sm:p-10 bg-white dark:bg-fgc-grey border-t border-gray-100 dark:border-white/5 animate-in slide-in-from-top-4 duration-500 overflow-hidden">
@@ -992,7 +1000,7 @@ const CercarViewComponent: React.FC<{
                         return (
                           <React.Fragment key={cIdx}>
                             <div id={`circ-row-${shiftItemKey}`} className={`flex flex-col relative scroll-mt-24 ${isActive ? 'ring-2 ring-inset ring-red-600 z-10' : ''}`}>
-                              <CirculationRow circ={circ} itemKey={shiftItemKey} nowMin={nowMin} trainStatuses={trainStatuses} getTrainPhone={getTrainPhone} getLiniaColor={getLiniaColor} openUnitMenu={openUnitMenu} toggleItinerari={toggleItinerari} isPrivacyMode={isPrivacyMode} passengerInfo={passengerInfoMap[circ.codi] || []} />
+                              <CirculationRow circ={circ} itemKey={shiftItemKey} nowMin={nowMin} trainStatuses={trainStatuses} getTrainPhone={getTrainPhone} getLiniaColor={getLiniaColor} openUnitMenu={openUnitMenu} toggleItinerari={toggleItinerari} isPrivacyMode={isPrivacyMode} passengerInfo={passengerInfoMap[circ.codi] || []} onCycleClick={handleCycleClick} />
                               {expandedItinerari === shiftItemKey && (
                                 <div className="p-4 sm:p-10 bg-white dark:bg-fgc-grey border-t border-gray-100 dark:border-white/5 animate-in slide-in-from-top-4 duration-500 overflow-hidden">
                                   <div className="relative flex flex-col pl-8 sm:pl-16 pr-2 sm:pr-6 py-4 space-y-0">

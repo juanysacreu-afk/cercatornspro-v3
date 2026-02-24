@@ -13,6 +13,7 @@ interface CirculationRowProps {
     toggleItinerari: (id: string) => void;
     isPrivacyMode: boolean;
     passengerInfo?: any[];
+    onCycleClick?: (cycleId: string) => void;
 }
 
 export const CirculationRow: React.FC<CirculationRowProps> = ({
@@ -25,7 +26,8 @@ export const CirculationRow: React.FC<CirculationRowProps> = ({
     openUnitMenu,
     toggleItinerari,
     isPrivacyMode,
-    passengerInfo = []
+    passengerInfo = [],
+    onCycleClick
 }) => {
     const trainPhone = getTrainPhone(circ.train);
     const isActive = checkIfActive(circ.sortida, circ.arribada, nowMin);
@@ -94,10 +96,19 @@ export const CirculationRow: React.FC<CirculationRowProps> = ({
             </div>
             <div className="hidden md:flex justify-center">
                 {circ.cicle ? (
-                    <div className={`text-[10px] sm:text-sm font-black px-3 py-1.5 rounded-lg border shadow-sm flex items-center justify-center gap-2 transition-all w-full max-w-[150px] ${isBroken ? 'bg-red-600 text-white border-red-700 animate-pulse' : isViatger ? 'text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-900/20 border-sky-200 dark:border-sky-800' : 'text-fgc-grey dark:text-gray-200 bg-fgc-green/20 dark:bg-fgc-green/10 border-fgc-green/30 dark:border-fgc-green/20'}`}>
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (onCycleClick && circ.cicle) {
+                                onCycleClick(circ.cicle);
+                            }
+                        }}
+                        className={`text-[10px] sm:text-sm font-bold px-3 py-1.5 rounded-lg border shadow-sm flex items-center justify-center gap-2 transition-all w-full max-w-[150px] group/cycle ${onCycleClick ? 'hover:scale-105 hover:shadow-md active:scale-95' : 'cursor-default'} ${isBroken ? 'bg-red-600 text-white border-red-700 animate-pulse' : isViatger ? 'text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-900/20 border-sky-200 dark:border-sky-800' : 'text-fgc-grey dark:text-gray-200 bg-fgc-green/20 dark:bg-fgc-green/10 border-fgc-green/30 dark:border-fgc-green/20'}`}
+                        title={onCycleClick ? `Veure detall del cicle ${circ.cicle}` : undefined}
+                    >
                         <div className="flex flex-col items-center">
-                            {isViatger && <span className="text-[7px] opacity-60 leading-none mb-0.5 uppercase">Cicle Viatger</span>}
-                            <span className="shrink-0">{circ.cicle}</span>
+                            {isViatger && <span className="text-[7px] opacity-60 leading-none mb-0.5 uppercase font-black">Cicle Viatger</span>}
+                            <span className="shrink-0 font-black tracking-tight">{circ.cicle}</span>
                         </div>
                         {circ.train && (
                             <div className={`flex items-center gap-1.5 pl-2 border-l ${isBroken ? 'border-white/30' : isViatger ? 'border-sky-200 dark:border-sky-800' : 'border-fgc-green/40 dark:border-fgc-green/20'}`}>
@@ -107,7 +118,7 @@ export const CirculationRow: React.FC<CirculationRowProps> = ({
                                 </a>
                             </div>
                         )}
-                    </div>
+                    </button>
                 ) : (<span className="text-[10px] text-gray-300 dark:text-gray-600 font-bold uppercase tracking-widest italic opacity-40">Sense assignar</span>)}
             </div>
             <div className="flex items-center gap-2 sm:gap-4 justify-center min-w-0">

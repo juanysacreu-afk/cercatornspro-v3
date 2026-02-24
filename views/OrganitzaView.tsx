@@ -15,6 +15,25 @@ const normalizeId = (id: any) => {
   return String(id).trim().replace(/^0+/, '');
 };
 
+const getFgcMinutes = (timeStr: string) => {
+  if (!timeStr || !timeStr.includes(':')) return 0;
+  const parts = timeStr.split(':');
+  const h = parseInt(parts[0], 10);
+  const m = parseFloat(parts[1]);
+  const s = parts[2] ? parseFloat(parts[2]) : 0;
+  let total = h * 60 + m + (s / 60);
+  if (h < 4) total += 24 * 60;
+  return total;
+};
+
+const formatFgcTime = (totalMinutes: number) => {
+  const totalSecs = Math.round(totalMinutes * 60);
+  const h = Math.floor(totalSecs / 3600) % 24;
+  const m = Math.floor((totalSecs % 3600) / 60);
+  const s = totalSecs % 60;
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+};
+
 const OrganitzaViewComponent: React.FC<{
   isPrivacyMode: boolean,
   onNavigateToSearch?: (type: string, query: string) => void
@@ -39,24 +58,6 @@ const OrganitzaViewComponent: React.FC<{
   const filterRef = useRef<HTMLDivElement>(null);
   const serveiTypes = ['0', '100', '400', '500'];
 
-  function getFgcMinutes(timeStr: string) {
-    if (!timeStr || !timeStr.includes(':')) return 0;
-    const parts = timeStr.split(':');
-    const h = parseInt(parts[0], 10);
-    const m = parseFloat(parts[1]);
-    const s = parts[2] ? parseFloat(parts[2]) : 0;
-    let total = h * 60 + m + (s / 60);
-    if (h < 4) total += 24 * 60;
-    return total;
-  }
-
-  function formatFgcTime(totalMinutes: number) {
-    const totalSecs = Math.round(totalMinutes * 60);
-    const h = Math.floor(totalSecs / 3600) % 24;
-    const m = Math.floor((totalSecs % 3600) / 60);
-    const s = totalSecs % 60;
-    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  }
 
   const getStatusColor = (codi: string) => {
     const c = (codi || '').toUpperCase().trim();
@@ -625,10 +626,16 @@ const CompareInputSlot = ({ label, value, onChange, data, onClear, nowMin, getSe
   };
 
   const currentActivity = useMemo(() => data ? getSegments(data).find(s => nowMin >= s.start && nowMin < s.end) : null, [data, getSegments, nowMin]);
+  const isActive = useMemo(() => {
+    if (!data) return false;
+    const s = getFgcMinutes(data.inici_torn);
+    const e = getFgcMinutes(data.final_torn);
+    return nowMin >= s && nowMin < e;
+  }, [data, nowMin]);
 
   return (
-    <div className={`bg-white dark:bg-fgc-grey rounded-[32px] p-5 border border-gray-100 dark:border-white/5 shadow-sm flex flex-col transition-all relative ${showSug ? 'z-50' : 'z-10'} ${data ? 'sm:p-8 min-h-[320px] sm:min-h-[400px]' : 'sm:p-6 min-h-[160px] sm:min-h-[200px]'}`} ref={containerRef}>
-      <div className={`flex items-center justify-between ${data ? 'mb-4 sm:mb-6' : 'mb-3'}`}>
+    <div className={`bg-white dark:bg-fgc-grey rounded-[32px] p-4 border border-gray-100 dark:border-white/5 shadow-sm flex flex-col transition-all relative ${showSug ? 'z-50' : 'z-10'} ${data ? 'sm:p-6 min-h-[280px] sm:min-h-[360px]' : 'sm:p-5 min-h-[140px] sm:min-h-[180px]'}`} ref={containerRef}>
+      <div className={`flex items-center justify-between ${data ? 'mb-3 sm:mb-4' : 'mb-2'}`}>
         <h3 className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">{label}</h3>
         {data && (
           <button onClick={onClear} className="p-2 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-500 rounded-full transition-colors bg-red-50/10">
@@ -639,24 +646,26 @@ const CompareInputSlot = ({ label, value, onChange, data, onClear, nowMin, getSe
 
       {data ? (
         <div className="flex-1 animate-in fade-in zoom-in-95 duration-300">
-          <div className="flex items-center gap-5 mb-4 sm:mb-6">
-            <div className="h-14 sm:h-16 min-w-[3.5rem] sm:min-w-[4rem] px-3 sm:px-4 bg-fgc-grey dark:bg-black text-white rounded-2xl flex items-center justify-center font-bold text-xl sm:text-2xl shadow-xl whitespace-nowrap">
+          <div className="flex items-center gap-4 mb-4 sm:mb-5">
+            <div className="h-12 sm:h-14 min-w-[3rem] sm:min-w-[3.5rem] px-3 bg-fgc-grey dark:bg-black text-white rounded-xl flex items-center justify-center font-bold text-lg sm:text-xl shadow-xl whitespace-nowrap">
               {data.id}
             </div>
             <div className="min-w-0">
               <p className="text-xl sm:text-2xl font-bold text-[#4D5358] dark:text-white leading-tight truncate">
                 {data.drivers[0]?.cognoms}, {data.drivers[0]?.nom}
               </p>
-              <div className="flex items-center gap-2 mt-1">
-                <div className="w-2 h-2 bg-fgc-green rounded-full animate-pulse" />
-                <p className="text-[10px] font-bold text-fgc-green uppercase tracking-widest">
-                  Actiu ara {data.drivers[0]?.tipus_torn ? `(${data.drivers[0].tipus_torn})` : ''}
-                </p>
-              </div>
+              {isActive && (
+                <div className="flex items-center gap-2 mt-1">
+                  <div className="w-1.5 h-1.5 bg-fgc-green rounded-full animate-pulse" />
+                  <p className="text-[10px] font-bold text-fgc-green uppercase tracking-widest leading-none">
+                    Actiu ara {data.drivers[0]?.tipus_torn ? `(${data.drivers[0].tipus_torn})` : ''}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="mb-4 sm:mb-6 bg-gray-50/50 dark:bg-black/20 p-5 sm:p-6 rounded-[28px] border border-gray-100 dark:border-white/5 relative overflow-hidden group transition-colors">
+          <div className={`bg-gray-50/50 dark:bg-black/20 rounded-[24px] border border-gray-100 dark:border-white/5 relative overflow-hidden group transition-all ${currentActivity ? 'mb-4 sm:mb-5 p-4 sm:p-5' : 'mb-3 sm:mb-4 p-3 sm:p-4'}`}>
             <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
               <Clock size={48} />
             </div>
@@ -681,14 +690,14 @@ const CompareInputSlot = ({ label, value, onChange, data, onClear, nowMin, getSe
                 </div>
               </div>
             ) : (
-              <div className="text-center py-2">
-                <p className="text-sm font-bold text-gray-300 dark:text-gray-700 italic">Fora d'horari</p>
+              <div className="text-center py-1">
+                <p className="text-xs font-bold text-gray-300 dark:text-gray-700 italic">Fora d'horari</p>
               </div>
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3 sm:gap-4">
-            <div className="bg-gray-50/50 dark:bg-black/20 p-3 sm:p-4 rounded-2xl border border-gray-100 dark:border-white/5 transition-colors">
+          <div className="grid grid-cols-2 gap-2 sm:gap-3">
+            <div className="bg-gray-50/50 dark:bg-black/20 p-2.5 sm:p-3 rounded-xl border border-gray-100 dark:border-white/5 transition-colors">
               <p className="text-[9px] font-bold text-gray-300 dark:text-gray-600 uppercase tracking-widest mb-1 sm:mb-1.5 flex items-center gap-2">
                 <Clock size={10} /> Torn
               </p>
@@ -696,7 +705,7 @@ const CompareInputSlot = ({ label, value, onChange, data, onClear, nowMin, getSe
                 {data.inici_torn} — {data.final_torn}
               </p>
             </div>
-            <div className="bg-gray-50/50 dark:bg-black/20 p-3 sm:p-4 rounded-2xl border border-gray-100 dark:border-white/5 transition-colors">
+            <div className="bg-gray-50/50 dark:bg-black/20 p-2.5 sm:p-3 rounded-xl border border-gray-100 dark:border-white/5 transition-colors">
               <p className="text-[9px] font-bold text-gray-300 dark:text-gray-600 uppercase tracking-widest mb-1 sm:mb-1.5 flex items-center gap-2">
                 <User size={10} /> Nòmina
               </p>
@@ -705,8 +714,8 @@ const CompareInputSlot = ({ label, value, onChange, data, onClear, nowMin, getSe
               </p>
             </div>
             {(data.drivers[0]?.phones?.length > 0 || data.drivers[0]?.email) && (
-              <div className="col-span-2 bg-fgc-green/10 dark:bg-fgc-green/5 p-3 sm:p-4 rounded-2xl border border-fgc-green/20 dark:border-fgc-green/10 transition-colors">
-                <p className="text-[9px] font-bold text-fgc-green uppercase tracking-widest mb-2 flex items-center gap-2">
+              <div className="col-span-2 bg-fgc-green/10 dark:bg-fgc-green/5 p-2.5 sm:p-3 rounded-xl border border-fgc-green/20 dark:border-fgc-green/10 transition-colors">
+                <p className="text-[9px] font-bold text-fgc-green uppercase tracking-widest mb-1.5 flex items-center gap-2">
                   <Phone size={10} /> Contacte Directe
                 </p>
                 <div className="flex flex-wrap gap-2">
@@ -714,7 +723,7 @@ const CompareInputSlot = ({ label, value, onChange, data, onClear, nowMin, getSe
                     <a
                       key={i}
                       href={isPrivacyMode ? undefined : `tel:${p}`}
-                      className={`flex items-center gap-2 bg-white dark:bg-black px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold text-[#4D5358] dark:text-gray-200 shadow-sm hover:bg-fgc-green dark:hover:text-[#4D5358] transition-all whitespace-nowrap ${isPrivacyMode ? 'cursor-default' : ''}`}
+                      className={`flex items-center gap-1.5 bg-white dark:bg-black px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-bold text-[#4D5358] dark:text-gray-200 shadow-sm hover:bg-fgc-green dark:hover:text-[#4D5358] transition-all whitespace-nowrap ${isPrivacyMode ? 'cursor-default' : ''}`}
                     >
                       <Phone size={12} /> {isPrivacyMode ? '*** ** ** **' : p}
                     </a>
@@ -722,7 +731,7 @@ const CompareInputSlot = ({ label, value, onChange, data, onClear, nowMin, getSe
                   {data.drivers[0].email && (
                     <a
                       href={`mailto:${data.drivers[0].email}`}
-                      className={`flex items-center gap-2 bg-white dark:bg-black px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold text-[#4D5358] dark:text-gray-200 shadow-sm hover:bg-fgc-green dark:hover:text-[#4D5358] transition-all whitespace-nowrap`}
+                      className={`flex items-center gap-1.5 bg-white dark:bg-black px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-bold text-[#4D5358] dark:text-gray-200 shadow-sm hover:bg-fgc-green dark:hover:text-[#4D5358] transition-all whitespace-nowrap`}
                       title={data.drivers[0].email}
                     >
                       <Mail size={12} /> {data.drivers[0].email.length > 20 ? 'Email' : data.drivers[0].email}
