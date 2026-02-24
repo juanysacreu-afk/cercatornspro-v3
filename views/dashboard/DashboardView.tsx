@@ -210,36 +210,39 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                 </div>
 
                 {/* V1 – Live clock + actions */}
-                <div className="flex items-center gap-4">
-                    <WeatherWidget />
-                    <LiveClock />
-                    <div className="flex items-center gap-2">
+                <div className="flex flex-col sm:flex-row items-center sm:items-end gap-3 sm:gap-4 w-full sm:w-auto">
+                    <div className="flex items-center justify-between w-full sm:w-auto gap-4">
+                        <WeatherWidget />
+                        <LiveClock />
+                    </div>
+
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 w-full sm:w-auto justify-center sm:justify-end no-scrollbar">
                         {/* F5 – Export button */}
                         <button
                             onClick={handleExportCSV}
-                            className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-white/60 dark:bg-white/[0.04] border border-gray-100 dark:border-white/5 text-xs font-semibold text-[#4D5358] dark:text-gray-300 hover:bg-fgc-green/10 transition-all active:scale-95"
+                            className="flex-none flex items-center gap-2 px-3 py-2 rounded-2xl bg-white/60 dark:bg-white/[0.04] border border-gray-100 dark:border-white/5 text-xs font-semibold text-[#4D5358] dark:text-gray-300 hover:bg-fgc-green/10 transition-all active:scale-95"
                             title="Exportar resum operacional (CSV)"
                         >
                             <Download size={14} />
-                            Exportar
+                            <span>Exportar</span>
                         </button>
                         {/* N4 - Monitor Mode */}
                         {setIsMonitorMode && (
                             <button
                                 onClick={() => setIsMonitorMode(true)}
-                                className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-white/60 dark:bg-white/[0.04] border border-gray-100 dark:border-white/5 text-xs font-semibold text-[#4D5358] dark:text-gray-300 hover:bg-fgc-green/10 transition-all active:scale-95 group"
+                                className="flex-none flex items-center gap-2 px-3 py-2 rounded-2xl bg-white/60 dark:bg-white/[0.04] border border-gray-100 dark:border-white/5 text-xs font-semibold text-[#4D5358] dark:text-gray-300 hover:bg-fgc-green/10 transition-all active:scale-95 group"
                                 title="Desplegar Monitor CCO"
                             >
                                 <Maximize2 size={14} className="group-hover:text-fgc-green transition-colors" />
-                                Monitor
+                                <span>Monitor</span>
                             </button>
                         )}
                         <button
                             onClick={handleRefresh}
-                            className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-white/60 dark:bg-white/[0.04] border border-gray-100 dark:border-white/5 text-xs font-semibold text-[#4D5358] dark:text-gray-300 hover:bg-fgc-green/10 transition-all active:scale-95"
+                            className="flex-none flex items-center gap-2 px-3 py-2 rounded-2xl bg-white/60 dark:bg-white/[0.04] border border-gray-100 dark:border-white/5 text-xs font-semibold text-[#4D5358] dark:text-gray-300 hover:bg-fgc-green/10 transition-all active:scale-95"
                         >
                             <RefreshCcw size={14} className={`${isRefreshing ? 'animate-spin' : ''}`} />
-                            Actualitzar
+                            <span>Actualitzar</span>
                         </button>
                     </div>
                 </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Cloud, CloudDrizzle, CloudFog, CloudLightning, CloudRain, CloudSnow, Moon, Sun, Wind } from 'lucide-react';
+import { Cloud, CloudDrizzle, CloudFog, CloudLightning, CloudRain, CloudSnow, Moon, Sun, Wind, MapPin } from 'lucide-react';
 
 interface WeatherData {
     temperature: number;
@@ -14,11 +14,8 @@ export const WeatherWidget: React.FC = () => {
     const [error, setError] = useState(false);
 
     useEffect(() => {
-        const fetchWeather = async () => {
+        const fetchWeather = async (lat: number = 41.3879, lon: number = 2.1699) => {
             try {
-                // Coordinates for Pl. Catalunya (FGC BCN)
-                const lat = 41.3879;
-                const lon = 2.1699;
                 const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,is_day,weather_code,wind_speed_10m&timezone=Europe%2FBerlin`);
 
                 if (!res.ok) throw new Error('API Error');
@@ -39,9 +36,26 @@ export const WeatherWidget: React.FC = () => {
             }
         };
 
-        fetchWeather();
+        const initWeather = () => {
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        fetchWeather(position.coords.latitude, position.coords.longitude);
+                    },
+                    (err) => {
+                        console.warn("Geolocation denied or error, using default BCN:", err);
+                        fetchWeather(); // Default to BCN
+                    },
+                    { timeout: 10000 }
+                );
+            } else {
+                fetchWeather();
+            }
+        };
+
+        initWeather();
         // Refresh every 10 minutes
-        const interval = setInterval(fetchWeather, 10 * 60 * 1000);
+        const interval = setInterval(initWeather, 10 * 60 * 1000);
         return () => clearInterval(interval);
     }, []);
 
@@ -70,7 +84,10 @@ export const WeatherWidget: React.FC = () => {
     return (
         <div className="flex items-center gap-2 px-3 py-1.5 bg-white/50 dark:bg-black/20 backdrop-blur-md rounded-full border border-gray-200/50 dark:border-white/5 shadow-sm">
             {getWeatherIcon(weather.weatherCode, weather.isDay)}
-            <span className="text-xs font-bold text-gray-800 dark:text-gray-200">{weather.temperature}°C</span>
+            <div className="flex items-center gap-1">
+                <span className="text-xs font-bold text-gray-800 dark:text-gray-200">{weather.temperature}°C</span>
+                <MapPin size={8} className="text-fgc-green animate-pulse" />
+            </div>
             <span className="opacity-30 mx-0.5">•</span>
             <Wind size={12} className="text-gray-400" />
             <span className="text-[10px] text-gray-500 font-medium">{weather.windSpeed} km/h</span>
