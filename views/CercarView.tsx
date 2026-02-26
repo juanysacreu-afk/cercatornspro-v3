@@ -18,7 +18,7 @@ import { CirculationHeader } from '../components/CirculationHeader';
 import { CirculationRow } from '../components/CirculationRow';
 import { StationRow } from '../components/StationRow';
 import { MarqueeText } from '../components/MarqueeText';
-import { getServiceToday } from '../utils/serviceCalendar';
+import { useServiceToday } from '../utils/useServiceToday';
 import { feedback } from '../utils/feedback';
 import { useToast } from '../components/ToastProvider';
 import GlassPanel from '../components/common/GlassPanel';
@@ -36,7 +36,18 @@ const CercarViewComponent: React.FC<{
     typeof window !== 'undefined' && window.innerWidth < 768 ? 'general' : SearchType.Torn
   );
   const { showToast } = useToast();
-  const [selectedServei, setSelectedServei] = useState<string>(getServiceToday());
+  const todayService = useServiceToday();
+  const [selectedServei, setSelectedServei] = useState<string>(todayService);
+
+  // Sync selectedServei when todayService resolves from Supabase (only if user hasn't manually changed it)
+  const hasManuallySwitched = React.useRef(false);
+  const originalTodayService = React.useRef(todayService);
+  React.useEffect(() => {
+    if (!hasManuallySwitched.current && todayService !== originalTodayService.current) {
+      setSelectedServei(todayService);
+      originalTodayService.current = todayService;
+    }
+  }, [todayService]);
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);

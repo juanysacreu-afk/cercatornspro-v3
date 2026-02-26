@@ -4,7 +4,7 @@ import { Search, ShieldAlert, Loader2, UserCheck, Clock, MapPin, AlertCircle, Ph
 import { supabase } from '../supabaseClient.ts';
 import { fetchFullTurns } from '../utils/queries.ts';
 import { getStatusColor } from '../utils/fgc.ts';
-import { getServiceToday } from '../utils/serviceCalendar';
+import { useServiceToday } from '../utils/useServiceToday';
 import {
   resolveStationId, isServiceVisible, normalizeStr, mainLiniaForFilter,
   S1_STATIONS, S2_STATIONS, L6_STATIONS, L7_STATIONS, L12_STATIONS, LINIA_STATIONS,
@@ -52,7 +52,17 @@ import { useCirculationSearch } from './incidencia/hooks/useCirculationSearch';
 const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedUnits, onParkedUnitsChange, isPrivacyMode }) => {
   const [mode, setMode] = useState<IncidenciaMode>('INIT');
   const { showToast } = useToast();
-  const [selectedServei, setSelectedServei] = useState<string>(getServiceToday());
+  const todayService = useServiceToday();
+  const [selectedServei, setSelectedServei] = useState<string>(todayService);
+
+  // Update selectedServei if Supabase returns a different code than the initial sync guess
+  const resolvedFromDB = React.useRef(false);
+  useEffect(() => {
+    if (!resolvedFromDB.current && todayService !== selectedServei) {
+      setSelectedServei(todayService);
+      resolvedFromDB.current = true;
+    }
+  }, [todayService]);
   const [isRealTime, setIsRealTime] = useState(true);
   const [customTime, setCustomTime] = useState('');
   const [isPaused, setIsPaused] = useState(false);

@@ -5,7 +5,7 @@ import OrganitzaGantt from './organitza/OrganitzaGantt';
 import { supabase } from '../supabaseClient.ts';
 import { fetchFullTurns } from '../utils/queries.ts';
 import { getShortTornId } from '../utils/fgc.ts';
-import { getServiceToday } from '../utils/serviceCalendar';
+import { useServiceToday } from '../utils/useServiceToday';
 import { feedback } from '../utils/feedback';
 
 type DisDesFilterType = 'ALL' | 'DIS' | 'DES' | 'DIS_DES' | 'FOR' | 'VAC' | 'DAG' | 'SERVEI' | 'AJN';
@@ -41,7 +41,18 @@ const OrganitzaViewComponent: React.FC<{
   const [organizeType, setOrganizeType] = useState<OrganizeType>(OrganizeType.Comparador);
 
   const [nowMin, setNowMin] = useState<number>(0);
-  const [selectedServei, setSelectedServei] = useState<string>(getServiceToday());
+  const todayService = useServiceToday();
+  const [selectedServei, setSelectedServei] = useState<string>(todayService);
+
+  // Update selectedServei if Supabase returns a different code than the initial sync guess
+  // (e.g. today is a public holiday stored in the calendar DB)
+  const resolvedFromDB = React.useRef(false);
+  useEffect(() => {
+    if (!resolvedFromDB.current && todayService !== selectedServei) {
+      setSelectedServei(todayService);
+      resolvedFromDB.current = true;
+    }
+  }, [todayService]);
 
   const [turnIds, setTurnIds] = useState<string[]>(['', '', '', '']);
   const [turnsData, setTurnsData] = useState<(any | null)[]>([null, null, null, null]);

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, RefreshCcw, Train, Menu, X, Download, BookOpen, Settings, Moon, Sun, ShieldAlert, Eye, Layers, Volume2, VolumeX, MessageCircle, HelpCircle } from 'lucide-react';
+import { Search, RefreshCcw, Train, Menu, X, Download, BookOpen, Settings, Moon, Sun, ShieldAlert, Eye, Layers, Volume2, VolumeX, MessageCircle, HelpCircle, Calendar } from 'lucide-react';
 import { AppTab } from './types.ts';
 import { CercarView } from './views/CercarView.tsx';
 import OrganitzaView from './views/OrganitzaView.tsx';
@@ -14,6 +14,7 @@ import { supabase } from './supabaseClient.ts';
 import { feedback } from './utils/feedback';
 import { OnboardingTour } from './components/common/OnboardingTour.tsx';
 import { useToast } from './components/ToastProvider';
+import { CalendarManager } from './components/CalendarManager';
 import ProfileModal from './components/ProfileModal.tsx';
 import { syncOfflineData } from './utils/offlineSync';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -70,6 +71,7 @@ const App: React.FC = () => {
   const [showSecretMenu, setShowSecretMenu] = useState(false);
   const [isPrivacyMode, setIsPrivacyMode] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [userProfile, setUserProfile] = useState(() => {
@@ -622,6 +624,23 @@ const App: React.FC = () => {
                   </div>
                 </button>
 
+                {/* Calendar Manager Button */}
+                <button
+                  onClick={() => {
+                    setIsCalendarOpen(true);
+                    setIsSettingsOpen(false);
+                  }}
+                  className="w-full flex items-center gap-3 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group"
+                >
+                  <div className="p-2 rounded-xl bg-gray-100 dark:bg-white/10 text-fgc-grey dark:text-gray-300 group-hover:scale-110 transition-transform">
+                    <Calendar size={18} />
+                  </div>
+                  <div className="flex-1 text-left">
+                    <span className="text-sm font-bold text-fgc-grey dark:text-gray-200">Gestor de Calendari</span>
+                    <p className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">Codis de servei 2026</p>
+                  </div>
+                </button>
+
                 <div className="mx-3 mt-4 mb-2 p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
                   <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2">Cerca Intel·ligent</p>
                   <div className="flex flex-col gap-2">
@@ -637,6 +656,11 @@ const App: React.FC = () => {
                 </div>
               </div>
             </div>
+          )}
+
+          {/* Calendar Manager Modal */}
+          {isCalendarOpen && (
+            <CalendarManager onClose={() => setIsCalendarOpen(false)} />
           )}
 
           <div className="flex-1 w-full relative overflow-hidden">
