@@ -86,7 +86,8 @@ export enum SearchType {
   Maquinista = 'maquinista',
   Circulacio = 'circulacio',
   Estacio = 'estacio',
-  Cicle = 'cicle'
+  Cicle = 'cicle',
+  PK = 'pk'
 }
 
 export enum OrganizeType {
@@ -262,7 +263,9 @@ export interface IncidenciaViewProps {
   parkedUnits: ParkedUnit[];
   onParkedUnitsChange: () => Promise<void>;
   isPrivacyMode: boolean;
+  focusLocation?: { lat: number; lon: number; label: string; x?: number; y?: number } | null;
 }
+
 
 export type IncidenciaMode = 'INIT' | 'MAQUINISTA' | 'LINIA' | 'PER_TORN';
 

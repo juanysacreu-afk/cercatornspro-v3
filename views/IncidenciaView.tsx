@@ -49,7 +49,8 @@ import { useCirculationSearch } from './incidencia/hooks/useCirculationSearch';
 
 
 
-const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedUnits, onParkedUnitsChange, isPrivacyMode }) => {
+const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu, parkedUnits, onParkedUnitsChange, isPrivacyMode, focusLocation }) => {
+
   const [mode, setMode] = useState<IncidenciaMode>('INIT');
   const { showToast } = useToast();
   const todayService = useServiceToday();
@@ -343,6 +344,7 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
                     handleSearchCirculation={handleSearchCirculation}
                     loading={loading}
                     setLoading={setLoading}
+                    focusLocation={focusLocation}
                   />
                 </div>
               </ErrorBoundary>

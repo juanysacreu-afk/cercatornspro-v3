@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { SearchType } from '../types.ts';
-import { Search, User, Train, MapPin, Hash, ArrowRight, Loader2, Info, Phone, Clock, FileText, ChevronDown, LayoutGrid, Timer, X, BookOpen, AlertTriangle, Users, Camera, Brush, Save, Check, Share2 } from 'lucide-react';
+import { Search, User, Train, MapPin, Map as MapIcon, Hash, ArrowRight, Loader2, Info, Phone, Clock, FileText, ChevronDown, LayoutGrid, Timer, X, BookOpen, AlertTriangle, Users, Camera, Brush, Save, Check, Share2, Zap, ArrowUp, ArrowDown } from 'lucide-react';
+
+
 import { supabase } from '../supabaseClient.ts';
 
 // Importación de utilidades y componentes extraídos
@@ -23,6 +25,9 @@ import { feedback } from '../utils/feedback';
 import { useToast } from '../components/ToastProvider';
 import GlassPanel from '../components/common/GlassPanel';
 import { Skeleton, CardSkeleton, ListSkeleton } from '../components/common/Skeleton';
+import { PK_SEGMENTS, PkSegment, findPkLocation, findStationPk, PkLocationResult } from '../utils/pkUtils';
+import { getMapPositionForPk } from './incidencia/mapUtils.ts';
+
 
 const normalizeStr = (str: string) =>
   (str || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -30,8 +35,10 @@ const normalizeStr = (str: string) =>
 const CercarViewComponent: React.FC<{
   isPrivacyMode: boolean,
   externalSearch?: { type: string, query: string } | null,
-  onExternalSearchHandled?: () => void
-}> = ({ isPrivacyMode, externalSearch, onExternalSearchHandled }) => {
+  onExternalSearchHandled?: () => void,
+  onLookOnMap?: (loc: { lat: number, lon: number, label: string, x?: number, y?: number }) => void
+}> = ({ isPrivacyMode, externalSearch, onExternalSearchHandled, onLookOnMap }) => {
+
   const [searchType, setSearchType] = useState<SearchType | 'general'>(
     typeof window !== 'undefined' && window.innerWidth < 768 ? 'general' : SearchType.Torn
   );
@@ -64,6 +71,11 @@ const CercarViewComponent: React.FC<{
   const [isOfflineMode, setIsOfflineMode] = useState(!navigator.onLine);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState('');
+
+  // PK Search states
+  const [selectedPkSegment, setSelectedPkSegment] = useState<PkSegment>('PC/RE');
+
+
 
   useEffect(() => {
     const handleOnline = () => setIsOfflineMode(false);
@@ -260,7 +272,9 @@ const CercarViewComponent: React.FC<{
     { id: SearchType.Circulacio, label: 'Circulació', icon: <Train size={16} />, desktopOnly: true },
     { id: SearchType.Estacio, label: 'Estació', icon: <MapPin size={16} /> },
     { id: SearchType.Cicle, label: 'Cicle', icon: <Hash size={16} /> },
+    { id: SearchType.PK, label: 'PK', icon: <Hash size={18} /> },
   ];
+
 
   const serveiTypes = ['0', '100', '400', '500'];
 
@@ -402,7 +416,8 @@ const CercarViewComponent: React.FC<{
   const executeSearch = async (overrideQuery?: string, overrideType?: SearchType) => {
     let searchVal = overrideQuery || query;
     const currentType = overrideType || searchType;
-    if (!searchVal && currentType !== SearchType.Cicle && currentType !== SearchType.Estacio) { setResults([]); return; }
+    if (!searchVal && currentType !== SearchType.Cicle && currentType !== SearchType.Estacio && currentType !== SearchType.PK) { setResults([]); return; }
+
     setLoading(true); setResults([]); setShowSuggestions(false); setPassengerInfoMap({});
     feedback.click();
     try {
@@ -419,7 +434,7 @@ const CercarViewComponent: React.FC<{
           const allCodiSet = new Set<string>();
           allShifts.forEach(shift => {
             (shift.circulations as any[])?.forEach(c => {
-              const codi = typeof c === 'string' ? c : c.codi;
+              const codi = typeof c === 'object' ? c.cicle : null;
               if (c.cicle === searchVal) {
                 flattenedCircs.push({ ...c, shift_id: shift.id, codi });
                 if (codi && codi !== 'Viatger') allCodiSet.add(codi as string);
@@ -516,7 +531,30 @@ const CercarViewComponent: React.FC<{
           stationCode: stationCode,
           circulations: (finalResults as any[]).sort((a, b) => getFgcMinutes(a.stopTimeAtStation) - getFgcMinutes(b.stopTimeAtStation))
         }];
+      } else if (currentType === SearchType.PK) {
+        const valToSearch = overrideQuery || query;
+
+        const isPk = /^\d+([.,]\d+)?$/.test(valToSearch.replace(',', '.'));
+
+        if (isPk) {
+          const pk = parseFloat(valToSearch.replace(',', '.'));
+          const location = findPkLocation(selectedPkSegment, pk);
+          if (location) {
+            newResults = [{ type: 'pk_location', ...location }];
+          }
+        } else {
+          // Assume station search within PK
+          const station = findStationPk(valToSearch);
+          if (station) {
+            const location = findPkLocation(station.pkSegment, station.pk);
+            if (location) {
+              newResults = [{ type: 'pk_location', ...location }];
+            }
+          }
+
+        }
       } else {
+
         let turnIds: string[] = [];
 
         if (currentType === 'general') {
@@ -824,7 +862,36 @@ const CercarViewComponent: React.FC<{
               <button onClick={() => executeSearch()} className="bg-fgc-green text-[#4D5358] h-[60px] sm:h-[76px] px-8 sm:px-10 rounded-[24px] sm:rounded-[32px] text-lg sm:text-xl font-bold shadow-xl shadow-fgc-green/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3"><Search size={22} />CERCAR</button>
             </div>
 
+            {searchType === SearchType.PK && (
+              <div className="animate-in fade-in slide-in-from-top-2 duration-500 space-y-4">
+                <div className="flex items-center gap-2 mb-2 px-2">
+                  <MapPin size={16} className="text-fgc-green" />
+                  <h3 className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Tram PK o Estació</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Tram de Línia</label>
+                    <div className="flex flex-wrap gap-2">
+                      {PK_SEGMENTS.map(seg => (
+                        <button
+                          key={seg}
+                          onClick={() => {
+                            setSelectedPkSegment(seg);
+                            if (query) executeSearch(query, SearchType.PK);
+                          }}
+                          className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all ${selectedPkSegment === seg ? 'bg-fgc-green text-[#4D5358] border-fgc-green shadow-lg' : 'bg-white dark:bg-black/20 text-gray-400 border-gray-100 dark:border-white/5 hover:border-fgc-green'}`}
+                        >
+                          {seg}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {searchType === SearchType.Cicle && (
+
               <div className="animate-in fade-in slide-in-from-top-2 duration-500">
                 <div className="flex items-center gap-2 mb-4 px-2">
                   <LayoutGrid size={16} className="text-fgc-green" />
@@ -947,7 +1014,124 @@ const CercarViewComponent: React.FC<{
                 </GlassPanel>
               );
             }
+
+            if (group.type === 'pk_location') {
+              const loc = group as PkLocationResult;
+              return (
+                <GlassPanel key={idx} className="p-8 sm:p-10 !rounded-[40px] animate-in fade-in slide-in-from-bottom-12 duration-700 relative overflow-hidden group">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    <div className="flex items-center gap-6">
+                      <div className="p-4 bg-fgc-green rounded-2xl text-[#4D5358] shadow-lg"><MapPin size={24} /></div>
+                      <div>
+                        <h2 className="text-xl sm:text-2xl font-bold text-[#4D5358] dark:text-white uppercase tracking-tight">Punt Kilomètric {loc.pk.toFixed(3)}</h2>
+                        <p className="text-sm font-bold text-gray-500 uppercase tracking-widest">{loc.segment}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const mapPos = getMapPositionForPk(loc.segment, loc.percentage);
+                        onLookOnMap?.({
+                          lat: loc.lat,
+                          lon: loc.lon,
+                          label: `PK ${loc.pk.toFixed(3)} (${loc.segment})`,
+                          x: mapPos?.x,
+                          y: mapPos?.y
+                        });
+                      }}
+                      className="flex items-center gap-2 px-6 py-3 bg-fgc-green text-[#4D5358] rounded-2xl font-bold shadow-lg hover:scale-105 active:scale-95 transition-all"
+                    >
+                      <MapIcon size={20} />
+                      VEURE AL MAPA
+                    </button>
+                  </div>
+
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-10">
+                    <div className="space-y-4">
+                      <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] ml-1">Posició i Entorn</h3>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
+                          <span className="text-xs font-bold text-gray-400">ESTACIÓ ANTERIOR</span>
+                          <span className="text-sm font-bold text-[#4D5358] dark:text-white uppercase">{loc.prevStation?.name || '---'}</span>
+                        </div>
+                        <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
+                          <span className="text-xs font-bold text-gray-400">ESTACIÓ POSTERIOR</span>
+                          <span className="text-sm font-bold text-[#4D5358] dark:text-white uppercase">{loc.nextStation?.name || '---'}</span>
+                        </div>
+                        <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
+                          <span className="text-xs font-bold text-gray-400">GPS COORDINATES</span>
+                          <span className="text-xs font-mono font-bold text-[#4D5358] dark:text-gray-300">{loc.lat.toFixed(6)}, {loc.lon.toFixed(6)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col justify-center items-center p-8 bg-fgc-green/10 rounded-[32px] border-2 border-dashed border-fgc-green/30">
+                      <div className="text-[10px] font-bold text-fgc-green uppercase tracking-[0.3em] mb-4">Progrés en Tram</div>
+                      <div className="w-full h-4 bg-white dark:bg-black/20 rounded-full overflow-hidden mb-4 p-1">
+                        <div className="h-full bg-fgc-green rounded-full shadow-sm" style={{ width: `${loc.percentage * 100}%` }} />
+                      </div>
+                      <p className="text-xs font-bold text-[#4D5358] dark:text-gray-300 text-center uppercase tracking-tighter">
+                        Es troba al <span className="text-fgc-green">{(loc.percentage * 100).toFixed(1)}%</span> del trajecte entre estacions.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-10 pt-10 border-t border-gray-100 dark:border-white/5">
+                    <div className="flex items-center gap-3 mb-6">
+                      <Zap className="text-fgc-green" size={20} />
+                      <h3 className="text-sm font-bold text-[#4D5358] dark:text-white uppercase tracking-tight">Velocitats i Limitacions</h3>
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Màxima Tram</span>
+                        <div className="text-2xl font-bold text-[#4D5358] dark:text-white">{loc.speedInfo?.maxSpeed} <span className="text-xs text-gray-400">km/h</span></div>
+                      </div>
+
+                      <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">ASC Normal</span>
+                          <ArrowUp size={12} className="text-blue-500" />
+                        </div>
+                        <div className="text-2xl font-bold text-[#4D5358] dark:text-white">{loc.speedInfo?.ascNormal} <span className="text-xs text-gray-400">km/h</span></div>
+                      </div>
+
+                      <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">DESC Normal</span>
+                          <ArrowDown size={12} className="text-orange-500" />
+                        </div>
+                        <div className="text-2xl font-bold text-[#4D5358] dark:text-white">{loc.speedInfo?.descNormal} <span className="text-xs text-gray-400">km/h</span></div>
+                      </div>
+
+                      <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Contravia (A/D)</span>
+                        <div className="flex items-center gap-4">
+                          <div className="text-lg font-bold text-[#4D5358] dark:text-white">{loc.speedInfo?.ascContravia} <span className="text-[10px] text-gray-400 font-normal">A</span></div>
+                          <div className="w-px h-4 bg-gray-200 dark:bg-white/10" />
+                          <div className="text-lg font-bold text-[#4D5358] dark:text-white">{loc.speedInfo?.descContravia} <span className="text-[10px] text-gray-400 font-normal">D</span></div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {loc.speedInfo?.notes && loc.speedInfo.notes.length > 0 && (
+                      <div className="mt-6 space-y-2">
+                        {loc.speedInfo.notes.map((note, idx) => (
+                          <div key={idx} className="flex items-start gap-3 p-3 bg-amber-500/5 rounded-xl border border-amber-500/10">
+                            <AlertTriangle size={14} className="text-amber-500 mt-0.5 shrink-0" />
+                            <p className="text-xs font-medium text-amber-700 dark:text-amber-400/80 italic">{note}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                </GlassPanel>
+              )
+            }
+
             const currentStatus = getShiftCurrentStatus(group, idx);
+
             return (
               <div key={idx} className="flex flex-col gap-1 group animate-in fade-in slide-in-from-bottom-12 duration-700">
                 <GlassPanel className="p-6 sm:p-10 !rounded-t-[32px] sm:!rounded-t-[48px] !rounded-b-none relative overflow-hidden">

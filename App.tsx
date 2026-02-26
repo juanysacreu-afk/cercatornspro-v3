@@ -12,6 +12,8 @@ import CommandPalette from './components/CommandPalette.tsx';
 import Sidebar from './components/common/Sidebar.tsx';
 import { supabase } from './supabaseClient.ts';
 import { feedback } from './utils/feedback';
+import { getMapPositionForPk } from './views/incidencia/mapUtils';
+
 import { OnboardingTour } from './components/common/OnboardingTour.tsx';
 import { useToast } from './components/ToastProvider';
 import { CalendarManager } from './components/CalendarManager';
@@ -36,6 +38,9 @@ const App: React.FC = () => {
   const [unreadMessages, setUnreadMessages] = useState(0);
   const activeTabRef = useRef(activeTab);
   const { showToast } = useToast();
+  const [focusLocation, setFocusLocation] = useState<{ lat: number; lon: number; label: string; x?: number; y?: number } | null>(null);
+
+
 
   const handleTabChange = useCallback((tab: AppTab) => {
     setIsMobileMenuOpen(false);
@@ -49,6 +54,12 @@ const App: React.FC = () => {
     setGlobalSearch({ type, query });
     handleTabChange(AppTab.Cercar);
   }, [handleTabChange]);
+
+  const handleLookOnMap = useCallback((loc: { lat: number; lon: number; label: string; x?: number; y?: number }) => {
+    setFocusLocation(loc);
+    handleTabChange(AppTab.Incidencia);
+  }, [handleTabChange]);
+
 
   useEffect(() => {
     const doSync = async () => {
@@ -671,6 +682,7 @@ const App: React.FC = () => {
                   isPrivacyMode={isPrivacyMode}
                   externalSearch={globalSearch}
                   onExternalSearchHandled={() => setGlobalSearch(null)}
+                  onLookOnMap={handleLookOnMap}
                 />
               },
               {
@@ -685,8 +697,10 @@ const App: React.FC = () => {
                   parkedUnits={parkedUnits}
                   onParkedUnitsChange={fetchParkedUnits}
                   isPrivacyMode={isPrivacyMode}
+                  focusLocation={focusLocation}
                 />
               },
+
               { id: AppTab.Cicles, Component: <CiclesView parkedUnits={parkedUnits} onParkedUnitsChange={fetchParkedUnits} /> },
               { id: AppTab.Mensajeria, Component: <MensajeriaView currentProfile={userProfile} /> }
             ].map(tab => {

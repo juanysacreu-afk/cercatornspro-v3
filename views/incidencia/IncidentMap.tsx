@@ -12,7 +12,7 @@ import { MAP_STATIONS, MAP_SEGMENTS, MAP_CROSSOVERS } from './mapConstants';
 import { getFullPath, getConnectivityIslands } from './mapUtils';
 import { resolveStationId, isServiceVisible, getLiniaColorHex, formatFgcTime, mainLiniaForFilter, LINE_COLORS } from '../../utils/stations';
 import { LivePersonnel, IncidenciaMode } from '../../types';
-
+import { getMapPositionForPk } from './mapUtils';
 interface IncidentMapProps {
     liveData: LivePersonnel[];
     parkedUnits: any[];
@@ -59,8 +59,8 @@ interface IncidentMapProps {
     handleSearchCirculation: () => void;
     loading: boolean;
     setLoading: (val: boolean) => void;
+    focusLocation?: { lat: number; lon: number; label: string; x?: number; y?: number } | null;
 }
-
 const IncidentMap: React.FC<IncidentMapProps> = ({
     liveData, parkedUnits, onParkedUnitsChange, selectedTrain, setSelectedTrain,
     openDiagram, setOpenDiagram, isRealTime, setIsRealTime, customTime, setCustomTime,
@@ -71,13 +71,12 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
     setDepotSyncing, setAltServiceIsland, manualOverrides, setManualOverrides,
     openMenuId, setOpenMenuId, selectedServei, theoryCircsLocal, setTheoryCircsLocal,
     allShifts, setAllShifts, setRealMallaCircs, setIsRealMallaOpen, setQuery,
-    handleSearchCirculation, setLoading
+    handleSearchCirculation, setLoading, focusLocation
 }) => {
-
+    const transformRef = useRef<any>(null);
     const [hoveredTrain, setHoveredTrain] = useState<string | null>(null);
     const [selectedGeoTren, setSelectedGeoTren] = useState<any | null>(null);
     const positionHistoryRef = useRef<Record<string, Array<{ x: number; y: number; time: number }>>>({});
-
     // Helper functions for map interaction
     const toggleStationCut = (id: string) => {
         setSelectedCutStations(prev => {
@@ -86,7 +85,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
             return next;
         });
     };
-
     const toggleTrackCut = (from: string, to: string, track: 1 | 2) => {
         const id = `${from}-${to}-V${track}`;
         const reverseId = `${to}-${from}-V${track}`;
@@ -98,13 +96,11 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
             return next;
         });
     };
-
     const clearAllCuts = () => {
         setSelectedCutStations(new Set());
         setSelectedCutSegments(new Set());
         setAltServiceIsland(null);
     };
-
     // Update position history
     useEffect(() => {
         const now = Date.now();
@@ -120,7 +116,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                 if (history.length > 120) history.shift();
             }
         });
-
         // Clean up old trains
         const activeIds = new Set(liveData.map(p => p.id));
         Object.keys(positionHistoryRef.current).forEach(id => {
@@ -129,11 +124,25 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
             }
         });
     }, [liveData]);
-
-
+    // Effect to focus on map when focusLocation changes
+    useEffect(() => {
+        if (focusLocation && transformRef.current) {
+            let targetX = focusLocation.x;
+            let targetY = focusLocation.y;
+            if (targetX !== undefined && targetY !== undefined) {
+                // Approximate zoom and center
+                const { setTransform } = transformRef.current;
+                const containerWidth = window.innerWidth;
+                const containerHeight = window.innerHeight * 0.7; // Approx
+                const scale = 3;
+                const x = -targetX * scale + containerWidth / 2;
+                const y = -targetY * scale + containerHeight / 2;
+                setTransform(x, y, scale, 1000, "easeOutQuad");
+            }
+        }
+    }, [focusLocation]);
     const trains = liveData.filter(p => p.type === 'TRAIN' && isServiceVisible(p.servei, selectedServei));
     const resting = liveData.filter(p => p.type === 'REST');
-
     return (
         <GlassPanel className="p-4 sm:p-6 relative flex flex-col">
             {/* Zoom Controls */}
@@ -143,18 +152,18 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                         <h3 className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest leading-none">Esquema Interactiu BV</h3>
                         <div className={`flex items-center gap-2 px-2 py-0.5 rounded-lg border transition-all ${isRealTime ? 'bg-fgc-green/10 border-fgc-green/20 text-fgc-green' : 'bg-gray-100 dark:bg-white/5 border-gray-200 dark:border-white/10 text-gray-400'}`}>
                             <div className={`w-1.5 h-1.5 rounded-full ${isRealTime ? 'bg-fgc-green' : 'bg-gray-400'}`}></div>
-                            <span className="text-[8px] font-bold uppercase tracking-widest">{isRealTime ? 'En Temps Real' : 'Tall Manual'}</span>
+                            <span className="text-[10px] font-bold uppercase tracking-tighter">
+                                {isRealTime ? 'Temps Real' : (isPaused ? 'Pausat' : 'Històric')}
+                            </span>
                         </div>
                     </div>
                     <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 flex items-center gap-1"><Clock size={10} /> Estat malla: <span className="text-fgc-grey dark:text-white font-bold">{customTime || '--:--'}</span></p>
                 </div>
-
                 <div className="flex flex-wrap items-center gap-3">
                     <div className="flex flex-wrap items-center gap-3 bg-gray-50 dark:bg-black/20 p-2 rounded-[24px] border border-gray-100 dark:border-white/5">
                         <button
                             onClick={async () => {
                                 setLoading(true);
-
                                 // 1. Load ALL circulations from DB using pagination to bypass 1000-row server limit
                                 let theory = theoryCircsLocal;
                                 if (theory.length === 0 || theory.length === 1000) {
@@ -173,7 +182,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                         setTheoryCircsLocal(allCircs);
                                     }
                                 }
-
                                 // 2. Load ALL shifts
                                 let shifts = allShifts;
                                 if (!shifts || shifts.length === 0) {
@@ -184,13 +192,11 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                     }
                                 }
                                 setLoading(false);
-
                                 if (theory.length === 0) {
                                     setRealMallaCircs([]);
                                     setIsRealMallaOpen(true);
                                     return;
                                 }
-
                                 // 3. Build set of circulation IDs for selected servei
                                 const visibleShifts = (shifts || []); // Show all shifts on map regardless of service filter
                                 const circIdInServei = new Set<string>();
@@ -206,13 +212,11 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                         }
                                     });
                                 });
-
                                 // 4. Process ALL circulations, filtered by service
                                 const res: any[] = [];
                                 theory.forEach(tc => {
                                     // If a servei filter is active, only include circs referenced by that service's shifts
                                     if (selectedServei !== 'Tots' && !circIdInServei.has(tc.id)) return;
-
                                     const originId = resolveStationId(tc.inici || '', tc.linia || '');
                                     const destId = resolveStationId(tc.final || '', tc.linia || '');
                                     // Normalise L66 → L6
@@ -247,9 +251,7 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                     </div>
                 </div>
             </div>
-
             {(selectedCutStations.size > 0 || selectedCutSegments.size > 0) && (<button onClick={clearAllCuts} className="text-[10px] font-bold text-red-500 uppercase flex items-center gap-2 bg-red-50 dark:bg-red-950/30 px-4 py-2.5 rounded-xl hover:scale-105 transition-all shadow-sm border border-red-100 dark:border-red-900/40 animate-in fade-in zoom-in-95 self-start mb-4"><Trash2 size={14} /> Anul·lar Talls ({selectedCutStations.size + selectedCutSegments.size})</button>)}
-
             <div className="w-full h-[350px] sm:h-[400px] md:h-[420px] lg:h-[450px] bg-gray-50/30 dark:bg-black/20 rounded-3xl overflow-hidden border border-black/5 dark:border-white/5 relative">
                 <TransformWrapper
                     initialScale={1}
@@ -261,6 +263,7 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                     onTransformed={(_ref, state) => {
                         setMapTransform({ scale: state.scale, posX: state.positionX, posY: state.positionY });
                     }}
+                    ref={transformRef}
                 >
                     {({ zoomIn, zoomOut, resetTransform }) => (
                         <>
@@ -291,17 +294,14 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                             const s1 = MAP_STATIONS.find(s => s.id === (seg as any).from)!;
                                             const s2 = MAP_STATIONS.find(s => s.id === (seg as any).to)!;
                                             if (!s1 || !s2) return null;
-
                                             const isV1Blocked = selectedCutSegments.has(`${s1.id}-${s2.id}-V1`) || selectedCutSegments.has(`${s2.id}-${s1.id}-V1`);
                                             const isV2Blocked = selectedCutSegments.has(`${s1.id}-${s2.id}-V2`) || selectedCutSegments.has(`${s2.id}-${s1.id}-V2`);
-
                                             const dx = s2.x - s1.x;
                                             const dy = s2.y - s1.y;
                                             const len = Math.sqrt(dx * dx + dy * dy);
                                             const nx = -dy / len;
                                             const ny = dx / len;
                                             const offset = 4;
-
                                             return (
                                                 <g key={`seg-${i}`}>
                                                     <line
@@ -365,7 +365,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                             const s1 = MAP_STATIONS.find(s => s.id === (cross as any).from)!;
                                             const s2 = MAP_STATIONS.find(s => s.id === (cross as any).to)!;
                                             if (!s1 || !s2) return null;
-
                                             const cx = s1.x + (s2.x - s1.x) * (cross as any).pos;
                                             const cy = s1.y + (s2.y - s1.y) * (cross as any).pos;
                                             const dx = s2.x - s1.x;
@@ -377,7 +376,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                             const span = 6;
                                             const vx = dx / len * span;
                                             const vy = dy / len * span;
-
                                             return (
                                                 <g key={`cross-${i}`} className="opacity-40">
                                                     {((cross as any).type === 'X' || (cross as any).type === '/') && (
@@ -397,7 +395,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                                 </g>
                                             );
                                         })}
-
                                         {!isGeoTrenEnabled && trains.map((p, idx) => {
                                             const offset = (p as any).visualOffset || 0;
                                             let isAffected = false;
@@ -407,9 +404,7 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                                 const path = getFullPath(s1, s2);
                                                 path.forEach(s => effectiveCutStations.add(s));
                                             }
-
                                             if (effectiveCutStations.has(p.stationId.toUpperCase())) isAffected = true;
-
                                             if ((p as any).isMoving && (p as any).nextStationId) {
                                                 const st = p.stationId.toUpperCase();
                                                 const next = (p as any).nextStationId.toUpperCase();
@@ -421,16 +416,13 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                                     isAffected = true;
                                                 }
                                             }
-
                                             const numId = parseInt(p.id.replace(/\D/g, ''));
                                             const isAsc = numId % 2 !== 0;
                                             const trackOffset = isAsc ? 6 : -6;
                                             const labelWidth = Math.max(20, p.id.length * 5.5 + 4);
-
                                             let finalX = p.x;
                                             let finalY = p.y;
                                             let useStandardOffset = true;
-
                                             if (p.stationId === 'PC') {
                                                 const targetViaStr = (p.final === 'PC' ? p.via_final : p.via_inici) || '';
                                                 const viaMatch = targetViaStr.match(/(\d+)/);
@@ -444,7 +436,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                                     }
                                                 }
                                             }
-
                                             const isMoving = !!(p as any).isMoving;
                                             const nextStation = (p as any).nextStationId;
                                             const isHovered = hoveredTrain === p.id;
@@ -458,14 +449,12 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                                     arrowAngle = Math.atan2(dy, dx) * (180 / Math.PI);
                                                 }
                                             }
-
                                             const baseTransform = useStandardOffset ? { transform: `translate(${offset * 4}px, ${trackOffset}px)` } : {};
                                             const counterScale = mapTransform.scale > 1.5 ? 1 / mapTransform.scale : 1;
                                             const effectiveX = useStandardOffset ? finalX + offset * 4 : finalX;
                                             const effectiveY = useStandardOffset ? finalY + trackOffset : finalY;
                                             const rotationTransform = isMoving && nextStation ? `rotate(${arrowAngle})` : '';
                                             const scaleTransform = counterScale < 1 ? `scale(${counterScale})` : '';
-
                                             return (
                                                 <g
                                                     key={`${p.id}-${p.torn}-${idx}`}
@@ -519,19 +508,15 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                                     const mainLinia = mainLiniaForFilter(gt.lin);
                                                     const color = getLiniaColorHex(mainLinia);
                                                     const utLabel = (gt as any).tipus_unitat || '???';
-
                                                     // Use pre-computed mapX/mapY from hook
                                                     const x = gt.mapX;
                                                     const y = gt.mapY;
                                                     if (x === 0 && y === 0) return null;
-
                                                     // Direction offset
                                                     const isAsc = (gt as any).dir === 'A' || (gt as any).dir === 'ASC';
                                                     const yOffset = isAsc ? 7 : -7;
-
                                                     const hasDelay = gt.delayMin > 1;
                                                     const isHovered = hoveredTrain === `geotren-${gt.id}`;
-
                                                     return (
                                                         <g
                                                             key={`geotren-${gt.id}-${idx}`}
@@ -575,7 +560,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                                                     opacity={0.35}
                                                                 />
                                                             )}
-
                                                             {/* Movement pulse ring */}
                                                             {gt.isMoving && (
                                                                 <circle
@@ -587,7 +571,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                                                     style={{ animation: 'train-pulse-ring 2.5s ease-out infinite' }}
                                                                 />
                                                             )}
-
                                                             {/* Main dot */}
                                                             <circle
                                                                 cx={0} cy={0} r={8}
@@ -597,7 +580,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                                                 className="drop-shadow-md group-hover/gt:r-10 transition-all"
                                                                 style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
                                                             />
-
                                                             {/* Direction arrow */}
                                                             {gt.nextStMapId && gt.isMoving && (() => {
                                                                 const nextSt = MAP_STATIONS.find(s => s.id === gt.nextStMapId);
@@ -611,7 +593,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                                                     </g>
                                                                 );
                                                             })()}
-
                                                             {/* Label */}
                                                             <rect x={-12} y={-22} width={24} height={12} rx={4} fill="rgba(0,0,0,0.75)" />
                                                             <text
@@ -621,7 +602,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                                             >
                                                                 {utLabel}
                                                             </text>
-
                                                             {/* Delay badge */}
                                                             {hasDelay && (
                                                                 <>
@@ -635,7 +615,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                                     );
                                                 });
                                         })()}
-
                                         {/* Parked Units */}
                                         {/* Parked Units - REMOVED PER USER REQUEST (Blue dots superimposing) */}
                                         {/* 
@@ -668,7 +647,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                 </TransformWrapper>
                 {/* Mini-map removed as per user request */}
             </div>
-
             {/* Legend */}
             <div className="flex flex-wrap items-center gap-x-8 gap-y-4 px-2 mt-6 pt-6 border-t border-gray-100 dark:border-white/5">
                 {Object.entries(LINE_COLORS).filter(([k]) => k !== 'M').map(([key, config]) => (
@@ -692,7 +670,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                     <div className="flex items-center gap-2"><Activity size={12} /> Detalls</div>
                 </div>
             </div>
-
             {/* Portal-based Modals for whole-screen coverage */}
             {typeof document !== 'undefined' && createPortal(
                 <>
@@ -714,7 +691,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                             </div>
                         </div>
                     )}
-
                     {selectedGeoTren && (
                         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setSelectedGeoTren(null)}>
                             <div onClick={(e) => e.stopPropagation()} className="max-w-full">
@@ -728,7 +704,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                 </>,
                 document.body
             )}
-
             {/* Modals and Overlays */}
             {/* RE Diagram (Reina Elisenda - DIPÒSIT) */}
             <DepotModal
@@ -743,7 +718,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                 isSyncing={depotSyncing}
                 setSyncing={setDepotSyncing}
             />
-
             {/* RB Diagram (Rubí COR) */}
             <DepotModal
                 isOpen={openDiagram === 'RB_DEPOT'}
@@ -757,7 +731,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                 isSyncing={depotSyncing}
                 setSyncing={setDepotSyncing}
             />
-
             {/* NA Diagram (Terrassa) */}
             <DepotModal
                 isOpen={openDiagram === 'NA_DEPOT'}
@@ -771,7 +744,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                 isSyncing={depotSyncing}
                 setSyncing={setDepotSyncing}
             />
-
             {/* PN Diagram (Sabadell) */}
             <DepotModal
                 isOpen={openDiagram === 'PN_DEPOT'}
@@ -785,7 +757,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                 isSyncing={depotSyncing}
                 setSyncing={setDepotSyncing}
             />
-
             {/* Modal Diagrama SR (Sarrià) */}
             {openDiagram === 'SR' && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
@@ -797,7 +768,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                             <div className="w-3 h-3 rounded-full bg-blue-500 animate-pulse ring-4 ring-blue-500/20" />
                             <h2 className="text-sm font-bold text-white uppercase tracking-widest">Esquema de Vies - Sarrià</h2>
                         </div>
-
                         <div className="bg-black/60 rounded-3xl p-8 border border-white/5 relative">
                             <svg viewBox="0 0 800 350" className="w-full h-auto">
                                 <line x1="50" y1="230" x2="750" y2="230" stroke="#4D5358" strokeWidth="3" opacity="0.4" />
@@ -833,14 +803,11 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                     const isMSR = p.linia === 'MSR' || p.stationId === 'S0';
                                     const isL12 = p.linia === 'L12';
                                     const isV1 = numId % 2 !== 0;
-
                                     let trainY = isV1 ? 300 : 230;
                                     let cxValue = 440;
-
                                     if (isL12) {
                                         trainY = 160;
                                     }
-
                                     if (isMSR) {
                                         trainY = 265;
                                         cxValue = 695;
@@ -855,7 +822,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                             cxValue = 440 + (progress * 300);
                                         }
                                     }
-
                                     return (
                                         <g key={`sr-train-${p.id}`} className="transition-all duration-1000 ease-linear">
                                             <circle cx={cxValue} cy={trainY} r={12} fill={p.color} stroke="white" strokeWidth="3" className="drop-shadow-lg" />
@@ -871,7 +837,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                     </div>
                 </div>
             )}
-
             {/* Modal Diagrama TB (Av. Tibidabo) */}
             {openDiagram === 'TB' && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
@@ -921,7 +886,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                     </div>
                 </div>
             )}
-
             {/* Modal Diagrama BN (La Bonanova) */}
             {openDiagram === 'BN' && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
@@ -966,7 +930,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                     </div>
                 </div>
             )}
-
             {/* Modal Diagrama PM (Pl. Molina) */}
             {openDiagram === 'PM' && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
@@ -1020,7 +983,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                     </div>
                 </div>
             )}
-
             {/* Modal Diagrama GR (Gràcia) */}
             {openDiagram === 'GR' && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
@@ -1058,10 +1020,8 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                 {liveData.filter(p => p.stationId === 'GR' && p.type === 'TRAIN').map((p, idx) => {
                                     const numId = parseInt(p.id.replace(/\D/g, ''));
                                     const isAsc = numId % 2 !== 0;
-
                                     let trainY = isAsc ? 180 : 120;
                                     if (p.linia === 'L7') trainY = isAsc ? 240 : 60;
-
                                     let cxValue = 350;
                                     if (p.x > 82) {
                                         const progress = Math.min(1, (p.x - 80) / 30);
@@ -1070,7 +1030,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                         const progress = Math.min(1, (80 - p.x) / 30);
                                         cxValue = 350 - (progress * 300);
                                     }
-
                                     return (
                                         <g key={`gr-train-${p.id}`} className="transition-all duration-1000 ease-linear">
                                             <circle cx={cxValue} cy={trainY} r={10} fill={p.color} stroke="white" strokeWidth="3" className="drop-shadow-lg" />
@@ -1086,7 +1045,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                     </div>
                 </div>
             )}
-
             {/* Modal Diagrama PR (Provença) */}
             {openDiagram === 'PR' && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
@@ -1115,7 +1073,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                     const numId = parseInt(p.id.replace(/\D/g, ''));
                                     const isAsc = numId % 2 !== 0;
                                     const trainY = isAsc ? 140 : 60;
-
                                     let cxValue = 300;
                                     if (p.x > 52) {
                                         const progress = Math.min(1, (p.x - 50) / 30);
@@ -1124,7 +1081,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                         const progress = Math.min(1, (50 - p.x) / 30);
                                         cxValue = 300 - (progress * 250);
                                     }
-
                                     return (
                                         <g key={`pr-train-${p.id}`} className="transition-all duration-1000 ease-linear">
                                             <circle cx={cxValue} cy={trainY} r={10} fill={p.color} stroke="white" strokeWidth="3" className="drop-shadow-lg" />
@@ -1140,7 +1096,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                     </div>
                 </div>
             )}
-
             {/* Modal Diagrama PC */}
             {openDiagram === 'PC' && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
@@ -1192,7 +1147,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                         "V4": { y: 210, label: "V4" },
                                         "V5": { y: 270, label: "V5" }
                                     };
-
                                     let targetVia = p.final === 'PC' ? p.via_final : p.via_inici;
                                     let trackInfo = targetVia ? trackMap[targetVia.trim().toUpperCase()] : null;
                                     if (!trackInfo) {
@@ -1201,20 +1155,16 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                         ];
                                         trackInfo = fallbackTracks[idx % 5];
                                     }
-
                                     const Y_V1 = 60;
                                     const Y_V2 = 110;
                                     const Y_V3 = 160;
                                     const Y_V4 = 210;
                                     const Y_V5 = 270;
-
                                     let trainY = trackInfo.y;
                                     const trackLabel = trackInfo.label;
-
                                     if (!isStationed) {
                                         const numId = parseInt(p.id.replace(/\D/g, ''));
                                         const isAsc = numId % 2 !== 0;
-
                                         if (isAsc) {
                                             if (trackLabel === "V5") {
                                                 if (cxValue >= 170 && cxValue <= 230) {
@@ -1236,7 +1186,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                             }
                                             if (trackLabel === "V1") trainY = Y_V1;
                                             if (trackLabel === "V2" && cxValue < 410) trainY = Y_V2;
-
                                             if (cxValue >= 160 && cxValue <= 210) {
                                                 const pCross = (cxValue - 160) / 50;
                                                 if (trackLabel === "V1") {
@@ -1249,7 +1198,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                             }
                                         } else {
                                             trainY = Y_V1;
-
                                             if (trackLabel !== "V1") {
                                                 if (cxValue >= 430 && cxValue <= 480) {
                                                     const pGate = (480 - cxValue) / 50;
@@ -1258,7 +1206,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                                     trainY = Y_V2;
                                                 }
                                             }
-
                                             if (cxValue >= 160 && cxValue <= 210) {
                                                 const pCross = (210 - cxValue) / 50;
                                                 if (trackLabel === "V1") {
@@ -1290,7 +1237,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                     else if (trackLabel === "V3") { trainY = Y_V3; }
                                     else if (trackLabel === "V4") { trainY = Y_V4; }
                                     else if (trackLabel === "V5") { trainY = Y_V5; }
-
                                     return (
                                         <g key={`pc-train-${p.id}`} className="animate-in fade-in zoom-in duration-500">
                                             <circle cx={cxValue} cy={trainY} r={8} fill={p.color} stroke="white" strokeWidth="2" className="drop-shadow-lg" />
@@ -1298,7 +1244,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                         </g>
                                     );
                                 })}
-
                                 {parkedUnits.filter(u => u.depot_id === 'PC').map((u, i) => {
                                     const trackMap: Record<string, number> = { "1": 60, "2": 110, "3": 160, "4": 210, "5": 270 };
                                     const trainY = trackMap[u.track] || 60;
@@ -1377,15 +1322,12 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                     </div>
                 </div>
             )}
-
-
             {selectedRestLocation && groupedRestPersonnel[selectedRestLocation] && (
                 <div className="absolute top-0 right-0 h-full w-full sm:w-80 bg-white/95 dark:bg-black/90 backdrop-blur-md border-l border-gray-100 dark:border-white/10 z-[100] p-6 shadow-2xl animate-in slide-in-from-right duration-300 overflow-y-auto">
                     <div className="flex items-center justify-between mb-8 border-b border-gray-100 dark:border-white/5 pb-4"><div className="flex items-center gap-3"><div className="p-2 bg-blue-500 rounded-lg text-white"><Coffee size={20} /></div><div><h4 className="text-sm font-bold text-fgc-grey dark:text-white uppercase tracking-tight">Personal en Descans</h4><p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{MAP_STATIONS.find(s => s.id === selectedRestLocation)?.id || selectedRestLocation}</p></div></div><button onClick={() => setSelectedRestLocation(null)} className="p-2 hover:bg-gray-100 rounded-full text-gray-400 transition-colors"><X size={20} /></button></div>
                     <div className="space-y-3">{groupedRestPersonnel[selectedRestLocation].map((p, idx) => (<div key={idx} className="bg-white dark:bg-white/5 p-4 rounded-2xl border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-md transition-all group"><div className="flex items-center justify-between mb-2"><div className="flex items-center gap-2"><span className="bg-fgc-grey dark:bg-black text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase">{p.torn}</span>{p.phones && p.phones.length > 0 && (<a href={isPrivacyMode ? undefined : `tel:${p.phones[0]}`} className={`text-blue-500 hover:scale-110 transition-transform ${isPrivacyMode ? 'cursor-default' : ''}`}><Phone size={14} /></a>)}</div><span className="text-[9px] font-bold text-fgc-green uppercase tracking-widest">{p.horaPas}</span></div><p className="text-xs font-bold text-fgc-grey dark:text-gray-200 uppercase truncate">{p.driver}</p>{p.phones && p.phones.length > 0 && (<p className="text-[9px] font-bold text-gray-400 mt-1">{isPrivacyMode ? '*** ** ** **' : p.phones[0]}</p>)}</div>))}</div>
                 </div>
             )}
-
             {
                 (selectedCutStations.size > 0 || selectedCutSegments.size > 0) && dividedPersonnel && (
                     <div className="mt-6 space-y-8 animate-in fade-in slide-in-from-top-4">
@@ -1438,7 +1380,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                                     const currentStation = t.stationId.toUpperCase();
                                                     const startStation = t.shiftDep?.toUpperCase();
                                                     let isDisplaced = false;
-
                                                     if (startStation) {
                                                         const startIsland = Object.entries(islands).find(([key, stations]) => stations.has(startStation))?.[0];
                                                         const currentIsland = Object.entries(islands).find(([key, stations]) => stations.has(currentStation))?.[0];
@@ -1446,7 +1387,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                                             isDisplaced = true;
                                                         }
                                                     }
-
                                                     return (
                                                         <ListPersonnelRow
                                                             key={`${t.torn}-${t.id}`}

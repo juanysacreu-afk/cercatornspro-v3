@@ -372,3 +372,70 @@ export function avgSpeedKmhBetweenPks(
     }
     return sum / (steps + 1);
 }
+
+export interface DetailedSpeedInfo {
+    maxSpeed: number;
+    ascNormal: number;
+    descNormal: number;
+    ascContravia: number;
+    descContravia: number;
+    notes: string[];
+}
+
+export function getDetailedSpeedInfo(segment: PkSegmentKey, pk: number): DetailedSpeedInfo {
+    // 1. Max baseline for this PK
+    const maxTable = SEGMENT_MAX_BY_PK[segment] ?? [];
+    let baseline = MAX_SPEED_BY_SEGMENT[segment] ?? 60;
+    for (const r of maxTable) {
+        const lo = Math.min(r.pkStart, r.pkEnd);
+        const hi = Math.max(r.pkStart, r.pkEnd);
+        if (pk >= lo && pk <= hi) {
+            baseline = r.speedKmh;
+            break;
+        }
+    }
+
+    const info: DetailedSpeedInfo = {
+        maxSpeed: baseline,
+        ascNormal: baseline,
+        descNormal: baseline,
+        ascContravia: baseline,
+        descContravia: baseline,
+        notes: []
+    };
+
+    const checkLimit = (table: SpeedLimit[], currentVal: number) => {
+        let best = currentVal;
+        let note: string | null = null;
+        for (const r of table) {
+            const lo = Math.min(r.pkStart, r.pkEnd);
+            const hi = Math.max(r.pkStart, r.pkEnd);
+            if (pk >= lo && pk <= hi) {
+                if (r.speedKmh < best) {
+                    best = r.speedKmh;
+                    if (r.note) note = r.note;
+                }
+            }
+        }
+        return { speed: best, note };
+    };
+
+    const resAscN = checkLimit(ASC_NORMAL[segment] || [], baseline);
+    info.ascNormal = resAscN.speed;
+    if (resAscN.note) info.notes.push(`ASC Normal: ${resAscN.note}`);
+
+    const resDescN = checkLimit(DESC_NORMAL[segment] || [], baseline);
+    info.descNormal = resDescN.speed;
+    if (resDescN.note) info.notes.push(`DESC Normal: ${resDescN.note}`);
+
+    const resAscC = checkLimit(ASC_CONTRAVIA[segment] || [], baseline);
+    info.ascContravia = resAscC.speed;
+    if (resAscC.note) info.notes.push(`ASC Contravia: ${resAscC.note}`);
+
+    const resDescC = checkLimit(DESC_CONTRAVIA[segment] || [], baseline);
+    info.descContravia = resDescC.speed;
+    if (resDescC.note) info.notes.push(`DESC Contravia: ${resDescC.note}`);
+
+    return info;
+}
+
