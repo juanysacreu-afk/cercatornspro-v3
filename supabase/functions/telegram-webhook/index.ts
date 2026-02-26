@@ -162,7 +162,7 @@ serve(async (req) => {
             if (busy.length > 0) {
               text += `\n⚠️ <b>OCUPATS (${busy.length}):</b>\n`;
               busy.forEach(b => {
-                const match = b.observacions.toUpperCase().match(/COBREIX\\s+([A-Z0-9]+)/);
+                const match = b.observacions.toUpperCase().match(/COBREIX\s+([A-Z0-9]+)/);
                 const target = match ? match[1] : 'altre torn';
                 text += `• ${b.torn}: ${b.cognoms} → ${target}\n`;
               });
@@ -170,7 +170,40 @@ serve(async (req) => {
             await sendTelegramMessage(chatId, text);
           }
         }
+
+        else if (command === '/estat') {
+          const { data: assignments } = await supabase
+            .from('daily_assignments')
+            .select('torn, observacions')
+            .eq('data_servei', todayStr);
+
+          const { data: brokenTrains } = await supabase
+            .from('train_status')
+            .select('train_number')
+            .eq('is_broken', true);
+
+          const totalAssignments = assignments?.length || 0;
+          const reserves = assignments?.filter(a => a.torn?.toUpperCase().startsWith('QR')) || [];
+          const freeReservesCount = reserves.filter(a => !a.observacions?.toUpperCase().includes('COBREIX')).length;
+          const numBroken = brokenTrains?.length || 0;
+
+          let text = `<b>📊 Resum de l'Operativa (${todayStr}):</b>\n\n`;
+          text += `👥 <b>Personal:</b> ${totalAssignments} agents assignats.\n`;
+          text += `🛡️ <b>Reserves:</b> ${freeReservesCount} lliures de ${reserves.length} totals.\n`;
+          text += `🚆 <b>Material:</b> ${numBroken} trens amb avaria reportada.\n\n`;
+
+          if (numBroken > 0) {
+            text += `⚠️ <b>Trens afectats:</b> ${brokenTrains?.map(t => t.train_number).join(', ')}\n`;
+          } else {
+            text += `✅ Tot el material mòbil sense avisos d'avaria.\n`;
+          }
+
+          text += `\n<i>Dades extretes en temps real de la base de dades local.</i>`;
+
+          await sendTelegramMessage(chatId, text);
+        }
       }
+
     }
 
     return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json' } })
