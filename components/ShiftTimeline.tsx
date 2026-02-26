@@ -56,7 +56,7 @@ export const ShiftTimeline: React.FC<ShiftTimelineProps> = ({
                 <div className="absolute left-1/2 -translate-x-1/2">{showMarker && (<div className="text-[10px] font-black text-red-500 uppercase tracking-widest bg-red-50 dark:bg-red-950/30 px-4 py-1.5 rounded-full border border-red-100 dark:border-red-900 flex items-center gap-1.5 shadow-sm"><span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />Progrés: {Math.round(progressPct)}%</div>)}</div>
             </div>
             <div className="relative">
-                <div className="relative h-16 w-full bg-gray-50/50 dark:bg-black/20 rounded-[28px] flex items-center px-1 shadow-inner border border-gray-100/50 dark:border-white/5">
+                <div className="relative h-16 w-full bg-gray-50/50 dark:bg-black/20 rounded-[28px] flex items-center px-2 shadow-inner border border-gray-100/50 dark:border-white/5 overflow-x-auto no-scrollbar gap-1">
                     {segments.map((seg, i) => {
                         const widthPct = ((seg.end - seg.start) / totalDuration) * 100;
                         const isSelected = selectedSeg?.start === seg.start && selectedSeg?.end === seg.end;
@@ -71,8 +71,8 @@ export const ShiftTimeline: React.FC<ShiftTimelineProps> = ({
                                 key={i}
                                 onClick={() => setSelectedSeg(seg)}
                                 title={segmentLabel}
-                                style={{ width: `${widthPct}%` }}
-                                className={`h-8 relative transition-all mx-0.5 outline-none flex items-center justify-center group/seg ${isBroken ? 'bg-red-600' : seg.color} ${isGap ? 'rounded-xl' : 'rounded-none'} ${isSelected ? 'brightness-110 scale-y-110 z-10 shadow-lg ring-2 ring-white/50 dark:ring-white/20' : 'hover:brightness-110 hover:z-20'} ${isCurrent ? 'ring-2 ring-red-500 shadow-lg' : ''}`}
+                                style={{ flex: `${seg.end - seg.start} ${seg.end - seg.start} auto`, minWidth: '16px' }}
+                                className={`h-8 relative transition-all outline-none flex items-center justify-center group/seg ${isBroken ? 'bg-red-600' : seg.color} ${isGap ? 'rounded-xl' : 'rounded-none'} ${isSelected ? 'brightness-110 scale-y-110 z-10 shadow-lg ring-2 ring-white/50 dark:ring-white/20' : 'hover:brightness-110 hover:z-20'} ${isCurrent ? 'ring-2 ring-red-500 shadow-lg' : ''}`}
                             >
                                 {widthPct > 5 && (<span className={`text-[9px] font-black pointer-events-none truncate px-1 ${seg.type === 'circ' ? (isBroken ? 'text-white' : 'text-gray-600 dark:text-gray-300') : 'text-white'}`}>{seg.codi === 'Viatger' ? seg.realCodi : seg.codi}</span>)}
                                 {isCurrent && (
