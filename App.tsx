@@ -541,7 +541,7 @@ const App: React.FC = () => {
               ref={settingsRef}
             >
               <div className="px-6 py-3 border-b border-gray-100 dark:border-white/5">
-                <h4 className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Ajustaments</h4>
+                <h4 className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Configuració</h4>
               </div>
               <div className="px-3 pt-2">
                 {/* Profile Section inside Settings */}
