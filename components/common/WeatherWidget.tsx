@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import ReactDOM from 'react-dom';
 import {
     Cloud, CloudDrizzle, CloudFog, CloudLightning, CloudRain, CloudSnow,
     Moon, Sun, Wind, MapPin, Eye, Droplets, Thermometer, Gauge,
@@ -155,12 +156,22 @@ export const WeatherWidget: React.FC = () => {
         return () => clearInterval(id);
     }, []);
 
-    // Close on Escape
+    // Close on Escape or outside click
     useEffect(() => {
         if (!open) return;
         const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
+    }, [open]);
+
+    // Prevent body scroll when modal open
+    useEffect(() => {
+        if (open) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+        }
+        return () => { document.body.style.overflow = ''; };
     }, [open]);
 
     if (loading) return <div className="animate-pulse h-6 w-28 bg-gray-200 dark:bg-white/10 rounded-full" />;
@@ -188,19 +199,23 @@ export const WeatherWidget: React.FC = () => {
                 <span className="text-[10px] text-gray-500 font-medium">{w.windSpeed} km/h</span>
             </button>
 
-            {/* ── Full Weather Modal ── */}
-            {open && (
+            {/* ── Full Weather Modal via Portal (renders at document.body, above everything) ── */}
+            {open && ReactDOM.createPortal(
                 <div
-                    className="fixed inset-0 z-[200] flex items-start justify-end p-4 pt-16 sm:pt-20"
+                    className="fixed inset-0 z-[9999] flex items-start justify-end p-4 pt-16 sm:pt-20"
                     onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}
                 >
-                    {/* Backdrop */}
-                    <div className="absolute inset-0 bg-black/30 backdrop-blur-sm animate-in fade-in duration-200" />
+                    {/* Dimmed backdrop */}
+                    <div
+                        className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200"
+                        onClick={() => setOpen(false)}
+                    />
 
                     {/* Panel */}
                     <div
                         ref={modalRef}
-                        className="relative z-10 w-full max-w-sm bg-white/90 dark:bg-[#1a1f2e]/95 backdrop-blur-2xl border border-gray-200/60 dark:border-white/10 rounded-3xl shadow-2xl overflow-hidden animate-in slide-in-from-top-4 duration-300"
+                        className="relative z-10 w-full max-w-sm bg-white/95 dark:bg-[#1a1f2e]/98 backdrop-blur-2xl border border-gray-200/60 dark:border-white/10 rounded-3xl shadow-2xl overflow-hidden animate-in slide-in-from-top-4 duration-300"
+                        onClick={(e) => e.stopPropagation()}
                     >
                         {/* Header gradient */}
                         <div className={`relative px-6 pt-6 pb-8 ${w.isDay
@@ -334,7 +349,7 @@ export const WeatherWidget: React.FC = () => {
                         </div>
                     </div>
                 </div>
-            )}
+                , document.body)}
         </>
     );
 };
