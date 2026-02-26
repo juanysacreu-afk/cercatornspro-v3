@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { SearchType } from '../types.ts';
-import { Search, User, Train, MapPin, Map as MapIcon, Hash, ArrowRight, Loader2, Info, Phone, Clock, FileText, ChevronDown, LayoutGrid, Timer, X, BookOpen, AlertTriangle, Users, Camera, Brush, Save, Check, Share2, Zap, ArrowUp, ArrowDown } from 'lucide-react';
+import { Search, User, Train, MapPin, Map as MapIcon, Hash, ArrowRight, Loader2, Info, Phone, Clock, FileText, ChevronDown, LayoutGrid, Timer, X, BookOpen, AlertTriangle, Users, Camera, Brush, Save, Check, Share2, Zap, ArrowUp, ArrowDown, RefreshCcw, Milestone } from 'lucide-react';
+
 
 
 import { supabase } from '../supabaseClient.ts';
@@ -27,6 +28,8 @@ import GlassPanel from '../components/common/GlassPanel';
 import { Skeleton, CardSkeleton, ListSkeleton } from '../components/common/Skeleton';
 import { PK_SEGMENTS, PkSegment, findPkLocation, findStationPk, PkLocationResult } from '../utils/pkUtils';
 import { getMapPositionForPk } from './incidencia/mapUtils.ts';
+import { PkSegmentMap } from '../components/PkSegmentMap';
+
 
 
 const normalizeStr = (str: string) =>
@@ -74,6 +77,8 @@ const CercarViewComponent: React.FC<{
 
   // PK Search states
   const [selectedPkSegment, setSelectedPkSegment] = useState<PkSegment>('PC/RE');
+  const [pkMapTarget, setPkMapTarget] = useState<PkLocationResult | null>(null);
+
 
 
 
@@ -272,8 +277,8 @@ const CercarViewComponent: React.FC<{
   ];
   const filterButtonsRow2 = [
     { id: SearchType.Estacio, label: 'Estació', icon: <MapPin size={16} /> },
-    { id: SearchType.Cicle, label: 'Cicle', icon: <Hash size={16} /> },
-    { id: SearchType.PK, label: 'PK', icon: <Hash size={18} /> },
+    { id: SearchType.Cicle, label: 'Cicle', icon: <RefreshCcw size={16} /> },
+    { id: SearchType.PK, label: 'PK', icon: <Milestone size={18} /> },
   ];
   // For desktop, combine all in one flat list
   const filterButtons = [...filterButtonsRow1, ...filterButtonsRow2];
@@ -413,7 +418,16 @@ const CercarViewComponent: React.FC<{
     } else if (st === SearchType.Cicle) {
       const filtered = availableCycles.filter(c => normalizeStr(c).includes(normalizeStr(val))).slice(0, 12);
       setSuggestions(filtered); setShowSuggestions(true);
+    } else if (st === SearchType.PK) {
+      // If not looking like a number, suggest stations
+      if (!/^\d+([.,]\d*)?$/.test(val.replace(',', '.'))) {
+        const filtered = ALL_STATIONS.filter(s => normalizeStr(s).includes(normalizeStr(val))).slice(0, 10);
+        setSuggestions(filtered); setShowSuggestions(true);
+      } else {
+        setSuggestions([]); setShowSuggestions(false);
+      }
     }
+
   };
 
   const executeSearch = async (overrideQuery?: string, overrideType?: SearchType) => {
@@ -1050,16 +1064,7 @@ const CercarViewComponent: React.FC<{
                       </div>
                     </div>
                     <button
-                      onClick={() => {
-                        const mapPos = getMapPositionForPk(loc.segment, loc.percentage);
-                        onLookOnMap?.({
-                          lat: loc.lat,
-                          lon: loc.lon,
-                          label: `PK ${loc.pk.toFixed(3)} (${loc.segment})`,
-                          x: mapPos?.x,
-                          y: mapPos?.y
-                        });
-                      }}
+                      onClick={() => setPkMapTarget(loc)}
                       className="flex items-center gap-2 px-6 py-3 bg-fgc-green text-[#4D5358] rounded-2xl font-bold shadow-lg hover:scale-105 active:scale-95 transition-all"
                     >
                       <MapIcon size={20} />
@@ -1268,9 +1273,15 @@ const CercarViewComponent: React.FC<{
           document.body
         )
       }
-    </div >
+      {pkMapTarget && createPortal(
+        <PkSegmentMap result={pkMapTarget} onClose={() => setPkMapTarget(null)} />,
+        document.body
+      )}
+    </div>
   );
 };
+
+
 
 export const CercarView = React.memo(CercarViewComponent);
 export default CercarView;
