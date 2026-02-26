@@ -17,198 +17,408 @@ const getShortId = (id: string) => {
   return s;
 };
 
-async function sendTelegramMessage(chatId: string | number, text: string) {
-  if (!botToken) {
-    console.error('TELEGRAM_BOT_TOKEN not found');
-    return;
-  }
+async function sendTelegramMessage(chatId: string | number, text: string, replyMarkup?: any) {
+  if (!botToken) return;
   try {
+    const body: any = {
+      chat_id: chatId,
+      text: text,
+      parse_mode: 'HTML'
+    };
+    if (replyMarkup) body.reply_markup = replyMarkup;
+
     const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: text,
-        parse_mode: 'HTML'
-      })
+      body: JSON.stringify(body)
     });
 
-    if (res.ok) {
-      const data = await res.json();
-      if (data.ok && data.result) {
-        // Save BOT response to database so it appears in the Web App
-        const botMsg = {
-          id: `bot-${data.result.message_id}`,
-          text: text.replace(/<[^>]*>/g, ''), // Strip HTML for the DB view if preferred, or keep it
-          sender_name: '🤖 BOT NEXUS',
-          sender_id: 'bot',
-          is_alert: false,
-          created_at: new Date(data.result.date * 1000).toISOString()
-        };
-        await supabase.from('telegram_messages').upsert([botMsg], { onConflict: 'id' });
-      }
-    } else {
-      const err = await res.text();
-      console.error('Error sending message to Telegram:', err);
+    const data = await res.json();
+    if (data.ok && data.result) {
+      await supabase.from('telegram_messages').upsert([{
+        id: `bot-${data.result.message_id}`,
+        text: text.replace(/<[^>]*>/g, ''),
+        sender_name: '🤖 BOT NEXUS',
+        sender_id: 'bot',
+        is_alert: false,
+        created_at: new Date(data.result.date * 1000).toISOString()
+      }], { onConflict: 'id' });
     }
   } catch (e) {
-    console.error('Fetch error sending to Telegram:', e);
+    console.error('Error sending message:', e);
   }
+}
+
+async function answerCallbackQuery(callbackQueryId: string, text?: string) {
+  if (!botToken) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ callback_query_id: callbackQueryId, text })
+    });
+  } catch (e) {
+    console.error('Error answering callback:', e);
+  }
+}
+
+// Technical info segments
+const SEG_LABELS: Record<string, string> = {
+  'PCRE': 'PC/RE', 'GRTB': 'GR/TB', 'SRLP': 'SR/LP',
+  'LPTR': 'LP/TR', 'LPNA': 'LP/NA', 'SCPN': 'SC/PN', 'BTUN': 'BT/UN'
+};
+
+function getPkInfoText(pk: number, segKey: string): string {
+  const segLabel = SEG_LABELS[segKey] || segKey;
+  let speed = 'Desconeguda';
+  let detail = '';
+
+  if (segKey === 'PCRE') {
+    speed = pk < 4.61 ? '60 km/h' : '45 km/h';
+    if (pk < 0.22) detail = '⚠️ Sortida Pl.Catalunya: màx 25 km/h';
+    else if (pk > 4.31 && pk < 4.62) detail = '⚠️ Sarrià: màx 30 km/h';
+    else if (pk > 4.98) detail = '⚠️ Reina Elisenda: màx 30 km/h';
+  } else if (segKey === 'GRTB') {
+    speed = '60 km/h';
+    if (pk > 0.43 && pk < 0.64) detail = '⚠️ Pl.Molina: màx 40 km/h';
+    else if (pk > 1.75) detail = '⚠️ Av.Tibidabo: màx 20 km/h';
+  } else if (segKey === 'SRLP') {
+    speed = '60 km/h';
+    if (pk < 0.45) detail = '⚠️ Sortida Sarrià: màx 45 km/h';
+    else if (pk > 3.73 && pk < 3.83) detail = '⚠️ Baixador Vallvidrera: màx 60 km/h';
+  } else if (segKey === 'LPTR') {
+    speed = '90 km/h';
+    if (pk < 0.71) detail = '⚠️ Sortida Les Planes: màx 60 km/h';
+    else if (pk > 5.61 && pk < 6.29) detail = '⚠️ Sant Cugat Centre: màx 55 km/h';
+    else if (pk > 9.95 && pk < 11.0) detail = '⚠️ Rubí Centre: màx 60 km/h';
+    else if (pk > 19.86 && pk < 20.15) detail = '⚠️ Terrassa-Rambla: màx 60 km/h';
+  } else if (segKey === 'LPNA') {
+    speed = '60 km/h';
+    if (pk > 23.66 && pk < 23.85) detail = '⚠️ Nacions Unides: màx 30 km/h';
+  } else if (segKey === 'SCPN') {
+    speed = '90 km/h';
+    if (pk > 8.66 && pk < 9.69) detail = '⚠️ Can Feu | Gràcia: màx 60 km/h';
+    else if (pk > 13.91) detail = '⚠️ Sabadell Parc del Nord: màx 45 km/h';
+  } else if (segKey === 'BTUN') {
+    speed = '80 km/h';
+    if (pk < 1.3) detail = '⚠️ Tram Bellaterra: màx 60 km/h';
+  }
+
+  let t = `<b>📏 PK ${pk.toFixed(3)} — Tram ${segLabel}:</b>\n\n`;
+  t += `🚀 <b>V.Màx:</b> ${speed}\n`;
+  if (detail) t += `${detail}\n`;
+  t += `\n<i>Dades basades en l'Itinerari BV07 (Març 2023).</i>`;
+  return t;
 }
 
 serve(async (req) => {
   try {
     const update = await req.json()
+    console.log('Update received:', JSON.stringify(update));
 
+    // ─── CALLBACK QUERIES ─────────────────────────────────────────────────────
+    if (update.callback_query) {
+      const cqId = update.callback_query.id;
+      const cqChatId = update.callback_query.message?.chat?.id;
+      const cqData: string = update.callback_query.data || '';
+
+      // Answer immediately
+      await answerCallbackQuery(cqId);
+
+      if (cqChatId && cqData.startsWith('pk__')) {
+        const parts = cqData.split('__');
+        if (parts.length === 3) {
+          const pk = parseFloat(parts[1]);
+          const segKey = parts[2];
+          if (!isNaN(pk)) {
+            await sendTelegramMessage(cqChatId, getPkInfoText(pk, segKey));
+          }
+        }
+      }
+      return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json' } });
+    }
+
+    // ─── MESSAGES ─────────────────────────────────────────────────────────────
     if (update.message && update.message.from && !update.message.from.is_bot) {
       const chatId = update.message.chat.id;
-      let msgText = ''
-      if (update.message.text) {
-        msgText = update.message.text
-      } else if (update.message.caption) {
-        msgText = update.message.caption
-      } else if (update.message.document) {
-        msgText = `📎 Fitxer enviat: ${update.message.document.file_name || 'Document'}`
-      } else if (update.message.photo) {
-        msgText = '📷 Imatge enviada'
-      } else if (update.message.voice || update.message.audio) {
-        msgText = '🎤 Àudio enviat'
-      } else if (update.message.sticker) {
-        msgText = '📌 Sticker'
-      } else if (update.message.video || update.message.video_note) {
-        msgText = '📹 Vídeo enviat'
-      } else if (update.message.location) {
-        msgText = '📍 Ubicació compartida'
-      } else if (update.message.poll) {
-        msgText = '📊 Enquesta compartida'
-      } else {
-        return new Response(JSON.stringify({ ok: true, skipped: true }), { headers: { 'Content-Type': 'application/json' } })
-      }
+      const msgText: string = update.message.text || update.message.caption || '';
 
-      // 1. Save USER message to DB
-      const senderName = [update.message.from.first_name, update.message.from.last_name].filter(Boolean).join(' ').trim()
-      const newMessage = {
+      // Calculate today with Barcelona timezone (UTC+1)
+      const now = new Date();
+      // Simple offset for Spain/Europe
+      const spainTime = new Date(now.getTime() + (1 * 60 * 60 * 1000));
+      const todayStr = spainTime.toISOString().split('T')[0];
+
+      // Save to database
+      const senderName = [update.message.from.first_name, update.message.from.last_name].filter(Boolean).join(' ').trim();
+      await supabase.from('telegram_messages').upsert([{
         id: update.message.message_id.toString(),
-        text: msgText,
+        text: msgText || '📨 Fitxer/Mèdia',
         sender_name: senderName || 'Usuari Telegram',
         sender_id: update.message.from.id.toString(),
         is_alert: false,
         created_at: new Date(update.message.date * 1000).toISOString()
-      }
-      await supabase.from('telegram_messages').upsert([newMessage], { onConflict: 'id' })
+      }], { onConflict: 'id' });
 
-      // 2. Handle Commands
       if (msgText.startsWith('/')) {
-        const parts = msgText.split(' ');
+        const parts = msgText.trim().split(/\s+/);
         const command = parts[0].toLowerCase();
         const args = parts.slice(1);
-        const todayStr = new Date().toISOString().split('T')[0];
 
+        // /ajuda
         if (command === '/ajuda' || command === '/start') {
-          const helpMsg = `<b>🤖 Assistent de Consulta CCO</b>\n\nBenvolgut supervisor. Pots utilitzar aquestes ordres:\n\n` +
-            `• <code>/torn [torn]</code> - Consulta qui porta un torn\n` +
+          const helpMsg = `<b>🤖 Assistent NEXUS</b>\n\nBenvolgut supervisor. Pots utilitzar aquestes ordres:\n\n` +
+            `• <code>/torn [torn]</code> - Qui porta un torn\n` +
             `• <code>/reserves</code> - Disponibilitat de reserves\n` +
-            `• <code>/estat</code> - Resum ràpid operativa`;
+            `• <code>/estat</code> - Resum ràpid operativa\n` +
+            `• <code>/qui [UT]</code> - Qui porta una unitat ara\n` +
+            `• <code>/disponibles</code> - Agents lliures ara\n` +
+            `• <code>/tren [UT]</code> - Estat i posició d'un tren\n` +
+            `• <code>/pk [valor]</code> - Info tècnica d'un PK\n` +
+            `• <code>/clima [estació]</code> - Clima a la xarxa`;
           await sendTelegramMessage(chatId, helpMsg);
         }
 
+        // /torn
         else if (command === '/torn') {
           const target = args[0];
           if (!target) {
             await sendTelegramMessage(chatId, "❌ Indica un torn. Ex: <code>/torn Q004</code>");
           } else {
             const shortSearch = getShortId(target);
-            const { data: assignments } = await supabase
-              .from('daily_assignments')
-              .select('*')
-              .eq('data_servei', todayStr);
-
+            const { data: assignments } = await supabase.from('daily_assignments').select('*').eq('data_servei', todayStr);
             const direct = assignments?.find(a => getShortId(a.torn) === shortSearch);
             const cover = assignments?.find(a => a.observacions?.toUpperCase().includes(`COBREIX ${shortSearch}`));
 
             if (direct || cover) {
-              let text = `<b>📋 Info Torn ${shortSearch.toUpperCase()}:</b>\n\n`;
+              let text = `<b>📋 Info Torn ${shortSearch}:</b>\n\n`;
               if (direct) {
                 text += `👤 <b>Assignat:</b> ${direct.nom} ${direct.cognoms}\n`;
                 if (direct.observacions) text += `📝 <b>Obs:</b> ${direct.observacions}\n`;
               }
-              if (cover) {
-                text += `↺ <b>Cobert per:</b> ${cover.nom} ${cover.cognoms} (des de torn ${cover.torn})\n`;
-              }
+              if (cover) text += `↺ <b>Cobert per:</b> ${cover.nom} ${cover.cognoms} (torn ${cover.torn})\n`;
               await sendTelegramMessage(chatId, text);
             } else {
-              await sendTelegramMessage(chatId, `⚠️ El torn <b>${shortSearch}</b> no té agent assignat.`);
+              await sendTelegramMessage(chatId, `⚠️ El torn <b>${shortSearch}</b> no té agent assignat avui.`);
             }
           }
         }
 
+        // /reserves
         else if (command === '/reserves') {
-          const { data: assignments } = await supabase
-            .from('daily_assignments')
-            .select('*')
-            .eq('data_servei', todayStr)
-            .ilike('torn', 'QR%');
-
+          const { data: assignments } = await supabase.from('daily_assignments').select('*').eq('data_servei', todayStr).ilike('torn', 'QR%');
           if (!assignments || assignments.length === 0) {
-            await sendTelegramMessage(chatId, "📭 No hi ha torns de reserva.");
+            await sendTelegramMessage(chatId, "📭 No hi ha torns de reserva avui.");
           } else {
             const free = assignments.filter(a => !a.observacions?.toUpperCase().includes('COBREIX'));
             const busy = assignments.filter(a => a.observacions?.toUpperCase().includes('COBREIX'));
-
-            let text = `<b>🛡️ Reserves:</b>\n\n`;
-            text += `✅ <b>LLIURES (${free.length}):</b>\n`;
+            let text = `<b>🛡️ Reserves (${todayStr}):</b>\n\n✅ <b>Lliures:</b>\n`;
             free.forEach(f => text += `• ${f.torn}: ${f.cognoms}\n`);
-
             if (busy.length > 0) {
-              text += `\n⚠️ <b>OCUPATS (${busy.length}):</b>\n`;
-              busy.forEach(b => {
-                const match = b.observacions.toUpperCase().match(/COBREIX\s+([A-Z0-9]+)/);
-                const target = match ? match[1] : 'altre torn';
-                text += `• ${b.torn}: ${b.cognoms} → ${target}\n`;
-              });
+              text += `\n⚠️ <b>Ocupats:</b>\n`;
+              busy.forEach(b => text += `• ${b.torn}: ${b.cognoms}\n`);
             }
             await sendTelegramMessage(chatId, text);
           }
         }
 
-        else if (command === '/estat') {
-          const { data: assignments } = await supabase
-            .from('daily_assignments')
-            .select('torn, observacions')
-            .eq('data_servei', todayStr);
+        // /disponibles (Alias of /reserves but more focused on "Now")
+        else if (command === '/disponibles') {
+          const { data: assignments } = await supabase.from('daily_assignments').select('*').eq('data_servei', todayStr).ilike('torn', 'QR%');
+          const free = assignments?.filter(a => !a.observacions?.toUpperCase().includes('COBREIX')) || [];
 
-          const { data: brokenTrains } = await supabase
-            .from('train_status')
-            .select('train_number')
-            .eq('is_broken', true);
-
-          const totalAssignments = assignments?.length || 0;
-          const reserves = assignments?.filter(a => a.torn?.toUpperCase().startsWith('QR')) || [];
-          const freeReservesCount = reserves.filter(a => !a.observacions?.toUpperCase().includes('COBREIX')).length;
-          const numBroken = brokenTrains?.length || 0;
-
-          let text = `<b>📊 Resum de l'Operativa (${todayStr}):</b>\n\n`;
-          text += `👥 <b>Personal:</b> ${totalAssignments} agents assignats.\n`;
-          text += `🛡️ <b>Reserves:</b> ${freeReservesCount} lliures de ${reserves.length} totals.\n`;
-          text += `🚆 <b>Material:</b> ${numBroken} trens amb avaria reportada.\n\n`;
-
-          if (numBroken > 0) {
-            text += `⚠️ <b>Trens afectats:</b> ${brokenTrains?.map(t => t.train_number).join(', ')}\n`;
+          if (free.length === 0) {
+            await sendTelegramMessage(chatId, "📭 No hi ha agents de reserva disponibles ara mateix.");
           } else {
-            text += `✅ Tot el material mòbil sense avisos d'avaria.\n`;
+            let text = `<b>👨‍✈️ Agents Disponibles Ara:</b>\n\n`;
+            free.forEach(a => text += `• <b>${a.torn}</b>: ${a.cognoms}, ${a.nom}\n`);
+            text += `\n<i>Llista basada en torns de reserva (QR) no ocupats.</i>`;
+            await sendTelegramMessage(chatId, text);
           }
+        }
 
-          text += `\n<i>Dades extretes en temps real de la base de dades local.</i>`;
-
+        // /estat
+        else if (command === '/estat') {
+          const { data: assignments } = await supabase.from('daily_assignments').select('torn, observacions').eq('data_servei', todayStr);
+          const { data: broken } = await supabase.from('train_status').select('train_number').eq('is_broken', true);
+          const freeQR = assignments?.filter(a => a.torn?.startsWith('QR') && !a.observacions?.toUpperCase().includes('COBREIX')).length || 0;
+          let text = `<b>📊 Estat Operativa (${todayStr}):</b>\n\n`;
+          text += `👥 <b>Personal:</b> ${assignments?.length || 0} agents assignats.\n`;
+          text += `🛡️ <b>Reserves:</b> ${freeQR} agents lliures.\n`;
+          text += `🚆 <b>Material:</b> ${broken?.length || 0} trens amb avaria.\n`;
           await sendTelegramMessage(chatId, text);
         }
+
+        // /qui [UT]
+        else if (command === '/qui') {
+          const ut = args[0];
+          if (!ut) {
+            await sendTelegramMessage(chatId, '❌ Indica una UT. Ex: <code>/qui 112.01</code>');
+          } else {
+            const { data: train } = await supabase.from('train_status').select('*').eq('train_number', ut).single();
+            if (train?.service_id) {
+              const { data: shifts } = await supabase.from('shifts').select('id').contains('circulations', JSON.stringify([{ codi: train.service_id }]));
+              if (shifts?.length) {
+                const { data: assig } = await supabase.from('daily_assignments').select('*').eq('data_servei', todayStr).in('torn', shifts.map(s => getShortId(s.id)));
+                if (assig?.length) await sendTelegramMessage(chatId, `👤 <b>UT ${ut}:</b> ${assig[0].nom} ${assig[0].cognoms} (${assig[0].torn})`);
+                else await sendTelegramMessage(chatId, `⚠️ Sense agent per al servei ${train.service_id}.`);
+              } else await sendTelegramMessage(chatId, `⚠️ Cap torn trobat per al servei ${train.service_id}.`);
+            } else await sendTelegramMessage(chatId, `⚠️ UT ${ut} sense servei.`);
+          }
+        }
+
+        // /tren [UT]
+        else if (command === '/tren') {
+          const ut = args[0];
+          const { data: train } = await supabase.from('train_status').select('*').eq('train_number', ut).single();
+          if (train) {
+            let t = `<b>🚆 Info Unitat ${ut}:</b>\n\n`;
+            t += `📍 <b>Posició:</b> ${train.last_station || '?'} → ${train.next_station || '?'}\n`;
+            t += `🔧 <b>Estat:</b> ${train.is_broken ? '🔴 AVARIADA' : '🟢 OK'}\n`;
+            t += `⏱️ <b>Retard:</b> ${train.delay || 0} min\n`;
+            await sendTelegramMessage(chatId, t);
+          } else await sendTelegramMessage(chatId, `⚠️ UT ${ut} no trobada.`);
+        }
+
+        // /pk [valor]
+        else if (command === '/pk') {
+          const pkVal = parseFloat(args[0]);
+          if (isNaN(pkVal)) {
+            await sendTelegramMessage(chatId, "❌ Indica un PK numèric. Ex: <code>/pk 4.5</code>");
+          } else {
+            const keyboard = {
+              inline_keyboard: [
+                [{ text: 'PC/RE', callback_data: `pk__${pkVal}__PCRE` }, { text: 'GR/TB', callback_data: `pk__${pkVal}__GRTB` }],
+                [{ text: 'SR/LP', callback_data: `pk__${pkVal}__SRLP` }, { text: 'LP/TR', callback_data: `pk__${pkVal}__LPTR` }],
+                [{ text: 'LP/NA', callback_data: `pk__${pkVal}__LPNA` }, { text: 'SC/PN', callback_data: `pk__${pkVal}__SCPN` }],
+                [{ text: 'BT/UN', callback_data: `pk__${pkVal}__BTUN` }]
+              ]
+            };
+            await sendTelegramMessage(chatId, `<b>📏 PK ${pkVal.toFixed(3)} — Selecciona el tram:</b>`, keyboard);
+          }
+        }
+
+        // /clima [estació]
+        // Accepts: station codes (PC, GR, SA, RE, TB, LP, SC, BT, UN, RB, TR, NA, PN, DN...)
+        //          or full/partial names
+        else if (command === '/clima') {
+          // Full FGC network station map with GPS coords
+          const STATIONS: Record<string, { name: string; lat: number; lon: number }> = {
+            // Línia PC-RE (L6)
+            'PC': { name: 'Plaça Catalunya', lat: 41.3875, lon: 2.1696 },
+            'GR': { name: 'Gràcia', lat: 41.3984, lon: 2.1562 },
+            'PA': { name: 'Provença / Diagonal', lat: 41.3917, lon: 2.1486 },
+            'SA': { name: 'Sarrià', lat: 41.3974, lon: 2.1233 },
+            'RE': { name: 'Reina Elisenda', lat: 41.3965, lon: 2.1095 },
+            // Línia GR-TB (L7)
+            'TB': { name: 'Av. Tibidabo', lat: 41.4152, lon: 2.1326 },
+            // Línia SR-LP
+            'SR': { name: 'Sarrià (LP)', lat: 41.3974, lon: 2.1233 },
+            'BO': { name: 'Bonanova / Tres Torres', lat: 41.4028, lon: 2.1318 },
+            'PU': { name: 'Putget', lat: 41.4089, lon: 2.1392 },
+            'LS': { name: 'La Floresta', lat: 41.4453, lon: 2.0862 },
+            'LP': { name: 'Les Planes', lat: 41.4399, lon: 2.0769 },
+            // Línia LP-TR (S1, S5, S55)
+            'SC': { name: 'Sant Cugat del Vallès', lat: 41.4716, lon: 2.0783 },
+            'MV': { name: 'Mira-sol', lat: 41.4866, lon: 2.0698 },
+            'VK': { name: 'Volpelleres', lat: 41.4948, lon: 2.0641 },
+            'BT': { name: 'Bellaterra', lat: 41.4980, lon: 2.0820 },
+            'UN': { name: 'Universitat Autònoma', lat: 41.5006, lon: 2.0952 },
+            'CD': { name: 'Can Domènech', lat: 41.5115, lon: 2.0870 },
+            'CF': { name: 'Cerdanyola del Vallès', lat: 41.5197, lon: 2.1014 },
+            'SS': { name: 'Sabadell Sud', lat: 41.5296, lon: 2.1048 },
+            'SE': { name: 'Sabadell Estació', lat: 41.5396, lon: 2.1085 },
+            'SM': { name: 'Sabadell Plaça Major', lat: 41.5443, lon: 2.1076 },
+            'PN': { name: 'Sabadell Parc del Nord', lat: 41.5494, lon: 2.1065 },
+            // Rubí branch  
+            'RB': { name: 'Rubí', lat: 41.4870, lon: 2.0335 },
+            'CS': { name: 'Can Canyameres', lat: 41.5041, lon: 2.0255 },
+            'CU': { name: 'Can Abellet', lat: 41.5148, lon: 2.0172 },
+            // Terrassa
+            'TR': { name: 'Terrassa Rambla', lat: 41.5605, lon: 2.0073 },
+            'TE': { name: 'Terrassa Estació', lat: 41.5591, lon: 2.0072 },
+            'NA': { name: 'Nacions Unides (Terrassa)', lat: 41.5648, lon: 2.0102 },
+            'DN': { name: 'Depòsit de Nacions Unides', lat: 41.5662, lon: 2.0120 },
+            // Depòsits / cocheras
+            'DRE': { name: 'Dipòsit Reina Elisenda', lat: 41.3960, lon: 2.1090 },
+            'DPC': { name: 'Dipòsit Pl. Catalunya', lat: 41.3878, lon: 2.1695 },
+            'DPN': { name: 'Dipòsit Parc del Nord', lat: 41.5510, lon: 2.1060 },
+          };
+
+          // Normalize aliases and full names
+          const ALIASES: Record<string, string> = {
+            'BARCELONA': 'PC', 'PLAÇA CATALUNYA': 'PC', 'PLACA CATALUNYA': 'PC', 'PLACACATALUNYA': 'PC',
+            'GRACIA': 'GR', 'GRÀCIA': 'GR',
+            'SARRIA': 'SA', 'SARRIÀ': 'SA',
+            'REINA ELISENDA': 'RE', 'REINAELISENDA': 'RE',
+            'TIBIDABO': 'TB', 'AV TIBIDABO': 'TB', 'AVINGUDA TIBIDABO': 'TB',
+            'LES PLANES': 'LP', 'LESPLANES': 'LP', 'PLANES': 'LP',
+            'SANT CUGAT': 'SC', 'SANTCUGAT': 'SC', 'CUGAT': 'SC', 'ST CUGAT': 'SC',
+            'BELLATERRA': 'BT',
+            'UAB': 'UN', 'UNIVERSITAT AUTONOMA': 'UN', 'UNIVERSITAT AUTÒNOMA': 'UN',
+            'RUBI': 'RB', 'RUBÍ': 'RB',
+            'TERRASSA': 'TR', 'TERRASSA RAMBLA': 'TR', 'TERRASSARAMBLA': 'TR',
+            'NACIONS UNIDES': 'NA', 'NACIONSUNIDES': 'NA',
+            'SABADELL': 'SM', 'SABADELL PLACA MAJOR': 'SM', 'SABADELL PLAÇA MAJOR': 'SM',
+            'SABADELL SUD': 'SS', 'SABADELLSUD': 'SS',
+            'SABADELL NORD': 'PN', 'PARC DEL NORD': 'PN', 'PARCNORD': 'PN',
+            'CERDANYOLA': 'CF', 'CERDANYOLA DEL VALLES': 'CF',
+            'MIRA-SOL': 'MV', 'MIRASOL': 'MV',
+          };
+
+          const inputRaw = args.join(' ').trim();
+          const inputUpper = inputRaw.toUpperCase();
+
+          // Look up by code or alias
+          let stationKey = STATIONS[inputUpper] ? inputUpper : (ALIASES[inputUpper] || null);
+
+          if (!inputRaw) {
+            // No input: list all available stations
+            const validCodes = Object.entries(STATIONS).map(([k, v]) => `<code>${k}</code> ${v.name}`).join('\n');
+            await sendTelegramMessage(chatId,
+              `<b>🌤️ Usa: <code>/clima [codi estació]</code></b>\n\n<b>Estacions disponibles:</b>\n${validCodes}`
+            );
+          } else if (!stationKey) {
+            // Not found
+            await sendTelegramMessage(chatId,
+              `❌ Estació "<b>${inputRaw}</b>" no trobada.\n\nUsa <code>/clima</code> per veure les estacions disponibles.`
+            );
+          } else {
+            const st = STATIONS[stationKey];
+            try {
+              const res = await fetch(
+                `https://api.open-meteo.com/v1/forecast?latitude=${st.lat}&longitude=${st.lon}&current=temperature_2m,weather_code,wind_speed_10m,is_day&timezone=Europe%2FBerlin`
+              );
+              const data = await res.json();
+              if (data.current) {
+                const wc = data.current.weather_code;
+                const isDay = data.current.is_day === 1;
+                // Map weather code to emoji
+                let emoji = isDay ? '☀️' : '🌙';
+                if (wc >= 1 && wc <= 3) emoji = '⛅';
+                else if (wc === 45 || wc === 48) emoji = '🌫️';
+                else if (wc >= 51 && wc <= 57) emoji = '🌦️';
+                else if (wc >= 61 && wc <= 67) emoji = '🌧️';
+                else if (wc >= 71 && wc <= 77) emoji = '❄️';
+                else if (wc >= 80 && wc <= 82) emoji = '🌧️';
+                else if (wc >= 95 && wc <= 99) emoji = '⛈️';
+
+                await sendTelegramMessage(chatId,
+                  `<b>${emoji} Clima a ${st.name} (${stationKey}):</b>\n\n` +
+                  `🌡️ <b>Temperatura:</b> ${Math.round(data.current.temperature_2m)} °C\n` +
+                  `💨 <b>Vent:</b> ${Math.round(data.current.wind_speed_10m)} km/h\n` +
+                  `\n<i>Dades Open-Meteo en temps real.</i>`
+                );
+              } else {
+                await sendTelegramMessage(chatId, "❌ Error en obtenir dades de clima.");
+              }
+            } catch { await sendTelegramMessage(chatId, "❌ Error en consultar el clima."); }
+          }
+        }
       }
-
     }
-
-    return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json' } })
+    return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json' } });
   } catch (error) {
-    console.error('Error processing webhook payload:', error)
-    return new Response(JSON.stringify({ error: error.message }), { status: 500 })
+    return new Response(JSON.stringify({ error: error.message }), { status: 500 });
   }
 })
