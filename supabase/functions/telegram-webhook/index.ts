@@ -386,14 +386,29 @@ serve(async (req) => {
           } else {
             const st = STATIONS[stationKey];
             try {
-              const res = await fetch(
-                `https://api.open-meteo.com/v1/forecast?latitude=${st.lat}&longitude=${st.lon}&current=temperature_2m,weather_code,wind_speed_10m,is_day&timezone=Europe%2FBerlin`
-              );
+              const params = [
+                `latitude=${st.lat}`,
+                `longitude=${st.lon}`,
+                `current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,is_day,visibility,precipitation_probability,cloud_cover,pressure_msl`,
+                `daily=sunrise,sunset,temperature_2m_max,temperature_2m_min,precipitation_sum,uv_index_max,wind_speed_10m_max`,
+                `timezone=Europe%2FBerlin`,
+                `forecast_days=1`
+              ].join('&');
+              const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`);
               const data = await res.json();
               if (data.current) {
-                const wc = data.current.weather_code;
-                const isDay = data.current.is_day === 1;
-                // Map weather code to emoji
+                const c = data.current;
+                const dy = data.daily;
+                const wc = c.weather_code;
+                const isDay = c.is_day === 1;
+                const WMO: Record<number, string> = {
+                  0: 'Cel clar', 1: 'Principalment clar', 2: 'Parcialment nuvolat', 3: 'Cobert',
+                  45: 'Boira', 48: 'Boira gelant', 51: 'Plugim fi', 61: 'Pluja lleu',
+                  63: 'Pluja moderada', 65: 'Pluja forta', 71: 'Neu lleu', 73: 'Neu moderada',
+                  75: 'Neu forta', 80: 'Ruixats lleus', 81: 'Ruixats moderats', 82: 'Ruixats violents',
+                  95: 'Tempesta', 96: 'Tempesta amb calamarsa', 99: 'Tempesta forta'
+                };
+                const desc = WMO[wc] || 'Variable';
                 let emoji = isDay ? '☀️' : '🌙';
                 if (wc >= 1 && wc <= 3) emoji = '⛅';
                 else if (wc === 45 || wc === 48) emoji = '🌫️';
@@ -401,18 +416,36 @@ serve(async (req) => {
                 else if (wc >= 61 && wc <= 67) emoji = '🌧️';
                 else if (wc >= 71 && wc <= 77) emoji = '❄️';
                 else if (wc >= 80 && wc <= 82) emoji = '🌧️';
-                else if (wc >= 95 && wc <= 99) emoji = '⛈️';
-
-                await sendTelegramMessage(chatId,
-                  `<b>${emoji} Clima a ${st.name} (${stationKey}):</b>\n\n` +
-                  `🌡️ <b>Temperatura:</b> ${Math.round(data.current.temperature_2m)} °C\n` +
-                  `💨 <b>Vent:</b> ${Math.round(data.current.wind_speed_10m)} km/h\n` +
-                  `\n<i>Dades Open-Meteo en temps real.</i>`
-                );
+                else if (wc >= 95) emoji = '⛈️';
+                const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSO', 'SO', 'OSO', 'O', 'ONO', 'NO', 'NNO'];
+                const windDir = dirs[Math.round((c.wind_direction_10m || 0) / 22.5) % 16];
+                const visKm = Math.round((c.visibility || 0) / 100) / 10;
+                const uvVal = Math.round(dy.uv_index_max?.[0] ?? 0);
+                const uvLabel = uvVal <= 2 ? 'Baix' : uvVal <= 5 ? 'Moderat' : uvVal <= 7 ? 'Alt' : uvVal <= 10 ? 'Molt alt' : 'Extrem';
+                const fmt = (iso: string) => { try { return new Date(iso).toLocaleTimeString('ca-ES', { hour: '2-digit', minute: '2-digit' }); } catch { return '--'; } };
+                const alerts: string[] = [];
+                if (visKm < 1) alerts.push('⚠️ <b>VISIBILITAT REDUÏDA</b> (&lt;1 km)');
+                if ((c.wind_gusts_10m || 0) > 60) alerts.push(`⚠️ <b>RATXES FORTES</b> (${Math.round(c.wind_gusts_10m)} km/h)`);
+                if (wc >= 95) alerts.push('⚠️ <b>TEMPESTA ACTIVA</b>');
+                let msg = `<b>${emoji} Clima a ${st.name} (${stationKey})</b>\n<i>${desc}</i>\n\n`;
+                msg += `🌡️ <b>Temperatura:</b> ${Math.round(c.temperature_2m)} °C <i>(sensació ${Math.round(c.apparent_temperature)} °C)</i>\n`;
+                msg += `🔼 <b>Màx/Mín:</b> ${Math.round(dy.temperature_2m_max?.[0] ?? 0)}° / ${Math.round(dy.temperature_2m_min?.[0] ?? 0)}°\n`;
+                msg += `\n💧 <b>Humitat:</b> ${c.relative_humidity_2m}%\n`;
+                msg += `☁️ <b>Nuvolositat:</b> ${c.cloud_cover}%\n`;
+                msg += `👁 <b>Visibilitat:</b> ${visKm} km\n`;
+                msg += `🌧️ <b>Prob. precipitació:</b> ${c.precipitation_probability || 0}% <i>(${Math.round((dy.precipitation_sum?.[0] ?? 0) * 10) / 10} mm previstos)</i>\n`;
+                msg += `\n💨 <b>Vent:</b> ${Math.round(c.wind_speed_10m)} km/h ${windDir}\n`;
+                msg += `💥 <b>Ratxes màx.:</b> ${Math.round(c.wind_gusts_10m || 0)} km/h\n`;
+                msg += `🔘 <b>Pressió:</b> ${Math.round(c.pressure_msl)} hPa\n`;
+                msg += `\n🌅 <b>Sortida / Posta sol:</b> ${fmt(dy.sunrise?.[0])} / ${fmt(dy.sunset?.[0])}\n`;
+                msg += `☀️ <b>Índex UV màx.:</b> ${uvVal} <i>(${uvLabel})</i>\n`;
+                if (alerts.length > 0) msg += `\n${alerts.join('\n')}`;
+                msg += `\n\n<i>Open-Meteo · temps real</i>`;
+                await sendTelegramMessage(chatId, msg);
               } else {
-                await sendTelegramMessage(chatId, "❌ Error en obtenir dades de clima.");
+                await sendTelegramMessage(chatId, '❌ Error en obtenir dades de clima.');
               }
-            } catch { await sendTelegramMessage(chatId, "❌ Error en consultar el clima."); }
+            } catch { await sendTelegramMessage(chatId, '❌ Error en consultar el clima.'); }
           }
         }
       }
