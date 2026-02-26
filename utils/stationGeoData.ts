@@ -6,6 +6,8 @@
  *  - Kilometric points (PK): "Punts Quilomètrics.pdf" (Itinerari BV07, Dec 2022 / March 2023)
  *  - Distance between stations: same PDF (km)
  *  - Declivity: same PDF (‰, ascending direction)
+ *  - Speed limits: "Velocitats màximes i limitacions.pdf" (Itinerari BV07, Dec 2022 / March 2023)
+ *    → see utils/speedLimits.ts for the full speed-limit tables
  *
  * PK coordinates are NOT contiguous across the whole network.
  * Each segment has its own PK origin (0.000):
@@ -17,6 +19,7 @@
  *   SC/PN  → starts at 0 from Sant Cugat towards Sabadell Parc del Nord
  *   BT/UN  → Universitat Autònoma has its own sub-PK inside SC/PN segment (BT→UN = 1.300km)
  */
+import { avgSpeedKmhBetweenPks } from './speedLimits';
 
 export interface StationGeoData {
     /** Short code used in GeoTren API (origen/desti/properes_parades/estacionat_a) */
@@ -143,17 +146,66 @@ export function interpolateBetweenStations(
 }
 
 /**
- * Estimate ETA in minutes to a target station given:
- *  - remainingKm: distance still to travel (km)
- *  - avgSpeedKmh: average speed (defaults to 50 km/h for FGC metro lines)
- *  - knownDelayMin: official delay from GeoTren API (minutes)
+ * Estimate ETA in minutes using a fixed average speed.
+ * Kept as a fast fallback when PK data is not available.
  */
 export function estimateEta(
     remainingKm: number,
-    avgSpeedKmh = 50,
+    avgSpeedKmh = 60,
     knownDelayMin = 0
 ): number {
     const travelMin = (remainingKm / avgSpeedKmh) * 60;
+    return Math.max(0, Math.round(travelMin + knownDelayMin));
+}
+
+/**
+ * Estimate ETA in minutes using the REAL speed limits of the segment (PK-weighted average).
+ *
+ * This is the preferred method when both GPS coords and station PK data are available.
+ *
+ * @param fromSt      Station the train is currently between (or coming from)
+ * @param toSt        Target next station
+ * @param trainLat    Train GPS latitude
+ * @param trainLon    Train GPS longitude
+ * @param isAscending true = heading toward higher PK (toward Terrassa/Sabadell/Tibidabo/RE)
+ * @param isContravia true = running on contravia track
+ * @param knownDelayMin Official delay from GeoTren API (minutes, positive = late)
+ */
+export function estimateEtaByPk(
+    fromSt: StationGeoData,
+    toSt: StationGeoData,
+    trainLat: number,
+    trainLon: number,
+    isAscending: boolean,
+    isContravia = false,
+    knownDelayMin = 0
+): number {
+    // Only valid when both stations share the same PK segment
+    if (fromSt.pkSegment !== toSt.pkSegment) {
+        // Cross-segment: fall back to haversine + max segment speed
+        const distKm = haversineKm(trainLat, trainLon, toSt.lat, toSt.lon);
+        return estimateEta(distKm, 60, knownDelayMin);
+    }
+
+    // PK of the train inferred from GPS interpolation within the segment
+    const t = interpolateBetweenStations(trainLat, trainLon, fromSt, toSt);
+    const trainPk = fromSt.pk + t * (toSt.pk - fromSt.pk);
+    const pkFrom = trainPk;
+    const pkTo = toSt.pk;
+
+    // Weighted average speed along the remaining PK range
+    const avgSpeed = avgSpeedKmhBetweenPks(
+        fromSt.pkSegment,
+        pkFrom,
+        pkTo,
+        isAscending,
+        isContravia,
+        30  // integration steps
+    );
+
+    // Remaining distance by GPS (more reliable than PK delta alone)
+    const remainingKm = haversineKm(trainLat, trainLon, toSt.lat, toSt.lon);
+    const travelMin = (remainingKm / avgSpeed) * 60;
     return Math.max(0, Math.round(travelMin + knownDelayMin));
 }
 

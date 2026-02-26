@@ -5,7 +5,7 @@ import {
     getLiniaColorHex, getShortTornId
 } from '../../../utils/stations';
 import {
-    STATION_GEO_MAP, interpolateBetweenStations, estimateEta, haversineKm
+    STATION_GEO_MAP, interpolateBetweenStations, estimateEta, estimateEtaByPk, haversineKm
 } from '../../../utils/stationGeoData';
 import { MAP_STATIONS } from '../mapConstants';
 import { getFullPath } from '../mapUtils';
@@ -160,10 +160,23 @@ export const useLiveMapData = ({
         }
 
         if (nextStMapId) {
-            if (trainLat && trainLon && toGeo) {
-                // GPS-based ETA: remaining km → time at avg speed
-                const remainingKm = haversineKm(trainLat, trainLon, toGeo.lat, toGeo.lon);
-                etaNextMin = estimateEta(remainingKm, 50, delayMin);
+            if (trainLat && trainLon && fromGeo && toGeo) {
+                // Preferred: PK-based ETA with real speed limits
+                // Determine direction: ascending = moving toward higher PK
+                const isAscending = fromGeo.pk < toGeo.pk;
+                try {
+                    etaNextMin = estimateEtaByPk(
+                        fromGeo, toGeo,
+                        trainLat, trainLon,
+                        isAscending,
+                        false, // contravia not yet detectable from GeoTren API
+                        delayMin
+                    );
+                } catch (_) {
+                    // Fallback to simple haversine if PK calculation fails
+                    const remainingKm = haversineKm(trainLat, trainLon, toGeo.lat, toGeo.lon);
+                    etaNextMin = estimateEta(remainingKm, 60, delayMin);
+                }
             } else if (nextStops.length > 0 && nextStops[0].hora_prevista) {
                 // Schedule-based ETA fallback
                 const etaFromSchedule = getFgcMinutes(nextStops[0].hora_prevista);
