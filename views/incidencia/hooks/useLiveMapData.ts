@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../../supabaseClient';
 import {
     getFgcMinutes, formatFgcTime, isServiceVisible, resolveStationId,
@@ -7,6 +7,28 @@ import {
 import { MAP_STATIONS } from '../mapConstants';
 import { getFullPath } from '../mapUtils';
 import type { LivePersonnel, IncidenciaMode, GeoTrenPoint, Shift } from '../../../types';
+
+// ── GeoTren Enhanced Types ──────────────────────────────────────────────
+export interface GeoTrenEnhanced extends GeoTrenPoint {
+    /** SVG map x coordinate (interpolated between stations) */
+    mapX: number;
+    /** SVG map y coordinate (interpolated between stations) */
+    mapY: number;
+    /** True when moving between stations (not parked) */
+    isMoving: boolean;
+    /** Resolved next station ID on FGC map */
+    nextStMapId: string | null;
+    /** Minutes of delay vs. theoretical schedule (positive = late) */
+    delayMin: number;
+    /** ETA to next stop in minutes (from current real time) */
+    etaNextMin: number | null;
+    /** Array of past SVG positions for breadcrumb trail */
+    trail: Array<{ x: number; y: number; ts: number }>;
+}
+
+const GEOTREN_API = 'https://dadesobertes.fgc.cat/api/v2/catalog/datasets/posicionament-dels-trens/exports/json';
+const GEOTREN_POLL_INTERVAL = 30000; // 30s as per audit spec
+const TRAIL_MAX = 8;               // max breadcrumb points per vehicle
 
 interface UseLiveMapDataProps {
     isRealTime: boolean;
@@ -23,7 +45,6 @@ export const useLiveMapData = ({
 }: UseLiveMapDataProps) => {
     const [loading, setLoading] = useState(false);
     const [liveData, setLiveData] = useState<LivePersonnel[]>([]);
-    const [geoTrenData, setGeoTrenData] = useState<GeoTrenPoint[]>([]);
     const [displayMin, setDisplayMin] = useState<number>(0);
     const [allShifts, setAllShifts] = useState<Shift[]>([]); // Cache shifts
 
@@ -60,25 +81,106 @@ export const useLiveMapData = ({
         }
     }, [customTime, isRealTime, isPaused, mode]);
 
-    // GeoTren Data
-    const fetchGeoTrenData = async () => {
-        try {
-            const resp = await fetch('https://dadesobertes.fgc.cat/api/v2/catalog/datasets/posicionament-dels-trens/exports/json');
-            if (!resp.ok) return;
-            const data = await resp.json();
-            setGeoTrenData(data);
-        } catch (err) {
-            console.error('GeoTren fetch error:', err);
+    // GeoTren Enhanced Data
+    const geoTrenEnhancedRef = useRef<Map<string, GeoTrenEnhanced>>(new Map());
+    const [geoTrenData, setGeoTrenData] = useState<GeoTrenEnhanced[]>([]);
+
+    /** Build enhanced GeoTren entry with map coordinates + trail */
+    const buildEnhanced = useCallback((raw: GeoTrenPoint): GeoTrenEnhanced => {
+        const mainLinia = raw.lin;
+        let mapX = 0, mapY = 0;
+        let isMoving = false;
+        let nextStMapId: string | null = null;
+
+        // Resolve current station
+        const curStId = raw.estacionat_a ? resolveStationId(raw.estacionat_a, mainLinia) : null;
+
+        // Parse next stops
+        let nextStops: Array<{ parada: string; hora_prevista?: string }> = [];
+        if ((raw as any).properes_parades && typeof (raw as any).properes_parades === 'string') {
+            try {
+                nextStops = (raw as any).properes_parades.split(';').map((p: string) => JSON.parse(p));
+            } catch (_) { }
+        } else if (Array.isArray((raw as any).properes_parades)) {
+            nextStops = (raw as any).properes_parades;
         }
-    };
+
+        if (nextStops.length > 0) {
+            nextStMapId = resolveStationId(nextStops[0].parada, mainLinia);
+        }
+
+        const s1 = curStId ? MAP_STATIONS.find(s => s.id === curStId) : null;
+        const s2 = nextStMapId ? MAP_STATIONS.find(s => s.id === nextStMapId) : null;
+
+        if (s1 && s2 && !raw.estacionat_a) {
+            // Moving — interpolate position to midpoint between current and next station
+            mapX = (s1.x + s2.x) / 2;
+            mapY = (s1.y + s2.y) / 2;
+            isMoving = true;
+        } else if (s1) {
+            mapX = s1.x; mapY = s1.y;
+        } else if (s2) {
+            mapX = s2.x; mapY = s2.y;
+        } else if ((raw as any).origen) {
+            const sO = MAP_STATIONS.find(s => s.id === resolveStationId((raw as any).origen, mainLinia));
+            if (sO) { mapX = sO.x; mapY = sO.y; }
+        }
+
+        // ETA and delay computation
+        let delayMin = 0;
+        let etaNextMin: number | null = null;
+        if (typeof (raw as any).retard === 'number') {
+            delayMin = Math.round((raw as any).retard / 60); // API returns seconds
+        }
+        if (nextStops.length > 0 && nextStops[0].hora_prevista) {
+            const etaFromSchedule = getFgcMinutes(nextStops[0].hora_prevista);
+            if (etaFromSchedule !== null) {
+                const now = new Date();
+                const h = now.getHours();
+                const m = now.getMinutes();
+                const nowMin = (h < 4 ? h + 24 : h) * 60 + m;
+                etaNextMin = Math.max(0, etaFromSchedule + delayMin - nowMin);
+            }
+        }
+
+        // Trail from previous enhanced entry
+        const prev = geoTrenEnhancedRef.current.get(raw.id);
+        const trail: Array<{ x: number; y: number; ts: number }> = prev?.trail ? [...prev.trail] : [];
+        if (mapX !== 0 || mapY !== 0) {
+            const last = trail[trail.length - 1];
+            if (!last || Math.abs(last.x - mapX) > 0.5 || Math.abs(last.y - mapY) > 0.5) {
+                trail.push({ x: mapX, y: mapY, ts: Date.now() });
+                if (trail.length > TRAIL_MAX) trail.shift();
+            }
+        }
+
+        const enhanced: GeoTrenEnhanced = {
+            ...raw,
+            mapX, mapY, isMoving, nextStMapId, delayMin, etaNextMin, trail
+        };
+        geoTrenEnhancedRef.current.set(raw.id, enhanced);
+        return enhanced;
+    }, []);
+
+    const fetchGeoTrenData = useCallback(async () => {
+        try {
+            const resp = await fetch(GEOTREN_API);
+            if (!resp.ok) return;
+            const data: GeoTrenPoint[] = await resp.json();
+            const enhanced = data.map(buildEnhanced).filter(gt => gt.mapX !== 0 || gt.mapY !== 0);
+            setGeoTrenData(enhanced);
+        } catch (err) {
+            console.error('[GeoTren] fetch error:', err);
+        }
+    }, [buildEnhanced]);
 
     useEffect(() => {
         if (isGeoTrenEnabled && !isPaused) {
             fetchGeoTrenData();
-            const interval = setInterval(fetchGeoTrenData, 5000); // More frequent GPS updates
+            const interval = setInterval(fetchGeoTrenData, GEOTREN_POLL_INTERVAL);
             return () => clearInterval(interval);
         }
-    }, [isGeoTrenEnabled, isPaused]);
+    }, [isGeoTrenEnabled, isPaused, fetchGeoTrenData]);
 
     // Live Map Data Fetching
     const fetchLiveMapData = async () => {

@@ -156,12 +156,24 @@ export interface MapSegment {
 export interface GeoTrenPoint {
   id: string;
   lin: string;
+  /** Station where the train is currently parked/stopped */
   estacionat_a?: string;
-  proper_parades?: Array<{
-    parada: string;
-    hora_prevista?: string;
-  }>;
+  /** Semicolon-separated JSON array of upcoming stops */
+  properes_parades?: string | Array<{ parada: string; hora_prevista?: string }>;
+  /** Delay in seconds (positive = late) */
   retard?: number;
+  // FGC public API additional fields
+  tipus_unitat?: string;
+  dir?: string;
+  en_hora?: string;
+  origen?: string;
+  desti?: string;
+  via_inici?: string;
+  via_final?: string;
+  ocupacio_m1_percent?: number | null;
+  ocupacio_ri_percent?: number | null;
+  ocupacio_mi_percent?: number | null;
+  ocupacio_m2_percent?: number | null;
 }
 
 // ──────────────────────────────────────────────

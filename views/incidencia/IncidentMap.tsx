@@ -514,56 +514,34 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                         })}
                                         {(() => {
                                             if (!isGeoTrenEnabled) return null;
-                                            return geoTrenData
+                                            return (geoTrenData as import('./hooks/useLiveMapData').GeoTrenEnhanced[])
                                                 .map((gt, idx) => {
                                                     const mainLinia = mainLiniaForFilter(gt.lin);
                                                     const color = getLiniaColorHex(mainLinia);
+                                                    const utLabel = (gt as any).tipus_unitat || '???';
 
-                                                    // Display unit type (e.g., 112, 113, 114, 115)
-                                                    const utLabel = gt.tipus_unitat || '???';
+                                                    // Use pre-computed mapX/mapY from hook
+                                                    const x = gt.mapX;
+                                                    const y = gt.mapY;
+                                                    if (x === 0 && y === 0) return null;
 
-                                                    let stId = gt.estacionat_a ? resolveStationId(gt.estacionat_a, mainLinia) : null;
-                                                    let nextStId: string | null = null;
-
-                                                    if (gt.properes_parades && typeof gt.properes_parades === 'string') {
-                                                        try {
-                                                            const parts = gt.properes_parades.split(';');
-                                                            if (parts.length > 0) {
-                                                                const first = JSON.parse(parts[0]);
-                                                                nextStId = resolveStationId(first.parada, mainLinia);
-                                                            }
-                                                        } catch (e) { }
-                                                    }
-
-                                                    // Determine visual position
-                                                    let x = 0, y = 0;
-                                                    const s1 = stId ? MAP_STATIONS.find(s => s.id === stId) : null;
-                                                    const s2 = nextStId ? MAP_STATIONS.find(s => s.id === nextStId) : null;
-
-                                                    if (s1 && s2 && !gt.estacionat_a) {
-                                                        // Moving between stations - place midway for simplicity in schematic
-                                                        x = (s1.x + s2.x) / 2;
-                                                        y = (s1.y + s2.y) / 2;
-                                                    } else if (s1) {
-                                                        x = s1.x; y = s1.y;
-                                                    } else if (s2) {
-                                                        x = s2.x; y = s2.y;
-                                                    } else if (gt.origen) {
-                                                        const sOrig = MAP_STATIONS.find(s => s.id === resolveStationId(gt.origen, mainLinia));
-                                                        if (sOrig) { x = sOrig.x; y = sOrig.y; }
-                                                        else return null;
-                                                    } else {
-                                                        return null;
-                                                    }
-
-                                                    // Visual offset based on direction
-                                                    const isAsc = gt.dir === 'A' || gt.dir === 'ASC';
+                                                    // Direction offset
+                                                    const isAsc = (gt as any).dir === 'A' || (gt as any).dir === 'ASC';
                                                     const yOffset = isAsc ? 7 : -7;
+
+                                                    const hasDelay = gt.delayMin > 1;
+                                                    const isHovered = hoveredTrain === `geotren-${gt.id}`;
 
                                                     return (
                                                         <g
                                                             key={`geotren-${gt.id}-${idx}`}
-                                                            className="animate-in fade-in duration-500 cursor-pointer group/gt"
+                                                            className="cursor-pointer group/gt"
+                                                            style={{
+                                                                // Smooth CSS transition for position changes
+                                                                transition: 'transform 1.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                                                                transform: `translate(${x}px, ${y + yOffset}px)`,
+                                                                transformOrigin: '0 0'
+                                                            }}
                                                             onMouseEnter={() => setHoveredTrain(`geotren-${gt.id}`)}
                                                             onMouseLeave={() => setHoveredTrain(null)}
                                                             onClick={(e) => {
@@ -572,34 +550,87 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                                                 setSelectedGeoTren(gt);
                                                             }}
                                                         >
+                                                            {/* Breadcrumb trail — only on hover */}
+                                                            {isHovered && gt.trail.length > 1 && gt.trail.slice(0, -1).map((pt, ti) => {
+                                                                const opacity = 0.12 + (ti / gt.trail.length) * 0.3;
+                                                                const r = 1.2 + (ti / gt.trail.length) * 2;
+                                                                return (
+                                                                    <circle
+                                                                        key={`gt-trail-${gt.id}-${ti}`}
+                                                                        cx={pt.x - x}
+                                                                        cy={pt.y - (y + yOffset)}
+                                                                        r={r}
+                                                                        fill={color}
+                                                                        opacity={opacity}
+                                                                    />
+                                                                );
+                                                            })}
+                                                            {isHovered && gt.trail.length > 1 && (
+                                                                <polyline
+                                                                    points={gt.trail.map(pt => `${pt.x - x},${pt.y - (y + yOffset)}`).join(' ')}
+                                                                    fill="none"
+                                                                    stroke={color}
+                                                                    strokeWidth="1"
+                                                                    strokeDasharray="2,2"
+                                                                    opacity={0.35}
+                                                                />
+                                                            )}
+
+                                                            {/* Movement pulse ring */}
+                                                            {gt.isMoving && (
+                                                                <circle
+                                                                    cx={0} cy={0} r={12}
+                                                                    fill="none"
+                                                                    stroke={color}
+                                                                    strokeWidth="1.5"
+                                                                    opacity={0.5}
+                                                                    style={{ animation: 'train-pulse-ring 2.5s ease-out infinite' }}
+                                                                />
+                                                            )}
+
+                                                            {/* Main dot */}
                                                             <circle
-                                                                cx={x}
-                                                                cy={y + yOffset}
-                                                                r={8}
+                                                                cx={0} cy={0} r={8}
                                                                 fill={color}
                                                                 stroke="white"
                                                                 strokeWidth="2.5"
-                                                                className="drop-shadow-md group-hover/gt:scale-125 transition-transform"
+                                                                className="drop-shadow-md group-hover/gt:r-10 transition-all"
                                                                 style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
                                                             />
-                                                            <rect
-                                                                x={x - 12}
-                                                                y={y + yOffset - 22}
-                                                                width={24}
-                                                                height={12}
-                                                                rx={4}
-                                                                fill="black"
-                                                                fillOpacity={0.7}
-                                                                className="group-hover/gt:fill-opacity-90"
-                                                            />
+
+                                                            {/* Direction arrow */}
+                                                            {gt.nextStMapId && gt.isMoving && (() => {
+                                                                const nextSt = MAP_STATIONS.find(s => s.id === gt.nextStMapId);
+                                                                if (!nextSt) return null;
+                                                                const dx = nextSt.x - x;
+                                                                const dy = (nextSt.y + yOffset) - (y + yOffset);
+                                                                const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+                                                                return (
+                                                                    <g style={{ transform: `rotate(${angle}deg)` }}>
+                                                                        <polygon points="13,0 10,-2.5 10,2.5" fill={color} stroke="white" strokeWidth="0.5" />
+                                                                    </g>
+                                                                );
+                                                            })()}
+
+                                                            {/* Label */}
+                                                            <rect x={-12} y={-22} width={24} height={12} rx={4} fill="rgba(0,0,0,0.75)" />
                                                             <text
-                                                                x={x}
-                                                                y={y + yOffset - 13}
+                                                                x={0} y={-13}
                                                                 textAnchor="middle"
                                                                 className="text-[8px] font-bold fill-white pointer-events-none"
                                                             >
                                                                 {utLabel}
                                                             </text>
+
+                                                            {/* Delay badge */}
+                                                            {hasDelay && (
+                                                                <>
+                                                                    <circle cx={9} cy={-18} r={5} fill="#ef4444" stroke="white" strokeWidth="1" />
+                                                                    <text x={9} y={-15} textAnchor="middle" className="text-[5px] font-black fill-white pointer-events-none">
+                                                                        +{gt.delayMin}'
+                                                                    </text>
+                                                                </>
+                                                            )}
                                                         </g>
                                                     );
                                                 });

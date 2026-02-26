@@ -1,9 +1,10 @@
 import React from 'react';
-import { X, Train, ArrowRight, Activity, Clock, Users, MapPin, Info } from 'lucide-react';
+import { X, Train, ArrowRight, Activity, Clock, Users, MapPin, Info, AlertTriangle, Timer } from 'lucide-react';
 import { getLiniaColorHex, LINIA_STATIONS, resolveStationId } from '../utils/stations';
+import type { GeoTrenEnhanced } from '../views/incidencia/hooks/useLiveMapData';
 
 interface GeoTrenInspectorPopupProps {
-    gt: any;
+    gt: GeoTrenEnhanced;
     onClose: () => void;
 }
 
@@ -11,23 +12,26 @@ const GeoTrenInspectorPopup: React.FC<GeoTrenInspectorPopupProps> = ({ gt, onClo
     if (!gt) return null;
 
     const liniaColor = getLiniaColorHex(gt.lin);
-    const isPunctual = gt.en_hora === 'True';
+    const isPunctual = (gt as any).en_hora === 'True';
+    const hasDelay = gt.delayMin > 1;
 
-    // Extract improper parades if they exist
+    // Extract next stops
     let nextStops: any[] = [];
-    if (gt.properes_parades && typeof gt.properes_parades === 'string') {
+    if ((gt as any).properes_parades && typeof (gt as any).properes_parades === 'string') {
         try {
-            const parts = gt.properes_parades.split(';');
+            const parts = (gt as any).properes_parades.split(';');
             nextStops = parts.map((p: string) => JSON.parse(p));
         } catch (e) { }
+    } else if (Array.isArray((gt as any).properes_parades)) {
+        nextStops = (gt as any).properes_parades;
     }
 
     // Capacity calculation
     const coaches = [
-        { name: 'M1', val: gt.ocupacio_m1_percent },
-        { name: 'RI', val: gt.ocupacio_ri_percent },
-        { name: 'MI', val: gt.ocupacio_mi_percent },
-        { name: 'M2', val: gt.ocupacio_m2_percent }
+        { name: 'M1', val: (gt as any).ocupacio_m1_percent },
+        { name: 'RI', val: (gt as any).ocupacio_ri_percent },
+        { name: 'MI', val: (gt as any).ocupacio_mi_percent },
+        { name: 'M2', val: (gt as any).ocupacio_m2_percent }
     ].filter(c => c.val !== null);
 
     const avgOccupation = coaches.length > 0
@@ -38,8 +42,8 @@ const GeoTrenInspectorPopup: React.FC<GeoTrenInspectorPopupProps> = ({ gt, onClo
     const stationList = LINIA_STATIONS[gt.lin] || [];
     let progress = 0;
     if (stationList.length > 0) {
-        const originId = resolveStationId(gt.origen, gt.lin);
-        const destId = resolveStationId(gt.desti, gt.lin);
+        const originId = resolveStationId((gt as any).origen, gt.lin);
+        const destId = resolveStationId((gt as any).desti, gt.lin);
         const originIdx = stationList.indexOf(originId);
         const destIdx = stationList.indexOf(destId);
 
@@ -51,8 +55,7 @@ const GeoTrenInspectorPopup: React.FC<GeoTrenInspectorPopupProps> = ({ gt, onClo
                 const nextId = resolveStationId(nextStops[0].parada, gt.lin);
                 const nextIdx = stationList.indexOf(nextId);
                 if (nextIdx !== -1) {
-                    // If moving, we are roughly between last station and next
-                    currentIdx = gt.dir === 'A' ? nextIdx + 0.5 : nextIdx - 0.5;
+                    currentIdx = (gt as any).dir === 'A' ? nextIdx + 0.5 : nextIdx - 0.5;
                 }
             }
 
@@ -124,6 +127,26 @@ const GeoTrenInspectorPopup: React.FC<GeoTrenInspectorPopupProps> = ({ gt, onClo
                             </p>
                             <p className={`text-xs font-black uppercase ${isPunctual ? 'text-fgc-green' : 'text-red-500'}`}>
                                 {isPunctual ? 'Puntual' : 'Amb retard'}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Delay + ETA row */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className={`p-3 rounded-2xl border ${hasDelay ? 'bg-red-500/15 border-red-500/30' : 'bg-white/5 border-white/10'}`}>
+                            <p className="text-[8px] font-black text-gray-300 uppercase tracking-widest mb-1 flex items-center gap-1">
+                                <AlertTriangle size={10} /> Retard
+                            </p>
+                            <p className={`text-sm font-black ${hasDelay ? 'text-red-400' : 'text-fgc-green'}`}>
+                                {hasDelay ? `+${gt.delayMin} min` : 'Cap retard'}
+                            </p>
+                        </div>
+                        <div className="bg-white/5 p-3 rounded-2xl border border-white/10">
+                            <p className="text-[8px] font-black text-gray-300 uppercase tracking-widest mb-1 flex items-center gap-1">
+                                <Timer size={10} /> ETA Pròx. Parada
+                            </p>
+                            <p className="text-sm font-black text-white">
+                                {gt.etaNextMin !== null ? `~${gt.etaNextMin} min` : '—'}
                             </p>
                         </div>
                     </div>
