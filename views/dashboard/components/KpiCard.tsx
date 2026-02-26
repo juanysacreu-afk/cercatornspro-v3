@@ -1,6 +1,68 @@
 import React from 'react';
 import { Info } from 'lucide-react';
 
+// ── Inline Sparkline SVG ───────────────────────────────────────────────────
+// Renders a mini trend chart as an SVG polyline from an array of values.
+// Data is normalised to the viewBox height. No external lib required.
+const Sparkline: React.FC<{ data: number[]; color: string; height?: number }> = ({
+    data,
+    color,
+    height = 28,
+}) => {
+    if (!data || data.length < 2) return null;
+    const width = 64;
+    const min = Math.min(...data);
+    const max = Math.max(...data);
+    const range = max - min || 1;
+    const pad = 3;
+
+    const points = data
+        .map((v, i) => {
+            const x = pad + (i / (data.length - 1)) * (width - pad * 2);
+            const y = pad + ((1 - (v - min) / range) * (height - pad * 2));
+            return `${x.toFixed(1)},${y.toFixed(1)}`;
+        })
+        .join(' ');
+
+    // Area fill (semi-transparent)
+    const firstX = pad;
+    const lastX = (width - pad).toFixed(1);
+    const bottomY = height - pad;
+    const areaPoints = `${firstX},${bottomY} ${points} ${lastX},${bottomY}`;
+
+    return (
+        <svg
+            width={width}
+            height={height}
+            viewBox={`0 0 ${width} ${height}`}
+            className="shrink-0 opacity-70"
+            aria-hidden="true"
+        >
+            <polygon points={areaPoints} fill={color} fillOpacity="0.12" />
+            <polyline
+                points={points}
+                fill="none"
+                stroke={color}
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+            />
+            {/* Last point dot */}
+            {(() => {
+                const lastPair = points.split(' ').pop()!.split(',');
+                return (
+                    <circle
+                        cx={lastPair[0]}
+                        cy={lastPair[1]}
+                        r="2.5"
+                        fill={color}
+                    />
+                );
+            })()}
+        </svg>
+    );
+};
+
 // ── KpiCard (C1 extraction) ────────────────────────────────────────────────
 export const KpiCard: React.FC<{
     label: string;
@@ -12,8 +74,10 @@ export const KpiCard: React.FC<{
     trend?: 'up' | 'down' | 'neutral';
     infoText?: string;
     progress?: number;
+    /** Historical samples for the sparkline (last N readings, newest last) */
+    sparklineData?: number[];
     className?: string;
-}> = ({ label, value, subtitle, icon, color, pulse, trend, infoText, progress, className = '' }) => (
+}> = ({ label, value, subtitle, icon, color, pulse, trend, infoText, progress, sparklineData, className = '' }) => (
     <div className={`relative rounded-3xl p-5 sm:p-6 transition-all duration-500 hover:scale-[1.02] hover:shadow-xl
         bg-white/70 dark:bg-white/[0.04] backdrop-blur-xl border border-white/20 dark:border-white/5
         shadow-[0_4px_24px_0_rgba(31,38,135,0.06)] dark:shadow-[0_4px_24px_0_rgba(0,0,0,0.25)] flex flex-col justify-between ${className}`}
@@ -86,14 +150,28 @@ export const KpiCard: React.FC<{
                     <div className="min-w-0 flex-1">
                         <div className="text-sm sm:text-base lg:text-lg 2xl:text-xl font-bold text-[#4D5358] dark:text-white leading-tight uppercase tracking-wide transition-all">{label}</div>
                         {subtitle && <div className="text-[11px] sm:text-xs lg:text-sm 2xl:text-base font-medium text-gray-500 dark:text-gray-400 mt-1 lg:mt-1.5 leading-snug transition-all">{subtitle}</div>}
+                        {/* Sparkline below the label for progress cards */}
+                        {sparklineData && sparklineData.length >= 2 && (
+                            <div className="mt-2">
+                                <Sparkline data={sparklineData} color={color} height={24} />
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
         ) : (
             <div className="relative z-10 mt-auto">
-                <div className="text-3xl sm:text-4xl lg:text-5xl 2xl:text-6xl font-black tracking-tight text-[#4D5358] dark:text-white mt-1 lg:mt-4 transition-all duration-500" style={{ color }}>{value}</div>
-                <div className="text-sm lg:text-base 2xl:text-lg font-bold text-[#4D5358] dark:text-gray-300 mt-1 lg:mt-3 uppercase tracking-wide transition-all">{label}</div>
-                {subtitle && <div className="text-xs lg:text-sm 2xl:text-base text-gray-400 dark:text-gray-500 mt-0.5 lg:mt-1.5 font-medium transition-all">{subtitle}</div>}
+                <div className="flex items-end justify-between gap-2">
+                    <div>
+                        <div className="text-3xl sm:text-4xl lg:text-5xl 2xl:text-6xl font-black tracking-tight text-[#4D5358] dark:text-white mt-1 lg:mt-4 transition-all duration-500" style={{ color }}>{value}</div>
+                        <div className="text-sm lg:text-base 2xl:text-lg font-bold text-[#4D5358] dark:text-gray-300 mt-1 lg:mt-3 uppercase tracking-wide transition-all">{label}</div>
+                        {subtitle && <div className="text-xs lg:text-sm 2xl:text-base text-gray-400 dark:text-gray-500 mt-0.5 lg:mt-1.5 font-medium transition-all">{subtitle}</div>}
+                    </div>
+                    {/* Sparkline aligned right for value cards */}
+                    {sparklineData && sparklineData.length >= 2 && (
+                        <Sparkline data={sparklineData} color={color} height={32} />
+                    )}
+                </div>
             </div>
         )}
     </div>

@@ -8,6 +8,8 @@ import GlassPanel from '../../components/common/GlassPanel';
 import ErrorBoundary from '../../components/common/ErrorBoundary';
 import { useDashboardData } from './hooks/useDashboardData';
 import { feedback } from '../../utils/feedback';
+import { useToast } from '../../components/ToastProvider';
+import { exportDashboardCSV } from '../../utils/export';
 
 // ── Sub-components (C1 extractions) ────────────────────
 import { KpiCard } from './components/KpiCard';
@@ -86,41 +88,7 @@ const UpcomingCoveragePanel: React.FC<{
     );
 };
 
-// ── F5 – Export to CSV ─────────────────────────────────
-function exportDashboardCSV(kpis: any, alerts: any[], reserves: any[]) {
-    const lines: string[] = [
-        'NEXUS — Resum Operacional',
-        `Data,${new Date().toLocaleDateString('ca-ES')}`,
-        `Hora exportació,${new Date().toLocaleTimeString('ca-ES')}`,
-        '',
-        '--- KPIs ---',
-        `Cobertura servei,${kpis.serviceCoverage}%`,
-        `Planificació diària,${kpis.planningCoverage}%`,
-        `Circulacions actives,${kpis.activeTrains}`,
-        `Circulacions programades,${kpis.scheduledTrains}`,
-        `Total torns,${kpis.totalPersonnel}`,
-        `Torns assignats,${kpis.assignedPersonnel}`,
-        `Personal actiu ara,${kpis.activePersonnel}`,
-        `Reserves disponibles,${kpis.reserveAvailable}`,
-        `Unitats operatives,${kpis.availableTrainUnits}`,
-        `Unitats avariades,${kpis.brokenTrainUnits}`,
-        '',
-        '--- ALERTES ---',
-        'Severitat,Títol,Detall',
-        ...alerts.map(a => `${a.severity},"${a.title}","${a.subtitle}"`),
-        '',
-        '--- RESERVES ---',
-        'Estació,Torn,Cognom,Nom',
-        ...reserves.flatMap(r => r.personnel.map((p: any) => `${r.station},"${p.torn}","${p.cognoms}","${p.nom}"`))
-    ];
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `nexus-resum-${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-}
+// ── F5 – Export moved to utils/export.ts ─────────────────
 
 interface DashboardProps {
     onNavigateToSearch?: (type: string, query: string) => void;
@@ -130,11 +98,19 @@ interface DashboardProps {
 
 // ── Main Dashboard ─────────────────────────────────────
 const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, isMonitorMode, setIsMonitorMode }) => {
+    const { showToast } = useToast();
+
+    // Wire threshold alerts to the toast system
+    const handleThresholdAlert = useCallback((msg: string) => {
+        showToast(msg, 'error');
+        feedback.deepClick();
+    }, [showToast]);
+
     const {
         loading, kpis, alerts, criticalAlerts, warningAlerts, upcomingAlerts,
         reserves, lineStatuses, lastRefresh, lastRefreshLabel,
-        nowMin, serviceToday, refresh
-    } = useDashboardData();
+        nowMin, serviceToday, refresh, sparklines
+    } = useDashboardData(handleThresholdAlert);
 
     const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -145,7 +121,7 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
         setTimeout(() => setIsRefreshing(false), 600);
     };
 
-    // F5 – export handler
+    // F5 – export handler (delegates to utils/export.ts)
     const handleExportCSV = useCallback(() => {
         feedback.deepClick();
         exportDashboardCSV(kpis, alerts, reserves);
@@ -268,6 +244,7 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                     color={kpis.serviceCoverage > 85 ? '#10B981' : kpis.serviceCoverage > 60 ? '#F59E0B' : '#EF4444'}
                     pulse={kpis.serviceCoverage < 80}
                     progress={kpis.serviceCoverage}
+                    sparklineData={sparklines.coverage}
                     infoText="Percentatge de circulacions actives teòriques cobertes en aquest precís instant."
                     className="animate-fade-up-premium stagger-2"
                 />
@@ -280,6 +257,7 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                     icon={<Users size={22} strokeWidth={2.5} />}
                     color={kpis.planningCoverage === 100 ? "#6366F1" : "#EF4444"}
                     pulse={kpis.planningCoverage < 100}
+                    sparklineData={sparklines.planning}
                     infoText="Indica quants dels torns planificats per avui s'han cobert respecte al total requerit de personal."
                     className="animate-fade-up-premium stagger-3"
                 />
@@ -290,6 +268,7 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                     icon={<Shield size={22} strokeWidth={2.5} />}
                     color="#A8D017"
                     pulse={kpis.reserveAvailable === 0}
+                    sparklineData={sparklines.reserve}
                     infoText="Número de maquinistes de recanvi lliures als seus corresponents destacaments."
                     className="animate-fade-up-premium stagger-4"
                 />
@@ -300,6 +279,7 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                     icon={<Train size={22} strokeWidth={2.5} />}
                     color="#1B79C9"
                     pulse={kpis.brokenTrainUnits > 3}
+                    sparklineData={sparklines.fleet}
                     infoText="Número d'unitats de tren disponibles per al servei, un cop restats els que tenen avaria."
                     className="animate-fade-up-premium stagger-5"
                 />

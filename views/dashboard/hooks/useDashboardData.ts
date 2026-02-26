@@ -3,6 +3,14 @@ import { supabase } from '../../../supabaseClient';
 import { getServiceToday } from '../../../utils/serviceCalendar';
 import { getFgcMinutes, getShortTornId, isServiceVisible, resolveStationId, mainLiniaForFilter } from '../../../utils/stations';
 
+// ── Sparkline history (circular buffer of N readings) ─────────────────────
+const SPARKLINE_MAX = 10; // keep last 10 data points (~10 min at 60s refresh)
+
+function pushSparkline(prev: number[], value: number): number[] {
+    const next = [...prev, value];
+    return next.length > SPARKLINE_MAX ? next.slice(next.length - SPARKLINE_MAX) : next;
+}
+
 // ── Types ──────────────────────────────────────────────
 export interface DashboardKPIs {
     serviceCoverage: number;
@@ -50,7 +58,7 @@ export interface LineStatus {
 }
 
 // ── Hook ───────────────────────────────────────────────
-export function useDashboardData() {
+export function useDashboardData(onThresholdAlert?: (msg: string) => void) {
     const [loading, setLoading] = useState(true);
     const [kpis, setKpis] = useState<DashboardKPIs>({
         serviceCoverage: 0, planningCoverage: 0, activeTrains: 0, scheduledTrains: 0,
@@ -61,9 +69,16 @@ export function useDashboardData() {
     const [reserves, setReserves] = useState<ReserveSlot[]>([]);
     const [lineStatuses, setLineStatuses] = useState<LineStatus[]>([]);
     const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
-    // V4 – seconds since refresh
     const [secondsSinceRefresh, setSecondsSinceRefresh] = useState(0);
     const [nowMin, setNowMin] = useState(0);
+    // Sparkline history buffers (grow up to SPARKLINE_MAX samples)
+    const [coverageHistory, setCoverageHistory] = useState<number[]>([]);
+    const [planningHistory, setPlanningHistory] = useState<number[]>([]);
+    const [reserveHistory, setReserveHistory] = useState<number[]>([]);
+    const [fleetHistory, setFleetHistory] = useState<number[]>([]);
+    // Threshold alert tracking (avoid repeated toasts)
+    const coverageAlertedRef = useRef(false);
+    const reserveAlertedRef = useRef(false);
     const serviceToday = getServiceToday();
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const realtimeConnectedRef = useRef(false);
@@ -431,7 +446,7 @@ export function useDashboardData() {
             }).length;
             const planningCov = totalShiftsToday > 0 ? Math.round((assignedShiftsTodayCount / totalShiftsToday) * 100) : 100;
 
-            setKpis({
+            const newKpis = {
                 serviceCoverage: coverage,
                 planningCoverage: planningCov,
                 activeTrains: activeNow,
@@ -444,11 +459,35 @@ export function useDashboardData() {
                 availableTrainUnits: totalFleet - brokenCount,
                 brokenTrainUnits: brokenCount,
                 totalTrainUnits: totalFleet
-            });
+            };
+
+            setKpis(newKpis);
             setAlerts(alertList);
             setReserves(reserveSlots);
             setLineStatuses(lineStats);
             setLastRefresh(new Date());
+
+            // ── Sparkline history updates ──────────────────────────────────────
+            setCoverageHistory(prev => pushSparkline(prev, coverage));
+            setPlanningHistory(prev => pushSparkline(prev, planningCov));
+            setReserveHistory(prev => pushSparkline(prev, newKpis.reserveAvailable));
+            setFleetHistory(prev => pushSparkline(prev, newKpis.availableTrainUnits));
+
+            // ── Threshold / push alert notifications ──────────────────────────
+            // Alert once when service coverage drops below 80%
+            if (coverage < 80 && !coverageAlertedRef.current) {
+                coverageAlertedRef.current = true;
+                onThresholdAlert?.(`⚠️ Cobertura de servei baixa: ${coverage}% — ${scheduledNow - activeNow} circulacions sense cobertura`);
+            } else if (coverage >= 80) {
+                coverageAlertedRef.current = false; // reset so next drop triggers again
+            }
+            // Alert once when no reserves are available
+            if (newKpis.reserveAvailable === 0 && !reserveAlertedRef.current) {
+                reserveAlertedRef.current = true;
+                onThresholdAlert?.('🚨 Cap maquinista de reserva disponible — tots els QR estan ocupats');
+            } else if (newKpis.reserveAvailable > 0) {
+                reserveAlertedRef.current = false;
+            }
         } catch (err) {
             console.error('[Dashboard] Error fetching data:', err);
         } finally {
@@ -514,6 +553,13 @@ export function useDashboardData() {
     return {
         loading, kpis, alerts, criticalAlerts, warningAlerts, upcomingAlerts,
         reserves, lineStatuses, lastRefresh, lastRefreshLabel,
-        nowMin, serviceToday, refresh: fetchData
+        nowMin, serviceToday, refresh: fetchData,
+        // Sparkline histories (newest value last)
+        sparklines: {
+            coverage: coverageHistory,
+            planning: planningHistory,
+            reserve: reserveHistory,
+            fleet: fleetHistory,
+        },
     };
 }
