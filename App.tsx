@@ -541,7 +541,7 @@ const App: React.FC = () => {
               ref={settingsRef}
             >
               <div className="px-6 py-3 border-b border-gray-100 dark:border-white/5">
-                <h4 className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Ajustes</h4>
+                <h4 className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Ajustaments</h4>
               </div>
               <div className="px-3 pt-2">
                 {/* Profile Section inside Settings */}
@@ -645,11 +645,11 @@ const App: React.FC = () => {
                   <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2">Cerca Intel·ligent</p>
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 italic">Atall Windows</span>
+                      <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 italic">Drecera Windows</span>
                       <span className="px-1.5 py-0.5 bg-white dark:bg-white/10 rounded border border-gray-200 dark:border-white/10 text-[10px] font-bold text-fgc-grey dark:text-gray-300">CTRL + K</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 italic">Atall macOS</span>
+                      <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 italic">Drecera macOS</span>
                       <span className="px-1.5 py-0.5 bg-white dark:bg-white/10 rounded border border-gray-200 dark:border-white/10 text-[10px] font-bold text-fgc-grey dark:text-gray-300">⌘ + K</span>
                     </div>
                   </div>
