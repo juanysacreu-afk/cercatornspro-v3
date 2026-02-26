@@ -265,15 +265,18 @@ const CercarViewComponent: React.FC<{
     }
   };
 
-  const filterButtons = [
-    { id: 'general' as const, label: 'General', icon: <Search size={16} />, mobileOnly: true },
-    { id: SearchType.Torn, label: 'Torn', icon: <Hash size={16} />, desktopOnly: true },
-    { id: SearchType.Maquinista, label: 'Maquinista', icon: <User size={16} />, desktopOnly: true },
-    { id: SearchType.Circulacio, label: 'Circulació', icon: <Train size={16} />, desktopOnly: true },
+  const filterButtonsRow1 = [
+    { id: SearchType.Torn, label: 'Torn', icon: <Hash size={16} /> },
+    { id: SearchType.Maquinista, label: 'Maquinista', icon: <User size={16} /> },
+    { id: SearchType.Circulacio, label: 'Circulació', icon: <Train size={16} /> },
+  ];
+  const filterButtonsRow2 = [
     { id: SearchType.Estacio, label: 'Estació', icon: <MapPin size={16} /> },
     { id: SearchType.Cicle, label: 'Cicle', icon: <Hash size={16} /> },
     { id: SearchType.PK, label: 'PK', icon: <Hash size={18} /> },
   ];
+  // For desktop, combine all in one flat list
+  const filterButtons = [...filterButtonsRow1, ...filterButtonsRow2];
 
 
   const serveiTypes = ['0', '100', '400', '500'];
@@ -741,9 +744,28 @@ const CercarViewComponent: React.FC<{
         <div className="absolute inset-0 rounded-[32px] sm:rounded-[40px] overflow-hidden pointer-events-none">
           <div className="absolute top-0 right-0 w-64 h-64 bg-fgc-green/5 blur-3xl -mr-32 -mt-32" />
         </div>
-        <div className="w-full grid grid-cols-3 md:flex md:flex-wrap gap-2 sm:gap-3 mb-6 sm:mb-8">
+        {/* Mobile: two rows of 3. Desktop: single flex row */}
+        <div className="md:hidden flex flex-col gap-2 mb-6">
+          <div className="grid grid-cols-3 gap-2">
+            {filterButtonsRow1.map((btn) => (
+              <button key={btn.id} onClick={() => { feedback.click(); setSearchType(btn.id); setResults([]); setQuery(''); setSuggestions([]); setShowSuggestions(false); }} className={`flex items-center justify-center gap-1 px-1 py-2.5 rounded-xl text-[12px] font-bold transition-all ${searchType === btn.id ? 'bg-fgc-green text-[#4D5358] shadow-xl shadow-fgc-green/20' : 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/10'}`}>
+                <span className="shrink-0">{btn.icon}</span>
+                <span className="truncate">{btn.label}</span>
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {filterButtonsRow2.map((btn) => (
+              <button key={btn.id} onClick={() => { feedback.click(); setSearchType(btn.id); setResults([]); setQuery(''); setSuggestions([]); setShowSuggestions(false); }} className={`flex items-center justify-center gap-1 px-1 py-2.5 rounded-xl text-[12px] font-bold transition-all ${searchType === btn.id ? 'bg-fgc-green text-[#4D5358] shadow-xl shadow-fgc-green/20' : 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/10'}`}>
+                <span className="shrink-0">{btn.icon}</span>
+                <span className="truncate">{btn.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="hidden md:flex md:flex-wrap gap-2 sm:gap-3 mb-6 sm:mb-8">
           {filterButtons.map((btn) => (
-            <button key={btn.id} onClick={() => { feedback.click(); setSearchType(btn.id); setResults([]); setQuery(''); setSuggestions([]); setShowSuggestions(false); }} className={`flex items-center justify-center gap-1 sm:gap-2 px-1 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl text-[12px] sm:text-sm font-bold transition-all ${btn.mobileOnly ? 'md:hidden' : ''} ${btn.desktopOnly ? 'hidden md:flex' : ''} ${searchType === btn.id ? 'bg-fgc-green text-[#4D5358] shadow-xl shadow-fgc-green/20' : 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/10'}`}>
+            <button key={btn.id} onClick={() => { feedback.click(); setSearchType(btn.id); setResults([]); setQuery(''); setSuggestions([]); setShowSuggestions(false); }} className={`flex items-center justify-center gap-2 px-6 py-3 rounded-2xl text-sm font-bold transition-all ${searchType === btn.id ? 'bg-fgc-green text-[#4D5358] shadow-xl shadow-fgc-green/20' : 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/10'}`}>
               <span className="shrink-0">{btn.icon}</span>
               <span className="truncate">{btn.label}</span>
             </button>
