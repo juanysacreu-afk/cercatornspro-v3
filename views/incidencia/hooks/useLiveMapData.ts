@@ -124,9 +124,16 @@ export const useLiveMapData = ({
         //  2. Else if parked at a station: place exactly on that station
         //  3. Else interpolate 50% between prev and next (fallback)
 
-        const fromStMapNode = curStId ? MAP_STATIONS.find(s => s.id === curStId) : null;
+        // Resolve "from" station:
+        //   Priority: estacionat_a → last known parada_passada → origen of journey
+        let resolvedFromId: string | null = curStId;
+        if (!resolvedFromId && (raw as any).origen) {
+            resolvedFromId = resolveStationId((raw as any).origen, mainLinia);
+        }
+
+        const fromStMapNode = resolvedFromId ? MAP_STATIONS.find(s => s.id === resolvedFromId) : null;
         const toStMapNode = nextStMapId ? MAP_STATIONS.find(s => s.id === nextStMapId) : null;
-        const fromGeo = curStId ? STATION_GEO_MAP.get(curStId) : null;
+        const fromGeo = resolvedFromId ? STATION_GEO_MAP.get(resolvedFromId) : null;
         const toGeo = nextStMapId ? STATION_GEO_MAP.get(nextStMapId) : null;
 
         if (trainLat && trainLon && fromGeo && toGeo && fromStMapNode && toStMapNode && !raw.estacionat_a) {
@@ -159,26 +166,30 @@ export const useLiveMapData = ({
             delayMin = Math.round(raw.retard / 60); // API returns seconds
         }
 
-        if (nextStMapId) {
-            if (trainLat && trainLon && fromGeo && toGeo) {
-                // Preferred: PK-based ETA with real speed limits
-                // Determine direction: ascending = moving toward higher PK
-                const isAscending = fromGeo.pk < toGeo.pk;
-                try {
-                    etaNextMin = estimateEtaByPk(
-                        fromGeo, toGeo,
-                        trainLat, trainLon,
-                        isAscending,
-                        false, // contravia not yet detectable from GeoTren API
-                        delayMin
-                    );
-                } catch (_) {
-                    // Fallback to simple haversine if PK calculation fails
-                    const remainingKm = haversineKm(trainLat, trainLon, toGeo.lat, toGeo.lon);
+        if (nextStMapId && toGeo) {
+            if (trainLat && trainLon) {
+                // GPS available: remaining distance from train position to next stop
+                const remainingKm = haversineKm(trainLat, trainLon, toGeo.lat, toGeo.lon);
+                if (fromGeo && fromGeo.pkSegment === toGeo.pkSegment) {
+                    // Same PK segment: use PK-weighted speed for more accurate ETA
+                    const isAscending = fromGeo.pk < toGeo.pk;
+                    try {
+                        etaNextMin = estimateEtaByPk(
+                            fromGeo, toGeo,
+                            trainLat, trainLon,
+                            isAscending,
+                            false,
+                            delayMin
+                        );
+                    } catch (_) {
+                        etaNextMin = estimateEta(remainingKm, 60, delayMin);
+                    }
+                } else {
+                    // Cross-segment or fromGeo unavailable: simple distance/speed
                     etaNextMin = estimateEta(remainingKm, 60, delayMin);
                 }
             } else if (nextStops.length > 0 && nextStops[0].hora_prevista) {
-                // Schedule-based ETA fallback
+                // No GPS: fall back to scheduled arrival time
                 const etaFromSchedule = getFgcMinutes(nextStops[0].hora_prevista);
                 if (etaFromSchedule !== null) {
                     const now = new Date();
