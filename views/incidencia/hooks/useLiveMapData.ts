@@ -4,9 +4,13 @@ import {
     getFgcMinutes, formatFgcTime, isServiceVisible, resolveStationId,
     getLiniaColorHex, getShortTornId
 } from '../../../utils/stations';
+import {
+    STATION_GEO_MAP, interpolateBetweenStations, estimateEta, haversineKm
+} from '../../../utils/stationGeoData';
 import { MAP_STATIONS } from '../mapConstants';
 import { getFullPath } from '../mapUtils';
 import type { LivePersonnel, IncidenciaMode, GeoTrenPoint, Shift } from '../../../types';
+
 
 // ── GeoTren Enhanced Types ──────────────────────────────────────────────
 export interface GeoTrenEnhanced extends GeoTrenPoint {
@@ -85,65 +89,95 @@ export const useLiveMapData = ({
     const geoTrenEnhancedRef = useRef<Map<string, GeoTrenEnhanced>>(new Map());
     const [geoTrenData, setGeoTrenData] = useState<GeoTrenEnhanced[]>([]);
 
-    /** Build enhanced GeoTren entry with map coordinates + trail */
+    /** Build enhanced GeoTren entry with real GPS interpolation + breadcrumb trail */
     const buildEnhanced = useCallback((raw: GeoTrenPoint): GeoTrenEnhanced => {
         const mainLinia = raw.lin;
         let mapX = 0, mapY = 0;
         let isMoving = false;
         let nextStMapId: string | null = null;
 
+        // GPS coords from SIRTRAN (may be undefined in old API responses)
+        const trainLat: number | undefined = (raw as any).geo_point_2d?.lat;
+        const trainLon: number | undefined = (raw as any).geo_point_2d?.lon;
+
         // Resolve current station
         const curStId = raw.estacionat_a ? resolveStationId(raw.estacionat_a, mainLinia) : null;
 
         // Parse next stops
         let nextStops: Array<{ parada: string; hora_prevista?: string }> = [];
-        if ((raw as any).properes_parades && typeof (raw as any).properes_parades === 'string') {
+        if (raw.properes_parades && typeof raw.properes_parades === 'string') {
             try {
-                nextStops = (raw as any).properes_parades.split(';').map((p: string) => JSON.parse(p));
+                nextStops = raw.properes_parades.split(';').map((p: string) => JSON.parse(p));
             } catch (_) { }
-        } else if (Array.isArray((raw as any).properes_parades)) {
-            nextStops = (raw as any).properes_parades;
+        } else if (Array.isArray(raw.properes_parades)) {
+            nextStops = raw.properes_parades;
         }
 
         if (nextStops.length > 0) {
             nextStMapId = resolveStationId(nextStops[0].parada, mainLinia);
         }
 
-        const s1 = curStId ? MAP_STATIONS.find(s => s.id === curStId) : null;
-        const s2 = nextStMapId ? MAP_STATIONS.find(s => s.id === nextStMapId) : null;
+        // ── SVG position computation ──────────────────────────────────────
+        // Strategy:
+        //  1. If train has GPS coords + we know fromStation + toStation:
+        //       → interpolate using real GPS distance (most accurate)
+        //  2. Else if parked at a station: place exactly on that station
+        //  3. Else interpolate 50% between prev and next (fallback)
 
-        if (s1 && s2 && !raw.estacionat_a) {
-            // Moving — interpolate position to midpoint between current and next station
-            mapX = (s1.x + s2.x) / 2;
-            mapY = (s1.y + s2.y) / 2;
+        const fromStMapNode = curStId ? MAP_STATIONS.find(s => s.id === curStId) : null;
+        const toStMapNode = nextStMapId ? MAP_STATIONS.find(s => s.id === nextStMapId) : null;
+        const fromGeo = curStId ? STATION_GEO_MAP.get(curStId) : null;
+        const toGeo = nextStMapId ? STATION_GEO_MAP.get(nextStMapId) : null;
+
+        if (trainLat && trainLon && fromGeo && toGeo && fromStMapNode && toStMapNode && !raw.estacionat_a) {
+            // GPS-based interpolation — most accurate
+            const t = interpolateBetweenStations(trainLat, trainLon, fromGeo, toGeo);
+            mapX = fromStMapNode.x + t * (toStMapNode.x - fromStMapNode.x);
+            mapY = fromStMapNode.y + t * (toStMapNode.y - fromStMapNode.y);
             isMoving = true;
-        } else if (s1) {
-            mapX = s1.x; mapY = s1.y;
-        } else if (s2) {
-            mapX = s2.x; mapY = s2.y;
+        } else if (raw.estacionat_a && fromStMapNode) {
+            // Stopped at a station
+            mapX = fromStMapNode.x;
+            mapY = fromStMapNode.y;
+        } else if (!raw.estacionat_a && fromStMapNode && toStMapNode) {
+            // Moving but no GPS — fallback to 50% interpolation
+            mapX = (fromStMapNode.x + toStMapNode.x) / 2;
+            mapY = (fromStMapNode.y + toStMapNode.y) / 2;
+            isMoving = true;
+        } else if (toStMapNode) {
+            mapX = toStMapNode.x; mapY = toStMapNode.y;
         } else if ((raw as any).origen) {
             const sO = MAP_STATIONS.find(s => s.id === resolveStationId((raw as any).origen, mainLinia));
             if (sO) { mapX = sO.x; mapY = sO.y; }
         }
 
-        // ETA and delay computation
+        // ── ETA and delay computation ─────────────────────────────────────
         let delayMin = 0;
         let etaNextMin: number | null = null;
-        if (typeof (raw as any).retard === 'number') {
-            delayMin = Math.round((raw as any).retard / 60); // API returns seconds
+
+        if (typeof raw.retard === 'number') {
+            delayMin = Math.round(raw.retard / 60); // API returns seconds
         }
-        if (nextStops.length > 0 && nextStops[0].hora_prevista) {
-            const etaFromSchedule = getFgcMinutes(nextStops[0].hora_prevista);
-            if (etaFromSchedule !== null) {
-                const now = new Date();
-                const h = now.getHours();
-                const m = now.getMinutes();
-                const nowMin = (h < 4 ? h + 24 : h) * 60 + m;
-                etaNextMin = Math.max(0, etaFromSchedule + delayMin - nowMin);
+
+        if (nextStMapId) {
+            if (trainLat && trainLon && toGeo) {
+                // GPS-based ETA: remaining km → time at avg speed
+                const remainingKm = haversineKm(trainLat, trainLon, toGeo.lat, toGeo.lon);
+                etaNextMin = estimateEta(remainingKm, 50, delayMin);
+            } else if (nextStops.length > 0 && nextStops[0].hora_prevista) {
+                // Schedule-based ETA fallback
+                const etaFromSchedule = getFgcMinutes(nextStops[0].hora_prevista);
+                if (etaFromSchedule !== null) {
+                    const now = new Date();
+                    const h = now.getHours();
+                    const m = now.getMinutes();
+                    const nowMin = (h < 4 ? h + 24 : h) * 60 + m;
+                    etaNextMin = Math.max(0, etaFromSchedule + delayMin - nowMin);
+                }
             }
         }
 
-        // Trail from previous enhanced entry
+        // ── Breadcrumb trail ─────────────────────────────────────────────
         const prev = geoTrenEnhancedRef.current.get(raw.id);
         const trail: Array<{ x: number; y: number; ts: number }> = prev?.trail ? [...prev.trail] : [];
         if (mapX !== 0 || mapY !== 0) {
@@ -161,6 +195,7 @@ export const useLiveMapData = ({
         geoTrenEnhancedRef.current.set(raw.id, enhanced);
         return enhanced;
     }, []);
+
 
     const fetchGeoTrenData = useCallback(async () => {
         try {
