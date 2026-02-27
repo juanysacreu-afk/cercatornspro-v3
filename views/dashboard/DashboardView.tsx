@@ -208,7 +208,7 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                         {setIsMonitorMode && (
                             <button
                                 onClick={() => setIsMonitorMode(true)}
-                                className="flex-none flex items-center gap-2 px-3 py-2 rounded-2xl bg-white/60 dark:bg-white/[0.04] border border-gray-100 dark:border-white/5 text-xs font-semibold text-[#4D5358] dark:text-gray-300 hover:bg-fgc-green/10 transition-all active:scale-95 group"
+                                className="hidden sm:flex flex-none items-center gap-2 px-3 py-2 rounded-2xl bg-white/60 dark:bg-white/[0.04] border border-gray-100 dark:border-white/5 text-xs font-semibold text-[#4D5358] dark:text-gray-300 hover:bg-fgc-green/10 transition-all active:scale-95 group"
                                 title="Desplegar Monitor CCO"
                             >
                                 <Maximize2 size={14} className="group-hover:text-fgc-green transition-colors" />
