@@ -1,76 +1,63 @@
 // telegram.ts
-// Lógica para enviar mensajes interactuando con la API de Telegram.
+// Proxy segur: cap credencial no s'exposa al bundle del client.
+// Totes les crides van a l'Edge Function `telegram-proxy` a Supabase,
+// que guarda el bot token i el chat ID com a secrets de servidor.
 
-const TELEGRAM_BOT_TOKEN = import.meta.env.VITE_TELEGRAM_BOT_TOKEN || '';
-// Aquí definiremos el Chat ID del grupo al que el bot debe enviar mensajes
-// Por defecto lo dejaremos pendiente para que se configure dinámicamente o se busque
-const DEFAULT_GROUP_CHAT_ID = import.meta.env.VITE_TELEGRAM_CHAT_ID || '';
+const PROXY_URL = 'https://hcpjthnhockfbefclycr.supabase.co/functions/v1/telegram-proxy';
+
+type AllowedAction = 'sendMessage' | 'deleteMessage' | 'sendDocument' | 'getChatMemberCount' | 'getUpdates';
+
+async function callProxy(action: AllowedAction, payload: Record<string, unknown>): Promise<any> {
+    const res = await fetch(PROXY_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, payload }),
+    });
+    return res.json();
+}
 
 /**
- * Envia un mensaje a Telegram.
+ * Envia un missatge de text al grup de Telegram.
  */
-export async function sendTelegramMessage(text: string, chatId?: string): Promise<{ success: boolean; data?: any; error?: string }> {
-    if (!TELEGRAM_BOT_TOKEN) {
-        return { success: false, error: 'Token del bot no configurat' };
-    }
-
-    const targetChatId = chatId || DEFAULT_GROUP_CHAT_ID;
-    if (!targetChatId) {
-        return { success: false, error: 'Siusplau, configura el Chat ID del grup' };
-    }
-
-    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
-
+export async function sendTelegramMessage(
+    text: string,
+    chatId?: string
+): Promise<{ success: boolean; data?: any; error?: string }> {
     try {
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                chat_id: targetChatId,
-                text: text,
-                parse_mode: 'HTML' // Permite enviar formato en negrita, cursiva, etc.
-            })
-        });
+        const payload: Record<string, unknown> = {
+            text,
+            parse_mode: 'HTML',
+        };
+        if (chatId) payload.chat_id = chatId;
 
-        const data = await response.json();
+        const data = await callProxy('sendMessage', payload);
 
-        if (data.ok) {
-            return { success: true, data: data.result };
-        } else {
-            console.error('Telegram API Error:', data.description);
-            return { success: false, error: data.description };
-        }
+        if (data.ok) return { success: true, data: data.result };
+        console.error('Telegram API Error:', data.description);
+        return { success: false, error: data.description };
     } catch (error: any) {
-        console.error('Error enviando mensaje a Telegram:', error);
+        console.error('Error enviant missatge a Telegram:', error);
         return { success: false, error: error.message };
     }
 }
 
 /**
- * Escolta o rep missatges (updates) de Telegram.
+ * Rep els darrers updates (missatges) del bot.
  */
-export async function getTelegramUpdates(offset?: number): Promise<{ success: boolean; data?: any[]; error?: string }> {
-    if (!TELEGRAM_BOT_TOKEN) {
-        return { success: false, error: 'Token del bot no configurat' };
-    }
-
-    let url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getUpdates?allowed_updates=["message"]`;
-    if (offset) {
-        url += `&offset=${offset}`;
-    }
-
+export async function getTelegramUpdates(
+    offset?: number
+): Promise<{ success: boolean; data?: any[]; error?: string }> {
     try {
-        const response = await fetch(url);
-        const data = await response.json();
+        const payload: Record<string, unknown> = {
+            allowed_updates: ['message'],
+        };
+        if (offset) payload.offset = offset;
 
-        if (data.ok) {
-            return { success: true, data: data.result };
-        } else {
-            console.error('Telegram API Error:', data.description);
-            return { success: false, error: data.description };
-        }
+        const data = await callProxy('getUpdates', payload);
+
+        if (data.ok) return { success: true, data: data.result };
+        console.error('Telegram API Error:', data.description);
+        return { success: false, error: data.description };
     } catch (error: any) {
         console.error('Error rebent missatges de Telegram:', error);
         return { success: false, error: error.message };
@@ -80,28 +67,18 @@ export async function getTelegramUpdates(offset?: number): Promise<{ success: bo
 /**
  * Obté el nombre de membres d'un grup de Telegram.
  */
-export async function getTelegramMemberCount(chatId?: string): Promise<{ success: boolean; data?: number; error?: string }> {
-    if (!TELEGRAM_BOT_TOKEN) {
-        return { success: false, error: 'Token del bot no configurat' };
-    }
-
-    const targetChatId = chatId || DEFAULT_GROUP_CHAT_ID;
-    if (!targetChatId) {
-        return { success: false, error: 'Siusplau, configura el Chat ID del grup' };
-    }
-
-    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getChatMemberCount?chat_id=${targetChatId}`;
-
+export async function getTelegramMemberCount(
+    chatId?: string
+): Promise<{ success: boolean; data?: number; error?: string }> {
     try {
-        const response = await fetch(url);
-        const data = await response.json();
+        const payload: Record<string, unknown> = {};
+        if (chatId) payload.chat_id = chatId;
 
-        if (data.ok) {
-            return { success: true, data: data.result };
-        } else {
-            console.error('Telegram API Error:', data.description);
-            return { success: false, error: data.description };
-        }
+        const data = await callProxy('getChatMemberCount', payload);
+
+        if (data.ok) return { success: true, data: data.result };
+        console.error('Telegram API Error:', data.description);
+        return { success: false, error: data.description };
     } catch (error: any) {
         console.error('Error obtenint membres de Telegram:', error);
         return { success: false, error: error.message };
@@ -109,40 +86,21 @@ export async function getTelegramMemberCount(chatId?: string): Promise<{ success
 }
 
 /**
- * Elimina un missatge enviat de Telegram.
+ * Elimina un missatge del grup de Telegram.
  */
-export async function deleteTelegramMessage(messageId: string | number, chatId?: string): Promise<{ success: boolean; error?: string }> {
-    if (!TELEGRAM_BOT_TOKEN) {
-        return { success: false, error: 'Token del bot no configurat' };
-    }
-
-    const targetChatId = chatId || DEFAULT_GROUP_CHAT_ID;
-    if (!targetChatId) {
-        return { success: false, error: 'Siusplau, configura el Chat ID del grup' };
-    }
-
-    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/deleteMessage`;
-
+export async function deleteTelegramMessage(
+    messageId: string | number,
+    chatId?: string
+): Promise<{ success: boolean; error?: string }> {
     try {
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                chat_id: targetChatId,
-                message_id: messageId
-            })
-        });
+        const payload: Record<string, unknown> = { message_id: messageId };
+        if (chatId) payload.chat_id = chatId;
 
-        const data = await response.json();
+        const data = await callProxy('deleteMessage', payload);
 
-        if (data.ok) {
-            return { success: true };
-        } else {
-            console.error('Telegram API Error eliminant:', data.description);
-            return { success: false, error: data.description };
-        }
+        if (data.ok) return { success: true };
+        console.error('Telegram API Error eliminant:', data.description);
+        return { success: false, error: data.description };
     } catch (error: any) {
         console.error('Error eliminant missatge de Telegram:', error);
         return { success: false, error: error.message };
@@ -150,42 +108,36 @@ export async function deleteTelegramMessage(messageId: string | number, chatId?:
 }
 
 /**
- * Envia un fitxer a Telegram.
+ * Envia un fitxer al grup de Telegram.
+ * Nota: sendDocument requereix FormData; el proxy rep JSON,
+ * de manera que primer pugem el fitxer com a base64 i el proxy l'envia.
  */
-export async function sendTelegramFile(file: File, caption?: string, chatId?: string): Promise<{ success: boolean; data?: any; error?: string }> {
-    if (!TELEGRAM_BOT_TOKEN) {
-        return { success: false, error: 'Token del bot no configurat' };
-    }
-
-    const targetChatId = chatId || DEFAULT_GROUP_CHAT_ID;
-    if (!targetChatId) {
-        return { success: false, error: 'Siusplau, configura el Chat ID del grup' };
-    }
-
-    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument`;
-
-    const formData = new FormData();
-    formData.append('chat_id', targetChatId);
-    formData.append('document', file);
-    if (caption) {
-        formData.append('caption', caption);
-        formData.append('parse_mode', 'HTML');
-    }
-
+export async function sendTelegramFile(
+    file: File,
+    caption?: string,
+    chatId?: string
+): Promise<{ success: boolean; data?: any; error?: string }> {
     try {
-        const response = await fetch(url, {
-            method: 'POST',
-            body: formData
-        });
+        // Convert file to base64 to send through the JSON proxy
+        const buffer = await file.arrayBuffer();
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
 
-        const data = await response.json();
-
-        if (data.ok) {
-            return { success: true, data: data.result };
-        } else {
-            console.error('Telegram API Error (File):', data.description);
-            return { success: false, error: data.description };
+        const payload: Record<string, unknown> = {
+            document_base64: base64,
+            file_name: file.name,
+            mime_type: file.type,
+        };
+        if (chatId) payload.chat_id = chatId;
+        if (caption) {
+            payload.caption = caption;
+            payload.parse_mode = 'HTML';
         }
+
+        const data = await callProxy('sendDocument', payload);
+
+        if (data.ok) return { success: true, data: data.result };
+        console.error('Telegram API Error (File):', data.description);
+        return { success: false, error: data.description };
     } catch (error: any) {
         console.error('Error enviant fitxer a Telegram:', error);
         return { success: false, error: error.message };
