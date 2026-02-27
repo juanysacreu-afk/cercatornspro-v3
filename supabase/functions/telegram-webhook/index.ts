@@ -174,6 +174,7 @@ serve(async (req) => {
             `• <code>/qui [UT]</code> - Qui porta una unitat ara\n` +
             `• <code>/disponibles</code> - Agents lliures ara\n` +
             `• <code>/tren [UT]</code> - Estat i posició d'un tren\n` +
+            `• <code>/servei [ID]</code> - Detall circulació i agent\n` +
             `• <code>/pk [valor]</code> - Info tècnica d'un PK\n` +
             `• <code>/clima [estació]</code> - Clima a la xarxa`;
           await sendTelegramMessage(chatId, helpMsg);
@@ -255,29 +256,114 @@ serve(async (req) => {
           if (!ut) {
             await sendTelegramMessage(chatId, '❌ Indica una UT. Ex: <code>/qui 112.01</code>');
           } else {
+            // Since we don't have live service_id in train_status, we look at current assignments or positions
             const { data: train } = await supabase.from('train_status').select('*').eq('train_number', ut).single();
-            if (train?.service_id) {
-              const { data: shifts } = await supabase.from('shifts').select('id').contains('circulations', JSON.stringify([{ codi: train.service_id }]));
-              if (shifts?.length) {
-                const { data: assig } = await supabase.from('daily_assignments').select('*').eq('data_servei', todayStr).in('torn', shifts.map(s => getShortId(s.id)));
-                if (assig?.length) await sendTelegramMessage(chatId, `👤 <b>UT ${ut}:</b> ${assig[0].nom} ${assig[0].cognoms} (${assig[0].torn})`);
-                else await sendTelegramMessage(chatId, `⚠️ Sense agent per al servei ${train.service_id}.`);
-              } else await sendTelegramMessage(chatId, `⚠️ Cap torn trobat per al servei ${train.service_id}.`);
-            } else await sendTelegramMessage(chatId, `⚠️ UT ${ut} sense servei.`);
+            if (train) {
+              await sendTelegramMessage(chatId, `🚆 <b>UT ${ut}:</b> No es pot determinar l'agent en temps real sense dades de GPS. Consulta <code>/torn</code> si coneixes el torn.`);
+            } else {
+              await sendTelegramMessage(chatId, `⚠️ UT ${ut} no trobada.`);
+            }
           }
         }
 
         // /tren [UT]
         else if (command === '/tren') {
           const ut = args[0];
+          if (!ut) {
+            await sendTelegramMessage(chatId, '❌ Indica una UT. Ex: <code>/tren 112.01</code>');
+            return;
+          }
           const { data: train } = await supabase.from('train_status').select('*').eq('train_number', ut).single();
           if (train) {
             let t = `<b>🚆 Info Unitat ${ut}:</b>\n\n`;
-            t += `📍 <b>Posició:</b> ${train.last_station || '?'} → ${train.next_station || '?'}\n`;
             t += `🔧 <b>Estat:</b> ${train.is_broken ? '🔴 AVARIADA' : '🟢 OK'}\n`;
-            t += `⏱️ <b>Retard:</b> ${train.delay || 0} min\n`;
+            if (train.broken_notes) t += `📝 <b>Notes:</b> ${train.broken_notes}\n`;
+            t += `🧽 <b>Neteja:</b> ${train.needs_cleaning ? '🟠 Pendent' : '🟢 OK'}\n`;
+
+            // Check if parked
+            const { data: parked } = await supabase.from('parked_units').select('*').eq('unit_number', ut).single();
+            if (parked) {
+              t += `📍 <b>Posició:</b> Estacionada a ${parked.depot_id} (Via ${parked.track})\n`;
+            } else {
+              t += `📍 <b>Posició:</b> En servei (Sense dades de GPS en temps real).\n`;
+            }
             await sendTelegramMessage(chatId, t);
           } else await sendTelegramMessage(chatId, `⚠️ UT ${ut} no trobada.`);
+        }
+
+        // /servei [codi_circulacio]
+        else if (command === '/servei') {
+          const input = args[0]?.trim();
+          if (!input) {
+            await sendTelegramMessage(chatId, "❌ Indica un codi de circulació. Ex: <code>/servei B107</code>");
+          } else {
+            const searchId = input.toUpperCase();
+
+            // 1. Search for the circulation in the catalog
+            const { data: circs } = await supabase
+              .from('circulations')
+              .select('*')
+              .or(`id.eq.${searchId},id.ilike.%${searchId}`)
+              .limit(1);
+
+            if (!circs || circs.length === 0) {
+              await sendTelegramMessage(chatId, `⚠️ No s'ha trobat la circulació <b>${searchId}</b> al catàleg.`);
+            } else {
+              const circ = circs[0];
+              const finalCode = circ.id;
+
+              // 2. Find the shift (torn) containing this service
+              const { data: shiftData } = await supabase
+                .from('shifts')
+                .select('*')
+                .contains('circulations', JSON.stringify([{ codi: finalCode }]));
+
+              if (!shiftData || shiftData.length === 0) {
+                await sendTelegramMessage(chatId, `⚠️ No s'ha trobat cap torn amb la circulació <b>${finalCode}</b>.`);
+              } else {
+                const shift = shiftData[0];
+                const tornId = getShortId(shift.id);
+
+                // 3. Find assigned driver
+                const { data: assignments } = await supabase
+                  .from('daily_assignments')
+                  .select('*')
+                  .eq('data_servei', todayStr);
+
+                const direct = assignments?.find(a => getShortId(a.torn) === tornId);
+                const cover = assignments?.find(a => a.observacions?.toUpperCase().includes(`COBREIX ${tornId}`));
+
+                const mainDriver = direct ? `${direct.nom} ${direct.cognoms}` : 'Sense assignar';
+                const coverDriver = cover ? ` (Cobreix: ${cover.nom} ${cover.cognoms} del torn ${cover.torn})` : '';
+
+                // 4. Estimate position from schedule
+                const nowTime = spainTime.toTimeString().substring(0, 8); // "HH:MM:SS"
+                let currentPos = "Dada no disponible";
+
+                if (circ.estacions && Array.isArray(circ.estacions)) {
+                  const stations = circ.estacions;
+                  for (let i = 0; i < stations.length; i++) {
+                    if (stations[i].hora > nowTime) {
+                      if (i === 0) currentPos = `Propera sortida de <b>${stations[i].nom}</b>`;
+                      else currentPos = `Entre <b>${stations[i - 1].nom}</b> i <b>${stations[i].nom}</b>`;
+                      break;
+                    }
+                    if (i === stations.length - 1) currentPos = `Arribada final a <b>${stations[i].nom}</b>`;
+                  }
+                }
+
+                let msg = `<b>🎫 Circulació ${finalCode}</b>\n\n`;
+                msg += `👤 <b>Maquinista:</b> ${mainDriver}${coverDriver}\n`;
+                msg += `📋 <b>Torn:</b> ${tornId}\n`;
+                msg += `\n🏁 <b>Destí:</b> ${circ.final || '?'}\n`;
+                msg += `⌚ <b>Arribada:</b> ${circ.arribada || '--:--'}\n`;
+                msg += `📍 <b>Posició est.:</b> ${currentPos}\n`;
+                msg += `\n<i>Nota: La posició és una estimació basada en l'horari teòric.</i>`;
+
+                await sendTelegramMessage(chatId, msg);
+              }
+            }
+          }
         }
 
         // /pk [valor]
