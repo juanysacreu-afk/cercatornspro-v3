@@ -652,7 +652,7 @@ const App: React.FC = () => {
                   </div>
                 </button>
 
-                <div className="mx-3 mt-4 mb-2 p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
+                <div className="hidden md:block mx-3 mt-4 mb-2 p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
                   <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2">Cerca Intel·ligent</p>
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center justify-between">
