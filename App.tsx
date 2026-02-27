@@ -296,45 +296,7 @@ const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleGlobalKeys);
   }, []);
 
-  useEffect(() => {
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || ('ontouchstart' in window);
-    if (isMobile) return;
 
-    let ticking = false;
-    let mouseTicking = false;
-
-    const handleParallax = () => {
-      if (!ticking) {
-        window.requestAnimationFrame(() => {
-          const scrollY = window.scrollY;
-          document.documentElement.style.setProperty('--scroll-y', `${scrollY}px`);
-          ticking = false;
-        });
-        ticking = true;
-      }
-    };
-
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!mouseTicking) {
-        window.requestAnimationFrame(() => {
-          const x = (e.clientX / window.innerWidth - 0.5) * 2;
-          const y = (e.clientY / window.innerHeight - 0.5) * 2;
-          document.documentElement.style.setProperty('--mouse-x', x.toString());
-          document.documentElement.style.setProperty('--mouse-y', y.toString());
-          mouseTicking = false;
-        });
-        mouseTicking = true;
-      }
-    };
-
-    window.addEventListener('scroll', handleParallax, { passive: true });
-    window.addEventListener('mousemove', handleMouseMove, { passive: true });
-
-    return () => {
-      window.removeEventListener('scroll', handleParallax);
-      window.removeEventListener('mousemove', handleMouseMove);
-    };
-  }, []);
 
   const handleCommandSelect = (result: any) => {
     setIsCommandPaletteOpen(false);
@@ -585,6 +547,9 @@ const App: React.FC = () => {
                     setIsDarkMode(!isDarkMode);
                     setIsSettingsOpen(false);
                   }}
+                  role="switch"
+                  aria-checked={isDarkMode}
+                  aria-label={isDarkMode ? 'Desactivar Mode Fosc' : 'Activar Mode Fosc'}
                   className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group"
                 >
                   <div className="flex items-center gap-3">
@@ -603,6 +568,9 @@ const App: React.FC = () => {
                     setIsProNav(!isProNav);
                     setIsSettingsOpen(false);
                   }}
+                  role="switch"
+                  aria-checked={isProNav}
+                  aria-label={isProNav ? 'Desactivar Navegació ProNav' : 'Activar Navegació ProNav'}
                   className="hidden lg:flex w-full items-center justify-between p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group"
                 >
                   <div className="flex items-center gap-3">
@@ -620,6 +588,9 @@ const App: React.FC = () => {
 
                 <button
                   onClick={handleToggleSound}
+                  role="switch"
+                  aria-checked={isSoundEnabled}
+                  aria-label={isSoundEnabled ? "Desactivar Sons de l'App" : "Activar Sons de l'App"}
                   className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group"
                 >
                   <div className="flex items-center gap-3">
@@ -641,6 +612,7 @@ const App: React.FC = () => {
                     setIsCalendarOpen(true);
                     setIsSettingsOpen(false);
                   }}
+                  aria-label="Obrir Gestor de Calendari"
                   className="w-full flex items-center gap-3 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group"
                 >
                   <div className="p-2 rounded-xl bg-gray-100 dark:bg-white/10 text-fgc-grey dark:text-gray-300 group-hover:scale-110 transition-transform">
