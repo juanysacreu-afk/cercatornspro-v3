@@ -1,7 +1,6 @@
 
 import { supabase } from '../supabaseClient';
-import { getShortTornId } from './fgc';
-import { getFgcMinutes } from './stations';
+import { getShortTornId, getFgcMinutes } from './stations';
 
 export async function fetchFullTurns(turnIds: string[], selectedServei?: string) {
     if (!turnIds.length) return [];
@@ -81,14 +80,6 @@ export async function fetchFullTurns(turnIds: string[], selectedServei?: string)
     const agents = phonesRes.data || [];
 
     // 6. Enrichment helpers
-    const getFgcMinutes = (timeStr: string) => {
-        if (!timeStr || !timeStr.includes(':')) return 0;
-        const [h, m] = timeStr.split(':').map(Number);
-        let total = h * 60 + m;
-        if (h < 4) total += 24 * 60;
-        return total;
-    };
-
     const guessStation = (id: string, obs: string) => {
         const combined = (id + ' ' + obs).toUpperCase();
         if (combined.includes('QN') || combined.includes('NAS')) return 'NA';

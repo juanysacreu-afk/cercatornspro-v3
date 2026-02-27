@@ -18,11 +18,8 @@ export const getLiniaColor = (linia: string) => {
     return LINE_COLORS[l]?.tailwind || 'bg-fgc-grey dark:bg-gray-800';
 };
 
-export const getShortTornId = (id: string) => {
-    const trimmed = id.trim();
-    if (trimmed.startsWith('Q') && !trimmed.startsWith('QR') && trimmed.length === 5) return trimmed[0] + trimmed.slice(2);
-    return trimmed;
-};
+// Re-exported from stations.ts — single source of truth
+export { getShortTornId } from './stations';
 
 export const getTrainPhone = (train: string) => {
     if (!train) return null;

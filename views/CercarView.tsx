@@ -405,7 +405,6 @@ const CercarViewComponent: React.FC<{
       if (selectedServei !== 'Tots') q = q.eq('servei', selectedServei);
       const { data } = await q.limit(8);
       if (data && data.length > 0) { setSuggestions((data as any[]).map(item => item.id as string)); setShowSuggestions(true); }
-      if (d2 && d2.length > 0) { const unique = Array.from(new Set((d2 as any[]).map(d => `${d.cognoms || ''}, ${d.nom || ''} (${d.empleat_id})`))) as string[]; setSuggestions(unique); setShowSuggestions(true); }
 
       // PK or Station suggestions in general
       const isPk = /^\d+([.,]\d*)?$/.test(val.replace(',', '.'));
@@ -418,927 +417,925 @@ const CercarViewComponent: React.FC<{
           setShowSuggestions(true);
         }
       }
-    }
-  } else if (st === SearchType.Maquinista) {
-    const { data } = await supabase.from('daily_assignments').select('nom, cognoms, empleat_id').or(`nom.ilike.%${val}%,cognoms.ilike.%${val}%,empleat_id.ilike.%${val}%`).limit(8);
-    if (data) { const unique = Array.from(new Set((data as any[]).map(d => `${d.cognoms || ''}, ${d.nom || ''} (${d.empleat_id})`))) as string[]; setSuggestions(unique); setShowSuggestions(true); }
-  } else if (st === SearchType.Circulacio) {
-    const { data } = await supabase.from('circulations').select('id').ilike('id', `%${val}%`).limit(8);
-    if (data) { setSuggestions((data as any[]).map(item => item.id as string)); setShowSuggestions(true); }
-  } else if (st === SearchType.Cicle) {
-    const filtered = availableCycles.filter(c => normalizeStr(c).includes(normalizeStr(val))).slice(0, 12);
-    setSuggestions(filtered); setShowSuggestions(true);
-  } else if (st === SearchType.PK) {
-    // If not looking like a number, suggest stations
-    if (!/^\d+([.,]\d*)?$/.test(val.replace(',', '.'))) {
-      const filtered = ALL_STATIONS.filter(s => normalizeStr(s).includes(normalizeStr(val))).slice(0, 10);
+    } else if (st === SearchType.Maquinista) {
+      const { data } = await supabase.from('daily_assignments').select('nom, cognoms, empleat_id').or(`nom.ilike.%${val}%,cognoms.ilike.%${val}%,empleat_id.ilike.%${val}%`).limit(8);
+      if (data) { const unique = Array.from(new Set((data as any[]).map(d => `${d.cognoms || ''}, ${d.nom || ''} (${d.empleat_id})`))) as string[]; setSuggestions(unique); setShowSuggestions(true); }
+    } else if (st === SearchType.Circulacio) {
+      const { data } = await supabase.from('circulations').select('id').ilike('id', `%${val}%`).limit(8);
+      if (data) { setSuggestions((data as any[]).map(item => item.id as string)); setShowSuggestions(true); }
+    } else if (st === SearchType.Cicle) {
+      const filtered = availableCycles.filter(c => normalizeStr(c).includes(normalizeStr(val))).slice(0, 12);
       setSuggestions(filtered); setShowSuggestions(true);
-    } else {
-      setSuggestions([]); setShowSuggestions(false);
-    }
-  }
-
-};
-
-const executeSearch = async (overrideQuery?: string, overrideType?: SearchType) => {
-  let searchVal = overrideQuery || query;
-  const currentType = overrideType || searchType;
-  if (!searchVal && currentType !== SearchType.Cicle && currentType !== SearchType.Estacio && currentType !== SearchType.PK) { setResults([]); return; }
-
-  setLoading(true); setResults([]); setShowSuggestions(false); setPassengerInfoMap({});
-  feedback.click();
-  try {
-    let newResults: any[] = [];
-    if (currentType === SearchType.Cicle) {
-      let q = supabase.from('shifts').select('*');
-      if (selectedServei !== 'Tots') q = q.eq('servei', selectedServei);
-      const [allShifts, cycleAssigRes] = await Promise.all([
-        fetchAllFromSupabase('shifts', q),
-        supabase.from('assignments').select('*').eq('cycle_id', searchVal).single()
-      ]);
-      if (allShifts) {
-        const flattenedCircs: any[] = [];
-        const allCodiSet = new Set<string>();
-        allShifts.forEach(shift => {
-          (shift.circulations as any[])?.forEach(c => {
-            const codi = typeof c === 'object' ? c.cicle : null;
-            if (c.cicle === searchVal) {
-              flattenedCircs.push({ ...c, shift_id: shift.id, codi });
-              if (codi && codi !== 'Viatger') allCodiSet.add(codi as string);
-            }
-          });
-        });
-        const details = await fetchAllFromSupabase('circulations', supabase.from('circulations').select('*').in('id', Array.from(allCodiSet)));
-        const enrichedCircs = flattenedCircs.map(fc => { const detail = details?.find(d => d.id === fc.codi); return { ...detail, ...fc }; });
-        enrichedCircs.sort((a, b) => getFgcMinutes(a.sortida || '00:00') - getFgcMinutes(b.sortida || '00:00'));
-        newResults = [{ type: 'cycle_summary', cycle_id: searchVal, train: cycleAssigRes.data?.train_number || 'S/A', circulations: enrichedCircs }];
-      }
-    } else if (currentType === SearchType.Estacio) {
-      if (!selectedStation && !overrideQuery) { setLoading(false); return; }
-      const stationToSearch = overrideQuery || selectedStation;
-      const stationCode = STATION_CODE_MAP[stationToSearch] || stationToSearch;
-      const targetStation = stationCode.trim().toUpperCase();
-
-      // Optimizació: Filtrar circulacions per estació directament en la base de dades
-      // Cerca pel codi (ex: 'PC') o pel nom en JSON
-      const { data: matchedCircs } = await supabase.from('circulations')
-        .select('*')
-        .or(`inici.ilike.${targetStation},final.ilike.${targetStation},estacions.cs.[{"nom":"${targetStation}"}]`);
-
-      if (!matchedCircs || matchedCircs.length === 0) { setResults([]); return; }
-
-      const startMinRange = getFgcMinutes(startTime);
-      const endMinRange = getFgcMinutes(endTime);
-      const matchingCircs: any[] = [];
-
-      matchedCircs.forEach(c => {
-        let stopTime: string | null = null;
-        let stopVia: string | null = null;
-        if (c.inici?.trim().toUpperCase() === targetStation) {
-          stopTime = c.sortida as string;
-          stopVia = c.via_inici;
-        } else if (c.final?.trim().toUpperCase() === targetStation) {
-          stopTime = c.arribada as string;
-          stopVia = c.via_final;
-        } else {
-          const stop = (c.estacions as any[])?.find(st => {
-            const stName = st.nom?.trim().toUpperCase();
-            return stName === targetStation;
-          });
-          if (stop) {
-            stopTime = stop.hora || stop.arribada || stop.sortida;
-            stopVia = stop.via;
-          }
-        }
-        if (stopTime) {
-          const stopMin = getFgcMinutes(stopTime);
-          if (stopMin >= startMinRange && stopMin <= endMinRange) {
-            matchingCircs.push({ ...c, stopTimeAtStation: stopTime, viaAtStation: stopVia });
-          }
-        }
-      });
-
-      if (matchingCircs.length === 0) { setResults([]); return; }
-
-      // Trobar els shifts que contenen aquestes circulacions
-      const circIds = matchingCircs.map(mc => mc.id);
-      let qShifts = supabase.from('shifts').select('*');
-      if (selectedServei !== 'Tots') qShifts = qShifts.eq('servei', selectedServei);
-
-      // Com que les circulacions estan en un JSONB array, les busquem per servei i filtrem en JS (és molt més ràpid si el servei està filtrat)
-      const allShifts = await fetchAllFromSupabase('shifts', qShifts);
-      const matchedShiftIds = new Set<string>();
-      allShifts.forEach(s => {
-        if ((s.circulations as any[])?.some(cRef => circIds.includes(typeof cRef === 'string' ? cRef : cRef.codi))) {
-          matchedShiftIds.add(s.id);
-        }
-      });
-
-      // Enriquir dades d'una sola vegada
-      const enrichedShifts = await fetchFullTurnData(Array.from(matchedShiftIds));
-
-      const finalResults = matchingCircs.map(mc => {
-        const shift = enrichedShifts.find(s => s.fullCirculations.some((fc: any) => fc.codi === mc.id || fc.realCodi === mc.id));
-        if (!shift) return null;
-        const cRef = shift.fullCirculations.find((fc: any) => fc.codi === mc.id || fc.realCodi === mc.id);
-        return {
-          ...mc,
-          shift_id: shift.id,
-          drivers: shift.drivers,
-          cicle: cRef?.cicle,
-          train: cRef?.train,
-          fullTurn: shift,
-          realCodi: cRef?.realCodi
-        };
-      }).filter(Boolean);
-
-      newResults = [{
-        type: 'station_summary',
-        station: overrideQuery || selectedStation,
-        stationCode: stationCode,
-        circulations: (finalResults as any[]).sort((a, b) => getFgcMinutes(a.stopTimeAtStation) - getFgcMinutes(b.stopTimeAtStation))
-      }];
-    } else if (currentType === SearchType.PK) {
-      const valToSearch = overrideQuery || query;
-
-      const isPk = /^\d+([.,]\d+)?$/.test(valToSearch.replace(',', '.'));
-
-      if (isPk) {
-        const pk = parseFloat(valToSearch.replace(',', '.'));
-        const location = findPkLocation(selectedPkSegment, pk);
-        if (location) {
-          newResults = [{ type: 'pk_location', ...location }];
-        }
+    } else if (st === SearchType.PK) {
+      // If not looking like a number, suggest stations
+      if (!/^\d+([.,]\d*)?$/.test(val.replace(',', '.'))) {
+        const filtered = ALL_STATIONS.filter(s => normalizeStr(s).includes(normalizeStr(val))).slice(0, 10);
+        setSuggestions(filtered); setShowSuggestions(true);
       } else {
-        // Assume station search within PK
-        const station = findStationPk(valToSearch);
-        if (station) {
-          const location = findPkLocation(station.pkSegment, station.pk);
+        setSuggestions([]); setShowSuggestions(false);
+      }
+    }
+  };
+
+  const executeSearch = async (overrideQuery?: string, overrideType?: SearchType) => {
+    let searchVal = overrideQuery || query;
+    const currentType = overrideType || searchType;
+    if (!searchVal && currentType !== SearchType.Cicle && currentType !== SearchType.Estacio && currentType !== SearchType.PK) { setResults([]); return; }
+
+    setLoading(true); setResults([]); setShowSuggestions(false); setPassengerInfoMap({});
+    feedback.click();
+    try {
+      let newResults: any[] = [];
+      if (currentType === SearchType.Cicle) {
+        let q = supabase.from('shifts').select('*');
+        if (selectedServei !== 'Tots') q = q.eq('servei', selectedServei);
+        const [allShifts, cycleAssigRes] = await Promise.all([
+          fetchAllFromSupabase('shifts', q),
+          supabase.from('assignments').select('*').eq('cycle_id', searchVal).single()
+        ]);
+        if (allShifts) {
+          const flattenedCircs: any[] = [];
+          const allCodiSet = new Set<string>();
+          allShifts.forEach(shift => {
+            (shift.circulations as any[])?.forEach(c => {
+              const codi = typeof c === 'object' ? c.cicle : null;
+              if (c.cicle === searchVal) {
+                flattenedCircs.push({ ...c, shift_id: shift.id, codi });
+                if (codi && codi !== 'Viatger') allCodiSet.add(codi as string);
+              }
+            });
+          });
+          const details = await fetchAllFromSupabase('circulations', supabase.from('circulations').select('*').in('id', Array.from(allCodiSet)));
+          const enrichedCircs = flattenedCircs.map(fc => { const detail = details?.find(d => d.id === fc.codi); return { ...detail, ...fc }; });
+          enrichedCircs.sort((a, b) => getFgcMinutes(a.sortida || '00:00') - getFgcMinutes(b.sortida || '00:00'));
+          newResults = [{ type: 'cycle_summary', cycle_id: searchVal, train: cycleAssigRes.data?.train_number || 'S/A', circulations: enrichedCircs }];
+        }
+      } else if (currentType === SearchType.Estacio) {
+        if (!selectedStation && !overrideQuery) { setLoading(false); return; }
+        const stationToSearch = overrideQuery || selectedStation;
+        const stationCode = STATION_CODE_MAP[stationToSearch] || stationToSearch;
+        const targetStation = stationCode.trim().toUpperCase();
+
+        // Optimizació: Filtrar circulacions per estació directament en la base de dades
+        // Cerca pel codi (ex: 'PC') o pel nom en JSON
+        const { data: matchedCircs } = await supabase.from('circulations')
+          .select('*')
+          .or(`inici.ilike.${targetStation},final.ilike.${targetStation},estacions.cs.[{"nom":"${targetStation}"}]`);
+
+        if (!matchedCircs || matchedCircs.length === 0) { setResults([]); return; }
+
+        const startMinRange = getFgcMinutes(startTime);
+        const endMinRange = getFgcMinutes(endTime);
+        const matchingCircs: any[] = [];
+
+        matchedCircs.forEach(c => {
+          let stopTime: string | null = null;
+          let stopVia: string | null = null;
+          if (c.inici?.trim().toUpperCase() === targetStation) {
+            stopTime = c.sortida as string;
+            stopVia = c.via_inici;
+          } else if (c.final?.trim().toUpperCase() === targetStation) {
+            stopTime = c.arribada as string;
+            stopVia = c.via_final;
+          } else {
+            const stop = (c.estacions as any[])?.find(st => {
+              const stName = st.nom?.trim().toUpperCase();
+              return stName === targetStation;
+            });
+            if (stop) {
+              stopTime = stop.hora || stop.arribada || stop.sortida;
+              stopVia = stop.via;
+            }
+          }
+          if (stopTime) {
+            const stopMin = getFgcMinutes(stopTime);
+            if (stopMin >= startMinRange && stopMin <= endMinRange) {
+              matchingCircs.push({ ...c, stopTimeAtStation: stopTime, viaAtStation: stopVia });
+            }
+          }
+        });
+
+        if (matchingCircs.length === 0) { setResults([]); return; }
+
+        // Trobar els shifts que contenen aquestes circulacions
+        const circIds = matchingCircs.map(mc => mc.id);
+        let qShifts = supabase.from('shifts').select('*');
+        if (selectedServei !== 'Tots') qShifts = qShifts.eq('servei', selectedServei);
+
+        // Com que les circulacions estan en un JSONB array, les busquem per servei i filtrem en JS (és molt més ràpid si el servei està filtrat)
+        const allShifts = await fetchAllFromSupabase('shifts', qShifts);
+        const matchedShiftIds = new Set<string>();
+        allShifts.forEach(s => {
+          if ((s.circulations as any[])?.some(cRef => circIds.includes(typeof cRef === 'string' ? cRef : cRef.codi))) {
+            matchedShiftIds.add(s.id);
+          }
+        });
+
+        // Enriquir dades d'una sola vegada
+        const enrichedShifts = await fetchFullTurnData(Array.from(matchedShiftIds));
+
+        const finalResults = matchingCircs.map(mc => {
+          const shift = enrichedShifts.find(s => s.fullCirculations.some((fc: any) => fc.codi === mc.id || fc.realCodi === mc.id));
+          if (!shift) return null;
+          const cRef = shift.fullCirculations.find((fc: any) => fc.codi === mc.id || fc.realCodi === mc.id);
+          return {
+            ...mc,
+            shift_id: shift.id,
+            drivers: shift.drivers,
+            cicle: cRef?.cicle,
+            train: cRef?.train,
+            fullTurn: shift,
+            realCodi: cRef?.realCodi
+          };
+        }).filter(Boolean);
+
+        newResults = [{
+          type: 'station_summary',
+          station: overrideQuery || selectedStation,
+          stationCode: stationCode,
+          circulations: (finalResults as any[]).sort((a, b) => getFgcMinutes(a.stopTimeAtStation) - getFgcMinutes(b.stopTimeAtStation))
+        }];
+      } else if (currentType === SearchType.PK) {
+        const valToSearch = overrideQuery || query;
+
+        const isPk = /^\d+([.,]\d+)?$/.test(valToSearch.replace(',', '.'));
+
+        if (isPk) {
+          const pk = parseFloat(valToSearch.replace(',', '.'));
+          const location = findPkLocation(selectedPkSegment, pk);
           if (location) {
             newResults = [{ type: 'pk_location', ...location }];
           }
-        }
-
-      }
-    } else {
-
-      let turnIds: string[] = [];
-
-      if (currentType === 'general') {
-        if (isOfflineMode) {
-          const [tIds, mIds, cIds] = await Promise.all([
-            offlineSearchTurnIds(searchVal, selectedServei),
-            offlineSearchMaquinistaTurnIds(searchVal, selectedServei),
-            offlineSearchCirculationTurnIds(searchVal, selectedServei)
-          ]);
-          turnIds = Array.from(new Set([...tIds, ...mIds, ...cIds]));
-          if (turnIds.length > 0) newResults = await offlineFetchFullTurns(turnIds.slice(0, 50), selectedServei === 'Tots' ? undefined : selectedServei); else newResults = [];
         } else {
-          // 1. Torn
-          let qt = supabase.from('shifts').select('id');
-          const isNumeric = /^\d+$/.test(searchVal);
-          if (isNumeric && selectedServei !== 'Tots') {
-            const prefix = selectedServei === '0' ? '0' : selectedServei.charAt(0);
-            const numPart = searchVal.padStart(3, '0');
-            const constructedId = `Q${prefix}${numPart}`;
-            if (selectedServei !== 'Tots') qt = qt.eq('servei', selectedServei);
-            qt = qt.ilike('id', constructedId);
-          } else {
-            if (selectedServei !== 'Tots') qt = qt.eq('servei', selectedServei);
-            qt = qt.ilike('id', `%${searchVal}%`);
-          }
-
-          // 2. Maq
-          const nominaMatch = searchVal.match(/\((\d+)\)/);
-          const filterVal = nominaMatch ? nominaMatch[1] : searchVal.trim();
-          let qAssignments = supabase.from('daily_assignments').select('torn');
-          if (nominaMatch) qAssignments = qAssignments.eq('empleat_id', filterVal);
-          else qAssignments = qAssignments.or(`nom.ilike.%${filterVal}%,cognoms.ilike.%${filterVal}%,empleat_id.ilike.%${filterVal}%`);
-
-          // 3. Circ
-          let qc = supabase.from('shifts').select('id, circulations');
-          if (selectedServei !== 'Tots') qc = qc.eq('servei', selectedServei);
-
-          const [resT, resM, c] = await Promise.all([qt, qAssignments, fetchAllFromSupabase('shifts', qc)]);
-
-          const shortTorns = Array.from(new Set(resM.data?.map(x => x.torn?.trim().toUpperCase()) || []));
-          const simplifyId = (id: string) => id.replace(/^Q/i, '').replace(/^0+/, '');
-          const targetShortTornSimples = shortTorns.map(storn => simplifyId(storn));
-
-          let qm = supabase.from('shifts').select('id');
-          if (selectedServei !== 'Tots') qm = qm.eq('servei', selectedServei);
-          const { data: matchingShifts } = await qm;
-
-          const tIds = resT.data?.map(x => x.id as string) || [];
-          const mIds = matchingShifts?.filter(shift => {
-            const shiftId = shift.id as string;
-            const simpleShiftId = simplifyId(getShortTornId(shiftId));
-            return targetShortTornSimples.includes(simpleShiftId) || shortTorns.includes(getShortTornId(shiftId).toUpperCase());
-          }).map(x => x.id as string) || [];
-          const cIds = c?.filter(turn => (turn.circulations as any[])?.some((circ: any) => (typeof circ === 'string' ? circ : circ.codi)?.toLowerCase().includes(searchVal.toLowerCase()))).map(turn => turn.id as string) || [];
-
-          turnIds = Array.from(new Set([...tIds, ...mIds, ...cIds]));
-          if (turnIds.length > 0) newResults = await fetchFullTurnData(turnIds); else newResults = [];
-
-          // 4. PK / Station detection in General Search
-          const isPk = /^\d+([.,]\d+)?$/.test(searchVal.replace(',', '.'));
-          if (isPk) {
-            const pkValue = parseFloat(searchVal.replace(',', '.'));
-            const loc = findPkLocation(selectedPkSegment, pkValue);
-            if (loc) newResults = [{ type: 'pk_location', ...loc }, ...newResults];
-          } else {
-            const station = findStationPk(searchVal);
-            if (station) {
-              const loc = findPkLocation(station.pkSegment, station.pk);
-              if (loc) newResults = [{ type: 'pk_location', ...loc }, ...newResults];
+          // Assume station search within PK
+          const station = findStationPk(valToSearch);
+          if (station) {
+            const location = findPkLocation(station.pkSegment, station.pk);
+            if (location) {
+              newResults = [{ type: 'pk_location', ...location }];
             }
           }
+
         }
       } else {
-        let st = currentType as SearchType;
-        if (isOfflineMode) {
-          switch (st) {
-            case SearchType.Torn:
-              turnIds = await offlineSearchTurnIds(searchVal, selectedServei);
-              break;
-            case SearchType.Maquinista:
-              turnIds = await offlineSearchMaquinistaTurnIds(searchVal, selectedServei);
-              break;
-            case SearchType.Circulacio:
-              turnIds = await offlineSearchCirculationTurnIds(searchVal, selectedServei);
-              break;
+
+        let turnIds: string[] = [];
+
+        if (currentType === 'general') {
+          if (isOfflineMode) {
+            const [tIds, mIds, cIds] = await Promise.all([
+              offlineSearchTurnIds(searchVal, selectedServei),
+              offlineSearchMaquinistaTurnIds(searchVal, selectedServei),
+              offlineSearchCirculationTurnIds(searchVal, selectedServei)
+            ]);
+            turnIds = Array.from(new Set([...tIds, ...mIds, ...cIds]));
+            if (turnIds.length > 0) newResults = await offlineFetchFullTurns(turnIds.slice(0, 50), selectedServei === 'Tots' ? undefined : selectedServei); else newResults = [];
+          } else {
+            // 1. Torn
+            let qt = supabase.from('shifts').select('id');
+            const isNumeric = /^\d+$/.test(searchVal);
+            if (isNumeric && selectedServei !== 'Tots') {
+              const prefix = selectedServei === '0' ? '0' : selectedServei.charAt(0);
+              const numPart = searchVal.padStart(3, '0');
+              const constructedId = `Q${prefix}${numPart}`;
+              if (selectedServei !== 'Tots') qt = qt.eq('servei', selectedServei);
+              qt = qt.ilike('id', constructedId);
+            } else {
+              if (selectedServei !== 'Tots') qt = qt.eq('servei', selectedServei);
+              qt = qt.ilike('id', `%${searchVal}%`);
+            }
+
+            // 2. Maq
+            const nominaMatch = searchVal.match(/\((\d+)\)/);
+            const filterVal = nominaMatch ? nominaMatch[1] : searchVal.trim();
+            let qAssignments = supabase.from('daily_assignments').select('torn');
+            if (nominaMatch) qAssignments = qAssignments.eq('empleat_id', filterVal);
+            else qAssignments = qAssignments.or(`nom.ilike.%${filterVal}%,cognoms.ilike.%${filterVal}%,empleat_id.ilike.%${filterVal}%`);
+
+            // 3. Circ
+            let qc = supabase.from('shifts').select('id, circulations');
+            if (selectedServei !== 'Tots') qc = qc.eq('servei', selectedServei);
+
+            const [resT, resM, c] = await Promise.all([qt, qAssignments, fetchAllFromSupabase('shifts', qc)]);
+
+            const shortTorns = Array.from(new Set(resM.data?.map(x => x.torn?.trim().toUpperCase()) || []));
+            const simplifyId = (id: string) => id.replace(/^Q/i, '').replace(/^0+/, '');
+            const targetShortTornSimples = shortTorns.map(storn => simplifyId(storn));
+
+            let qm = supabase.from('shifts').select('id');
+            if (selectedServei !== 'Tots') qm = qm.eq('servei', selectedServei);
+            const { data: matchingShifts } = await qm;
+
+            const tIds = resT.data?.map(x => x.id as string) || [];
+            const mIds = matchingShifts?.filter(shift => {
+              const shiftId = shift.id as string;
+              const simpleShiftId = simplifyId(getShortTornId(shiftId));
+              return targetShortTornSimples.includes(simpleShiftId) || shortTorns.includes(getShortTornId(shiftId).toUpperCase());
+            }).map(x => x.id as string) || [];
+            const cIds = c?.filter(turn => (turn.circulations as any[])?.some((circ: any) => (typeof circ === 'string' ? circ : circ.codi)?.toLowerCase().includes(searchVal.toLowerCase()))).map(turn => turn.id as string) || [];
+
+            turnIds = Array.from(new Set([...tIds, ...mIds, ...cIds]));
+            if (turnIds.length > 0) newResults = await fetchFullTurnData(turnIds); else newResults = [];
+
+            // 4. PK / Station detection in General Search
+            const isPk = /^\d+([.,]\d+)?$/.test(searchVal.replace(',', '.'));
+            if (isPk) {
+              const pkValue = parseFloat(searchVal.replace(',', '.'));
+              const loc = findPkLocation(selectedPkSegment, pkValue);
+              if (loc) newResults = [{ type: 'pk_location', ...loc }, ...newResults];
+            } else {
+              const station = findStationPk(searchVal);
+              if (station) {
+                const loc = findPkLocation(station.pkSegment, station.pk);
+                if (loc) newResults = [{ type: 'pk_location', ...loc }, ...newResults];
+              }
+            }
           }
-          if (turnIds.length > 0) newResults = await offlineFetchFullTurns(turnIds.slice(0, 50), selectedServei === 'Tots' ? undefined : selectedServei); else newResults = [];
         } else {
-          switch (st) {
-            case SearchType.Torn:
-              let qt = supabase.from('shifts').select('id');
-              const isNumeric = /^\d+$/.test(searchVal);
+          let st = currentType as SearchType;
+          if (isOfflineMode) {
+            switch (st) {
+              case SearchType.Torn:
+                turnIds = await offlineSearchTurnIds(searchVal, selectedServei);
+                break;
+              case SearchType.Maquinista:
+                turnIds = await offlineSearchMaquinistaTurnIds(searchVal, selectedServei);
+                break;
+              case SearchType.Circulacio:
+                turnIds = await offlineSearchCirculationTurnIds(searchVal, selectedServei);
+                break;
+            }
+            if (turnIds.length > 0) newResults = await offlineFetchFullTurns(turnIds.slice(0, 50), selectedServei === 'Tots' ? undefined : selectedServei); else newResults = [];
+          } else {
+            switch (st) {
+              case SearchType.Torn:
+                let qt = supabase.from('shifts').select('id');
+                const isNumeric = /^\d+$/.test(searchVal);
 
-              if (isNumeric && selectedServei !== 'Tots') {
-                const prefix = selectedServei === '0' ? '0' : selectedServei.charAt(0);
-                const numPart = searchVal.padStart(3, '0');
-                const constructedId = `Q${prefix}${numPart}`;
-                if (selectedServei !== 'Tots') qt = qt.eq('servei', selectedServei);
-                qt = qt.ilike('id', constructedId);
-              } else {
-                if (selectedServei !== 'Tots') qt = qt.eq('servei', selectedServei);
-                qt = qt.ilike('id', `%${searchVal}%`);
-              }
+                if (isNumeric && selectedServei !== 'Tots') {
+                  const prefix = selectedServei === '0' ? '0' : selectedServei.charAt(0);
+                  const numPart = searchVal.padStart(3, '0');
+                  const constructedId = `Q${prefix}${numPart}`;
+                  if (selectedServei !== 'Tots') qt = qt.eq('servei', selectedServei);
+                  qt = qt.ilike('id', constructedId);
+                } else {
+                  if (selectedServei !== 'Tots') qt = qt.eq('servei', selectedServei);
+                  qt = qt.ilike('id', `%${searchVal}%`);
+                }
 
-              const { data: s } = await qt;
-              turnIds = s?.map(x => x.id as string) || [];
-              break;
-            case SearchType.Maquinista:
-              const nominaMatch = searchVal.match(/\((\d+)\)/); // More flexible regex
-              const filterVal = nominaMatch ? nominaMatch[1] : searchVal.trim();
+                const { data: s } = await qt;
+                turnIds = s?.map(x => x.id as string) || [];
+                break;
+              case SearchType.Maquinista:
+                const nominaMatch = searchVal.match(/\((\d+)\)/); // More flexible regex
+                const filterVal = nominaMatch ? nominaMatch[1] : searchVal.trim();
 
-              let qAssignments = supabase.from('daily_assignments').select('torn');
-              if (nominaMatch) {
-                qAssignments = qAssignments.eq('empleat_id', filterVal);
-              } else {
-                qAssignments = qAssignments.or(`nom.ilike.%${filterVal}%,cognoms.ilike.%${filterVal}%,empleat_id.ilike.%${filterVal}%`);
-              }
+                let qAssignments = supabase.from('daily_assignments').select('torn');
+                if (nominaMatch) {
+                  qAssignments = qAssignments.eq('empleat_id', filterVal);
+                } else {
+                  qAssignments = qAssignments.or(`nom.ilike.%${filterVal}%,cognoms.ilike.%${filterVal}%,empleat_id.ilike.%${filterVal}%`);
+                }
 
-              const { data: m } = await qAssignments;
-              const shortTorns = Array.from(new Set(m?.map(x => x.torn?.trim().toUpperCase()) || []));
+                const { data: m } = await qAssignments;
+                const shortTorns = Array.from(new Set(m?.map(x => x.torn?.trim().toUpperCase()) || []));
 
-              let qm = supabase.from('shifts').select('id');
-              if (selectedServei !== 'Tots') qm = qm.eq('servei', selectedServei);
-              const { data: matchingShifts } = await qm;
+                let qm = supabase.from('shifts').select('id');
+                if (selectedServei !== 'Tots') qm = qm.eq('servei', selectedServei);
+                const { data: matchingShifts } = await qm;
 
-              const simplifyId = (id: string) => id.replace(/^Q/i, '').replace(/^0+/, '');
-              const targetShortTornSimples = shortTorns.map(st => simplifyId(st));
+                const simplifyId = (id: string) => id.replace(/^Q/i, '').replace(/^0+/, '');
+                const targetShortTornSimples = shortTorns.map(st => simplifyId(st));
 
-              turnIds = matchingShifts?.filter(shift => {
-                const shiftId = shift.id as string;
-                const simpleShiftId = simplifyId(getShortTornId(shiftId));
-                return targetShortTornSimples.includes(simpleShiftId) || shortTorns.includes(getShortTornId(shiftId).toUpperCase());
-              }).map(x => x.id as string) || [];
-              break;
-            case SearchType.Circulacio:
-              let qc = supabase.from('shifts').select('id, circulations');
-              if (selectedServei !== 'Tots') qc = qc.eq('servei', selectedServei);
-              const c = await fetchAllFromSupabase('shifts', qc);
-              turnIds = c?.filter(turn => (turn.circulations as any[])?.some((circ: any) => (typeof circ === 'string' ? circ : circ.codi)?.toLowerCase().includes(searchVal.toLowerCase()))).map(turn => turn.id as string) || [];
-              break;
+                turnIds = matchingShifts?.filter(shift => {
+                  const shiftId = shift.id as string;
+                  const simpleShiftId = simplifyId(getShortTornId(shiftId));
+                  return targetShortTornSimples.includes(simpleShiftId) || shortTorns.includes(getShortTornId(shiftId).toUpperCase());
+                }).map(x => x.id as string) || [];
+                break;
+              case SearchType.Circulacio:
+                let qc = supabase.from('shifts').select('id, circulations');
+                if (selectedServei !== 'Tots') qc = qc.eq('servei', selectedServei);
+                const c = await fetchAllFromSupabase('shifts', qc);
+                turnIds = c?.filter(turn => (turn.circulations as any[])?.some((circ: any) => (typeof circ === 'string' ? circ : circ.codi)?.toLowerCase().includes(searchVal.toLowerCase()))).map(turn => turn.id as string) || [];
+                break;
+            }
+            if (turnIds.length > 0) newResults = await fetchFullTurnData(turnIds); else newResults = [];
           }
-          if (turnIds.length > 0) newResults = await fetchFullTurnData(turnIds); else newResults = [];
         }
       }
-    }
 
-    setResults(newResults);
+      setResults(newResults);
 
-    // --- FETCH PASSENGER INFO ---
-    if (newResults.length > 0) {
-      const circIds = new Set<string>();
-      newResults.forEach(r => {
-        if (r.circulations) { // Cycle / Station
-          r.circulations.forEach((c: any) => c.codi && c.codi !== 'Viatger' && circIds.add(c.codi));
-        } else if (r.fullCirculations) { // Turn
-          r.fullCirculations.forEach((c: any) => c.codi && c.codi !== 'Viatger' && circIds.add(c.codi));
+      // --- FETCH PASSENGER INFO ---
+      if (newResults.length > 0) {
+        const circIds = new Set<string>();
+        newResults.forEach(r => {
+          if (r.circulations) { // Cycle / Station
+            r.circulations.forEach((c: any) => c.codi && c.codi !== 'Viatger' && circIds.add(c.codi));
+          } else if (r.fullCirculations) { // Turn
+            r.fullCirculations.forEach((c: any) => c.codi && c.codi !== 'Viatger' && circIds.add(c.codi));
+          }
+        });
+
+        if (circIds.size > 0) {
+          const pInfo = await fetchPassengerInfo(Array.from(circIds), selectedServei === 'Tots' ? undefined : selectedServei);
+          setPassengerInfoMap(pInfo);
         }
-      });
-
-      if (circIds.size > 0) {
-        const pInfo = await fetchPassengerInfo(Array.from(circIds), selectedServei === 'Tots' ? undefined : selectedServei);
-        setPassengerInfoMap(pInfo);
       }
-    }
 
-  } catch (error) { console.error("Error cercant dades:", error); } finally { setLoading(false); }
-};
+    } catch (error) { console.error("Error cercant dades:", error); } finally { setLoading(false); }
+  };
 
-return (
-  <div className="space-y-6 sm:space-y-8 p-4 sm:p-8 animate-in fade-in duration-700 max-w-7xl mx-auto w-full">
-    <header className="flex flex-col xl:flex-row xl:items-end justify-between gap-6 animate-in fade-in slide-in-from-top-4 duration-700 parallax-slow">
-      <div className="flex flex-col gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl sm:text-3xl font-bold text-[#4D5358] dark:text-white tracking-tight title-glow uppercase">Cerca de Servei</h1>
-            {isOfflineMode && <span className="bg-red-500/20 text-red-500 text-xs px-2 py-1 rounded-full animate-pulse border border-red-500/30">Línia Caiguda: Offline</span>}
+  return (
+    <div className="space-y-6 sm:space-y-8 p-4 sm:p-8 animate-in fade-in duration-700 max-w-7xl mx-auto w-full">
+      <header className="flex flex-col xl:flex-row xl:items-end justify-between gap-6 animate-in fade-in slide-in-from-top-4 duration-700 parallax-slow">
+        <div className="flex flex-col gap-4">
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl sm:text-3xl font-bold text-[#4D5358] dark:text-white tracking-tight title-glow uppercase">Cerca de Servei</h1>
+              {isOfflineMode && <span className="bg-red-500/20 text-red-500 text-xs px-2 py-1 rounded-full animate-pulse border border-red-500/30">Línia Caiguda: Offline</span>}
+            </div>
+            <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400 font-medium mt-1">
+              {syncing ? syncMsg || "Sincronitzant..." : "Informació de torns, circulacions i unitats de tren."}
+            </p>
           </div>
-          <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400 font-medium mt-1">
-            {syncing ? syncMsg || "Sincronitzant..." : "Informació de torns, circulacions i unitats de tren."}
-          </p>
-        </div>
-        <button onClick={handleSync} disabled={syncing || isOfflineMode} className={`hidden md:flex self-start items-center gap-2 px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all border ${isOfflineMode ? 'opacity-50 cursor-not-allowed border-gray-200 dark:border-white/5 bg-gray-100 dark:bg-white/5 text-gray-400' : 'border-fgc-green/50 text-fgc-green hover:bg-fgc-green hover:text-[#4D5358] bg-fgc-green/10 group shadow-sm shadow-fgc-green/10'}`}>
-          <Save size={16} className={syncing ? 'animate-bounce' : 'group-hover:scale-110 transition-transform'} />
-          {syncing ? 'Baixant...' : 'Baixar Catxé per a Offline'}
-        </button>
-      </div>
-      <div className="flex flex-col gap-2">
-        <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Filtre de Servei</span>
-        <div className="flex overflow-x-auto w-full [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] -mx-4 px-4 md:mx-0 md:px-0">
-          <div className="inline-flex glass-card p-1 rounded-2xl shadow-sm border border-gray-100 dark:border-white/5 pb-0">
-            {['Tots', ...serveiTypes].map(s => (<button key={s} onClick={() => { feedback.deepClick(); setSelectedServei(s); }} className={`px-3 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex-shrink-0 ${selectedServei === s ? 'bg-fgc-grey dark:bg-fgc-green dark:text-[#4D5358] text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5'}`}>{s === 'Tots' ? 'Tots' : `S-${s}`}</button>))}
-          </div>
-        </div>
-      </div>
-    </header>
-
-    <GlassPanel className="p-6 sm:p-8 relative z-30">
-      <div className="absolute inset-0 rounded-[32px] sm:rounded-[40px] overflow-hidden pointer-events-none">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-fgc-green/5 blur-3xl -mr-32 -mt-32" />
-      </div>
-      {/* Mobile: two rows of 3. Desktop: single flex row */}
-      <div className="md:hidden flex flex-col gap-2 mb-6">
-        <div className="grid grid-cols-3 gap-2">
-          {filterButtonsRow1.map((btn) => (
-            <button key={btn.id} onClick={() => { feedback.click(); setSearchType(btn.id); setResults([]); setQuery(''); setSuggestions([]); setShowSuggestions(false); }} className={`flex items-center justify-center gap-1 px-1 py-2.5 rounded-xl text-[12px] font-bold transition-all ${searchType === btn.id ? 'bg-fgc-green text-[#4D5358] shadow-xl shadow-fgc-green/20' : 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/10'}`}>
-              <span className="shrink-0">{btn.icon}</span>
-              <span className="truncate">{btn.label}</span>
-            </button>
-          ))}
-        </div>
-        <div className="grid grid-cols-3 gap-2">
-          {filterButtonsRow2.map((btn) => (
-            <button key={btn.id} onClick={() => { feedback.click(); setSearchType(btn.id); setResults([]); setQuery(''); setSuggestions([]); setShowSuggestions(false); }} className={`flex items-center justify-center gap-1 px-1 py-2.5 rounded-xl text-[12px] font-bold transition-all ${searchType === btn.id ? 'bg-fgc-green text-[#4D5358] shadow-xl shadow-fgc-green/20' : 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/10'}`}>
-              <span className="shrink-0">{btn.icon}</span>
-              <span className="truncate">{btn.label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="hidden md:flex md:flex-wrap gap-2 sm:gap-3 mb-6 sm:mb-8">
-        {filterButtons.map((btn) => (
-          <button key={btn.id} onClick={() => { feedback.click(); setSearchType(btn.id); setResults([]); setQuery(''); setSuggestions([]); setShowSuggestions(false); }} className={`flex items-center justify-center gap-2 px-6 py-3 rounded-2xl text-sm font-bold transition-all ${searchType === btn.id ? 'bg-fgc-green text-[#4D5358] shadow-xl shadow-fgc-green/20' : 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/10'}`}>
-            <span className="shrink-0">{btn.icon}</span>
-            <span className="truncate">{btn.label}</span>
+          <button onClick={handleSync} disabled={syncing || isOfflineMode} className={`hidden md:flex self-start items-center gap-2 px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all border ${isOfflineMode ? 'opacity-50 cursor-not-allowed border-gray-200 dark:border-white/5 bg-gray-100 dark:bg-white/5 text-gray-400' : 'border-fgc-green/50 text-fgc-green hover:bg-fgc-green hover:text-[#4D5358] bg-fgc-green/10 group shadow-sm shadow-fgc-green/10'}`}>
+            <Save size={16} className={syncing ? 'animate-bounce' : 'group-hover:scale-110 transition-transform'} />
+            {syncing ? 'Baixant...' : 'Baixar Catxé per a Offline'}
           </button>
-        ))}
-      </div>
-      <div className="md:hidden w-full mb-6">
-        <button onClick={handleSync} disabled={syncing || isOfflineMode} className={`w-full flex justify-center items-center gap-2 px-4 py-3 rounded-2xl text-sm font-bold transition-all border ${isOfflineMode ? 'opacity-50 cursor-not-allowed border-gray-200 dark:border-white/5 bg-gray-100 dark:bg-white/5 text-gray-400' : 'border-fgc-green/50 text-fgc-green hover:bg-fgc-green hover:text-[#4D5358] bg-fgc-green/10 group shadow-sm shadow-fgc-green/10'}`}>
-          <Save size={18} className={syncing ? 'animate-bounce' : 'group-hover:scale-110 transition-transform'} />
-          {syncing ? 'Baixant...' : 'Baixar dades Offline'}
-        </button>
-      </div>
-
-      {searchType === SearchType.Estacio ? (
-        <div className="space-y-6">
-          <div className="flex flex-col gap-6">
-            <div className="flex-1 space-y-2">
-              <label className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-4">Selecciona Estació</label>
-              <div className="relative">
-                <MapPin className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={24} />
-                <select
-                  value={selectedStation}
-                  onChange={(e) => { setSelectedStation(e.target.value); if (e.target.value) executeSearch(e.target.value, SearchType.Estacio); }}
-                  className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] sm:rounded-[32px] py-4 sm:py-6 pl-16 pr-12 focus:ring-4 focus:ring-fgc-green/20 outline-none text-lg sm:text-2xl font-bold appearance-none cursor-pointer dark:text-white transition-all shadow-inner"
-                >
-                  <option value="" className="dark:bg-fgc-grey">Tria una estació...</option>
-                  {allStations.map(st => <option key={st} value={st} className="dark:bg-fgc-grey">{st}</option>)}
-                </select>
-                <ChevronDown className="absolute right-8 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none" size={24} />
-              </div>
+        </div>
+        <div className="flex flex-col gap-2">
+          <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Filtre de Servei</span>
+          <div className="flex overflow-x-auto w-full [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] -mx-4 px-4 md:mx-0 md:px-0">
+            <div className="inline-flex glass-card p-1 rounded-2xl shadow-sm border border-gray-100 dark:border-white/5 pb-0">
+              {['Tots', ...serveiTypes].map(s => (<button key={s} onClick={() => { feedback.deepClick(); setSelectedServei(s); }} className={`px-3 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex-shrink-0 ${selectedServei === s ? 'bg-fgc-grey dark:bg-fgc-green dark:text-[#4D5358] text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5'}`}>{s === 'Tots' ? 'Tots' : `S-${s}`}</button>))}
             </div>
+          </div>
+        </div>
+      </header>
 
-            <div className="grid grid-cols-2 gap-3 sm:gap-4 w-full">
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-4 flex items-center gap-2">
-                  De les<button onClick={() => setStartTime(getCurrentTimeStr())} className="text-fgc-green"><Clock size={12} /></button>
-                </label>
-                <input
-                  type="time"
-                  value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
-                  className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[20px] sm:rounded-[32px] py-4 sm:py-6 px-2 sm:px-8 focus:ring-4 focus:ring-fgc-green/20 outline-none text-base sm:text-2xl font-bold dark:text-white text-center appearance-none"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-4 flex items-center gap-2">
-                  A les<button onClick={() => setEndTime(getTimePlusMinutes(15))} className="text-fgc-green"><Clock size={12} /></button>
-                </label>
-                <input
-                  type="time"
-                  value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
-                  className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[20px] sm:rounded-[32px] py-4 sm:py-6 px-2 sm:px-8 focus:ring-4 focus:ring-fgc-green/20 outline-none text-base sm:text-2xl font-bold dark:text-white text-center appearance-none"
-                />
-              </div>
-            </div>
-
-            <button
-              onClick={() => executeSearch()}
-              className="bg-fgc-green text-[#4D5358] h-[60px] sm:h-[76px] w-full rounded-[20px] sm:rounded-[32px] text-lg sm:text-xl font-bold shadow-xl shadow-fgc-green/20 hover:scale-[1.01] active:scale-95 flex items-center justify-center gap-3 transition-all mt-2"
-            >
-              <Search size={22} />CERCAR
+      <GlassPanel className="p-6 sm:p-8 relative z-30">
+        <div className="absolute inset-0 rounded-[32px] sm:rounded-[40px] overflow-hidden pointer-events-none">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-fgc-green/5 blur-3xl -mr-32 -mt-32" />
+        </div>
+        {/* Mobile: two rows of 3. Desktop: single flex row */}
+        <div className="md:hidden flex flex-col gap-2 mb-6">
+          <div className="grid grid-cols-3 gap-2">
+            {filterButtonsRow1.map((btn) => (
+              <button key={btn.id} onClick={() => { feedback.click(); setSearchType(btn.id); setResults([]); setQuery(''); setSuggestions([]); setShowSuggestions(false); }} className={`flex items-center justify-center gap-1 px-1 py-2.5 rounded-xl text-[12px] font-bold transition-all ${searchType === btn.id ? 'bg-fgc-green text-[#4D5358] shadow-xl shadow-fgc-green/20' : 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/10'}`}>
+                <span className="shrink-0">{btn.icon}</span>
+                <span className="truncate">{btn.label}</span>
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {filterButtonsRow2.map((btn) => (
+              <button key={btn.id} onClick={() => { feedback.click(); setSearchType(btn.id); setResults([]); setQuery(''); setSuggestions([]); setShowSuggestions(false); }} className={`flex items-center justify-center gap-1 px-1 py-2.5 rounded-xl text-[12px] font-bold transition-all ${searchType === btn.id ? 'bg-fgc-green text-[#4D5358] shadow-xl shadow-fgc-green/20' : 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/10'}`}>
+                <span className="shrink-0">{btn.icon}</span>
+                <span className="truncate">{btn.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="hidden md:flex md:flex-wrap gap-2 sm:gap-3 mb-6 sm:mb-8">
+          {filterButtons.map((btn) => (
+            <button key={btn.id} onClick={() => { feedback.click(); setSearchType(btn.id); setResults([]); setQuery(''); setSuggestions([]); setShowSuggestions(false); }} className={`flex items-center justify-center gap-2 px-6 py-3 rounded-2xl text-sm font-bold transition-all ${searchType === btn.id ? 'bg-fgc-green text-[#4D5358] shadow-xl shadow-fgc-green/20' : 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/10'}`}>
+              <span className="shrink-0">{btn.icon}</span>
+              <span className="truncate">{btn.label}</span>
             </button>
-          </div>
+          ))}
         </div>
-      ) : (
-        <div className="space-y-8">
-          <div className="relative flex flex-col sm:flex-row items-stretch sm:items-center gap-4" ref={suggestionsRef}>
-            <div className="relative flex-1 group">
-              <div className="absolute inset-y-0 left-6 z-20 flex items-center pointer-events-none text-gray-400 dark:text-gray-500 bg-transparent">
-                {loading ? <Loader2 className="animate-spin" size={24} /> : <Search size={24} />}
-              </div>
-              <input
-                type="text"
-                name="search-query"
-                autoComplete="off"
-                data-1p-ignore="true"
-                placeholder={searchType === 'general' ? 'Cerca torn, maquinista o circulació...' : `Cerca per ${searchType.toUpperCase()}...`}
-                className="relative z-10 w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] sm:rounded-[32px] py-4 sm:py-6 pl-14 sm:pl-16 pr-14 sm:pr-16 focus:ring-4 focus:ring-fgc-green/20 outline-none text-lg sm:text-2xl font-bold placeholder:text-gray-300 dark:text-white dark:placeholder:text-gray-600 transition-all shadow-inner"
-                value={query}
-                onChange={(e) => handleInputChange(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && executeSearch()}
-                onFocus={(e) => {
-                  e.target.select();
-                  if (query.length >= 1) setShowSuggestions(true);
-                }}
-              />
-              {query && (
-                <button
-                  onClick={() => {
-                    setQuery('');
-                    setResults([]);
-                    setSuggestions([]);
-                    setShowSuggestions(false);
-                    feedback.click();
-                  }}
-                  className="absolute inset-y-0 right-6 z-20 flex items-center text-gray-400 dark:text-gray-500 hover:text-fgc-green transition-colors"
-                >
-                  <X size={24} />
-                </button>
-              )}
-              {showSuggestions && suggestions.length > 0 && (
-                <div className="absolute top-full left-2 right-2 mt-2 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md rounded-[24px] shadow-2xl border border-gray-100 dark:border-white/10 z-[200] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-                  {suggestions.map((id, sIdx) => (
-                    <button
-                      key={sIdx}
-                      onClick={() => handleSuggestionClick(id)}
-                      className="w-full text-left px-6 sm:px-8 py-3 sm:py-4 text-base sm:text-xl font-bold text-[#4D5358] dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-fgc-green transition-colors flex items-center justify-between group"
-                    >
-                      <span>{id}</span>
-                      <ArrowRight size={18} className="opacity-0 group-hover:opacity-100 transition-all scale-110" />
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <button onClick={() => executeSearch()} className="bg-fgc-green text-[#4D5358] h-[60px] sm:h-[76px] px-8 sm:px-10 rounded-[24px] sm:rounded-[32px] text-lg sm:text-xl font-bold shadow-xl shadow-fgc-green/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3"><Search size={22} />CERCAR</button>
-          </div>
+        <div className="md:hidden w-full mb-6">
+          <button onClick={handleSync} disabled={syncing || isOfflineMode} className={`w-full flex justify-center items-center gap-2 px-4 py-3 rounded-2xl text-sm font-bold transition-all border ${isOfflineMode ? 'opacity-50 cursor-not-allowed border-gray-200 dark:border-white/5 bg-gray-100 dark:bg-white/5 text-gray-400' : 'border-fgc-green/50 text-fgc-green hover:bg-fgc-green hover:text-[#4D5358] bg-fgc-green/10 group shadow-sm shadow-fgc-green/10'}`}>
+            <Save size={18} className={syncing ? 'animate-bounce' : 'group-hover:scale-110 transition-transform'} />
+            {syncing ? 'Baixant...' : 'Baixar dades Offline'}
+          </button>
+        </div>
 
-          {searchType === SearchType.PK && (
-            <div className="animate-in fade-in slide-in-from-top-2 duration-500 space-y-4">
-              <div className="flex items-center gap-2 mb-2 px-2">
-                <MapPin size={16} className="text-fgc-green" />
-                <h3 className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Tram PK o Estació</h3>
+        {searchType === SearchType.Estacio ? (
+          <div className="space-y-6">
+            <div className="flex flex-col gap-6">
+              <div className="flex-1 space-y-2">
+                <label className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-4">Selecciona Estació</label>
+                <div className="relative">
+                  <MapPin className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={24} />
+                  <select
+                    value={selectedStation}
+                    onChange={(e) => { setSelectedStation(e.target.value); if (e.target.value) executeSearch(e.target.value, SearchType.Estacio); }}
+                    className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] sm:rounded-[32px] py-4 sm:py-6 pl-16 pr-12 focus:ring-4 focus:ring-fgc-green/20 outline-none text-lg sm:text-2xl font-bold appearance-none cursor-pointer dark:text-white transition-all shadow-inner"
+                  >
+                    <option value="" className="dark:bg-fgc-grey">Tria una estació...</option>
+                    {allStations.map(st => <option key={st} value={st} className="dark:bg-fgc-grey">{st}</option>)}
+                  </select>
+                  <ChevronDown className="absolute right-8 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none" size={24} />
+                </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+              <div className="grid grid-cols-2 gap-3 sm:gap-4 w-full">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Tram de Línia</label>
-                  <div className="flex flex-wrap gap-2">
-                    {PK_SEGMENTS.map(seg => (
+                  <label className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-4 flex items-center gap-2">
+                    De les<button onClick={() => setStartTime(getCurrentTimeStr())} className="text-fgc-green"><Clock size={12} /></button>
+                  </label>
+                  <input
+                    type="time"
+                    value={startTime}
+                    onChange={(e) => setStartTime(e.target.value)}
+                    className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[20px] sm:rounded-[32px] py-4 sm:py-6 px-2 sm:px-8 focus:ring-4 focus:ring-fgc-green/20 outline-none text-base sm:text-2xl font-bold dark:text-white text-center appearance-none"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-4 flex items-center gap-2">
+                    A les<button onClick={() => setEndTime(getTimePlusMinutes(15))} className="text-fgc-green"><Clock size={12} /></button>
+                  </label>
+                  <input
+                    type="time"
+                    value={endTime}
+                    onChange={(e) => setEndTime(e.target.value)}
+                    className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[20px] sm:rounded-[32px] py-4 sm:py-6 px-2 sm:px-8 focus:ring-4 focus:ring-fgc-green/20 outline-none text-base sm:text-2xl font-bold dark:text-white text-center appearance-none"
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={() => executeSearch()}
+                className="bg-fgc-green text-[#4D5358] h-[60px] sm:h-[76px] w-full rounded-[20px] sm:rounded-[32px] text-lg sm:text-xl font-bold shadow-xl shadow-fgc-green/20 hover:scale-[1.01] active:scale-95 flex items-center justify-center gap-3 transition-all mt-2"
+              >
+                <Search size={22} />CERCAR
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-8">
+            <div className="relative flex flex-col sm:flex-row items-stretch sm:items-center gap-4" ref={suggestionsRef}>
+              <div className="relative flex-1 group">
+                <div className="absolute inset-y-0 left-6 z-20 flex items-center pointer-events-none text-gray-400 dark:text-gray-500 bg-transparent">
+                  {loading ? <Loader2 className="animate-spin" size={24} /> : <Search size={24} />}
+                </div>
+                <input
+                  type="text"
+                  name="search-query"
+                  autoComplete="off"
+                  data-1p-ignore="true"
+                  placeholder={searchType === 'general' ? 'Cerca torn, maquinista o circulació...' : `Cerca per ${searchType.toUpperCase()}...`}
+                  className="relative z-10 w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] sm:rounded-[32px] py-4 sm:py-6 pl-14 sm:pl-16 pr-14 sm:pr-16 focus:ring-4 focus:ring-fgc-green/20 outline-none text-lg sm:text-2xl font-bold placeholder:text-gray-300 dark:text-white dark:placeholder:text-gray-600 transition-all shadow-inner"
+                  value={query}
+                  onChange={(e) => handleInputChange(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && executeSearch()}
+                  onFocus={(e) => {
+                    e.target.select();
+                    if (query.length >= 1) setShowSuggestions(true);
+                  }}
+                />
+                {query && (
+                  <button
+                    onClick={() => {
+                      setQuery('');
+                      setResults([]);
+                      setSuggestions([]);
+                      setShowSuggestions(false);
+                      feedback.click();
+                    }}
+                    className="absolute inset-y-0 right-6 z-20 flex items-center text-gray-400 dark:text-gray-500 hover:text-fgc-green transition-colors"
+                  >
+                    <X size={24} />
+                  </button>
+                )}
+                {showSuggestions && suggestions.length > 0 && (
+                  <div className="absolute top-full left-2 right-2 mt-2 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md rounded-[24px] shadow-2xl border border-gray-100 dark:border-white/10 z-[200] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                    {suggestions.map((id, sIdx) => (
                       <button
-                        key={seg}
-                        onClick={() => {
-                          setSelectedPkSegment(seg);
-                          if (query) executeSearch(query, SearchType.PK);
-                        }}
-                        className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all ${selectedPkSegment === seg ? 'bg-fgc-green text-[#4D5358] border-fgc-green shadow-lg' : 'bg-white dark:bg-black/20 text-gray-400 border-gray-100 dark:border-white/5 hover:border-fgc-green'}`}
+                        key={sIdx}
+                        onClick={() => handleSuggestionClick(id)}
+                        className="w-full text-left px-6 sm:px-8 py-3 sm:py-4 text-base sm:text-xl font-bold text-[#4D5358] dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-fgc-green transition-colors flex items-center justify-between group"
                       >
-                        {seg}
+                        <span>{id}</span>
+                        <ArrowRight size={18} className="opacity-0 group-hover:opacity-100 transition-all scale-110" />
                       </button>
                     ))}
                   </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {searchType === SearchType.Cicle && (
-
-            <div className="animate-in fade-in slide-in-from-top-2 duration-500">
-              <div className="flex items-center gap-2 mb-4 px-2">
-                <LayoutGrid size={16} className="text-fgc-green" />
-                <h3 className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Selecció ràpida de Cicle (S-{selectedServei})</h3>
-              </div>
-              <div className="bg-gray-50/50 dark:bg-black/20 p-4 sm:p-6 rounded-[28px] border border-gray-100 dark:border-white/5">
-                {loading ? (
-                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 p-1">
-                    {[...Array(16)].map((_, i) => (
-                      <div key={i} className="skeleton-item h-12 w-full" />
-                    ))}
-                  </div>
-                ) : availableCycles.length > 0 ? (
-                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 max-h-[320px] overflow-y-auto pr-2 custom-scrollbar p-1">
-                    {availableCycles.map((c) => (
-                      <button
-                        key={c}
-                        onClick={() => { setQuery(c); executeSearch(c); }}
-                        className={`py-3 px-2 rounded-xl text-sm font-bold border transition-all ${query === c ? 'bg-fgc-green text-[#4D5358] border-fgc-green shadow-lg scale-105' : 'bg-white dark:bg-gray-800 text-[#4D5358] dark:text-gray-200 border-gray-100 dark:border-white/5 hover:border-fgc-green hover:shadow-md hover:scale-105 active:scale-95'}`}
-                      >
-                        {c}
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="py-10 text-center opacity-30">
-                    <p className="text-xs font-bold italic">No hi ha cicles disponibles per aquest servei.</p>
-                  </div>
                 )}
               </div>
+              <button onClick={() => executeSearch()} className="bg-fgc-green text-[#4D5358] h-[60px] sm:h-[76px] px-8 sm:px-10 rounded-[24px] sm:rounded-[32px] text-lg sm:text-xl font-bold shadow-xl shadow-fgc-green/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3"><Search size={22} />CERCAR</button>
             </div>
-          )}
-        </div>
-      )}
-    </GlassPanel>
 
-    <div className="space-y-12 sm:space-y-16 mt-8">
-      {loading ? (
-        <div className="space-y-12 animate-in fade-in duration-500">
-          <CardSkeleton />
-          <ListSkeleton items={5} />
-        </div>
-      ) : results.length > 0 ? (
-        results.map((group, idx) => {
-          if (group.type === 'cycle_summary' || group.type === 'station_summary') {
-            const isStationGroup = group.type === 'station_summary';
-            return (
-              <GlassPanel key={idx} className="p-4 sm:p-10 !rounded-[40px] sm:!rounded-[56px] animate-in fade-in slide-in-from-bottom-12 duration-700 relative overflow-hidden group">
-                <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-fgc-green/5 to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-8 mb-6 sm:mb-12">
-                  <div className="flex items-center gap-4 sm:gap-6">
-                    <div className={`min-w-[3.5rem] min-h-[3.5rem] sm:min-w-[5rem] sm:min-h-[5rem] px-2 ${isStationGroup ? 'bg-fgc-green text-[#4D5358]' : 'bg-fgc-grey dark:bg-black text-white'} rounded-2xl sm:rounded-[28px] flex items-center justify-center text-base sm:text-2xl font-bold shadow-lg`}><span className="truncate">{isStationGroup ? <MapPin size={28} /> : group.cycle_id}</span></div>
-                    <div className="min-w-0">
-                      <h2 className="text-lg sm:text-3xl font-bold text-[#4D5358] dark:text-white tracking-tighter uppercase truncate">{isStationGroup ? `Circulacions a ${group.station}` : 'Cronograma de Cicle'}</h2>
-                      <div className="flex items-center gap-2 mt-0.5 sm:mt-1">{isStationGroup ? <Clock size={14} className="text-fgc-green" /> : <Train size={14} className="text-fgc-green" />}<p className="text-sm sm:text-lg font-bold text-gray-500 dark:text-gray-400">{isStationGroup ? `Franja: ${startTime} - ${endTime}` : `Unitat: ${group.train}`}</p></div>
-                    </div>
-                  </div>
+            {searchType === SearchType.PK && (
+              <div className="animate-in fade-in slide-in-from-top-2 duration-500 space-y-4">
+                <div className="flex items-center gap-2 mb-2 px-2">
+                  <MapPin size={16} className="text-fgc-green" />
+                  <h3 className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Tram PK o Estació</h3>
                 </div>
-                {isStationGroup && group.stationCode && (
-                  <div className="mb-8 mx-auto w-full max-w-4xl aspect-[16/9] rounded-[32px] overflow-hidden border-[8px] border-gray-900 bg-black relative shadow-2xl">
-                    <iframe
-                      src={`https://geotren.fgc.cat/isic/${group.stationCode.toLowerCase()}`}
-                      className="w-[555%] sm:w-[222.22%] h-[555%] sm:h-[222.22%] border-0 origin-top-left scale-[0.18] sm:scale-[0.45]"
-                      title={`Informació estació ${group.station}`}
-                      allow="geolocation"
-                    />
-                  </div>
-                )}
-                <div className="border border-gray-100 dark:border-white/5 rounded-[32px] overflow-hidden bg-white dark:bg-black/20 shadow-sm">
-                  {isStationGroup && group.stationCode === 'PC' && (
-                    <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 p-3 sm:p-4 bg-gray-50/50 dark:bg-black/40 border-b border-gray-100 dark:border-white/5">
-                      <span className="hidden sm:inline text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mr-2">Filtrar per via:</span>
-                      {['Tot', 'V1', 'V2', 'V3', 'V4', 'V5'].map(via => (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Tram de Línia</label>
+                    <div className="flex flex-wrap gap-2">
+                      {PK_SEGMENTS.map(seg => (
                         <button
-                          key={via}
+                          key={seg}
                           onClick={() => {
-                            feedback.click();
-                            setSelectedVia(via);
+                            setSelectedPkSegment(seg);
+                            if (query) executeSearch(query, SearchType.PK);
                           }}
-                          className={`px-3 sm:px-4 py-1.5 rounded-full text-[10px] sm:text-xs font-bold transition-all ${selectedVia === via
-                            ? 'bg-fgc-green text-[#4D5358] shadow-md scale-105'
-                            : 'bg-white dark:bg-white/5 text-gray-500 dark:text-gray-400 border border-gray-100 dark:border-white/5 hover:bg-gray-100'
-                            }`}
+                          className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all ${selectedPkSegment === seg ? 'bg-fgc-green text-[#4D5358] border-fgc-green shadow-lg' : 'bg-white dark:bg-black/20 text-gray-400 border-gray-100 dark:border-white/5 hover:border-fgc-green'}`}
                         >
-                          {via}
+                          {seg}
                         </button>
                       ))}
                     </div>
-                  )}
-                  <CirculationHeader isStationView={isStationGroup} />
-                  <div className="grid grid-cols-1 divide-y divide-gray-100 dark:divide-white/5">
-                    {group.circulations
-                      .filter((c: any) => selectedVia === 'Tot' || (c.viaAtStation?.includes(selectedVia.replace('V', '')) && c.viaAtStation.length > 0))
-                      .map((circ: any, cIdx: number) => {
-                        const itemKey = `${idx}-${cIdx}`;
-                        // ... resto del mapa ...
-                        const isActive = checkIfActive((circ.sortida || circ.stopTimeAtStation) as string, (circ.arribada || circ.stopTimeAtStation) as string, nowMin);
-                        return (
-                          <div key={cIdx} className={`flex flex-col transition-all hover:bg-gray-50/50 dark:hover:bg-white/5 relative ${isActive ? 'ring-2 ring-inset ring-red-600 z-10' : ''}`}>
-                            {isStationGroup ? (
-                              <StationRow circ={circ} itemKey={itemKey} nowMin={nowMin} trainStatuses={trainStatuses} getTrainPhone={getTrainPhone} getLiniaColor={getLiniaColor} getShiftCurrentStatus={getShiftCurrentStatus} openUnitMenu={openUnitMenu} toggleItinerari={toggleItinerari} isPrivacyMode={isPrivacyMode} onCycleClick={handleCycleClick} />
-                            ) : (
-                              <CirculationRow circ={circ} itemKey={itemKey} nowMin={nowMin} trainStatuses={trainStatuses} getTrainPhone={getTrainPhone} getLiniaColor={getLiniaColor} openUnitMenu={openUnitMenu} toggleItinerari={toggleItinerari} isPrivacyMode={isPrivacyMode} onCycleClick={handleCycleClick} />
-                            )}
-                            {expandedItinerari === itemKey && (
-                              <div className="p-4 sm:p-10 bg-white dark:bg-fgc-grey border-t border-gray-100 dark:border-white/5 animate-in slide-in-from-top-4 duration-500 overflow-hidden">
-                                <div className="relative flex flex-col pl-8 sm:pl-16 pr-2 sm:pr-6 py-4 space-y-0">
-                                  <div className="absolute left-[15px] sm:left-[29px] top-10 bottom-10 w-0.5 sm:w-1 bg-gray-100 dark:bg-gray-800 rounded-full" />
-                                  {[{ nom: circ.inici, hora: circ.sortida, via: circ.via_inici }, ...(circ.estacions?.map((st: any) => ({ nom: st.nom, hora: st.hora || st.sortida || st.arribada, via: st.via })) || []), { nom: circ.final, hora: circ.arribada, via: circ.via_final }].map((point, pIdx, arr) => (
-                                    <ItineraryPoint key={pIdx} point={point} isFirst={pIdx === 0} isLast={pIdx === arr.length - 1} nextPoint={arr[pIdx + 1]} nowMin={nowMin} />
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
                   </div>
                 </div>
-              </GlassPanel>
-            );
-          }
+              </div>
+            )}
 
-          if (group.type === 'pk_location') {
-            const loc = group as PkLocationResult;
-            return (
-              <GlassPanel key={idx} className="p-8 sm:p-10 !rounded-[40px] animate-in fade-in slide-in-from-bottom-12 duration-700 relative overflow-hidden group">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                  <div className="flex items-center gap-6">
-                    <div className="p-4 bg-fgc-green rounded-2xl text-[#4D5358] shadow-lg"><MapPin size={24} /></div>
-                    <div>
-                      <h2 className="text-xl sm:text-2xl font-bold text-[#4D5358] dark:text-white uppercase tracking-tight">Punt Kilomètric {loc.pk.toFixed(3)}</h2>
-                      <p className="text-sm font-bold text-gray-500 uppercase tracking-widest">{loc.segment}</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setPkMapTarget(loc)}
-                    className="flex items-center gap-2 px-6 py-3 bg-fgc-green text-[#4D5358] rounded-2xl font-bold shadow-lg hover:scale-105 active:scale-95 transition-all"
-                  >
-                    <MapIcon size={20} />
-                    VEURE AL MAPA
-                  </button>
+            {searchType === SearchType.Cicle && (
+
+              <div className="animate-in fade-in slide-in-from-top-2 duration-500">
+                <div className="flex items-center gap-2 mb-4 px-2">
+                  <LayoutGrid size={16} className="text-fgc-green" />
+                  <h3 className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Selecció ràpida de Cicle (S-{selectedServei})</h3>
                 </div>
-
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-10">
-                  <div className="space-y-4">
-                    <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] ml-1">Posició i Entorn</h3>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
-                        <span className="text-xs font-bold text-gray-400">ESTACIÓ ANTERIOR</span>
-                        <span className="text-sm font-bold text-[#4D5358] dark:text-white uppercase">{loc.prevStation?.name || '---'}</span>
-                      </div>
-                      <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
-                        <span className="text-xs font-bold text-gray-400">ESTACIÓ POSTERIOR</span>
-                        <span className="text-sm font-bold text-[#4D5358] dark:text-white uppercase">{loc.nextStation?.name || '---'}</span>
-                      </div>
-                      <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
-                        <span className="text-xs font-bold text-gray-400">GPS COORDINATES</span>
-                        <span className="text-xs font-mono font-bold text-[#4D5358] dark:text-gray-300">{loc.lat.toFixed(6)}, {loc.lon.toFixed(6)}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col justify-center p-8 bg-fgc-green/10 rounded-[32px] border-2 border-dashed border-fgc-green/30 relative overflow-hidden">
-                    <div className="text-[10px] font-bold text-fgc-green uppercase tracking-[0.3em] mb-6 text-center">Progrés en Tram</div>
-
-                    <div className="relative mb-2">
-                      <div className="flex justify-between items-end mb-2 px-1">
-                        <div className="flex flex-col">
-                          <span className="text-[10px] font-extrabold text-[#4D5358] dark:text-gray-200 uppercase tracking-tighter">{loc.prevStation?.name || '---'}</span>
-                          <span className="text-[14px] font-black text-fgc-green leading-none">
-                            {loc.prevStation ? Math.round(Math.abs(loc.pk - loc.prevStation.pk) * 1000) : 0} <small className="text-[9px] opacity-70">m</small>
-                          </span>
-                        </div>
-                        <div className="flex flex-col items-end">
-                          <span className="text-[10px] font-extrabold text-[#4D5358] dark:text-gray-200 uppercase tracking-tighter">{loc.nextStation?.name || '---'}</span>
-                          <span className="text-[14px] font-black text-fgc-green leading-none text-right">
-                            {loc.nextStation ? Math.round(Math.abs(loc.nextStation.pk - loc.pk) * 1000) : 0} <small className="text-[9px] opacity-70">m</small>
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="w-full h-5 bg-white dark:bg-black/40 rounded-full overflow-hidden p-1 shadow-inner ring-1 ring-fgc-green/20">
-                        <div
-                          className="h-full bg-fgc-green rounded-full shadow-sm relative transition-all duration-1000"
-                          style={{ width: `${loc.percentage * 100}%` }}
-                        >
-                          <div className="absolute right-0 top-0 bottom-0 w-4 bg-white/30 blur-sm" />
-                        </div>
-                      </div>
-                    </div>
-
-                    <p className="text-[11px] font-bold text-gray-500 dark:text-gray-400 text-center uppercase tracking-tight mt-4">
-                      Posició al <span className="text-fgc-green text-sm">{(loc.percentage * 100).toFixed(1)}%</span> del trajecte
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-10 pt-10 border-t border-gray-100 dark:border-white/5">
-                  <div className="flex items-center gap-3 mb-6">
-                    <Zap className="text-fgc-green" size={20} />
-                    <h3 className="text-sm font-bold text-[#4D5358] dark:text-white uppercase tracking-tight">Velocitats i Limitacions</h3>
-                  </div>
-
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                    <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Màxima Tram</span>
-                      <div className="text-2xl font-bold text-[#4D5358] dark:text-white">{loc.speedInfo?.maxSpeed} <span className="text-xs text-gray-400">km/h</span></div>
-                    </div>
-
-                    <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Inclinació (Pendent)</span>
-                      <div className="text-2xl font-bold text-[#4D5358] dark:text-white flex items-center gap-1">
-                        {loc.declivity !== undefined ? (
-                          <>
-                            {loc.declivity > 0 ? <ArrowUp size={18} className="text-red-500" /> : loc.declivity < 0 ? <ArrowDown size={18} className="text-green-500" /> : null}
-                            {Math.abs(loc.declivity)} <span className="text-xs text-gray-400">‰</span>
-                          </>
-                        ) : '---'}
-                      </div>
-                    </div>
-
-                    <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">ASC Normal</span>
-                        <ArrowUp size={12} className="text-blue-500" />
-                      </div>
-                      <div className="text-2xl font-bold text-[#4D5358] dark:text-white">{loc.speedInfo?.ascNormal} <span className="text-xs text-gray-400">km/h</span></div>
-                    </div>
-
-                    <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">DESC Normal</span>
-                        <ArrowDown size={12} className="text-orange-500" />
-                      </div>
-                      <div className="text-2xl font-bold text-[#4D5358] dark:text-white">{loc.speedInfo?.descNormal} <span className="text-xs text-gray-400">km/h</span></div>
-                    </div>
-
-                    <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Contravia (A/D)</span>
-                      <div className="flex items-center gap-4">
-                        <div className="text-lg font-bold text-[#4D5358] dark:text-white">{loc.speedInfo?.ascContravia} <span className="text-[10px] text-gray-400 font-normal">A</span></div>
-                        <div className="w-px h-4 bg-gray-200 dark:bg-white/10" />
-                        <div className="text-lg font-bold text-[#4D5358] dark:text-white">{loc.speedInfo?.descContravia} <span className="text-[10px] text-gray-400 font-normal">D</span></div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {loc.speedInfo?.notes && loc.speedInfo.notes.length > 0 && (
-                    <div className="mt-6 space-y-2">
-                      {loc.speedInfo.notes.map((note, idx) => (
-                        <div key={idx} className="flex items-start gap-3 p-3 bg-amber-500/5 rounded-xl border border-amber-500/10">
-                          <AlertTriangle size={14} className="text-amber-500 mt-0.5 shrink-0" />
-                          <p className="text-xs font-medium text-amber-700 dark:text-amber-400/80 italic">{note}</p>
-                        </div>
+                <div className="bg-gray-50/50 dark:bg-black/20 p-4 sm:p-6 rounded-[28px] border border-gray-100 dark:border-white/5">
+                  {loading ? (
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 p-1">
+                      {[...Array(16)].map((_, i) => (
+                        <div key={i} className="skeleton-item h-12 w-full" />
                       ))}
                     </div>
+                  ) : availableCycles.length > 0 ? (
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 max-h-[320px] overflow-y-auto pr-2 custom-scrollbar p-1">
+                      {availableCycles.map((c) => (
+                        <button
+                          key={c}
+                          onClick={() => { setQuery(c); executeSearch(c); }}
+                          className={`py-3 px-2 rounded-xl text-sm font-bold border transition-all ${query === c ? 'bg-fgc-green text-[#4D5358] border-fgc-green shadow-lg scale-105' : 'bg-white dark:bg-gray-800 text-[#4D5358] dark:text-gray-200 border-gray-100 dark:border-white/5 hover:border-fgc-green hover:shadow-md hover:scale-105 active:scale-95'}`}
+                        >
+                          {c}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="py-10 text-center opacity-30">
+                      <p className="text-xs font-bold italic">No hi ha cicles disponibles per aquest servei.</p>
+                    </div>
                   )}
                 </div>
+              </div>
+            )}
+          </div>
+        )}
+      </GlassPanel>
 
-              </GlassPanel>
-            )
-          }
-
-          const currentStatus = getShiftCurrentStatus(group, idx);
-
-          return (
-            <div key={idx} className="flex flex-col gap-1 group animate-in fade-in slide-in-from-bottom-12 duration-700">
-              <GlassPanel className="p-6 sm:p-10 !rounded-t-[32px] sm:!rounded-t-[48px] !rounded-b-none relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-fgc-green/30 to-transparent shimmer" />
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 flex-1">
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-3">
-                        <h2 className="text-xl sm:text-3xl font-bold text-[#4D5358] dark:text-white tracking-tighter uppercase leading-tight">Torn {group.id}</h2>
-                        {group.drivers.length > 1 && (
-                          <div className="flex gap-2">
-                            <span className="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase flex items-center gap-1"><Users size={10} /> Compartit ({group.drivers.length})</span>
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 dark:bg-white/5 text-gray-500 rounded-lg text-[10px] font-bold uppercase border border-gray-200/50"><Timer size={12} /> {group.duracio}</div>
-                        <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 dark:bg-white/5 text-gray-500 rounded-lg text-[10px] font-bold uppercase border border-gray-200/50"><MapPin size={12} /> {group.dependencia}</div>
+      <div className="space-y-12 sm:space-y-16 mt-8">
+        {loading ? (
+          <div className="space-y-12 animate-in fade-in duration-500">
+            <CardSkeleton />
+            <ListSkeleton items={5} />
+          </div>
+        ) : results.length > 0 ? (
+          results.map((group, idx) => {
+            if (group.type === 'cycle_summary' || group.type === 'station_summary') {
+              const isStationGroup = group.type === 'station_summary';
+              return (
+                <GlassPanel key={idx} className="p-4 sm:p-10 !rounded-[40px] sm:!rounded-[56px] animate-in fade-in slide-in-from-bottom-12 duration-700 relative overflow-hidden group">
+                  <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-fgc-green/5 to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-8 mb-6 sm:mb-12">
+                    <div className="flex items-center gap-4 sm:gap-6">
+                      <div className={`min-w-[3.5rem] min-h-[3.5rem] sm:min-w-[5rem] sm:min-h-[5rem] px-2 ${isStationGroup ? 'bg-fgc-green text-[#4D5358]' : 'bg-fgc-grey dark:bg-black text-white'} rounded-2xl sm:rounded-[28px] flex items-center justify-center text-base sm:text-2xl font-bold shadow-lg`}><span className="truncate">{isStationGroup ? <MapPin size={28} /> : group.cycle_id}</span></div>
+                      <div className="min-w-0">
+                        <h2 className="text-lg sm:text-3xl font-bold text-[#4D5358] dark:text-white tracking-tighter uppercase truncate">{isStationGroup ? `Circulacions a ${group.station}` : 'Cronograma de Cicle'}</h2>
+                        <div className="flex items-center gap-2 mt-0.5 sm:mt-1">{isStationGroup ? <Clock size={14} className="text-fgc-green" /> : <Train size={14} className="text-fgc-green" />}<p className="text-sm sm:text-lg font-bold text-gray-500 dark:text-gray-400">{isStationGroup ? `Franja: ${startTime} - ${endTime}` : `Unitat: ${group.train}`}</p></div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2.5 text-base sm:text-xl font-bold text-fgc-green bg-fgc-green/5 px-4 py-2 rounded-xl border border-fgc-green/10 whitespace-nowrap">
-                      <Clock size={20} /><span>{group.inici_torn}</span><span className="opacity-30 mx-1">—</span><span>{group.final_torn}</span>
-                    </div>
-                    <button onClick={() => scrollToElement(currentStatus.targetId)} className={`px-5 py-2.5 rounded-2xl text-[10px] sm:text-xs font-bold shadow-md border-b-4 border-black/10 transition-all ${currentStatus.color}`}>{currentStatus.label}</button>
                   </div>
-                </div>
-              </GlassPanel>
-              <div className="bg-fgc-green divide-y divide-white/20 border-x border-fgc-green/20 shadow-sm overflow-hidden">
-                {group.drivers.map((driver: any, dIdx: number) => {
-                  const isWorking = group.drivers.length > 1 && isDriverWorkingNow(driver.observacions);
-                  return (
-                    <div key={dIdx} className="p-6 sm:p-10 transition-colors hover:bg-white/5 relative">
-                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 sm:gap-10">
-                        <div className="flex items-center gap-6 sm:gap-8 w-full md:w-auto">
-                          <div className="w-14 h-14 sm:w-16 sm:h-16 bg-white/40 dark:bg-black/20 rounded-full flex items-center justify-center text-[#4D5358] border-2 border-white/60 shrink-0">{group.drivers.length > 1 ? <span className="font-bold text-lg">{dIdx + 1}</span> : <User size={28} strokeWidth={2.5} />}</div>
-                          <div className="space-y-1 min-w-0 flex-1 md:flex-none">
-                            <div className="flex items-center gap-3">
-                              <MarqueeText text={`${driver.cognoms}, ${driver.nom}`} className="text-xl sm:text-2xl font-bold text-[#4D5358] tracking-tight leading-tight uppercase" />
-                              {driver.tipus_torn && (<span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase shadow-sm border ${driver.tipus_torn === 'Reducció' ? 'bg-purple-600 text-white border-purple-700' : 'bg-blue-600 text-white border-blue-700'}`}>{driver.tipus_torn}</span>)}
-                              {isWorking && (<div className="bg-fgc-grey text-white px-3 py-1 rounded-full text-[9px] font-bold uppercase flex items-center gap-1.5 shadow-sm animate-bounce"><div className="w-1.5 h-1.5 bg-fgc-green rounded-full animate-pulse" />TREBALLANT</div>)}
+                  {isStationGroup && group.stationCode && (
+                    <div className="mb-8 mx-auto w-full max-w-4xl aspect-[16/9] rounded-[32px] overflow-hidden border-[8px] border-gray-900 bg-black relative shadow-2xl">
+                      <iframe
+                        src={`https://geotren.fgc.cat/isic/${group.stationCode.toLowerCase()}`}
+                        className="w-[555%] sm:w-[222.22%] h-[555%] sm:h-[222.22%] border-0 origin-top-left scale-[0.18] sm:scale-[0.45]"
+                        title={`Informació estació ${group.station}`}
+                        allow="geolocation"
+                      />
+                    </div>
+                  )}
+                  <div className="border border-gray-100 dark:border-white/5 rounded-[32px] overflow-hidden bg-white dark:bg-black/20 shadow-sm">
+                    {isStationGroup && group.stationCode === 'PC' && (
+                      <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 p-3 sm:p-4 bg-gray-50/50 dark:bg-black/40 border-b border-gray-100 dark:border-white/5">
+                        <span className="hidden sm:inline text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mr-2">Filtrar per via:</span>
+                        {['Tot', 'V1', 'V2', 'V3', 'V4', 'V5'].map(via => (
+                          <button
+                            key={via}
+                            onClick={() => {
+                              feedback.click();
+                              setSelectedVia(via);
+                            }}
+                            className={`px-3 sm:px-4 py-1.5 rounded-full text-[10px] sm:text-xs font-bold transition-all ${selectedVia === via
+                              ? 'bg-fgc-green text-[#4D5358] shadow-md scale-105'
+                              : 'bg-white dark:bg-white/5 text-gray-500 dark:text-gray-400 border border-gray-100 dark:border-white/5 hover:bg-gray-100'
+                              }`}
+                          >
+                            {via}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <CirculationHeader isStationView={isStationGroup} />
+                    <div className="grid grid-cols-1 divide-y divide-gray-100 dark:divide-white/5">
+                      {group.circulations
+                        .filter((c: any) => selectedVia === 'Tot' || (c.viaAtStation?.includes(selectedVia.replace('V', '')) && c.viaAtStation.length > 0))
+                        .map((circ: any, cIdx: number) => {
+                          const itemKey = `${idx}-${cIdx}`;
+                          // ... resto del mapa ...
+                          const isActive = checkIfActive((circ.sortida || circ.stopTimeAtStation) as string, (circ.arribada || circ.stopTimeAtStation) as string, nowMin);
+                          return (
+                            <div key={cIdx} className={`flex flex-col transition-all hover:bg-gray-50/50 dark:hover:bg-white/5 relative ${isActive ? 'ring-2 ring-inset ring-red-600 z-10' : ''}`}>
+                              {isStationGroup ? (
+                                <StationRow circ={circ} itemKey={itemKey} nowMin={nowMin} trainStatuses={trainStatuses} getTrainPhone={getTrainPhone} getLiniaColor={getLiniaColor} getShiftCurrentStatus={getShiftCurrentStatus} openUnitMenu={openUnitMenu} toggleItinerari={toggleItinerari} isPrivacyMode={isPrivacyMode} onCycleClick={handleCycleClick} />
+                              ) : (
+                                <CirculationRow circ={circ} itemKey={itemKey} nowMin={nowMin} trainStatuses={trainStatuses} getTrainPhone={getTrainPhone} getLiniaColor={getLiniaColor} openUnitMenu={openUnitMenu} toggleItinerari={toggleItinerari} isPrivacyMode={isPrivacyMode} onCycleClick={handleCycleClick} />
+                              )}
+                              {expandedItinerari === itemKey && (
+                                <div className="p-4 sm:p-10 bg-white dark:bg-fgc-grey border-t border-gray-100 dark:border-white/5 animate-in slide-in-from-top-4 duration-500 overflow-hidden">
+                                  <div className="relative flex flex-col pl-8 sm:pl-16 pr-2 sm:pr-6 py-4 space-y-0">
+                                    <div className="absolute left-[15px] sm:left-[29px] top-10 bottom-10 w-0.5 sm:w-1 bg-gray-100 dark:bg-gray-800 rounded-full" />
+                                    {[{ nom: circ.inici, hora: circ.sortida, via: circ.via_inici }, ...(circ.estacions?.map((st: any) => ({ nom: st.nom, hora: st.hora || st.sortida || st.arribada, via: st.via })) || []), { nom: circ.final, hora: circ.arribada, via: circ.via_final }].map((point, pIdx, arr) => (
+                                      <ItineraryPoint key={pIdx} point={point} isFirst={pIdx === 0} isLast={pIdx === arr.length - 1} nextPoint={arr[pIdx + 1]} nowMin={nowMin} />
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                            <div className="flex flex-wrap gap-2 items-center"><div className="inline-flex items-center bg-fgc-grey text-white px-2.5 py-0.5 rounded-lg font-bold text-[9px] sm:text-[10px] tracking-widest uppercase">Nómina: {driver.nomina}</div>{driver.abs_parc_c === 'S' && <span className="bg-red-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded">ABS</span>}{driver.dta === 'S' && <span className="bg-blue-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded">DTA</span>}{driver.dpa === 'S' && <span className="bg-purple-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded">DPA</span>}</div>
-                            {driver.observacions && (<div className="flex items-start gap-2 bg-black/10 dark:bg-black/20 px-3 py-2 rounded-xl border border-black/5 max-w-lg mt-2"><Info size={14} className="text-[#4D5358] dark:text-gray-300 mt-0.5 shrink-0" /><p className="text-[11px] sm:text-xs font-bold text-[#4D5358] dark:text-gray-200 leading-snug italic">{driver.observacions}</p></div>)}
+                          );
+                        })}
+                    </div>
+                  </div>
+                </GlassPanel>
+              );
+            }
+
+            if (group.type === 'pk_location') {
+              const loc = group as PkLocationResult;
+              return (
+                <GlassPanel key={idx} className="p-8 sm:p-10 !rounded-[40px] animate-in fade-in slide-in-from-bottom-12 duration-700 relative overflow-hidden group">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    <div className="flex items-center gap-6">
+                      <div className="p-4 bg-fgc-green rounded-2xl text-[#4D5358] shadow-lg"><MapPin size={24} /></div>
+                      <div>
+                        <h2 className="text-xl sm:text-2xl font-bold text-[#4D5358] dark:text-white uppercase tracking-tight">Punt Kilomètric {loc.pk.toFixed(3)}</h2>
+                        <p className="text-sm font-bold text-gray-500 uppercase tracking-widest">{loc.segment}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setPkMapTarget(loc)}
+                      className="flex items-center gap-2 px-6 py-3 bg-fgc-green text-[#4D5358] rounded-2xl font-bold shadow-lg hover:scale-105 active:scale-95 transition-all"
+                    >
+                      <MapIcon size={20} />
+                      VEURE AL MAPA
+                    </button>
+                  </div>
+
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-10">
+                    <div className="space-y-4">
+                      <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] ml-1">Posició i Entorn</h3>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
+                          <span className="text-xs font-bold text-gray-400">ESTACIÓ ANTERIOR</span>
+                          <span className="text-sm font-bold text-[#4D5358] dark:text-white uppercase">{loc.prevStation?.name || '---'}</span>
+                        </div>
+                        <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
+                          <span className="text-xs font-bold text-gray-400">ESTACIÓ POSTERIOR</span>
+                          <span className="text-sm font-bold text-[#4D5358] dark:text-white uppercase">{loc.nextStation?.name || '---'}</span>
+                        </div>
+                        <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
+                          <span className="text-xs font-bold text-gray-400">GPS COORDINATES</span>
+                          <span className="text-xs font-mono font-bold text-[#4D5358] dark:text-gray-300">{loc.lat.toFixed(6)}, {loc.lon.toFixed(6)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col justify-center p-8 bg-fgc-green/10 rounded-[32px] border-2 border-dashed border-fgc-green/30 relative overflow-hidden">
+                      <div className="text-[10px] font-bold text-fgc-green uppercase tracking-[0.3em] mb-6 text-center">Progrés en Tram</div>
+
+                      <div className="relative mb-2">
+                        <div className="flex justify-between items-end mb-2 px-1">
+                          <div className="flex flex-col">
+                            <span className="text-[10px] font-extrabold text-[#4D5358] dark:text-gray-200 uppercase tracking-tighter">{loc.prevStation?.name || '---'}</span>
+                            <span className="text-[14px] font-black text-fgc-green leading-none">
+                              {loc.prevStation ? Math.round(Math.abs(loc.pk - loc.prevStation.pk) * 1000) : 0} <small className="text-[9px] opacity-70">m</small>
+                            </span>
+                          </div>
+                          <div className="flex flex-col items-end">
+                            <span className="text-[10px] font-extrabold text-[#4D5358] dark:text-gray-200 uppercase tracking-tighter">{loc.nextStation?.name || '---'}</span>
+                            <span className="text-[14px] font-black text-fgc-green leading-none text-right">
+                              {loc.nextStation ? Math.round(Math.abs(loc.nextStation.pk - loc.pk) * 1000) : 0} <small className="text-[9px] opacity-70">m</small>
+                            </span>
                           </div>
                         </div>
-                        <div className="flex flex-wrap gap-2 sm:gap-3 w-full md:w-auto">{driver.phones?.map((p: string, i: number) => (<a key={i} href={isPrivacyMode ? undefined : `tel:${p}`} className={`flex-1 md:flex-none flex items-center justify-center gap-2.5 bg-fgc-grey text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-bold hover:bg-fgc-dark transition-all active:scale-95 ${isPrivacyMode ? 'cursor-default' : ''}`}><Phone size={14} />{isPrivacyMode ? '*** ** ** **' : p}</a>))}</div>
+
+                        <div className="w-full h-5 bg-white dark:bg-black/40 rounded-full overflow-hidden p-1 shadow-inner ring-1 ring-fgc-green/20">
+                          <div
+                            className="h-full bg-fgc-green rounded-full shadow-sm relative transition-all duration-1000"
+                            style={{ width: `${loc.percentage * 100}%` }}
+                          >
+                            <div className="absolute right-0 top-0 bottom-0 w-4 bg-white/30 blur-sm" />
+                          </div>
+                        </div>
+                      </div>
+
+                      <p className="text-[11px] font-bold text-gray-500 dark:text-gray-400 text-center uppercase tracking-tight mt-4">
+                        Posició al <span className="text-fgc-green text-sm">{(loc.percentage * 100).toFixed(1)}%</span> del trajecte
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-10 pt-10 border-t border-gray-100 dark:border-white/5">
+                    <div className="flex items-center gap-3 mb-6">
+                      <Zap className="text-fgc-green" size={20} />
+                      <h3 className="text-sm font-bold text-[#4D5358] dark:text-white uppercase tracking-tight">Velocitats i Limitacions</h3>
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                      <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Màxima Tram</span>
+                        <div className="text-2xl font-bold text-[#4D5358] dark:text-white">{loc.speedInfo?.maxSpeed} <span className="text-xs text-gray-400">km/h</span></div>
+                      </div>
+
+                      <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Inclinació (Pendent)</span>
+                        <div className="text-2xl font-bold text-[#4D5358] dark:text-white flex items-center gap-1">
+                          {loc.declivity !== undefined ? (
+                            <>
+                              {loc.declivity > 0 ? <ArrowUp size={18} className="text-red-500" /> : loc.declivity < 0 ? <ArrowDown size={18} className="text-green-500" /> : null}
+                              {Math.abs(loc.declivity)} <span className="text-xs text-gray-400">‰</span>
+                            </>
+                          ) : '---'}
+                        </div>
+                      </div>
+
+                      <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">ASC Normal</span>
+                          <ArrowUp size={12} className="text-blue-500" />
+                        </div>
+                        <div className="text-2xl font-bold text-[#4D5358] dark:text-white">{loc.speedInfo?.ascNormal} <span className="text-xs text-gray-400">km/h</span></div>
+                      </div>
+
+                      <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">DESC Normal</span>
+                          <ArrowDown size={12} className="text-orange-500" />
+                        </div>
+                        <div className="text-2xl font-bold text-[#4D5358] dark:text-white">{loc.speedInfo?.descNormal} <span className="text-xs text-gray-400">km/h</span></div>
+                      </div>
+
+                      <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Contravia (A/D)</span>
+                        <div className="flex items-center gap-4">
+                          <div className="text-lg font-bold text-[#4D5358] dark:text-white">{loc.speedInfo?.ascContravia} <span className="text-[10px] text-gray-400 font-normal">A</span></div>
+                          <div className="w-px h-4 bg-gray-200 dark:bg-white/10" />
+                          <div className="text-lg font-bold text-[#4D5358] dark:text-white">{loc.speedInfo?.descContravia} <span className="text-[10px] text-gray-400 font-normal">D</span></div>
+                        </div>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-              <GlassPanel className="p-4 sm:p-10 !rounded-b-[32px] sm:!rounded-b-[48px] !rounded-t-none overflow-hidden relative">
-                <ShiftTimeline turn={group} nowMin={nowMin} trainStatuses={trainStatuses} getLiniaColor={getLiniaColor} openUnitMenu={openUnitMenu} getStatusColor={getStatusColor} />
-                <div className="border border-gray-100 dark:border-white/5 rounded-[32px] overflow-hidden bg-white dark:bg-black/20 shadow-sm mb-4">
-                  <CirculationHeader />
-                  <div className="flex flex-col divide-y divide-gray-100 dark:divide-white/5">
-                    {group.fullCirculations?.[0] && (<TimeGapRow from={group.inici_torn} to={group.fullCirculations[0].sortida} id={`gap-pre-${idx}`} nowMin={nowMin} />)}
-                    {group.fullCirculations?.map((circ: any, cIdx: number) => {
-                      const shiftItemKey = `${idx}-${cIdx}`;
-                      const isActive = checkIfActive(circ.sortida as string, circ.arribada as string, nowMin);
-                      return (
-                        <React.Fragment key={cIdx}>
-                          <div id={`circ-row-${shiftItemKey}`} className={`flex flex-col relative scroll-mt-24 ${isActive ? 'ring-2 ring-inset ring-red-600 z-10' : ''}`}>
-                            <CirculationRow circ={circ} itemKey={shiftItemKey} nowMin={nowMin} trainStatuses={trainStatuses} getTrainPhone={getTrainPhone} getLiniaColor={getLiniaColor} openUnitMenu={openUnitMenu} toggleItinerari={toggleItinerari} isPrivacyMode={isPrivacyMode} passengerInfo={passengerInfoMap[circ.codi] || []} onCycleClick={handleCycleClick} />
-                            {expandedItinerari === shiftItemKey && (
-                              <div className="p-4 sm:p-10 bg-white dark:bg-fgc-grey border-t border-gray-100 dark:border-white/5 animate-in slide-in-from-top-4 duration-500 overflow-hidden">
-                                <div className="relative flex flex-col pl-8 sm:pl-16 pr-2 sm:pr-6 py-4 space-y-0">
-                                  <div className="absolute left-[15px] sm:left-[29px] top-10 bottom-10 w-0.5 sm:w-1 bg-gray-100 dark:bg-gray-800 rounded-full" />
-                                  {[{ nom: circ.inici, hora: circ.sortida, via: circ.via_inici }, ...(circ.estacions?.map((st: any) => ({ nom: st.nom, hora: st.hora || st.sortida || st.arribada, via: st.via })) || []), { nom: circ.final, hora: circ.arribada, via: circ.via_final }].map((point, pIdx, arr) => (
-                                    <ItineraryPoint key={pIdx} point={point} isFirst={pIdx === 0} isLast={pIdx === arr.length - 1} nextPoint={arr[pIdx + 1]} nowMin={nowMin} />
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                          <TimeGapRow from={circ.arribada} to={group.fullCirculations?.[cIdx + 1]?.sortida || group.final_torn} id={`gap-row-${idx}-${cIdx}`} nowMin={nowMin} />
-                        </React.Fragment>
-                      );
-                    })}
-                  </div>
-                </div>
-              </GlassPanel>
-            </div>
-          );
-        })
-      ) : !loading && (query.length >= 1 || (searchType === SearchType.Estacio && selectedStation)) ? (
-        <div className="bg-white dark:bg-fgc-grey rounded-[32px] py-20 text-center text-gray-400 flex flex-col items-center gap-6"><div className="w-24 h-24 bg-gray-50 dark:bg-black/20 rounded-full flex items-center justify-center text-gray-100"><Search size={48} /></div><div className="space-y-2"><p className="text-xl font-bold text-[#4D5358] uppercase">No s'han trobat dades</p><p className="text-sm font-medium">Revisa els paràmetres de cerca.</p></div></div>
-      ) : !loading && (
-        <div className="text-center py-24 opacity-10 flex flex-col items-center"><Train size={80} className="text-[#4D5358] mb-8" /><p className="text-lg font-bold uppercase tracking-[0.4em] text-[#4D5358]">Consulta de Torns Activa</p></div>
-      )
-      }
-    </div>
 
-    {
-      editingCirc && createPortal(
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-fgc-grey/60 backdrop-blur-md animate-in fade-in duration-300">
-          <div className="bg-white dark:bg-fgc-grey w-full rounded-[48px] shadow-2xl border border-white/20 overflow-hidden flex flex-col animate-in zoom-in-95 duration-300 max-w-md">
-            <div className="p-8 border-b border-gray-100 dark:border-white/5 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-fgc-green rounded-2xl text-[#4D5358] shadow-lg"><Train size={24} /></div>
-                <div><h3 className="text-xl font-bold text-[#4D5358] dark:text-white uppercase tracking-tight">Gestió d'Unitat</h3><p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Circulació {editingCirc.circ.codi} • Cicle {editingCirc.cycleId}</p></div>
+                    {loc.speedInfo?.notes && loc.speedInfo.notes.length > 0 && (
+                      <div className="mt-6 space-y-2">
+                        {loc.speedInfo.notes.map((note, idx) => (
+                          <div key={idx} className="flex items-start gap-3 p-3 bg-amber-500/5 rounded-xl border border-amber-500/10">
+                            <AlertTriangle size={14} className="text-amber-500 mt-0.5 shrink-0" />
+                            <p className="text-xs font-medium text-amber-700 dark:text-amber-400/80 italic">{note}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                </GlassPanel>
+              )
+            }
+
+            const currentStatus = getShiftCurrentStatus(group, idx);
+
+            return (
+              <div key={idx} className="flex flex-col gap-1 group animate-in fade-in slide-in-from-bottom-12 duration-700">
+                <GlassPanel className="p-6 sm:p-10 !rounded-t-[32px] sm:!rounded-t-[48px] !rounded-b-none relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-fgc-green/30 to-transparent shimmer" />
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 flex-1">
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-3">
+                          <h2 className="text-xl sm:text-3xl font-bold text-[#4D5358] dark:text-white tracking-tighter uppercase leading-tight">Torn {group.id}</h2>
+                          {group.drivers.length > 1 && (
+                            <div className="flex gap-2">
+                              <span className="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase flex items-center gap-1"><Users size={10} /> Compartit ({group.drivers.length})</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 dark:bg-white/5 text-gray-500 rounded-lg text-[10px] font-bold uppercase border border-gray-200/50"><Timer size={12} /> {group.duracio}</div>
+                          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 dark:bg-white/5 text-gray-500 rounded-lg text-[10px] font-bold uppercase border border-gray-200/50"><MapPin size={12} /> {group.dependencia}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2.5 text-base sm:text-xl font-bold text-fgc-green bg-fgc-green/5 px-4 py-2 rounded-xl border border-fgc-green/10 whitespace-nowrap">
+                        <Clock size={20} /><span>{group.inici_torn}</span><span className="opacity-30 mx-1">—</span><span>{group.final_torn}</span>
+                      </div>
+                      <button onClick={() => scrollToElement(currentStatus.targetId)} className={`px-5 py-2.5 rounded-2xl text-[10px] sm:text-xs font-bold shadow-md border-b-4 border-black/10 transition-all ${currentStatus.color}`}>{currentStatus.label}</button>
+                    </div>
+                  </div>
+                </GlassPanel>
+                <div className="bg-fgc-green divide-y divide-white/20 border-x border-fgc-green/20 shadow-sm overflow-hidden">
+                  {group.drivers.map((driver: any, dIdx: number) => {
+                    const isWorking = group.drivers.length > 1 && isDriverWorkingNow(driver.observacions);
+                    return (
+                      <div key={dIdx} className="p-6 sm:p-10 transition-colors hover:bg-white/5 relative">
+                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 sm:gap-10">
+                          <div className="flex items-center gap-6 sm:gap-8 w-full md:w-auto">
+                            <div className="w-14 h-14 sm:w-16 sm:h-16 bg-white/40 dark:bg-black/20 rounded-full flex items-center justify-center text-[#4D5358] border-2 border-white/60 shrink-0">{group.drivers.length > 1 ? <span className="font-bold text-lg">{dIdx + 1}</span> : <User size={28} strokeWidth={2.5} />}</div>
+                            <div className="space-y-1 min-w-0 flex-1 md:flex-none">
+                              <div className="flex items-center gap-3">
+                                <MarqueeText text={`${driver.cognoms}, ${driver.nom}`} className="text-xl sm:text-2xl font-bold text-[#4D5358] tracking-tight leading-tight uppercase" />
+                                {driver.tipus_torn && (<span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase shadow-sm border ${driver.tipus_torn === 'Reducció' ? 'bg-purple-600 text-white border-purple-700' : 'bg-blue-600 text-white border-blue-700'}`}>{driver.tipus_torn}</span>)}
+                                {isWorking && (<div className="bg-fgc-grey text-white px-3 py-1 rounded-full text-[9px] font-bold uppercase flex items-center gap-1.5 shadow-sm animate-bounce"><div className="w-1.5 h-1.5 bg-fgc-green rounded-full animate-pulse" />TREBALLANT</div>)}
+                              </div>
+                              <div className="flex flex-wrap gap-2 items-center"><div className="inline-flex items-center bg-fgc-grey text-white px-2.5 py-0.5 rounded-lg font-bold text-[9px] sm:text-[10px] tracking-widest uppercase">Nómina: {driver.nomina}</div>{driver.abs_parc_c === 'S' && <span className="bg-red-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded">ABS</span>}{driver.dta === 'S' && <span className="bg-blue-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded">DTA</span>}{driver.dpa === 'S' && <span className="bg-purple-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded">DPA</span>}</div>
+                              {driver.observacions && (<div className="flex items-start gap-2 bg-black/10 dark:bg-black/20 px-3 py-2 rounded-xl border border-black/5 max-w-lg mt-2"><Info size={14} className="text-[#4D5358] dark:text-gray-300 mt-0.5 shrink-0" /><p className="text-[11px] sm:text-xs font-bold text-[#4D5358] dark:text-gray-200 leading-snug italic">{driver.observacions}</p></div>)}
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap gap-2 sm:gap-3 w-full md:w-auto">{driver.phones?.map((p: string, i: number) => (<a key={i} href={isPrivacyMode ? undefined : `tel:${p}`} className={`flex-1 md:flex-none flex items-center justify-center gap-2.5 bg-fgc-grey text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-bold hover:bg-fgc-dark transition-all active:scale-95 ${isPrivacyMode ? 'cursor-default' : ''}`}><Phone size={14} />{isPrivacyMode ? '*** ** ** **' : p}</a>))}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <GlassPanel className="p-4 sm:p-10 !rounded-b-[32px] sm:!rounded-b-[48px] !rounded-t-none overflow-hidden relative">
+                  <ShiftTimeline turn={group} nowMin={nowMin} trainStatuses={trainStatuses} getLiniaColor={getLiniaColor} openUnitMenu={openUnitMenu} getStatusColor={getStatusColor} />
+                  <div className="border border-gray-100 dark:border-white/5 rounded-[32px] overflow-hidden bg-white dark:bg-black/20 shadow-sm mb-4">
+                    <CirculationHeader />
+                    <div className="flex flex-col divide-y divide-gray-100 dark:divide-white/5">
+                      {group.fullCirculations?.[0] && (<TimeGapRow from={group.inici_torn} to={group.fullCirculations[0].sortida} id={`gap-pre-${idx}`} nowMin={nowMin} />)}
+                      {group.fullCirculations?.map((circ: any, cIdx: number) => {
+                        const shiftItemKey = `${idx}-${cIdx}`;
+                        const isActive = checkIfActive(circ.sortida as string, circ.arribada as string, nowMin);
+                        return (
+                          <React.Fragment key={cIdx}>
+                            <div id={`circ-row-${shiftItemKey}`} className={`flex flex-col relative scroll-mt-24 ${isActive ? 'ring-2 ring-inset ring-red-600 z-10' : ''}`}>
+                              <CirculationRow circ={circ} itemKey={shiftItemKey} nowMin={nowMin} trainStatuses={trainStatuses} getTrainPhone={getTrainPhone} getLiniaColor={getLiniaColor} openUnitMenu={openUnitMenu} toggleItinerari={toggleItinerari} isPrivacyMode={isPrivacyMode} passengerInfo={passengerInfoMap[circ.codi] || []} onCycleClick={handleCycleClick} />
+                              {expandedItinerari === shiftItemKey && (
+                                <div className="p-4 sm:p-10 bg-white dark:bg-fgc-grey border-t border-gray-100 dark:border-white/5 animate-in slide-in-from-top-4 duration-500 overflow-hidden">
+                                  <div className="relative flex flex-col pl-8 sm:pl-16 pr-2 sm:pr-6 py-4 space-y-0">
+                                    <div className="absolute left-[15px] sm:left-[29px] top-10 bottom-10 w-0.5 sm:w-1 bg-gray-100 dark:bg-gray-800 rounded-full" />
+                                    {[{ nom: circ.inici, hora: circ.sortida, via: circ.via_inici }, ...(circ.estacions?.map((st: any) => ({ nom: st.nom, hora: st.hora || st.sortida || st.arribada, via: st.via })) || []), { nom: circ.final, hora: circ.arribada, via: circ.via_final }].map((point, pIdx, arr) => (
+                                      <ItineraryPoint key={pIdx} point={point} isFirst={pIdx === 0} isLast={pIdx === arr.length - 1} nextPoint={arr[pIdx + 1]} nowMin={nowMin} />
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                            <TimeGapRow from={circ.arribada} to={group.fullCirculations?.[cIdx + 1]?.sortida || group.final_torn} id={`gap-row-${idx}-${cIdx}`} nowMin={nowMin} />
+                          </React.Fragment>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </GlassPanel>
               </div>
-              <button onClick={() => setEditingCirc(null)} className="p-2 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-500 rounded-full transition-colors"><X size={24} /></button>
+            );
+          })
+        ) : !loading && (query.length >= 1 || (searchType === SearchType.Estacio && selectedStation)) ? (
+          <div className="bg-white dark:bg-fgc-grey rounded-[32px] py-20 text-center text-gray-400 flex flex-col items-center gap-6"><div className="w-24 h-24 bg-gray-50 dark:bg-black/20 rounded-full flex items-center justify-center text-gray-100"><Search size={48} /></div><div className="space-y-2"><p className="text-xl font-bold text-[#4D5358] uppercase">No s'han trobat dades</p><p className="text-sm font-medium">Revisa els paràmetres de cerca.</p></div></div>
+        ) : !loading && (
+          <div className="text-center py-24 opacity-10 flex flex-col items-center"><Train size={80} className="text-[#4D5358] mb-8" /><p className="text-lg font-bold uppercase tracking-[0.4em] text-[#4D5358]">Consulta de Torns Activa</p></div>
+        )
+        }
+      </div>
+
+      {
+        editingCirc && createPortal(
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-fgc-grey/60 backdrop-blur-md animate-in fade-in duration-300">
+            <div className="bg-white dark:bg-fgc-grey w-full rounded-[48px] shadow-2xl border border-white/20 overflow-hidden flex flex-col animate-in zoom-in-95 duration-300 max-w-md">
+              <div className="p-8 border-b border-gray-100 dark:border-white/5 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-fgc-green rounded-2xl text-[#4D5358] shadow-lg"><Train size={24} /></div>
+                  <div><h3 className="text-xl font-bold text-[#4D5358] dark:text-white uppercase tracking-tight">Gestió d'Unitat</h3><p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Circulació {editingCirc.circ.codi} • Cicle {editingCirc.cycleId}</p></div>
+                </div>
+                <button onClick={() => setEditingCirc(null)} className="p-2 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-500 rounded-full transition-colors"><X size={24} /></button>
+              </div>
+              <div className="p-8 space-y-8">
+                <div className="space-y-2"><label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Assignar Unitat de Tren</label><div className="relative"><Hash className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={18} /><input type="text" value={editUnitNumber} onChange={(e) => setEditUnitNumber(e.target.value)} placeholder="Ex: 112.01, 113.12..." className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-2xl py-4 pl-12 pr-4 focus:ring-4 focus:ring-fgc-green/20 outline-none font-bold text-lg transition-all dark:text-white" /></div></div>
+                <div className="space-y-4"><label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Estat de la Flota</label><div className="grid grid-cols-2 gap-3">{[{ id: 'is_broken', label: 'AVARIAT', icon: <AlertTriangle size={16} />, color: 'red' }, { id: 'needs_images', label: 'IMATGES', icon: <Camera size={16} />, color: 'blue' }, { id: 'needs_records', label: 'REGISTRES', icon: <FileText size={16} />, color: 'yellow' }, { id: 'needs_cleaning', label: 'NETEJA', icon: <Brush size={16} />, color: 'orange' },].map((st) => (<button key={st.id} onClick={() => setTempStatus(prev => ({ ...prev, [st.id]: !prev[st.id as keyof typeof prev] }))} className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all font-bold text-[11px] ${tempStatus[st.id as keyof typeof tempStatus] ? `bg-${st.color}-50 dark:bg-${st.color}-900/20 border-${st.color}-500 text-${st.color}-600 dark:text-${st.color}-400 shadow-sm` : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-white/5 text-gray-400 dark:text-gray-500 grayscale'}`}>{st.icon}{st.label}{tempStatus[st.id as keyof typeof tempStatus] && <Check size={14} />}</button>))}</div></div>
+                <button onClick={saveUnitChanges} disabled={isSavingUnit} className="w-full bg-fgc-green text-[#4D5358] py-5 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 shadow-xl shadow-fgc-green/20 hover:scale-[1.02] active:scale-95 disabled:opacity-50 transition-all">{isSavingUnit ? <Loader2 size={24} className="animate-spin" /> : <Save size={24} />}DESAR CANVIS</button>
+              </div>
             </div>
-            <div className="p-8 space-y-8">
-              <div className="space-y-2"><label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Assignar Unitat de Tren</label><div className="relative"><Hash className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={18} /><input type="text" value={editUnitNumber} onChange={(e) => setEditUnitNumber(e.target.value)} placeholder="Ex: 112.01, 113.12..." className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-2xl py-4 pl-12 pr-4 focus:ring-4 focus:ring-fgc-green/20 outline-none font-bold text-lg transition-all dark:text-white" /></div></div>
-              <div className="space-y-4"><label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Estat de la Flota</label><div className="grid grid-cols-2 gap-3">{[{ id: 'is_broken', label: 'AVARIAT', icon: <AlertTriangle size={16} />, color: 'red' }, { id: 'needs_images', label: 'IMATGES', icon: <Camera size={16} />, color: 'blue' }, { id: 'needs_records', label: 'REGISTRES', icon: <FileText size={16} />, color: 'yellow' }, { id: 'needs_cleaning', label: 'NETEJA', icon: <Brush size={16} />, color: 'orange' },].map((st) => (<button key={st.id} onClick={() => setTempStatus(prev => ({ ...prev, [st.id]: !prev[st.id as keyof typeof prev] }))} className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all font-bold text-[11px] ${tempStatus[st.id as keyof typeof tempStatus] ? `bg-${st.color}-50 dark:bg-${st.color}-900/20 border-${st.color}-500 text-${st.color}-600 dark:text-${st.color}-400 shadow-sm` : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-white/5 text-gray-400 dark:text-gray-500 grayscale'}`}>{st.icon}{st.label}{tempStatus[st.id as keyof typeof tempStatus] && <Check size={14} />}</button>))}</div></div>
-              <button onClick={saveUnitChanges} disabled={isSavingUnit} className="w-full bg-fgc-green text-[#4D5358] py-5 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 shadow-xl shadow-fgc-green/20 hover:scale-[1.02] active:scale-95 disabled:opacity-50 transition-all">{isSavingUnit ? <Loader2 size={24} className="animate-spin" /> : <Save size={24} />}DESAR CANVIS</button>
-            </div>
-          </div>
-        </div>,
+          </div>,
+          document.body
+        )
+      }
+      {pkMapTarget && createPortal(
+        <PkSegmentMap result={pkMapTarget} onClose={() => setPkMapTarget(null)} />,
         document.body
-      )
-    }
-    {pkMapTarget && createPortal(
-      <PkSegmentMap result={pkMapTarget} onClose={() => setPkMapTarget(null)} />,
-      document.body
-    )}
-  </div>
-);
+      )}
+    </div>
+  );
 };
 
 

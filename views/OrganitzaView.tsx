@@ -4,7 +4,7 @@ import { Search, Phone, User, Loader2, Clock, LayoutGrid, ArrowRight, CheckCircl
 import OrganitzaGantt from './organitza/OrganitzaGantt';
 import { supabase } from '../supabaseClient.ts';
 import { fetchFullTurns } from '../utils/queries.ts';
-import { getShortTornId } from '../utils/fgc.ts';
+import { getShortTornId, getFgcMinutes, formatFgcTime } from '../utils/stations';
 import { useServiceToday } from '../utils/useServiceToday';
 import { feedback } from '../utils/feedback';
 
@@ -14,26 +14,6 @@ const normalizeId = (id: any) => {
   if (!id) return '';
   return String(id).trim().replace(/^0+/, '');
 };
-
-const getFgcMinutes = (timeStr: string) => {
-  if (!timeStr || !timeStr.includes(':')) return 0;
-  const parts = timeStr.split(':');
-  const h = parseInt(parts[0], 10);
-  const m = parseFloat(parts[1]);
-  const s = parts[2] ? parseFloat(parts[2]) : 0;
-  let total = h * 60 + m + (s / 60);
-  if (h < 4) total += 24 * 60;
-  return total;
-};
-
-const formatFgcTime = (totalMinutes: number) => {
-  const totalSecs = Math.round(totalMinutes * 60);
-  const h = Math.floor(totalSecs / 3600) % 24;
-  const m = Math.floor((totalSecs % 3600) / 60);
-  const s = totalSecs % 60;
-  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-};
-
 const OrganitzaViewComponent: React.FC<{
   isPrivacyMode: boolean,
   onNavigateToSearch?: (type: string, query: string) => void

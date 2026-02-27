@@ -2,14 +2,11 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Search, Loader2, Clock, Phone, Info, Users, RotateCcw, ArrowRight, MapPin, Coffee, CheckCircle2, AlertTriangle, TrainFront, Footprints, ShieldAlert, UserX, UserCheck, X, ArrowRightLeft, Target, Zap, ArrowUpRight, History, MessageSquareQuote, Scale } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
 import {
-  resolveStationId, getTravelTime, getShortTornId,
-  getFgcMinutes as getFgcMinutesRaw, formatFgcTime,
+  resolveStationId, getTravelTime, getShortTornId, formatFgcTime,
 } from '../utils/stations';
+import { getFgcMinutes } from '../utils/time';
 import { feedback } from '../utils/feedback';
 
-// Thin wrapper: shared getFgcMinutes returns null for invalid input,
-// but this component's callers expect 0
-const getFgcMinutes = (t: string): number => getFgcMinutesRaw(t) ?? 0;
 
 interface Props {
   selectedServei: string;

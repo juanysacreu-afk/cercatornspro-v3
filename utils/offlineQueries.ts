@@ -1,5 +1,5 @@
 import { db } from './offlineDb';
-import { getShortTornId } from './fgc';
+import { getShortTornId, getFgcMinutes } from './stations';
 
 const normalizeStr = (str: string) =>
     (str || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -124,14 +124,6 @@ export async function offlineFetchFullTurns(turnIds: string[], selectedServei?: 
         if (combined.includes('QP') || combined.includes('PC')) return 'PC';
         if (combined.includes('QS') || combined.includes('SR')) return 'SR';
         return '';
-    };
-
-    const getFgcMinutes = (timeStr: string) => {
-        if (!timeStr || !timeStr.includes(':')) return 0;
-        const [h, m] = timeStr.split(':').map(Number);
-        let total = h * 60 + m;
-        if (h < 4) total += 24 * 60;
-        return total;
     };
 
     return turnIds.map(id => {

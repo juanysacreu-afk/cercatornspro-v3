@@ -41,30 +41,89 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, currentPro
     };
 
     const handleLogin = async () => {
-        if (!formData.email) return;
+        if (!formData.email && !formData.firstName && !formData.lastName) return;
         setIsSearching(true);
         try {
-            const { data, error } = await supabase
-                .from('supervisor_profiles')
-                .select('*')
-                .eq('email', formData.email.toLowerCase().trim())
-                .single();
+            // 1. Try by email (latest entry)
+            if (formData.email) {
+                const { data, error } = await supabase
+                    .from('supervisor_profiles')
+                    .select('*')
+                    .eq('email', formData.email.toLowerCase().trim())
+                    .order('created_at', { ascending: false })
+                    .limit(1);
 
-            if (data && !error) {
-                setFormData({
-                    id: data.id,
-                    firstName: data.first_name,
-                    lastName: data.last_name,
-                    email: data.email || formData.email,
-                    role: data.role
-                });
-                showToast('Perfil carregat correctament', 'success');
-                feedback.success();
-            } else {
-                showToast('No s\'ha trobat cap perfil associat a aquest email', 'error');
-                feedback.haptic([50, 50, 50]);
+                if (data && data.length > 0 && !error) {
+                    const profile = data[0];
+                    setFormData({
+                        id: profile.id,
+                        firstName: profile.first_name,
+                        lastName: profile.last_name,
+                        email: profile.email || formData.email,
+                        role: profile.role
+                    });
+                    showToast('Perfil carregat correctament', 'success');
+                    feedback.success();
+                    setIsSearching(false);
+                    return;
+                }
             }
+
+            // 2. Try by Name + Last Name in supervisor_profiles
+            if (formData.firstName && formData.lastName) {
+                const { data } = await supabase
+                    .from('supervisor_profiles')
+                    .select('*')
+                    .ilike('first_name', `%${formData.firstName.trim()}%`)
+                    .ilike('last_name', `%${formData.lastName.trim()}%`)
+                    .order('created_at', { ascending: false })
+                    .limit(1);
+
+                if (data && data.length > 0) {
+                    const profile = data[0];
+                    setFormData({
+                        id: profile.id,
+                        firstName: profile.first_name,
+                        lastName: profile.last_name,
+                        email: profile.email || formData.email,
+                        role: profile.role
+                    });
+                    showToast('Perfil trobat per nom', 'success');
+                    feedback.success();
+                    setIsSearching(false);
+                    return;
+                }
+            }
+
+            // 3. Try in daily_assignments (Maquinistes) as fallback to pre-fill
+            const searchVal = formData.email || formData.lastName || formData.firstName;
+            if (searchVal) {
+                const { data } = await supabase
+                    .from('daily_assignments')
+                    .select('nom, cognoms, empleat_id')
+                    .or(`nom.ilike.%${searchVal}%,cognoms.ilike.%${searchVal}%,empleat_id.ilike.%${searchVal}%`)
+                    .limit(1);
+
+                if (data && data.length > 0) {
+                    const emp = data[0];
+                    setFormData(prev => ({
+                        ...prev,
+                        firstName: emp.nom,
+                        lastName: emp.cognoms,
+                        // We don't overwrite email unless empty
+                        email: prev.email || `${emp.nom.toLowerCase().charAt(0)}${emp.cognoms.toLowerCase().split(' ')[0]}@fgc.cat`
+                    }));
+                    showToast('Dades recuperades de la base de dades operativa', 'success');
+                    feedback.success();
+                    setIsSearching(false);
+                    return;
+                }
+            }
+
+            showToast('No s\'ha trobat cap perfil associat', 'error');
+            feedback.haptic([50, 50, 50]);
         } catch (e) {
+            console.error("Error profile lookup:", e);
             showToast('Error de connexió', 'error');
             feedback.haptic([50, 50, 50]);
         } finally {
