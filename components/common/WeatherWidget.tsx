@@ -236,7 +236,7 @@ export const WeatherWidget: React.FC = () => {
                     {/* Panel */}
                     <div
                         ref={modalRef}
-                        className="relative z-10 w-full max-w-sm bg-white/95 dark:bg-[#1a1f2e]/98 backdrop-blur-2xl border border-gray-200/60 dark:border-white/10 rounded-3xl shadow-2xl overflow-hidden animate-in slide-in-from-top-4 duration-300"
+                        className="relative z-10 w-full max-w-sm bg-white dark:bg-slate-950 backdrop-blur-2xl border border-gray-200/60 dark:border-white/10 rounded-3xl shadow-2xl overflow-hidden animate-in slide-in-from-top-4 duration-300"
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* Header gradient */}
@@ -246,7 +246,7 @@ export const WeatherWidget: React.FC = () => {
                         >
                             <button
                                 onClick={() => setOpen(false)}
-                                className="absolute top-4 right-4 p-1.5 rounded-full bg-white/20 dark:bg-white/10 hover:bg-white/30 dark:hover:bg-white/20 transition-all"
+                                className="absolute top-4 right-4 p-1.5 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 transition-all z-20"
                             >
                                 <X size={14} className="text-gray-600 dark:text-gray-300" />
                             </button>
@@ -327,23 +327,23 @@ export const WeatherWidget: React.FC = () => {
 
                         {/* Precip & UV row */}
                         <div className="px-5 pb-4 grid grid-cols-2 gap-3">
-                            <div className="flex items-center gap-3 px-3 py-2.5 bg-blue-50 dark:bg-blue-500/10 rounded-2xl border border-blue-100 dark:border-blue-500/20">
-                                <CloudRain size={16} className="text-blue-400 flex-none" />
+                            <div className="flex items-center gap-3 px-3 py-2.5 bg-blue-50/50 dark:bg-blue-500/10 rounded-2xl border border-blue-100/50 dark:border-blue-500/20">
+                                <CloudRain size={16} className="text-blue-500 dark:text-blue-400 flex-none" />
                                 <div>
-                                    <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Precipitació</div>
+                                    <div className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">Precipitació</div>
                                     <div className="text-sm font-black text-gray-800 dark:text-white">{w.precipitationProbability}%
                                         <span className="text-[10px] font-normal text-gray-400 ml-1">prob.</span>
                                     </div>
-                                    <div className="text-[10px] text-gray-400">{d.precipSum} mm avui</div>
+                                    <div className="text-[10px] text-gray-400 dark:text-gray-500">{d.precipSum} mm avui</div>
                                 </div>
                             </div>
                             <div className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl border ${d.uvIndex >= 6
-                                ? 'bg-orange-50 dark:bg-orange-500/10 border-orange-100 dark:border-orange-500/20'
-                                : 'bg-gray-50 dark:bg-white/5 border-gray-100 dark:border-white/5'}`}
+                                ? 'bg-orange-50/50 dark:bg-orange-500/10 border-orange-100/50 dark:border-orange-500/20'
+                                : 'bg-gray-50/50 dark:bg-white/5 border-gray-100/50 dark:border-white/5'}`}
                             >
-                                <Sun size={16} className="text-amber-400 flex-none" />
+                                <Sun size={16} className="text-amber-500 dark:text-amber-400 flex-none" />
                                 <div>
-                                    <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Índex UV</div>
+                                    <div className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">Índex UV</div>
                                     <div className={`text-sm font-black ${uv.color}`}>{d.uvIndex}
                                         <span className="text-[10px] font-semibold ml-1">{uv.label}</span>
                                     </div>
@@ -394,9 +394,9 @@ const StatTile: React.FC<{
     >
         <div className="flex items-center gap-1.5">
             {icon}
-            <span className="text-[9px] text-gray-400 dark:text-gray-500 font-semibold uppercase tracking-wide">{label}</span>
+            <span className="text-[9px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wide">{label}</span>
         </div>
-        <div className={`text-sm font-black leading-none ${alert ? 'text-red-500' : 'text-gray-800 dark:text-white'}`}>{value}</div>
+        <div className={`text-sm font-black leading-none ${alert ? 'text-red-500' : 'text-gray-800 dark:text-slate-100'}`}>{value}</div>
         {sub && <div className="text-[9px] text-gray-400 font-medium">{sub}</div>}
     </div>
 );
