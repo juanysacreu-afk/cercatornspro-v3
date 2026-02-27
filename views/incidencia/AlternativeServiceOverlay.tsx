@@ -52,7 +52,7 @@ const AlternativeServiceOverlay: React.FC<AlternativeServiceOverlayProps> = ({
   const [lineFilters, setLineFilters] = useState<string[]>(['Tots']);
 
   if (!dividedPersonnel || !dividedPersonnel[islandId]) return null;
-  
+
   const personnel = (dividedPersonnel[islandId].list || []).filter(p => isServiceVisible(p.servei, selectedServei));
   const islandStations = dividedPersonnel[islandId].stations;
   const physicalTrains = personnel.filter(p => p.type === 'TRAIN');
@@ -142,7 +142,8 @@ const AlternativeServiceOverlay: React.FC<AlternativeServiceOverlayProps> = ({
               <div className="flex items-center gap-4 bg-orange-500/10 p-4 rounded-3xl border border-orange-500/20">
                 <Construction size={24} className="text-orange-500 animate-pulse" />
                 <div className="flex flex-col">
-                  <h2 className="text-lg font-heavy text-[#4D5358] dark:text-white uppercase tracking-tighter leading-none mb-1">Nexus Segregation Engine</h2>
+                  <h2 className="text-lg font-heavy text-[#4D5358] dark:text-white uppercase tracking-tighter leading-none">NEXUS PSA</h2>
+                  <span className="text-[9px] font-heavy text-gray-400 uppercase tracking-[0.2em] mb-2">pla de servei alternatiu</span>
                   <div className="flex items-center gap-2">
                     <div className="flex items-center gap-1.5 px-2 py-0.5 bg-orange-500 rounded-lg">
                       <span className="text-[9px] font-heavy text-white uppercase">{islandId}</span>
@@ -188,10 +189,6 @@ const AlternativeServiceOverlay: React.FC<AlternativeServiceOverlayProps> = ({
             </div>
 
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/10 text-gray-400">
-                <Info size={14} />
-                <span className="text-[10px] font-bold uppercase racking-widest">v2.1 Algoritme NEXUS_BV</span>
-              </div>
               <button onClick={onClose} className="p-3 bg-white dark:bg-gray-800 border border-gray-100 dark:border-white/10 rounded-2xl text-gray-400 hover:text-red-500 hover:border-red-500/20 hover:bg-red-50 transition-all shadow-sm">
                 <X size={20} />
               </button>
@@ -247,6 +244,11 @@ const AlternativeServiceOverlay: React.FC<AlternativeServiceOverlayProps> = ({
                 setViewMode={setViewMode}
               />
             )}
+          </div>
+
+          {/* Footer Info */}
+          <div className="px-8 py-3 border-t border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-black/20 flex justify-center">
+            <span className="text-[9px] font-heavy text-gray-400 dark:text-gray-600 uppercase tracking-[0.3em]">v2.1 Algoritme NEXUS_BV</span>
           </div>
         </GlassPanel>
       </div>
