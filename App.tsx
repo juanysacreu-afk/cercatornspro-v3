@@ -330,9 +330,9 @@ const App: React.FC = () => {
       <SplashScreen progress={initProgress} message={initMessage} onComplete={() => setIsInitializing(false)} />
 
       <div className="mesh-bg">
-        <div className="blob blob-1 parallax-blob" data-speed="0.05" />
-        <div className="blob blob-2 parallax-blob" data-speed="0.08" />
-        <div className="blob blob-3 parallax-blob" data-speed="0.03" />
+        <div className="blob blob-1" />
+        <div className="blob blob-2" />
+        <div className="blob blob-3" />
       </div>
 
       <div className="flex flex-1 overflow-hidden flex-row">
@@ -549,7 +549,7 @@ const App: React.FC = () => {
                   }}
                   role="switch"
                   aria-checked={isDarkMode}
-                  aria-label={isDarkMode ? 'Desactivar Mode Fosc' : 'Activar Mode Fosc'}
+                  aria-label={isDarkMode ? 'Desactivar modo fosc' : 'Activar modo fosc'}
                   className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group"
                 >
                   <div className="flex items-center gap-3">
@@ -570,7 +570,7 @@ const App: React.FC = () => {
                   }}
                   role="switch"
                   aria-checked={isProNav}
-                  aria-label={isProNav ? 'Desactivar Navegació ProNav' : 'Activar Navegació ProNav'}
+                  aria-label={isProNav ? 'Desactivar navegació lateral' : 'Activar navegació lateral'}
                   className="hidden lg:flex w-full items-center justify-between p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group"
                 >
                   <div className="flex items-center gap-3">
@@ -590,7 +590,7 @@ const App: React.FC = () => {
                   onClick={handleToggleSound}
                   role="switch"
                   aria-checked={isSoundEnabled}
-                  aria-label={isSoundEnabled ? "Desactivar Sons de l'App" : "Activar Sons de l'App"}
+                  aria-label={isSoundEnabled ? "Desactivar sons de l'aplicació" : "Activar sons de l'aplicació"}
                   className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group"
                 >
                   <div className="flex items-center gap-3">
