@@ -359,9 +359,15 @@ export const useAlternativeService = ({
 
             const plan: any[] = [];
             const resourcesByLinia: Record<string, any[]> = {};
+
+            // Store initial assignments from shuttle plan to place drivers correctly
+            const initialStationsMap: Record<string, string> = {};
             shuttlePlan.forEach(s => {
                 if (!resourcesByLinia[s.liniaCode]) resourcesByLinia[s.liniaCode] = [];
                 resourcesByLinia[s.liniaCode].push(s);
+                if (s.driver && s.train) {
+                    initialStationsMap[s.driver.torn] = s.train.stationId || 'PC';
+                }
             });
 
             let driverPool: any[] = allDrivers.map(d => {
@@ -384,7 +390,7 @@ export const useAlternativeService = ({
 
                 return {
                     ...d,
-                    currentStation: d.stationId || homeStation,
+                    currentStation: initialStationsMap[d.torn] || d.stationId || homeStation,
                     availableAt: effectiveAvailAt,
                     activeShiftEnd: endMin,
                     shiftExtensionLimit: extensionLimit,
@@ -398,7 +404,7 @@ export const useAlternativeService = ({
                     lastArrival: displayMin,
                     currentTrain: null
                 };
-            });
+            }).sort((a, b) => a.activeShiftEnd - b.activeShiftEnd);
 
             const LINE_ORDER = ['S1', 'S2', 'L7', 'L6', 'L12'];
             let lastManeuverNum = 799;
@@ -536,7 +542,7 @@ export const useAlternativeService = ({
                 refTravelTime += vuPenalty;
 
                 const branchUnits = (resourcesByLinia[liniaCode] || []).map(u => ({
-                    ...u, currentDriverId: u.driver ? u.driver.torn : null, availableAt: displayMin, currentStation: u.driver ? (u.driver.stationId || 'PC') : 'PC'
+                    ...u, currentDriverId: u.driver ? u.driver.torn : null, availableAt: displayMin, currentStation: u.train.stationId || 'PC'
                 }));
 
                 const numUnits = Math.max(1, branchUnits.length);
@@ -650,9 +656,19 @@ export const useAlternativeService = ({
                     const isValid = driverCanMakeIt && canPerform && endTime + returnDuration <= shiftEndLimit;
                     return { driver: d, isValid, isAtStation, isSameUnit, needsMainBreak, drivingLimitMet };
                 }).filter(c => c.isValid).sort((a, b) => {
+                    // 1. Prioritize rotation (use fresh drivers or those with fewer trips)
+                    if ((a.driver.tripCount || 0) !== (b.driver.tripCount || 0)) {
+                        return (a.driver.tripCount || 0) - (b.driver.tripCount || 0);
+                    }
+                    // 2. Prioritize those who finish earlier (to ensure they complete their work window)
+                    if (a.driver.activeShiftEnd !== b.driver.activeShiftEnd) {
+                        return a.driver.activeShiftEnd - b.driver.activeShiftEnd;
+                    }
+                    // 3. Prefer staying with the same unit if trip counts are equal (efficiency)
                     if (a.isSameUnit !== b.isSameUnit) return a.isSameUnit ? -1 : 1;
+                    // 4. Being at the station
                     if (a.isAtStation !== b.isAtStation) return a.isAtStation ? -1 : 1;
-                    if ((a.driver.tripCount || 0) !== (b.driver.tripCount || 0)) return (a.driver.tripCount || 0) - (b.driver.tripCount || 0);
+                    // 5. Final tie-break on availability
                     return (a.driver.availableAt || 0) - (b.driver.availableAt || 0);
                 })[0];
 
