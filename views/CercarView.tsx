@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { SearchType } from '../types.ts';
-import { Search, User, Train, MapPin, Map as MapIcon, Hash, ArrowRight, Loader2, Info, Phone, Clock, FileText, ChevronDown, LayoutGrid, Timer, X, BookOpen, AlertTriangle, Users, Camera, Brush, Save, Check, Share2, Zap, ArrowUp, ArrowDown, RefreshCcw, Milestone } from 'lucide-react';
+import { Search, User, Train, MapPin, Map as MapIcon, Hash, ArrowRight, Loader2, Info, Phone, Clock, FileText, ChevronDown, LayoutGrid, Timer, X, BookOpen, AlertTriangle, Users, Camera, Brush, Save, Check, Share2, Zap, ArrowUp, ArrowDown, RefreshCcw, Milestone, TrendingUp } from 'lucide-react';
 
 
 
@@ -1109,10 +1109,22 @@ const CercarViewComponent: React.FC<{
                       <h3 className="text-sm font-bold text-[#4D5358] dark:text-white uppercase tracking-tight">Velocitats i Limitacions</h3>
                     </div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                       <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
                         <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Màxima Tram</span>
                         <div className="text-2xl font-bold text-[#4D5358] dark:text-white">{loc.speedInfo?.maxSpeed} <span className="text-xs text-gray-400">km/h</span></div>
+                      </div>
+
+                      <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Inclinació (Pendent)</span>
+                        <div className="text-2xl font-bold text-[#4D5358] dark:text-white flex items-center gap-1">
+                          {loc.declivity !== undefined ? (
+                            <>
+                              {loc.declivity > 0 ? <ArrowUp size={18} className="text-red-500" /> : loc.declivity < 0 ? <ArrowDown size={18} className="text-green-500" /> : null}
+                              {Math.abs(loc.declivity)} <span className="text-xs text-gray-400">‰</span>
+                            </>
+                          ) : '---'}
+                        </div>
                       </div>
 
                       <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">

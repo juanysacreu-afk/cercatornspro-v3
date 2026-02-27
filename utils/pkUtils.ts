@@ -15,6 +15,7 @@ export interface PkLocationResult {
     exactStation: StationGeoData | null;
     percentage: number; // 0-1 within the segment between stations
     speedInfo?: DetailedSpeedInfo;
+    declivity?: number;
 }
 
 
@@ -44,7 +45,8 @@ export function findPkLocation(segment: PkSegment, pk: number): PkLocationResult
             nextStation: exact,
             exactStation: exact,
             percentage: 0,
-            speedInfo: getDetailedSpeedInfo(segment as PkSegmentKey, pk)
+            speedInfo: getDetailedSpeedInfo(segment as PkSegmentKey, pk),
+            declivity: exact.declivToNext
         };
 
     }
@@ -68,7 +70,8 @@ export function findPkLocation(segment: PkSegment, pk: number): PkLocationResult
         return {
             pk, segment, lat: next.lat, lon: next.lon,
             prevStation: null, nextStation: next, exactStation: null, percentage: 0,
-            speedInfo: getDetailedSpeedInfo(segment as PkSegmentKey, pk)
+            speedInfo: getDetailedSpeedInfo(segment as PkSegmentKey, pk),
+            declivity: undefined
         };
 
     }
@@ -77,7 +80,8 @@ export function findPkLocation(segment: PkSegment, pk: number): PkLocationResult
         return {
             pk, segment, lat: prev.lat, lon: prev.lon,
             prevStation: prev, nextStation: null, exactStation: null, percentage: 1,
-            speedInfo: getDetailedSpeedInfo(segment as PkSegmentKey, pk)
+            speedInfo: getDetailedSpeedInfo(segment as PkSegmentKey, pk),
+            declivity: prev.declivToNext
         };
 
     }
@@ -94,7 +98,8 @@ export function findPkLocation(segment: PkSegment, pk: number): PkLocationResult
         return {
             pk, segment, lat, lon,
             prevStation: prev, nextStation: next, exactStation: null, percentage: pct,
-            speedInfo: getDetailedSpeedInfo(segment as PkSegmentKey, pk)
+            speedInfo: getDetailedSpeedInfo(segment as PkSegmentKey, pk),
+            declivity: prev.declivToNext
         };
 
     }
