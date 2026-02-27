@@ -3,8 +3,9 @@ import ReactDOM from 'react-dom';
 import {
     Cloud, CloudDrizzle, CloudFog, CloudLightning, CloudRain, CloudSnow,
     Moon, Sun, Wind, MapPin, Eye, Droplets, Thermometer, Gauge,
-    Sunset, Sunrise, X, Activity, CloudSun
+    Sunset, Sunrise, X, Activity, CloudSun, Train
 } from 'lucide-react';
+import { STATION_GEO_DATA, haversineKm } from '../../utils/stationGeoData';
 
 interface WeatherCurrent {
     temperature: number;
@@ -37,6 +38,7 @@ interface WeatherData {
     lat: number;
     lon: number;
     municipality?: string;
+    nearestStation?: string;
 }
 
 const WMO_DESCRIPTIONS: Record<number, string> = {
@@ -152,7 +154,8 @@ export const WeatherWidget: React.FC = () => {
                         windMax: Math.round(d.wind_speed_10m_max?.[0] ?? 0),
                     },
                     lat, lon,
-                    municipality: locationName
+                    municipality: locationName,
+                    nearestStation: findNearestStation(lat, lon)
                 });
                 setError(false);
             } catch (err) {
@@ -177,6 +180,20 @@ export const WeatherWidget: React.FC = () => {
         const id = setInterval(init, 10 * 60 * 1000);
         return () => clearInterval(id);
     }, []);
+
+    const findNearestStation = (lat: number, lon: number): string => {
+        let nearest = STATION_GEO_DATA[0];
+        let minDist = haversineKm(lat, lon, nearest.lat, nearest.lon);
+
+        for (let i = 1; i < STATION_GEO_DATA.length; i++) {
+            const d = haversineKm(lat, lon, STATION_GEO_DATA[i].lat, STATION_GEO_DATA[i].lon);
+            if (d < minDist) {
+                minDist = d;
+                nearest = STATION_GEO_DATA[i];
+            }
+        }
+        return nearest.name;
+    };
 
     // Close on Escape or outside click
     useEffect(() => {
@@ -256,17 +273,29 @@ export const WeatherWidget: React.FC = () => {
                                     {getWeatherIcon(w.weatherCode, w.isDay, 52, 'drop-shadow-lg')}
                                 </div>
                                 <div>
-                                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-fgc-green uppercase tracking-wider mb-0.5">
-                                        <MapPin size={10} className="animate-pulse" />
-                                        {weather.municipality}
+                                    <div className="flex flex-col mb-2">
+                                        <div className="flex items-center gap-1.5 text-[9px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-[0.15em]">
+                                            Ubicació
+                                        </div>
+                                        <div className="text-2xl sm:text-3xl font-black text-[#4D5358] dark:text-white leading-tight tracking-tighter">
+                                            {weather.municipality}
+                                        </div>
+                                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-fgc-green-dark dark:text-fgc-green mt-0.5">
+                                            <Train size={11} strokeWidth={3} />
+                                            FGC {weather.nearestStation}
+                                        </div>
                                     </div>
-                                    <div className="text-4xl font-black text-gray-800 dark:text-white tabular-nums leading-none">
-                                        {w.temperature}°
-                                    </div>
-                                    <div className="text-sm text-gray-500 dark:text-gray-400 font-semibold mt-1">{desc}</div>
-                                    <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 flex items-center gap-1">
-                                        <Thermometer size={10} />
-                                        Sensació tèrmica {w.apparentTemperature}°C
+                                    <div className="flex items-end gap-3">
+                                        <div className="text-5xl font-black text-gray-900 dark:text-white tabular-nums leading-none">
+                                            {w.temperature}°
+                                        </div>
+                                        <div>
+                                            <div className="text-sm text-gray-600 dark:text-gray-300 font-bold">{desc}</div>
+                                            <div className="text-[10px] text-gray-400 dark:text-gray-500 font-medium flex items-center gap-1 mt-0.5">
+                                                <Thermometer size={10} />
+                                                Se sent com {w.apparentTemperature}°C
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
