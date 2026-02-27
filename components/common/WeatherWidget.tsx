@@ -155,7 +155,7 @@ export const WeatherWidget: React.FC = () => {
                     },
                     lat, lon,
                     municipality: locationName,
-                    nearestStation: findNearestStation(lat, lon)
+                    nearestStation: getNearestStationInfo(lat, lon)
                 });
                 setError(false);
             } catch (err) {
@@ -181,19 +181,6 @@ export const WeatherWidget: React.FC = () => {
         return () => clearInterval(id);
     }, []);
 
-    const findNearestStation = (lat: number, lon: number): string => {
-        let nearest = STATION_GEO_DATA[0];
-        let minDist = haversineKm(lat, lon, nearest.lat, nearest.lon);
-
-        for (let i = 1; i < STATION_GEO_DATA.length; i++) {
-            const d = haversineKm(lat, lon, STATION_GEO_DATA[i].lat, STATION_GEO_DATA[i].lon);
-            if (d < minDist) {
-                minDist = d;
-                nearest = STATION_GEO_DATA[i];
-            }
-        }
-        return nearest.name;
-    };
 
     // Close on Escape or outside click
     useEffect(() => {
@@ -277,13 +264,15 @@ export const WeatherWidget: React.FC = () => {
                                         <div className="flex items-center gap-1.5 text-[9px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-[0.15em]">
                                             Ubicació
                                         </div>
-                                        <div className="text-2xl sm:text-3xl font-black text-[#4D5358] dark:text-white leading-tight tracking-tighter">
+                                        <div className="text-2xl sm:text-4xl font-black text-[#1a1c1e] dark:text-white leading-none tracking-tighter">
                                             {weather.municipality}
                                         </div>
-                                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-fgc-green-dark dark:text-fgc-green mt-0.5">
-                                            <Train size={11} strokeWidth={3} />
-                                            FGC {weather.nearestStation}
-                                        </div>
+                                        {weather.nearestStation && (
+                                            <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-[#75990F] dark:text-[#A8D017] mt-1 drop-shadow-sm">
+                                                <Train size={12} strokeWidth={3} />
+                                                <span>FGC {weather.nearestStation}</span>
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="flex items-end gap-3">
                                         <div className="text-5xl font-black text-gray-900 dark:text-white tabular-nums leading-none">
@@ -429,3 +418,28 @@ const StatTile: React.FC<{
         {sub && <div className="text-[9px] text-gray-400 font-medium">{sub}</div>}
     </div>
 );
+
+// ── Pure logic helpers (Outside component to avoid closure issues) ──
+
+/**
+ * Finds the nearest FGC station and returns formatted info: "Nom Estació (X.X km)"
+ */
+function getNearestStationInfo(lat: number, lon: number): string {
+    if (!STATION_GEO_DATA || STATION_GEO_DATA.length === 0) return '';
+
+    let nearest = STATION_GEO_DATA[0];
+    let minDist = haversineKm(lat, lon, nearest.lat, nearest.lon);
+
+    for (let i = 1; i < STATION_GEO_DATA.length; i++) {
+        const s = STATION_GEO_DATA[i];
+        const d = haversineKm(lat, lon, s.lat, s.lon);
+        if (d < minDist) {
+            minDist = d;
+            nearest = s;
+        }
+    }
+
+    return `${nearest.name} (${minDist.toFixed(1)} km)`;
+}
+
+export default WeatherWidget;
