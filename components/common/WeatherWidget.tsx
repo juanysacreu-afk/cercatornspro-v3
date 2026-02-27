@@ -36,6 +36,7 @@ interface WeatherData {
     daily: WeatherDaily;
     lat: number;
     lon: number;
+    municipality?: string;
 }
 
 const WMO_DESCRIPTIONS: Record<number, string> = {
@@ -92,6 +93,26 @@ export const WeatherWidget: React.FC = () => {
     useEffect(() => {
         const fetchWeather = async (lat: number = 41.3879, lon: number = 2.1699) => {
             try {
+                // 1. Fetch Location Name (Reverse Geocoding)
+                let locationName = 'Barcelona';
+                try {
+                    const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10`, {
+                        headers: { 'User-Agent': 'CercatornsPro/1.0' }
+                    });
+                    if (geoRes.ok) {
+                        const geoData = await geoRes.json();
+                        locationName = geoData.address.city ||
+                            geoData.address.town ||
+                            geoData.address.village ||
+                            geoData.address.municipality ||
+                            geoData.address.suburb ||
+                            'Barcelona';
+                    }
+                } catch (e) {
+                    console.warn('Reverse geocoding failed', e);
+                }
+
+                // 2. Fetch Weather
                 const params = [
                     `latitude=${lat}`,
                     `longitude=${lon}`,
@@ -130,7 +151,8 @@ export const WeatherWidget: React.FC = () => {
                         uvIndex: Math.round(d.uv_index_max?.[0] ?? 0),
                         windMax: Math.round(d.wind_speed_10m_max?.[0] ?? 0),
                     },
-                    lat, lon
+                    lat, lon,
+                    municipality: locationName
                 });
                 setError(false);
             } catch (err) {
@@ -234,6 +256,10 @@ export const WeatherWidget: React.FC = () => {
                                     {getWeatherIcon(w.weatherCode, w.isDay, 52, 'drop-shadow-lg')}
                                 </div>
                                 <div>
+                                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-fgc-green uppercase tracking-wider mb-0.5">
+                                        <MapPin size={10} className="animate-pulse" />
+                                        {weather.municipality}
+                                    </div>
                                     <div className="text-4xl font-black text-gray-800 dark:text-white tabular-nums leading-none">
                                         {w.temperature}°
                                     </div>

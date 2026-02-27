@@ -257,6 +257,7 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                     icon={<Users size={22} strokeWidth={2.5} />}
                     color={kpis.planningCoverage === 100 ? "#6366F1" : "#EF4444"}
                     pulse={kpis.planningCoverage < 100}
+                    progress={kpis.planningCoverage}
                     sparklineData={sparklines.planning}
                     infoText="Indica quants dels torns planificats per avui s'han cobert respecte al total requerit de personal."
                     className="animate-fade-up-premium stagger-3"

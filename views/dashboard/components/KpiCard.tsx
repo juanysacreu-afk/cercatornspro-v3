@@ -79,7 +79,7 @@ export const KpiCard: React.FC<{
     className?: string;
 }> = ({ label, value, subtitle, icon, color, pulse, trend, infoText, progress, sparklineData, className = '' }) => (
     <div className={`relative rounded-3xl p-5 sm:p-6 transition-all duration-500 hover:scale-[1.02] hover:shadow-xl
-        bg-white/70 dark:bg-white/[0.04] backdrop-blur-xl border border-white/20 dark:border-white/5
+        bg-white/70 dark:bg-white/[0.04] backdrop-blur-xl border border-white/20 dark:border-white/5 overflow-hidden
         shadow-[0_4px_24px_0_rgba(31,38,135,0.06)] dark:shadow-[0_4px_24px_0_rgba(0,0,0,0.25)] flex flex-col justify-between ${className}`}
     >
         {/* Accent Glow */}
@@ -161,15 +161,17 @@ export const KpiCard: React.FC<{
             </div>
         ) : (
             <div className="relative z-10 mt-auto">
-                <div className="flex items-end justify-between gap-2">
-                    <div>
+                <div className="flex flex-row items-end justify-between gap-2">
+                    <div className="min-w-0 flex-1">
                         <div className="text-3xl sm:text-4xl lg:text-5xl 2xl:text-6xl font-black tracking-tight text-[#4D5358] dark:text-white mt-1 lg:mt-4 transition-all duration-500" style={{ color }}>{value}</div>
-                        <div className="text-sm lg:text-base 2xl:text-lg font-bold text-[#4D5358] dark:text-gray-300 mt-1 lg:mt-3 uppercase tracking-wide transition-all">{label}</div>
-                        {subtitle && <div className="text-xs lg:text-sm 2xl:text-base text-gray-400 dark:text-gray-500 mt-0.5 lg:mt-1.5 font-medium transition-all">{subtitle}</div>}
+                        <div className="text-sm lg:text-sm 2xl:text-lg font-bold text-[#4D5358] dark:text-gray-300 mt-1 lg:mt-3 uppercase tracking-wide transition-all truncate" title={label}>{label}</div>
+                        {subtitle && <div className="text-[10px] sm:text-xs lg:text-sm 2xl:text-base text-gray-400 dark:text-gray-500 mt-0.5 lg:mt-1.5 font-medium transition-all truncate" title={subtitle}>{subtitle}</div>}
                     </div>
-                    {/* Sparkline aligned right for value cards */}
+                    {/* Sparkline aligned right for value cards - hidden on very small screens if it doesn't fit */}
                     {sparklineData && sparklineData.length >= 2 && (
-                        <Sparkline data={sparklineData} color={color} height={32} />
+                        <div className="flex-none pb-1">
+                            <Sparkline data={sparklineData} color={color} height={28} />
+                        </div>
                     )}
                 </div>
             </div>
