@@ -1092,13 +1092,37 @@ const CercarViewComponent: React.FC<{
                       </div>
                     </div>
 
-                    <div className="flex flex-col justify-center items-center p-8 bg-fgc-green/10 rounded-[32px] border-2 border-dashed border-fgc-green/30">
-                      <div className="text-[10px] font-bold text-fgc-green uppercase tracking-[0.3em] mb-4">Progrés en Tram</div>
-                      <div className="w-full h-4 bg-white dark:bg-black/20 rounded-full overflow-hidden mb-4 p-1">
-                        <div className="h-full bg-fgc-green rounded-full shadow-sm" style={{ width: `${loc.percentage * 100}%` }} />
+                    <div className="flex flex-col justify-center p-8 bg-fgc-green/10 rounded-[32px] border-2 border-dashed border-fgc-green/30 relative overflow-hidden">
+                      <div className="text-[10px] font-bold text-fgc-green uppercase tracking-[0.3em] mb-6 text-center">Progrés en Tram</div>
+
+                      <div className="relative mb-2">
+                        <div className="flex justify-between items-end mb-2 px-1">
+                          <div className="flex flex-col">
+                            <span className="text-[10px] font-extrabold text-[#4D5358] dark:text-gray-200 uppercase tracking-tighter">{loc.prevStation?.name || '---'}</span>
+                            <span className="text-[14px] font-black text-fgc-green leading-none">
+                              {loc.prevStation ? Math.round(Math.abs(loc.pk - loc.prevStation.pk) * 1000) : 0} <small className="text-[9px] opacity-70">m</small>
+                            </span>
+                          </div>
+                          <div className="flex flex-col items-end">
+                            <span className="text-[10px] font-extrabold text-[#4D5358] dark:text-gray-200 uppercase tracking-tighter">{loc.nextStation?.name || '---'}</span>
+                            <span className="text-[14px] font-black text-fgc-green leading-none text-right">
+                              {loc.nextStation ? Math.round(Math.abs(loc.nextStation.pk - loc.pk) * 1000) : 0} <small className="text-[9px] opacity-70">m</small>
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="w-full h-5 bg-white dark:bg-black/40 rounded-full overflow-hidden p-1 shadow-inner ring-1 ring-fgc-green/20">
+                          <div
+                            className="h-full bg-fgc-green rounded-full shadow-sm relative transition-all duration-1000"
+                            style={{ width: `${loc.percentage * 100}%` }}
+                          >
+                            <div className="absolute right-0 top-0 bottom-0 w-4 bg-white/30 blur-sm" />
+                          </div>
+                        </div>
                       </div>
-                      <p className="text-xs font-bold text-[#4D5358] dark:text-gray-300 text-center uppercase tracking-tighter">
-                        Es troba al <span className="text-fgc-green">{(loc.percentage * 100).toFixed(1)}%</span> del trajecte entre estacions.
+
+                      <p className="text-[11px] font-bold text-gray-500 dark:text-gray-400 text-center uppercase tracking-tight mt-4">
+                        Posició al <span className="text-fgc-green text-sm">{(loc.percentage * 100).toFixed(1)}%</span> del trajecte
                       </p>
                     </div>
                   </div>
