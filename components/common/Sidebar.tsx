@@ -105,6 +105,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                         onUploadClick();
                         feedback.click();
                     }}
+                    data-tour="upload-btn"
                     className="w-full flex items-center px-4 py-3.5 rounded-2xl transition-all text-gray-400 hover:bg-fgc-green/10 hover:text-white group"
                 >
                     <div className="shrink-0 group-hover:-translate-y-1 transition-transform duration-300">
@@ -121,6 +122,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                         feedback.click();
                         (window as any).startAppTour?.();
                     }}
+                    data-tour="help-btn"
                     className="w-full flex items-center px-4 py-3.5 rounded-2xl transition-all text-gray-400 hover:bg-amber-500/10 hover:text-amber-500 group"
                     title="Reiniciar Tour Guia"
                 >
@@ -139,6 +141,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                         onSettingsClick();
                         feedback.click();
                     }}
+                    data-tour="settings-btn"
                     className="w-full flex items-center px-4 py-3.5 rounded-2xl transition-all text-gray-400 hover:bg-white/5 hover:text-white group"
                 >
                     <div className="shrink-0 group-hover:rotate-90 transition-transform duration-500">

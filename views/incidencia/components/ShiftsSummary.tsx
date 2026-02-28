@@ -9,28 +9,40 @@ const ShiftsSummary: React.FC<ShiftsSummaryProps> = ({ generatedCircs }) => {
     const driversMap: Record<string, any> = {};
 
     generatedCircs.forEach(c => {
-        if (c.torn === '---') return;
-        if (!driversMap[c.torn]) {
-            driversMap[c.torn] = {
-                driver: c.driver,
-                torn: c.torn,
-                start: c.shiftStart,
-                end: c.shiftEnd,
+        const tId = c.torn === '---' ? 'UNASSIGNED' : c.torn;
+        if (!driversMap[tId]) {
+            driversMap[tId] = {
+                driver: c.torn === '---' ? 'SENSE MAQUINISTA' : c.driver,
+                torn: c.torn === '---' ? '---' : c.torn,
+                start: c.shiftStart || '---',
+                end: c.shiftEnd || '---',
                 trips: [],
                 totalMinutes: 0
             };
         }
-        driversMap[c.torn].trips.push(c);
+        driversMap[tId].trips.push(c);
     });
 
     const driverStats = Object.values(driversMap).map(d => {
-        const sorted = d.trips.sort((a: any, b: any) => a.startTimeMinutes - b.startTimeMinutes);
+        const sorted = d.trips.sort((a: any, b: any) => {
+            const getT = (t: string) => {
+                const p = t.split(':');
+                let min = parseInt(p[0]) * 60 + parseInt(p[1]);
+                if (parseInt(p[0]) < 4) min += 24 * 60;
+                return min;
+            };
+            return getT(a.sortida) - getT(b.sortida);
+        });
         let totalDrive = 0;
         sorted.forEach((t: any) => {
-            const parts1 = t.sortida.split(':');
-            const parts2 = t.arribada.split(':');
-            const m1 = parseInt(parts1[0]) * 60 + parseInt(parts1[1]);
-            const m2 = parseInt(parts2[0]) * 60 + parseInt(parts2[1]);
+            const getT = (timeStr: string) => {
+                const parts = timeStr.split(':');
+                let min = parseInt(parts[0]) * 60 + parseInt(parts[1]);
+                if (parseInt(parts[0]) < 4) min += 24 * 60;
+                return min;
+            };
+            const m1 = getT(t.sortida);
+            const m2 = getT(t.arribada);
             totalDrive += (m2 - m1);
         });
         return { ...d, totalDrive };

@@ -191,8 +191,10 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
     };
 
     liveData.forEach(p => {
-      // Live personnel (Trains and Rest) should respect the service filter (Schedule Type)
-      if (!isServiceVisible(p.servei, selectedServei)) return;
+      // Els trens han de respectar el filtre de servei. 
+      // Els maquinistes (REST/DRIVER) s'inclouen en les illes com a recursos potencials
+      // independentment del seu "servei nominal" si estan a la zona afectada.
+      if (p.type === 'TRAIN' && !isServiceVisible(p.servei, selectedServei)) return;
 
       const st = (p.stationId || '').toUpperCase().trim();
       const code = MAP_STATIONS.find(ms => ms.id === st || ms.label.toUpperCase() === st)?.id || st;

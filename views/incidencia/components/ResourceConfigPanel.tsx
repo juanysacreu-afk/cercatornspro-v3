@@ -82,9 +82,16 @@ const ResourceConfigPanel: React.FC<ResourceConfigPanelProps> = ({
                                 </button>
                             </div>
 
-                            <div className="divide-y divide-gray-100 dark:divide-white/5">
+                            <div className="space-y-4">
                                 {LINE_OPTIONS.map((opt) => (
-                                    <div key={opt.id} className={`py-6 flex items-center justify-between gap-6 transition-opacity ${!opt.can ? 'opacity-30 pointer-events-none grayscale' : ''}`}>
+                                    <div
+                                        key={opt.id}
+                                        className={`px-6 py-4 rounded-3xl flex items-center justify-between gap-6 transition-all border-l-4 ${!opt.can ? 'opacity-30 pointer-events-none grayscale' : ''}`}
+                                        style={{
+                                            backgroundColor: `${LINE_COLORS[opt.id]?.hex}08` || 'transparent',
+                                            borderColor: enabledLines[opt.id] ? LINE_COLORS[opt.id]?.hex : 'transparent'
+                                        }}
+                                    >
                                         <div className="flex items-center gap-4 min-w-[200px]">
                                             <button
                                                 onClick={() => toggleLine(opt.id)}
@@ -103,8 +110,8 @@ const ResourceConfigPanel: React.FC<ResourceConfigPanelProps> = ({
                                                         <button
                                                             onClick={() => toggleNormal(opt.id)}
                                                             className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-[8px] font-heavy uppercase transition-all border ${normalLines[opt.id]
-                                                                    ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
-                                                                    : 'bg-transparent text-gray-400 border-gray-100 dark:border-white/10 hover:border-gray-300'
+                                                                ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
+                                                                : 'bg-transparent text-gray-400 border-gray-100 dark:border-white/10 hover:border-gray-300'
                                                                 }`}
                                                         >
                                                             <Zap size={10} className={normalLines[opt.id] ? 'fill-current' : ''} />
@@ -143,23 +150,6 @@ const ResourceConfigPanel: React.FC<ResourceConfigPanelProps> = ({
                                     <div className="flex items-center gap-2"><Train size={14} className="text-blue-500" /> <span>{physicalTrainsCount} UNITATS APP</span></div>
                                     <div className="flex items-center gap-2"><User size={14} className="text-orange-500" /> <span>{allDriversCount} MAQUINISTES</span></div>
                                 </div>
-                                <button
-                                    onClick={handleGenerateCirculations}
-                                    disabled={generating}
-                                    className={`group relative overflow-hidden px-8 py-3.5 rounded-[20px] transition-all transform active:scale-95 ${generating
-                                            ? 'bg-gray-100 dark:bg-white/5 text-gray-400 cursor-not-allowed'
-                                            : 'bg-blue-600 hover:bg-blue-700 text-white shadow-xl shadow-blue-500/20'
-                                        }`}
-                                >
-                                    <div className="relative z-10 flex items-center gap-3">
-                                        {generating ? (
-                                            <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                                        ) : (
-                                            <Zap size={16} className="text-blue-200 group-hover:scale-110 transition-transform" />
-                                        )}
-                                        <span className="text-[11px] font-bold uppercase tracking-widest">{generating ? 'Calculant...' : 'Generar Pla de Transport'}</span>
-                                    </div>
-                                </button>
                             </div>
                         </div>
                     </div>
@@ -184,10 +174,10 @@ const ResourceConfigPanel: React.FC<ResourceConfigPanelProps> = ({
 
                             <div className="flex items-center justify-between group">
                                 <div className="flex flex-col gap-1">
-                                    <span className="text-[9px] font-heavy text-white/40 uppercase tracking-widest">Maquinistes Requerits</span>
+                                    <span className="text-[9px] font-heavy text-white/40 uppercase tracking-widest">Pool de Maquinistes</span>
                                     <span className="text-4xl font-light tracking-tight">{totalRequiredDrivers}</span>
                                 </div>
-                                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-colors ${totalRequiredDrivers > allDriversCount ? 'bg-red-500/20 text-red-400' : 'bg-white/5 text-white/20'}`}>
+                                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center bg-white/5 text-white/20`}>
                                     <User size={24} />
                                 </div>
                             </div>

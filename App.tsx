@@ -427,6 +427,7 @@ const App: React.FC = () => {
 
                         <button
                           onClick={() => setShowUploadModal(true)}
+                          data-tour="upload-btn"
                           title="Carregar PDF Diari"
                           className="flex items-center justify-center w-12 h-12 bg-white/10 hover:bg-fgc-green hover:text-fgc-grey rounded-xl transition-all group"
                         >
@@ -435,6 +436,7 @@ const App: React.FC = () => {
 
                         <button
                           onClick={() => (window as any).startAppTour?.()}
+                          data-tour="help-btn"
                           title="Tour Guia"
                           className="flex items-center justify-center w-12 h-12 bg-white/10 hover:bg-fgc-green hover:text-fgc-grey rounded-xl transition-all group"
                         >
@@ -445,6 +447,7 @@ const App: React.FC = () => {
                           <button
                             ref={!isProNav ? (settingsRef as any) : null}
                             onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                            data-tour="settings-btn"
                             className={`flex items-center justify-center w-12 h-12 rounded-xl transition-all group ${isSettingsOpen && !isProNav ? 'bg-fgc-green text-fgc-grey shadow-lg' : 'bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white'}`}
                           >
                             <Settings size={22} className={`transition-transform duration-500 ${isSettingsOpen && !isProNav ? 'rotate-90' : 'group-hover:rotate-45'}`} />

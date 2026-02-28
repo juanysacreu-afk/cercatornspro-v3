@@ -5,8 +5,8 @@ import { resolveStationId, mainLiniaForFilter, LINE_COLORS } from '../../../util
 
 interface AlternativeServiceGraphProps {
     generatedCircs: any[];
-    lineFilters: string[];
-    toggleLineFilter: (ln: string) => void;
+    filterLinia: string;
+    setFilterLinia: (ln: string) => void;
     displayMin: number;
     islandStations: Set<string>;
     setViewMode: (mode: any) => void;
@@ -14,26 +14,26 @@ interface AlternativeServiceGraphProps {
 
 const AlternativeServiceGraph: React.FC<AlternativeServiceGraphProps> = ({
     generatedCircs,
-    lineFilters,
-    toggleLineFilter,
+    filterLinia,
+    setFilterLinia,
     displayMin,
     islandStations,
     setViewMode
 }) => {
     const masterOrder = [
-        'PC', 'PR', 'GR', 'PM', 'PD', 'EP', 'TB',
-        'SG', 'MN', 'BN', 'TT', 'SR', 'RE',
+        'DPC', 'PC', 'PR', 'GR', 'PM', 'PD', 'EP', 'TB',
+        'SG', 'MN', 'BN', 'TT', 'SR', 'RE', 'DRE',
         'PF', 'VL', 'LP', 'LF', 'VD', 'SC',
-        'MS', 'HG', 'RB', 'FN', 'TR', 'VP', 'EN', 'NA',
-        'VO', 'SJ', 'BT', 'UN', 'SQ', 'CF', 'PJ', 'CT', 'NO', 'PN'
+        'MS', 'HG', 'RB', 'FN', 'TR', 'VP', 'EN', 'NA', 'DNA',
+        'VO', 'SJ', 'BT', 'UN', 'SQ', 'CF', 'PJ', 'CT', 'NO', 'PN', 'DPN'
     ];
 
     const liniaStationsMap: Record<string, string[]> = {
-        'S1': ['PC', 'PR', 'GR', 'SG', 'MN', 'BN', 'TT', 'SR', 'PF', 'VL', 'LP', 'LF', 'VD', 'SC', 'MS', 'HG', 'RB', 'FN', 'TR', 'VP', 'EN', 'NA'],
-        'S2': ['PC', 'PR', 'GR', 'SG', 'MN', 'BN', 'TT', 'SR', 'PF', 'VL', 'LP', 'LF', 'VD', 'SC', 'VO', 'SJ', 'BT', 'UN', 'SQ', 'CF', 'PJ', 'CT', 'NO', 'PN'],
-        'L6': ['PC', 'PR', 'GR', 'SG', 'MN', 'BN', 'TT', 'SR'],
+        'S1': ['PC', 'PR', 'GR', 'SG', 'MN', 'BN', 'TT', 'SR', 'PF', 'VL', 'LP', 'LF', 'VD', 'SC', 'MS', 'HG', 'RB', 'FN', 'TR', 'VP', 'EN', 'NA', 'DNA'],
+        'S2': ['PC', 'PR', 'GR', 'SG', 'MN', 'BN', 'TT', 'SR', 'PF', 'VL', 'LP', 'LF', 'VD', 'SC', 'VO', 'SJ', 'BT', 'UN', 'SQ', 'CF', 'PJ', 'CT', 'NO', 'PN', 'DPN'],
+        'L6': ['PC', 'PR', 'GR', 'SG', 'MN', 'BN', 'TT', 'SR', 'DCOR'],
         'L7': ['PC', 'PR', 'GR', 'PM', 'PD', 'EP', 'TB'],
-        'L12': ['SR', 'RE'],
+        'L12': ['SR', 'RE', 'DRE'],
     };
 
     const colorMap = (linia: string) => {
@@ -48,20 +48,28 @@ const AlternativeServiceGraph: React.FC<AlternativeServiceGraphProps> = ({
         return '#4D5358';
     };
 
-    const filteredCircs = generatedCircs.filter(c => lineFilters.includes('Tots') || lineFilters.includes(mainLiniaForFilter(c.linia)));
+    const filteredCircs = generatedCircs; // Already filtered by parent
 
     const foundStations = new Set<string>();
     const visibleLines = new Set<string>();
     filteredCircs.forEach(c => {
         const ml = mainLiniaForFilter(c.linia);
         visibleLines.add(ml);
-        const routeParts = c.route.split(' → ');
-        if (routeParts.length >= 2) {
-            const sOrigin = resolveStationId(routeParts[0].trim(), c.linia);
-            const sDest = resolveStationId(routeParts[1].trim(), c.linia);
-            if (masterOrder.includes(sOrigin)) foundStations.add(sOrigin);
-            if (masterOrder.includes(sDest)) foundStations.add(sDest);
+
+        // Use explicit fields if available, else parse route
+        let sOrigin = c.originId;
+        let sDest = c.destId;
+
+        if (!sOrigin || !sDest) {
+            const routeParts = c.route.split(' → ');
+            if (routeParts.length >= 2) {
+                sOrigin = resolveStationId(routeParts[0].trim(), c.linia);
+                sDest = resolveStationId(routeParts[1].trim(), c.linia);
+            }
         }
+
+        if (sOrigin && masterOrder.includes(sOrigin)) foundStations.add(sOrigin);
+        if (sDest && masterOrder.includes(sDest)) foundStations.add(sDest);
     });
 
     visibleLines.forEach(line => {
@@ -105,14 +113,26 @@ const AlternativeServiceGraph: React.FC<AlternativeServiceGraphProps> = ({
 
     const groups: Record<string, any[]> = {};
     filteredCircs.forEach((c, idx) => {
-        const routeParts = c.route.split(' → ');
-        if (routeParts.length < 2) return;
-        const sOrigin = resolveStationId(routeParts[0].trim(), c.linia);
-        const sDest = resolveStationId(routeParts[1].trim(), c.linia);
+        let sOrigin = c.originId;
+        let sDest = c.destId;
+
+        if (!sOrigin || !sDest) {
+            const routeParts = c.route.split(' → ');
+            if (routeParts.length >= 2) {
+                sOrigin = resolveStationId(routeParts[0].trim(), c.linia);
+                sDest = resolveStationId(routeParts[1].trim(), c.linia);
+            }
+        }
+
+        if (!sOrigin || !sDest) return;
+
         const y1Index = sortedStations.indexOf(sOrigin);
         const y2Index = sortedStations.indexOf(sDest);
         if (y1Index === -1 || y2Index === -1) return;
-        if (y1Index === y2Index) return;
+
+        // Even if y1 === y2 (staying at depot/station), we might want to store it, 
+        // but for line rendering we need y1 !== y2. Turnarounds are technically 0-length in space.
+        // We'll skip spatial 0-length for lines, but keep them for unit grouping.
 
         const uId = c.train && c.train !== 'TREN GRÀFIC' ? c.train : `GRAFIC-${c.torn || idx}`;
         if (!groups[uId]) groups[uId] = [];
@@ -120,10 +140,10 @@ const AlternativeServiceGraph: React.FC<AlternativeServiceGraphProps> = ({
     });
 
     return (
-        <div className="space-y-4 animate-in slide-in-from-right duration-500 overflow-hidden flex flex-col" style={{ minHeight: '700px' }}>
-            <div className="flex items-center justify-between">
+        <div className="animate-in slide-in-from-right duration-500 flex flex-col h-full" style={{ minHeight: 0 }}>
+            <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2 px-2">
-                    <TrendingUp size={16} className="text-orange-500" />
+                    <Activity size={16} className="text-blue-500" />
                     <h4 className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Malla Ferroviària d'Emergència</h4>
                 </div>
                 <div className="flex items-center gap-4">
@@ -135,9 +155,9 @@ const AlternativeServiceGraph: React.FC<AlternativeServiceGraphProps> = ({
                         {['Tots', 'S1', 'S2', 'L6', 'L7', 'L12'].map(ln => (
                             <button
                                 key={ln}
-                                onClick={() => toggleLineFilter(ln)}
-                                className={`px-3 py-1.5 rounded-xl text-[9px] font-bold uppercase transition-all ${lineFilters.includes(ln)
-                                    ? 'bg-white dark:bg-gray-700 text-[#4D5358] dark:text-white shadow-sm'
+                                onClick={() => setFilterLinia(ln)}
+                                className={`px-3 py-1.5 rounded-xl text-[9px] font-bold uppercase transition-all ${filterLinia === ln
+                                    ? 'bg-white dark:bg-gray-800 text-[#4D5358] dark:text-white shadow-sm'
                                     : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
                                     }`}
                             >
@@ -151,8 +171,8 @@ const AlternativeServiceGraph: React.FC<AlternativeServiceGraphProps> = ({
                 </div>
             </div>
 
-            <div className="flex-1 bg-white dark:bg-gray-950 rounded-[32px] border border-gray-100 dark:border-white/5 overflow-hidden shadow-inner relative" style={{ minHeight: '550px' }}>
-                <TransformWrapper initialScale={0.8} minScale={0.1} maxScale={4} centerOnInit={true}>
+            <div className="flex-1 bg-white dark:bg-gray-950 rounded-[32px] border border-gray-100 dark:border-white/5 overflow-hidden shadow-inner relative" style={{ minHeight: 0 }}>
+                <TransformWrapper initialScale={0.6} minScale={0.1} maxScale={4} centerOnInit={false}>
                     {({ zoomIn, zoomOut, resetTransform }) => (
                         <>
                             <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
@@ -161,7 +181,7 @@ const AlternativeServiceGraph: React.FC<AlternativeServiceGraphProps> = ({
                                 <button onClick={() => resetTransform()} className="p-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur rounded-full shadow border border-black/5 text-[#4D5358] dark:text-white"><RotateCcw size={16} /></button>
                             </div>
                             <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }}>
-                                <div className="relative p-8 select-none">
+                                <div className="relative p-12 select-none">
                                     <svg width={width} height={height} className="overflow-visible">
                                         {/* Time grid */}
                                         {Array.from({ length: Math.floor(hoursToShow * 4) + 1 }).map((_, i) => {

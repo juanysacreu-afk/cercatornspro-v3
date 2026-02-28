@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Layers, Activity, LayoutGrid, Construction, Info } from 'lucide-react';
+import { X, Layers, Activity, LayoutGrid, Construction, Zap } from 'lucide-react';
 import GlassPanel from '../../components/common/GlassPanel';
 import {
   isServiceVisible,
@@ -49,15 +49,16 @@ const AlternativeServiceOverlay: React.FC<AlternativeServiceOverlayProps> = ({
   selectedCutSegments
 }) => {
   const [viewMode, setViewMode] = useState<'RESOURCES' | 'CIRCULATIONS' | 'SHIFTS' | 'GRAPH'>('RESOURCES');
-  const [lineFilters, setLineFilters] = useState<string[]>(['Tots']);
+  const [filterLinia, setFilterLinia] = useState('Tots');
+  const [searchTerm, setSearchTerm] = useState('');
 
-  if (!dividedPersonnel || !dividedPersonnel[islandId]) return null;
-
-  const personnel = (dividedPersonnel[islandId].list || []).filter(p => isServiceVisible(p.servei, selectedServei));
+  const personnel = (dividedPersonnel[islandId].list || []).filter(p => {
+    if (p.type === 'TRAIN') return isServiceVisible(p.servei, selectedServei);
+    return true;
+  });
   const islandStations = dividedPersonnel[islandId].stations;
   const physicalTrains = personnel.filter(p => p.type === 'TRAIN');
   const allDrivers = [...personnel];
-
 
   const canSupportS1 = Array.from(islandStations).some(s => S1_STATIONS.includes(s));
   const canSupportS2 = Array.from(islandStations).some(s => S2_STATIONS.includes(s));
@@ -99,23 +100,35 @@ const AlternativeServiceOverlay: React.FC<AlternativeServiceOverlayProps> = ({
     canSupportL12
   });
 
+  const mainLiniaForFilter = (l: string) => {
+    if (!l) return 'Tots';
+    const up = l.toUpperCase().trim();
+    if (up.startsWith('S1') || up.startsWith('DA') || up.startsWith('TA')) return 'S1';
+    if (up.startsWith('S2') || up.startsWith('FA') || up.startsWith('SA')) return 'S2';
+    if (up.startsWith('L6') || up.startsWith('AA') || up.startsWith('VA')) return 'L6';
+    if (up.startsWith('L7')) return 'L7';
+    if (up.startsWith('L12')) return 'L12';
+    return 'Tots';
+  };
+
+  const filteredCircs = generatedCircs.filter(c => {
+    const matchesLinia = filterLinia === 'Tots' || mainLiniaForFilter(c.linia) === filterLinia;
+    const matchesSearch = !searchTerm ||
+      c.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (c.torn || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (c.train || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (c.driver || '').toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesLinia && matchesSearch;
+  });
+
   const toggleLineFilter = (ln: string) => {
-    if (ln === 'Tots') {
-      setLineFilters(['Tots']);
-      return;
-    }
-    setLineFilters(prev => {
-      const next = prev.includes(ln)
-        ? prev.filter(x => x !== ln)
-        : [...prev.filter(x => x !== 'Tots'), ln];
-      return next.length === 0 ? ['Tots'] : next;
-    });
+    setFilterLinia(ln);
   };
 
   const handleExportXLS = () => {
     const csvContent = [
       ['ID', 'Linia', 'Ruta', 'Sortida', 'Arribada', 'Tren', 'Maquinista', 'Torn'].join('\t'),
-      ...generatedCircs.map(c => [c.id, c.linia, c.route, c.sortida, c.arribada, c.train, c.driver, c.torn].join('\t'))
+      ...filteredCircs.map(c => [c.id, c.linia, c.route, c.sortida, c.arribada, c.train, c.driver, c.torn].join('\t'))
     ].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -127,8 +140,8 @@ const AlternativeServiceOverlay: React.FC<AlternativeServiceOverlayProps> = ({
     document.body.removeChild(link);
   };
 
-  const totalRequiredTrains = Object.values(lineCounts).reduce((a, b) => a + b, 0);
-  const totalRequiredDrivers = totalRequiredTrains;
+  const totalRequiredTrains = Object.values(lineCounts).reduce((a, b) => (a as number) + (b as number), 0);
+  const totalAvailableDrivers = allDrivers.length;
 
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -189,6 +202,24 @@ const AlternativeServiceOverlay: React.FC<AlternativeServiceOverlayProps> = ({
             </div>
 
             <div className="flex items-center gap-4">
+              <button
+                onClick={handleGenerateCirculations}
+                disabled={generating}
+                className={`group relative overflow-hidden px-8 py-3.5 rounded-[22px] transition-all transform active:scale-95 ${generating
+                  ? 'bg-gray-100 dark:bg-white/5 text-gray-400 cursor-not-allowed'
+                  : 'bg-blue-600 hover:bg-blue-700 text-white shadow-xl shadow-blue-500/20'
+                  }`}
+              >
+                <div className="relative z-10 flex items-center gap-3">
+                  {generating ? (
+                    <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Zap size={16} className="text-blue-200 group-hover:scale-110 transition-transform" />
+                  )}
+                  <span className="text-[11px] font-bold uppercase tracking-widest">{generating ? 'Calculant...' : 'Generar Pla de Transport'}</span>
+                </div>
+              </button>
+
               <button onClick={onClose} className="p-3 bg-white dark:bg-gray-800 border border-gray-100 dark:border-white/10 rounded-2xl text-gray-400 hover:text-red-500 hover:border-red-500/20 hover:bg-red-50 transition-all shadow-sm">
                 <X size={20} />
               </button>
@@ -196,7 +227,7 @@ const AlternativeServiceOverlay: React.FC<AlternativeServiceOverlayProps> = ({
           </div>
 
           {/* Content Area */}
-          <div className="flex-1 overflow-auto p-8 bg-gray-50/50 dark:bg-transparent custom-scrollbar">
+          <div className={`flex-1 ${viewMode === 'GRAPH' ? 'overflow-hidden' : 'overflow-auto'} p-8 bg-gray-50/50 dark:bg-transparent custom-scrollbar`}>
             {viewMode === 'RESOURCES' && (
               <ResourceConfigPanel
                 lineCounts={lineCounts}
@@ -207,7 +238,7 @@ const AlternativeServiceOverlay: React.FC<AlternativeServiceOverlayProps> = ({
                 physicalTrainsCount={physicalTrains.length}
                 allDriversCount={allDrivers.length}
                 totalRequiredTrains={totalRequiredTrains}
-                totalRequiredDrivers={totalRequiredDrivers}
+                totalRequiredDrivers={allDrivers.length}
                 updateCount={updateCount}
                 updateHeadway={updateHeadway}
                 toggleLine={toggleLine}
@@ -225,20 +256,24 @@ const AlternativeServiceOverlay: React.FC<AlternativeServiceOverlayProps> = ({
 
             {viewMode === 'CIRCULATIONS' && (
               <CirculationsTable
-                generatedCircs={generatedCircs}
+                generatedCircs={filteredCircs}
+                searchTerm={searchTerm}
+                setSearchTerm={setSearchTerm}
+                filterLinia={filterLinia}
+                setFilterLinia={setFilterLinia}
                 onExport={handleExportXLS}
               />
             )}
 
             {viewMode === 'SHIFTS' && (
-              <ShiftsSummary generatedCircs={generatedCircs} />
+              <ShiftsSummary generatedCircs={filteredCircs} />
             )}
 
             {viewMode === 'GRAPH' && (
               <AlternativeServiceGraph
-                generatedCircs={generatedCircs}
-                lineFilters={lineFilters}
-                toggleLineFilter={toggleLineFilter}
+                generatedCircs={filteredCircs}
+                filterLinia={filterLinia}
+                setFilterLinia={setFilterLinia}
                 displayMin={displayMin}
                 islandStations={islandStations}
                 setViewMode={setViewMode}

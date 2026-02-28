@@ -113,10 +113,9 @@ export const useAlternativeService = ({
         let avDrivers = allDrivers.length;
 
         const tryInc = (linia: string) => {
-            if (avTrains > 0 && avDrivers > 0) {
+            if (avTrains > 0) {
                 initial[linia as keyof typeof initial]++;
                 avTrains--;
-                avDrivers--;
                 return true;
             }
             return false;
@@ -129,22 +128,22 @@ export const useAlternativeService = ({
         if (enabledLines.L7 && (canSupportL7Full || canSupportL7Local)) {
             const l7TrainsInIsland = physicalTrains.filter(t => t.linia === 'L7' || t.linia === '300').length;
             for (let i = 0; i < l7TrainsInIsland; i++) {
-                if (avTrains > 0 && avDrivers > 0) tryInc("L7");
+                if (avTrains > 0) tryInc("L7");
             }
         }
 
         if (enabledLines.L6 && canSupportL6) {
             const l6TrainsInIsland = physicalTrains.filter(t => t.linia === 'L6').length;
             for (let i = 0; i < l6TrainsInIsland; i++) {
-                if (avTrains > 0 && avDrivers > 0) tryInc("L6");
+                if (avTrains > 0) tryInc("L6");
             }
         }
 
         let cycle = 0;
-        while (avTrains > 0 && avDrivers > 0 && cycle < 30) {
+        while (avTrains > 0 && cycle < 30) {
             let changed = false;
             if (canSupportS1 && canSupportS2 && enabledLines.S1 && enabledLines.S2) {
-                if (avTrains >= 2 && avDrivers >= 2) {
+                if (avTrains >= 2) {
                     tryInc("S1");
                     tryInc("S2");
                     changed = true;
@@ -158,7 +157,7 @@ export const useAlternativeService = ({
             cycle++;
         }
 
-        if (Object.values(initial).reduce((a, b) => a + b, 0) === 0 && avTrains > 0 && avDrivers > 0) {
+        if (Object.values(initial).reduce((a, b) => a + b, 0) === 0 && avTrains > 0) {
             if (canSupportS1 && enabledLines.S1) initial.S1 = 1;
             else if (canSupportS2 && enabledLines.S2) initial.S2 = 1;
             else if ((canSupportL7Full || canSupportL7Local) && enabledLines.L7) initial.L7 = 1;
@@ -179,7 +178,7 @@ export const useAlternativeService = ({
             }
             const nextState = { ...prev, ...updates };
             const total = Object.values(nextState).reduce((sum, v) => sum + v, 0);
-            if (total > physicalTrains.length || total > allDrivers.length) {
+            if (total > physicalTrains.length) {
                 return prev;
             }
             return nextState;
@@ -292,14 +291,25 @@ export const useAlternativeService = ({
         setGenerating(true);
 
         // Helpers internos (pueden sacarse a utils si se prefiere)
-        const getDirection = (iniciFinal: string, circId: string, isManeuverArg = false, isViatgerArg = false): string => {
-            if (isManeuverArg) return 'MANIOBRA';
-            if (isViatgerArg) return 'VIATGER';
-            const origin = resolveStationId(iniciFinal || '');
-            if (ASCENDING_ORIGIN_STATIONS.has(origin)) return 'ASCENDENT';
-            if (DESCENDING_ORIGIN_STATIONS.has(origin)) return 'DESCENDENT';
-            const num = parseInt(circId.replace(/\D/g, '') || '1');
-            return num % 2 !== 0 ? 'ASCENDENT' : 'DESCENDENT';
+        const getDirection = (origin: string, circId: string, isManeuver: boolean = false, isViatger: boolean = false) => {
+            const n = parseInt(circId.replace(/\D/g, '')) || 0;
+
+            // Rules for Sabadell (S2)
+            if (origin === 'PN' && circId.includes('SA')) return 'ASCENDENT'; // PN -> DPN
+            if (origin === 'DPN') return 'DESCENDENT'; // DPN -> PN
+
+            // Rules for Terrassa (S1)
+            if (origin === 'NA' && circId.includes('SA')) return 'ASCENDENT'; // NA -> DNA
+            if (origin === 'DNA') return 'DESCENDENT'; // DNA -> NA
+
+            if (isManeuver || isViatger) {
+                return n % 2 !== 0 ? 'ASCENDENT' : 'DESCENDENT';
+            }
+
+            if (origin === 'PC' || origin === 'SJR' || origin === 'QD') return 'ASCENDENT';
+            if (origin === 'SAB' || origin === 'PN' || origin === 'NA' || origin === 'TU') return 'DESCENDENT';
+
+            return n % 2 !== 0 ? 'ASCENDENT' : 'DESCENDENT';
         };
 
         const getTrainChangeTime = (station: string, timeMin: number): number => {
@@ -342,7 +352,8 @@ export const useAlternativeService = ({
                 return;
             }
 
-            const liniaPrefixes: Record<string, string> = { 'S1': 'D', 'S2': 'F', 'L6': 'A', 'L7': 'B', 'L12': 'L' };
+            const liniaPrefixes: Record<string, string> = { 'S1': 'DA', 'S2': 'FA', 'L6': 'AA', 'L7': 'LA', 'L12': 'LA' };
+            const manPrefixes: Record<string, string> = { 'S1': 'TA', 'S2': 'SA', 'L6': 'VA', 'L7': 'VA', 'L12': 'VA' };
             const liniaStationsRef = LINIA_STATIONS;
 
             const circIdToService: Record<string, string> = {};
@@ -360,14 +371,9 @@ export const useAlternativeService = ({
             const plan: any[] = [];
             const resourcesByLinia: Record<string, any[]> = {};
 
-            // Store initial assignments from shuttle plan to place drivers correctly
-            const initialStationsMap: Record<string, string> = {};
             shuttlePlan.forEach(s => {
                 if (!resourcesByLinia[s.liniaCode]) resourcesByLinia[s.liniaCode] = [];
                 resourcesByLinia[s.liniaCode].push(s);
-                if (s.driver && s.train) {
-                    initialStationsMap[s.driver.torn] = s.train.stationId || 'PC';
-                }
             });
 
             let driverPool: any[] = allDrivers.map(d => {
@@ -388,9 +394,12 @@ export const useAlternativeService = ({
                 const shiftHoursElapsed = (displayMin - startMin) / 60;
                 const mainBreakLikelyTaken = shiftHoursElapsed > 3.5;
 
+                const shuttleAssignment = shuttlePlan.find(s => s.driver?.torn === d.torn);
+                const initialStation = shuttleAssignment?.train?.stationId || d.stationId || homeStation;
+
                 return {
                     ...d,
-                    currentStation: initialStationsMap[d.torn] || d.stationId || homeStation,
+                    currentStation: initialStation,
                     availableAt: effectiveAvailAt,
                     activeShiftEnd: endMin,
                     shiftExtensionLimit: extensionLimit,
@@ -407,14 +416,6 @@ export const useAlternativeService = ({
             }).sort((a, b) => a.activeShiftEnd - b.activeShiftEnd);
 
             const LINE_ORDER = ['S1', 'S2', 'L7', 'L6', 'L12'];
-            let lastManeuverNum = 799;
-            (theoryCircs as any[]).forEach(c => {
-                if (c.id.startsWith('V') || c.id.startsWith('T') || c.id.startsWith('X')) {
-                    const n = parseInt(c.id.replace(/\D/g, ''));
-                    if (n >= 800 && n <= 999 && n > lastManeuverNum) lastManeuverNum = n;
-                }
-            });
-
             const shiftsToIncludeNorm = new Set<string>();
             LINE_ORDER.forEach(liniaCode => {
                 if (!normalLines[liniaCode] || !enabledLines[liniaCode]) return;
@@ -452,6 +453,7 @@ export const useAlternativeService = ({
                         driver: assignedD ? assignedD.driver : 'SENSE MAQUINISTA (NORMAL)', torn: shift.id,
                         isManeuver, isViatger, shiftStart: assignedD?.shiftStart || '--:--', shiftEnd: assignedD?.shiftEnd || '--:--',
                         sortida: circ.sortida, arribada: circ.arribada, route: (circ as any).route || `${circ.inici} → ${circ.final}`,
+                        originId: resolveStationId(circ.inici), destId: resolveStationId(circ.final),
                         direction: getDirection(circ.inici, circ.id, isManeuver, isViatger),
                         startTimeMinutes: mStart, numValue: parseInt(circ.id.replace(/\D/g, '') || '0') || 900,
                         isNormal: true, delay: 0, prevId: 'GRÀFIC', nextId: 'GRÀFIC'
@@ -499,6 +501,10 @@ export const useAlternativeService = ({
                 if (maxAscTime === 0 && maxDescTime === 0) { maxAscTime = 1620; maxDescTime = 1620; }
                 const maxLineTime = Math.max(maxAscTime, maxDescTime);
 
+                // Initialize next IDs ensuring correct parity
+                let nextAscNum = maxAscStartedNum + (maxAscStartedNum % 2 === 0 ? 1 : 2);
+                let nextDescNum = maxDescStartedNum + (maxDescStartedNum % 2 === 0 ? 2 : 1);
+
                 let totalTravelMins = 0;
                 let countValid = 0;
                 areaTheory.forEach(c => {
@@ -520,7 +526,7 @@ export const useAlternativeService = ({
                 if (countValid > 0) refTravelTime = Math.ceil(totalTravelMins / countValid);
                 else {
                     const sample = areaTheory.filter(c => {
-                        const stops = [c.inici, ...(c.estacions?.map((s: any) => s.nom) || []), c.final].map(s => resolveStationId(s));
+                        const stops = [c.inici, ...(c.estacions?.map((s: any) => s.nom) || []), sample.arribada];
                         return stops.includes(eps.start) && stops.includes(eps.end);
                     }).sort((a, b) => (getFgcMinutes(b.sortida) || 0) - (getFgcMinutes(a.sortida) || 0))[0];
                     if (sample) {
@@ -541,15 +547,35 @@ export const useAlternativeService = ({
                 }
                 refTravelTime += vuPenalty;
 
-                const branchUnits = (resourcesByLinia[liniaCode] || []).map(u => ({
-                    ...u, currentDriverId: u.driver ? u.driver.torn : null, availableAt: displayMin, currentStation: u.train.stationId || 'PC'
-                }));
+                const cycleCounters: Record<string, number> = {};
+                const branchUnits = (resourcesByLinia[liniaCode] || []).map(u => {
+                    const currentPos = u.train.stationId || 'PC';
+                    const targetDepots = ['PN', 'NA', 'COR', 'RE', 'PC'];
+                    let nearestDepot = 'PC';
+                    let minDist = 999;
+                    targetDepots.forEach(dep => {
+                        const dist = getFullPath(currentPos, dep).length;
+                        if (dist > 0 && dist < minDist) { minDist = dist; nearestDepot = dep; }
+                    });
+                    cycleCounters[nearestDepot] = (cycleCounters[nearestDepot] || 0) + 1;
+                    const cycleId = `ALT${nearestDepot}${cycleCounters[nearestDepot]}`;
+
+                    return {
+                        ...u,
+                        cycleId,
+                        currentDriverId: u.driver ? u.driver.torn : null,
+                        availableAt: displayMin,
+                        currentStation: currentPos,
+                        origUnit: u.train.p_unitat || u.train.id // Mantenim referència original
+                    };
+                });
 
                 const numUnits = Math.max(1, branchUnits.length);
                 const clampedTravel = Math.min(60, Math.max(5, refTravelTime));
                 const fullCyclePhysics = 2 * (clampedTravel + TURNAROUND_TERM);
                 const physicsHeadway = fullCyclePhysics / numUnits;
 
+                // Capacidad de personal: ¿Cuántas circulaciones pueden cubrir los maquinistas?
                 let totalDriverTripCapacity = 0;
                 driverPool.forEach(d => {
                     const shiftEndLimit = Math.max(d.activeShiftEnd, d.shiftExtensionLimit || 0);
@@ -557,51 +583,172 @@ export const useAlternativeService = ({
                     const driverWindowEnd = shiftEndLimit;
                     const rawWindow = Math.max(0, driverWindowEnd - driverWindowStart);
                     if (rawWindow <= 0) return;
-                    const hoursFromShiftStart = (driverWindowStart - d.activeShiftStart) / 60;
-                    const requiresMainBreakInWindow = !d.mainBreakTaken && hoursFromShiftStart < 5.5 && rawWindow > 30;
-                    const breakDeduction = requiresMainBreakInWindow ? N_LABORAL.MAIN_BREAK : 0;
-                    const continuousBreaks = d.contDrive > N_LABORAL.MAX_DRIVE - clampedTravel ? N_LABORAL.MIN_BREAK : 0;
-                    const effectiveWorkTime = Math.max(0, rawWindow - breakDeduction - continuousBreaks);
+
+                    // Estimamos capacidad neta restando descansos
+                    const hoursInShiftSoFar = (driverWindowStart - d.activeShiftStart) / 60;
+                    const willNeedMainBreak = !d.mainBreakTaken && hoursInShiftSoFar < 5.5;
+                    const estimatedBreaks = (willNeedMainBreak ? N_LABORAL.MAIN_BREAK : 0) + 15; // +15 min margen
+
+                    const effectiveWorkTime = Math.max(0, rawWindow - estimatedBreaks);
+                    // Cada viaje ida/vuelta consume (travel + turnaround)
                     const tripsThisDriver = Math.floor(effectiveWorkTime / (clampedTravel + TURNAROUND_TERM));
                     totalDriverTripCapacity += tripsThisDriver;
                 });
 
                 const serviceWindow = Math.max(0, maxLineTime - displayMin);
                 const physicsSlots = numUnits * Math.floor(serviceWindow / (clampedTravel + TURNAROUND_TERM));
-                let optimalHeadway: number;
-                if (totalDriverTripCapacity === 0) optimalHeadway = physicsHeadway;
-                else if (totalDriverTripCapacity >= physicsSlots * 0.9) optimalHeadway = physicsHeadway;
-                else {
-                    const driverHeadway = (numUnits * serviceWindow) / totalDriverTripCapacity;
-                    optimalHeadway = Math.max(physicsHeadway, driverHeadway);
+
+                // Si la capacidad de los maquinistas es menor que la física, ajustamos el headway
+                let adjustedHeadway: number;
+                if (totalDriverTripCapacity === 0) {
+                    adjustedHeadway = physicsHeadway * 2; // Penalización si no hay maquinistas
+                } else if (totalDriverTripCapacity < physicsSlots) {
+                    // Calculamos el headway que los maquinistas pueden sostener
+                    const sustainableHeadway = (numUnits * serviceWindow) / totalDriverTripCapacity;
+                    adjustedHeadway = Math.max(physicsHeadway, sustainableHeadway);
+                } else {
+                    adjustedHeadway = physicsHeadway;
                 }
-                const headway = Math.max(5, Math.round(optimalHeadway));
+
+                const headway = Math.max(5, Math.round(adjustedHeadway));
 
                 lineContexts[liniaCode] = {
-                    eps, prefix, refTravelTime: clampedTravel, headway, physicsHeadway,
-                    maxLineTime, maxAscTime, maxDescTime, nextAscNum: maxAscStartedNum + 2, nextDescNum: maxDescStartedNum + 2,
+                    eps, prefix, manPrefix: manPrefixes[liniaCode],
+                    refTravelTime: clampedTravel, headway, physicsHeadway,
+                    maxLineTime, maxAscTime, maxDescTime,
+                    nextAscNum, nextDescNum,
                     branchUnits, nextStartTimeAsc: displayMin + 2, nextStartTimeDesc: displayMin + 2 + Math.floor(headway / 2)
                 };
             });
 
             const tripSlots: any[] = [];
             Object.entries(lineContexts).forEach(([liniaCode, ctx]) => {
-                const numUnits = Math.max(1, ctx.branchUnits.length);
-                const fullCycleTime = 2 * (ctx.refTravelTime + TURNAROUND_TERM);
-                const trueStagger = fullCycleTime / numUnits;
+                const liniaStops = LINIA_STATIONS[liniaCode];
+                const linePathIdx = (s: string) => liniaStops.indexOf(s);
+                const startIndex = linePathIdx(ctx.eps.start);
+                const endIndex = linePathIdx(ctx.eps.end);
+                const totalSteps = Math.abs(endIndex - startIndex);
+
                 ctx.branchUnits.forEach((u: any, uIdx: number) => {
-                    const staggerOffset = Math.round(uIdx * trueStagger);
-                    let currentTime = ctx.nextStartTimeAsc + staggerOffset;
-                    let currentStation = ctx.eps.start;
-                    let goingToEnd = true;
+                    let currentStation = u.train.stationId || ctx.eps.start;
+                    // If the station is not in the branch (e.g. it was outside), snap to the closest endpoint
+                    if (!islandStations.has(currentStation)) {
+                        currentStation = ctx.eps.start;
+                    }
+
+                    let currentTime = displayMin;
+                    let goingToEnd = true; // Default Ascendent
+
+                    const direction = u.train.direction;
+                    if (direction === 'DESCENDENT') goingToEnd = false;
+                    else if (direction === 'ASCENDENT') goingToEnd = true;
+                    else {
+                        // If parked/unknown, choose based on station
+                        if (currentStation === ctx.eps.end) goingToEnd = false;
+                        else goingToEnd = true;
+                    }
+
+                    // Initial setup: If at terminal, maybe start with a maneuver?
+                    if ((goingToEnd && currentStation === ctx.eps.end) || (!goingToEnd && currentStation === ctx.eps.start)) {
+                        const isTerminalPnNa = currentStation === 'PN' || currentStation === 'NA';
+                        if (isTerminalPnNa) {
+                            const depot = currentStation === 'PN' ? 'DPN' : 'DNA';
+                            // Station -> Depot
+                            tripSlots.push({
+                                liniaCode, isAsc: true, idealStartTime: currentTime, origin: currentStation, dest: depot,
+                                unitIdx: uIdx, isTechnical: true, duration: 6, isManeuver: true
+                            });
+                            currentTime += 6 + 10;
+                            // Depot -> Station
+                            tripSlots.push({
+                                liniaCode, isAsc: false, idealStartTime: currentTime, origin: depot, dest: currentStation,
+                                unitIdx: uIdx, isTechnical: true, duration: 6, isManeuver: true
+                            });
+                            currentTime += 6 + TURNAROUND_TERM;
+                        } else {
+                            tripSlots.push({
+                                liniaCode, isAsc: goingToEnd, idealStartTime: currentTime, origin: currentStation, dest: currentStation,
+                                unitIdx: uIdx, isTechnical: true, duration: TURNAROUND_TERM, isManeuver: true
+                            });
+                            currentTime += TURNAROUND_TERM;
+                        }
+                        goingToEnd = !goingToEnd;
+                    }
+
                     while (currentTime < ctx.maxLineTime) {
                         const origin = currentStation;
                         const dest = goingToEnd ? ctx.eps.end : ctx.eps.start;
+
+                        // Check if we are at a terminal that needs depot maneuver sequence (PN or NA)
+                        const isAtSpecialTerminal = origin === 'PN' || origin === 'NA' || origin === 'DPN' || origin === 'DNA';
+
+                        // Calculate partial travel time
+                        const currentIdx = linePathIdx(origin);
+                        const targetIdx = linePathIdx(dest);
+                        const steps = Math.abs(targetIdx - currentIdx);
+                        const travelTime = totalSteps > 0 ? Math.ceil((steps / totalSteps) * ctx.refTravelTime) : ctx.refTravelTime;
+
                         const isTechnical = goingToEnd ? currentTime >= ctx.maxAscTime : currentTime >= ctx.maxDescTime;
-                        tripSlots.push({ liniaCode, isAsc: goingToEnd, idealStartTime: currentTime, origin, dest, unitIdx: uIdx, isTechnical });
-                        currentTime += ctx.refTravelTime + TURNAROUND_TERM;
+
+                        // Insert commercial trip
+                        tripSlots.push({
+                            liniaCode,
+                            isAsc: goingToEnd,
+                            idealStartTime: currentTime,
+                            origin,
+                            dest,
+                            unitIdx: uIdx,
+                            isTechnical,
+                            duration: travelTime
+                        });
+
+                        currentTime += travelTime;
                         currentStation = dest;
-                        goingToEnd = !goingToEnd;
+
+                        // POST-TRIP LOGIC: Maneuvers and changes of direction
+                        if (currentTime >= ctx.maxLineTime) break;
+
+                        const reachedEndTerminal = currentStation === ctx.eps.end && goingToEnd;
+                        const reachedStartTerminal = currentStation === ctx.eps.start && !goingToEnd;
+
+                        if (reachedEndTerminal || reachedStartTerminal) {
+                            const isAtSpecialTerminal = currentStation === 'PN' || currentStation === 'NA';
+
+                            if (isAtSpecialTerminal) {
+                                // Sequence: Station -> Depot (Asc) -> Stay -> Depot -> Station (Desc)
+                                const depot = currentStation === 'PN' ? 'DPN' : 'DNA';
+
+                                // 1. Station -> Depot (Maneuver)
+                                tripSlots.push({
+                                    liniaCode, isAsc: true, idealStartTime: currentTime, origin: currentStation, dest: depot,
+                                    unitIdx: uIdx, isTechnical: true, duration: 6, isManeuver: true
+                                });
+                                currentTime += 6 + 10; // 10 min in depot
+
+                                // 2. Depot -> Station (Maneuver)
+                                tripSlots.push({
+                                    liniaCode, isAsc: false, idealStartTime: currentTime, origin: depot, dest: currentStation,
+                                    unitIdx: uIdx, isTechnical: true, duration: 6, isManeuver: true
+                                });
+                                currentTime += 6 + TURNAROUND_TERM;
+
+                                // IMPORTANT: Now we MUST toggle direction to leave the terminal
+                                goingToEnd = !goingToEnd;
+                            } else {
+                                // General turnaround at endpoints that are not PN/NA
+                                tripSlots.push({
+                                    liniaCode, isAsc: goingToEnd, idealStartTime: currentTime, origin: currentStation, dest: currentStation,
+                                    unitIdx: uIdx, isTechnical: true, duration: TURNAROUND_TERM, isManeuver: true
+                                });
+                                currentTime += TURNAROUND_TERM;
+                                goingToEnd = !goingToEnd;
+                            }
+                        } else {
+                            // We shouldn't really reach here if the island stops are correct, 
+                            // but as a fallback, ensure we turnaround if stuck
+                            goingToEnd = !goingToEnd;
+                            currentTime += TURNAROUND_TERM;
+                        }
                     }
                 });
             });
@@ -620,13 +767,20 @@ export const useAlternativeService = ({
                 tripSlots.length = 0; tripSlots.push(...filtered);
             }
 
+            const unitStates: Record<string, { lastDir: 'ASC' | 'DESC' | null, currentNum: number }> = {};
             tripSlots.sort((a, b) => a.idealStartTime - b.idealStartTime);
+
             tripSlots.forEach(slot => {
                 const ctx = lineContexts[slot.liniaCode];
                 const unitObj = ctx.branchUnits[slot.unitIdx];
+                const unitKey = `${slot.liniaCode}-${slot.unitIdx}`;
+                if (!unitStates[unitKey]) unitStates[unitKey] = { lastDir: null, currentNum: 0 };
+                const uState = unitStates[unitKey];
+
                 if (!unitObj) return;
+                const duration = slot.duration || ctx.refTravelTime;
                 const startTime = slot.idealStartTime;
-                const endTime = startTime + ctx.refTravelTime;
+                const endTime = startTime + duration;
                 const selectedCandidate = driverPool.map(d => {
                     const isAtStation = d.currentStation === slot.origin;
                     const isSameUnit = unitObj.currentDriverId === d.torn;
@@ -641,48 +795,72 @@ export const useAlternativeService = ({
                             techTime = Math.max(10, (pathLen - 1) * 4);
                         }
                     }
-                    const drivingLimitMet = (d.contDrive || 0) + ctx.refTravelTime > N_LABORAL.MAX_DRIVE;
+                    const drivingLimitMet = (d.contDrive || 0) + duration > N_LABORAL.MAX_DRIVE;
                     const hoursInShift = (startTime - d.activeShiftStart) / 60;
                     const inMainBreakWindow = hoursInShift >= 2.5 && hoursInShift <= 5.5;
                     const needsMainBreak = !d.mainBreakTaken && inMainBreakWindow;
                     let driverReadyAt = d.availableAt + techTime;
                     if (drivingLimitMet) driverReadyAt += N_LABORAL.MIN_BREAK;
                     if (needsMainBreak) driverReadyAt += N_LABORAL.MAIN_BREAK;
-                    const driverCanMakeIt = driverReadyAt <= startTime + 2;
-                    const canPerform = isAtStation || d.tripCount === 0;
+                    const driverCanMakeIt = driverReadyAt <= startTime + 5; // Margen más amplio (5 min) para facilitar entrada
+                    const canPerform = isAtStation || d.tripCount === 0 || techTime <= 15; // Permitir traslados cortos entre viajes
                     const retPathLen = getFullPath(slot.dest, d.activeShiftDep || 'PC').length;
                     const returnDuration = Math.max(getWalkTime(slot.dest, d.activeShiftDep || ''), (retPathLen - 1) * 3);
                     const shiftEndLimit = Math.max(d.activeShiftEnd, d.shiftExtensionLimit || 0);
-                    const isValid = driverCanMakeIt && canPerform && endTime + returnDuration <= shiftEndLimit;
+                    const isValid = driverCanMakeIt && canPerform && endTime + returnDuration <= shiftEndLimit + 10; // 10 min margen final
                     return { driver: d, isValid, isAtStation, isSameUnit, needsMainBreak, drivingLimitMet };
                 }).filter(c => c.isValid).sort((a, b) => {
-                    // 1. Prioritize rotation (use fresh drivers or those with fewer trips)
+                    // 1. Balanceo de carga (Rotación): Prioridad máxima al que menos ha trabajado
                     if ((a.driver.tripCount || 0) !== (b.driver.tripCount || 0)) {
                         return (a.driver.tripCount || 0) - (b.driver.tripCount || 0);
                     }
-                    // 2. Prioritize those who finish earlier (to ensure they complete their work window)
+                    // 2. Aprovechamiento de jornada: Prioridad al que termina antes su turno
                     if (a.driver.activeShiftEnd !== b.driver.activeShiftEnd) {
                         return a.driver.activeShiftEnd - b.driver.activeShiftEnd;
                     }
-                    // 3. Prefer staying with the same unit if trip counts are equal (efficiency)
+                    // 3. Eficiencia: Preferir quedarse en la misma unidad
                     if (a.isSameUnit !== b.isSameUnit) return a.isSameUnit ? -1 : 1;
-                    // 4. Being at the station
+                    // 4. Proximidad: Estar en la misma estación
                     if (a.isAtStation !== b.isAtStation) return a.isAtStation ? -1 : 1;
-                    // 5. Final tie-break on availability
+                    // 5. Disponibilidad temporal
                     return (a.driver.availableAt || 0) - (b.driver.availableAt || 0);
                 })[0];
 
                 const selectedDriver = selectedCandidate?.driver || null;
                 const activeDriver = selectedDriver || { driver: 'SENSE MAQUINISTA (AVÍS)', torn: '---' };
-                const tripNum = slot.isAsc ? ctx.nextAscNum : ctx.nextDescNum;
-                if (slot.isAsc) ctx.nextAscNum += 2; else ctx.nextDescNum += 2;
+                const isMan = (slot as any).isManeuver;
+                const dir = slot.isAsc ? 'ASC' : 'DESC';
+
+                if (uState.lastDir !== dir) {
+                    const nextNum = slot.isAsc ? ctx.nextAscNum : ctx.nextDescNum;
+                    if (slot.isAsc) ctx.nextAscNum += 2; else ctx.nextDescNum += 2;
+                    uState.currentNum = nextNum;
+                    uState.lastDir = dir;
+                }
+                const tripNum = uState.currentNum;
+                const tripId = isMan ? `${ctx.manPrefix}${tripNum}` : `${ctx.prefix}${tripNum}`;
 
                 plan.push({
-                    id: `${ctx.prefix}A${tripNum.toString().padStart(3, '0')}`, delay: 0, servei: (activeDriver as any).servei, linia: slot.liniaCode,
-                    train: unitObj.train.id, driver: activeDriver.driver || (activeDriver as any).driverName, torn: activeDriver.torn,
-                    shiftStart: activeDriver.shiftStart || '--:--', shiftEnd: activeDriver.shiftEnd || '--:--', sortida: formatFgcTime(startTime),
-                    arribada: formatFgcTime(endTime), route: `${slot.origin} → ${slot.dest}`,
-                    direction: getDirection(slot.origin, `${ctx.prefix}${tripNum}`), startTimeMinutes: startTime, numValue: tripNum
+                    id: tripId,
+                    delay: 0,
+                    servei: (activeDriver as any).servei,
+                    linia: slot.liniaCode,
+                    train: unitObj.train.id,
+                    cycleId: (unitObj as any).cycleId,
+                    origUnit: (unitObj as any).origUnit,
+                    driver: activeDriver.driver || (activeDriver as any).driverName,
+                    torn: activeDriver.torn,
+                    duration,
+                    shiftStart: activeDriver.shiftStart || '--:--',
+                    shiftEnd: activeDriver.shiftEnd || '--:--',
+                    sortida: formatFgcTime(startTime),
+                    arribada: formatFgcTime(endTime),
+                    route: isMan ? (slot.origin === slot.dest ? `${slot.origin} (M)` : `${slot.origin} → ${slot.dest}`) : `${slot.origin} → ${slot.dest}`,
+                    originId: slot.origin,
+                    destId: slot.dest,
+                    direction: getDirection(slot.origin, tripId, isMan),
+                    startTimeMinutes: startTime,
+                    numValue: tripNum
                 });
 
                 unitObj.availableAt = endTime;
@@ -693,7 +871,7 @@ export const useAlternativeService = ({
                     selectedDriver.availableAt = endTime;
                     selectedDriver.tripCount = (selectedDriver.tripCount || 0) + 1;
                     if (selectedCandidate!.drivingLimitMet) selectedDriver.contDrive = 0;
-                    selectedDriver.contDrive = (selectedDriver.contDrive || 0) + ctx.refTravelTime;
+                    selectedDriver.contDrive = (selectedDriver.contDrive || 0) + duration;
                     if (selectedCandidate!.needsMainBreak) {
                         selectedDriver.mainBreakTaken = true;
                         selectedDriver.contDrive = 0;
@@ -703,58 +881,95 @@ export const useAlternativeService = ({
                 } else unitObj.currentDriverId = '---';
 
                 if (slot.liniaCode === 'L6' && slot.isAsc && slot.dest === 'SR') {
-                    lastManeuverNum++; if (lastManeuverNum > 999) lastManeuverNum = 801; if (lastManeuverNum % 2 === 0) lastManeuverNum++; if (lastManeuverNum > 999) lastManeuverNum = 801;
                     const m1Start = endTime + 2;
                     const m1End = m1Start + 3;
+                    const m1Id = `${ctx.manPrefix}${tripNum}`;
                     plan.push({
-                        id: `VA${lastManeuverNum}`, servei: (activeDriver as any).servei, linia: 'L6', train: unitObj.train.id,
+                        id: m1Id, servei: (activeDriver as any).servei, linia: 'L6', train: unitObj.train.id,
+                        cycleId: (unitObj as any).cycleId, origUnit: (unitObj as any).origUnit,
                         driver: activeDriver.driver || (activeDriver as any).driverName, torn: activeDriver.torn,
                         sortida: formatFgcTime(m1Start), arribada: formatFgcTime(m1End),
-                        route: 'SR Via 1 → SR Via 0', direction: 'MANIOBRA', startTimeMinutes: m1Start, numValue: lastManeuverNum
+                        route: 'SR Via 1 → SR Via 0', direction: getDirection('SR', m1Id, true), startTimeMinutes: m1Start, numValue: tripNum
                     });
-                    lastManeuverNum++; if (lastManeuverNum > 999) lastManeuverNum = 801; if (lastManeuverNum % 2 !== 0) lastManeuverNum++; if (lastManeuverNum > 999) lastManeuverNum = 802;
+
+                    const nextNum = ctx.nextDescNum; ctx.nextDescNum += 2;
+                    uState.currentNum = nextNum; uState.lastDir = 'DESC';
+                    const m2Id = `${ctx.manPrefix}${nextNum}`;
                     const m2Start = m1End + 4;
                     const m2End = m2Start + 3;
                     plan.push({
-                        id: `VA${lastManeuverNum}`, servei: (activeDriver as any).servei, linia: 'L6', train: unitObj.train.id,
+                        id: m2Id, servei: (activeDriver as any).servei, linia: 'L6', train: unitObj.train.id,
+                        cycleId: (unitObj as any).cycleId, origUnit: (unitObj as any).origUnit,
                         driver: activeDriver.driver || (activeDriver as any).driverName, torn: activeDriver.torn,
                         sortida: formatFgcTime(m2Start), arribada: formatFgcTime(m2End),
-                        route: 'SR Via 0 → SR Via 2', direction: 'MANIOBRA', startTimeMinutes: m2Start, numValue: lastManeuverNum
+                        route: 'SR Via 0 → SR Via 2', direction: getDirection('SR', m2Id, true), startTimeMinutes: m2Start, numValue: nextNum
                     });
                     if (selectedDriver) { selectedDriver.availableAt = m2End; selectedDriver.currentStation = 'SR'; }
                     unitObj.availableAt = m2End; unitObj.currentStation = 'SR';
                 }
 
                 if (slot.liniaCode === 'S1' && slot.dest === 'NA') {
-                    lastManeuverNum++; if (lastManeuverNum > 999) lastManeuverNum = 801; if (lastManeuverNum % 2 === 0) lastManeuverNum++; if (lastManeuverNum > 999) lastManeuverNum = 801;
                     const m1Start = endTime + 2;
                     const m1End = m1Start + 3;
+                    const m1Id = `${ctx.manPrefix}${tripNum}`;
                     plan.push({
-                        id: `TA${lastManeuverNum}`, servei: (activeDriver as any).servei, linia: 'S1', train: unitObj.train.id,
+                        id: m1Id, servei: (activeDriver as any).servei, linia: 'S1', train: unitObj.train.id,
+                        cycleId: (unitObj as any).cycleId, origUnit: (unitObj as any).origUnit,
                         driver: activeDriver.driver || (activeDriver as any).driverName, torn: activeDriver.torn,
                         sortida: formatFgcTime(m1Start), arribada: formatFgcTime(m1End),
-                        route: 'NA Via 1 → Zona Maniobres', direction: 'MANIOBRA', startTimeMinutes: m1Start, numValue: lastManeuverNum
+                        route: 'NA → DNA', direction: getDirection('NA', m1Id, true), startTimeMinutes: m1Start, numValue: tripNum
                     });
-                    lastManeuverNum++; if (lastManeuverNum > 999) lastManeuverNum = 801; if (lastManeuverNum % 2 !== 0) lastManeuverNum++; if (lastManeuverNum > 999) lastManeuverNum = 802;
+
+                    const nextNum = ctx.nextDescNum; ctx.nextDescNum += 2;
+                    uState.currentNum = nextNum; uState.lastDir = 'DESC';
+                    const m2Id = `${ctx.manPrefix}${nextNum}`;
                     const m2Start = m1End + 4;
                     const m2End = m2Start + 3;
                     plan.push({
-                        id: `TA${lastManeuverNum}`, servei: (activeDriver as any).servei, linia: 'S1', train: unitObj.train.id,
+                        id: m2Id, servei: (activeDriver as any).servei, linia: 'S1', train: unitObj.train.id,
+                        cycleId: (unitObj as any).cycleId, origUnit: (unitObj as any).origUnit,
                         driver: activeDriver.driver || (activeDriver as any).driverName, torn: activeDriver.torn,
                         sortida: formatFgcTime(m2Start), arribada: formatFgcTime(m2End),
-                        route: 'Zona Maniobres → NA Via 2', direction: 'MANIOBRA', startTimeMinutes: m2Start, numValue: lastManeuverNum
+                        route: 'DNA → NA', direction: getDirection('DNA', m2Id, true), startTimeMinutes: m2Start, numValue: nextNum
                     });
                     if (selectedDriver) { selectedDriver.availableAt = m2End; selectedDriver.currentStation = 'NA'; }
                     unitObj.availableAt = m2End; unitObj.currentStation = 'NA';
+                } else if (slot.liniaCode === 'S2' && slot.dest === 'PN') {
+                    const m1Start = endTime + 2;
+                    const m1End = m1Start + 3;
+                    const m1Id = `${ctx.manPrefix}${tripNum}`;
+                    plan.push({
+                        id: m1Id, servei: (activeDriver as any).servei, linia: 'S2', train: unitObj.train.id,
+                        cycleId: (unitObj as any).cycleId, origUnit: (unitObj as any).origUnit,
+                        driver: activeDriver.driver || (activeDriver as any).driverName, torn: activeDriver.torn,
+                        sortida: formatFgcTime(m1Start), arribada: formatFgcTime(m1End),
+                        route: 'PN → DPN', direction: getDirection('PN', m1Id, true), startTimeMinutes: m1Start, numValue: tripNum
+                    });
+
+                    const nextNum = ctx.nextDescNum; ctx.nextDescNum += 2;
+                    uState.currentNum = nextNum; uState.lastDir = 'DESC';
+                    const m2Id = `${ctx.manPrefix}${nextNum}`;
+                    const m2Start = m1End + 4;
+                    const m2End = m2Start + 3;
+                    plan.push({
+                        id: m2Id, servei: (activeDriver as any).servei, linia: 'S2', train: unitObj.train.id,
+                        cycleId: (unitObj as any).cycleId, origUnit: (unitObj as any).origUnit,
+                        driver: activeDriver.driver || (activeDriver as any).driverName, torn: activeDriver.torn,
+                        sortida: formatFgcTime(m2Start), arribada: formatFgcTime(m2End),
+                        route: 'DPN → PN', direction: getDirection('DPN', m2Id, true), startTimeMinutes: m2Start, numValue: nextNum
+                    });
+                    if (selectedDriver) { selectedDriver.availableAt = m2End; selectedDriver.currentStation = 'PN'; }
+                    unitObj.availableAt = m2End; unitObj.currentStation = 'PN';
                 } else if (slot.liniaCode === 'S1' && (slot.dest === 'TR' || slot.dest === 'EN')) {
-                    lastManeuverNum++; if (lastManeuverNum > 999) lastManeuverNum = 801;
                     const mStart = endTime + 2;
                     const mEnd = mStart + 4;
+                    const mId = `${ctx.manPrefix}${tripNum}`;
                     plan.push({
-                        id: `TA${lastManeuverNum}`, servei: (activeDriver as any).servei, linia: 'S1', train: unitObj.train.id,
+                        id: mId, servei: (activeDriver as any).servei, linia: 'S1', train: unitObj.train.id,
+                        cycleId: (unitObj as any).cycleId, origUnit: (unitObj as any).origUnit,
                         driver: activeDriver.driver || (activeDriver as any).driverName, torn: activeDriver.torn,
                         sortida: formatFgcTime(mStart), arribada: formatFgcTime(mEnd),
-                        route: `${slot.dest} → ${slot.dest}`, direction: 'MANIOBRA', startTimeMinutes: mStart, numValue: lastManeuverNum
+                        route: `${slot.dest} → ${slot.dest}`, direction: getDirection(slot.dest, mId, true), startTimeMinutes: mStart, numValue: tripNum
                     });
                     if (selectedDriver) selectedDriver.availableAt = mEnd;
                     unitObj.availableAt = mEnd;
@@ -788,16 +1003,26 @@ export const useAlternativeService = ({
                             if (targetDepot === homeStation && rEnd <= limit) { assignedDriver = lastTrip.driver; assignedTorn = lastTrip.torn; sStart = lastTrip.shiftStart; sEnd = lastTrip.shiftEnd; }
                         }
                         let retireId = `V${u.train.id.replace(/\./g, '')}`;
-                        if (liniaCode === 'S1') {
-                            lastManeuverNum++; if (lastManeuverNum > 999) lastManeuverNum = 801;
-                            if (lastManeuverNum % 2 === 0) lastManeuverNum++; if (lastManeuverNum > 999) lastManeuverNum = 801;
-                            retireId = `TA${lastManeuverNum}`;
+                        let numValue = 999;
+                        const distPC = getFullPath(targetDepot, 'PC').length;
+                        const distOrigPC = getFullPath(fromStation, 'PC').length;
+                        const isAscDist = distPC >= distOrigPC;
+
+                        if (islandDepots.includes(targetDepot)) {
+                            const prefix = liniaCode === 'S1' ? 'TA' : (liniaCode === 'S2' ? 'SA' : (liniaCode === 'L6' ? 'VA' : 'LA'));
+                            const rNum = isAscDist ? ctx.nextAscNum : ctx.nextDescNum;
+                            if (isAscDist) ctx.nextAscNum += 2; else ctx.nextDescNum += 2;
+                            retireId = `${prefix}${rNum}`;
+                            numValue = rNum;
                         }
+
                         plan.push({
-                            id: retireId, linia: liniaCode, train: u.train.id, driver: assignedDriver, torn: assignedTorn,
+                            id: retireId, linia: liniaCode, train: u.train.id,
+                            cycleId: (u as any).cycleId, origUnit: (u as any).origUnit,
+                            driver: assignedDriver, torn: assignedTorn,
                             shiftStart: sStart, shiftEnd: sEnd, sortida: formatFgcTime(rStart), arribada: formatFgcTime(rEnd),
                             route: `${fromStation} → ${targetDepot}`, direction: getDirection(fromStation, retireId),
-                            isRetirement: true, startTimeMinutes: rStart, numValue: 999
+                            isRetirement: true, startTimeMinutes: rStart, numValue: numValue
                         });
                     }
                 });

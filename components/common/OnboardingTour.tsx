@@ -28,6 +28,12 @@ const TOUR_STEPS: TourStep[] = [
         targetSelector: '[data-tour="organitza-tab"]'
     },
     {
+        id: 'incidencia',
+        title: 'Gestió de Crisis',
+        content: 'Dissenya plans de servei alternatiu ràpidament. Talla la línia, defineix illes d\'operació i visualitza la nova malla en segons.',
+        targetSelector: '[data-tour="incidencia-tab"]'
+    },
+    {
         id: 'missatges',
         title: 'Missatgeria',
         content: 'Comunica\'t amb la resta de l\'equip de CCO, comparteix arxius i fixa missatges importants.',
@@ -38,6 +44,18 @@ const TOUR_STEPS: TourStep[] = [
         title: 'Material Mòbil',
         content: 'Controla l\'estat de tota la flota de trens, inspeccions i manteniment.',
         targetSelector: '[data-tour="cicles-tab"]'
+    },
+    {
+        id: 'upload',
+        title: 'Càrrega de Dades',
+        content: 'Puja els horaris diaris i les assignacions de personal directament des de fitxers PDF o Excel per mantenir el sistema actualitzat.',
+        targetSelector: '[data-tour="upload-btn"]'
+    },
+    {
+        id: 'settings',
+        title: 'Configuració i Perfil',
+        content: 'Personalitza la teva experiència: canvia el mode fosc, ajusta la navegació o actualitza les dades del teu perfil.',
+        targetSelector: '[data-tour="settings-btn"]'
     }
 ];
 

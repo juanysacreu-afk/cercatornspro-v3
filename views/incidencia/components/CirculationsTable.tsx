@@ -5,21 +5,21 @@ import { mainLiniaForFilter, LINE_COLORS } from '../../../utils/stations';
 interface CirculationsTableProps {
     generatedCircs: any[];
     onExport: () => void;
+    searchTerm: string;
+    setSearchTerm: (val: string) => void;
+    filterLinia: string;
+    setFilterLinia: (val: string) => void;
 }
 
-const CirculationsTable: React.FC<CirculationsTableProps> = ({ generatedCircs, onExport }) => {
-    const [searchTerm, setSearchTerm] = useState('');
-    const [filterLinia, setFilterLinia] = useState('Tots');
-
-    const filtered = generatedCircs.filter(c => {
-        const matchesSearch =
-            c.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            c.torn.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            c.train.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            c.driver.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesLinia = filterLinia === 'Tots' || mainLiniaForFilter(c.linia) === filterLinia;
-        return matchesSearch && matchesLinia;
-    });
+const CirculationsTable: React.FC<CirculationsTableProps> = ({
+    generatedCircs,
+    onExport,
+    searchTerm,
+    setSearchTerm,
+    filterLinia,
+    setFilterLinia
+}) => {
+    const filtered = generatedCircs; // Already filtered by parent
 
     if (generatedCircs.length === 0) {
         return (
@@ -75,7 +75,9 @@ const CirculationsTable: React.FC<CirculationsTableProps> = ({ generatedCircs, o
                                 <th className="px-6 py-4 text-[9px] font-heavy text-gray-400 uppercase tracking-[0.2em] first:rounded-tl-[32px]">ID</th>
                                 <th className="px-6 py-4 text-[9px] font-heavy text-gray-400 uppercase tracking-[0.2em]">Linia</th>
                                 <th className="px-6 py-4 text-[9px] font-heavy text-gray-400 uppercase tracking-[0.2em]">Recorregut</th>
+                                <th className="px-6 py-4 text-[9px] font-heavy text-gray-400 uppercase tracking-[0.2em]">Sentit</th>
                                 <th className="px-6 py-4 text-[9px] font-heavy text-gray-400 uppercase tracking-[0.2em]">M/A</th>
+                                <th className="px-6 py-4 text-[9px] font-heavy text-gray-400 uppercase tracking-[0.2em]">Cicle</th>
                                 <th className="px-6 py-4 text-[9px] font-heavy text-gray-400 uppercase tracking-[0.2em]">Unitat</th>
                                 <th className="px-6 py-4 text-[9px] font-heavy text-gray-400 uppercase tracking-[0.2em]">Maquinista</th>
                                 <th className="px-6 py-4 text-[9px] font-heavy text-gray-400 uppercase tracking-[0.2em]">Torn</th>
@@ -85,6 +87,7 @@ const CirculationsTable: React.FC<CirculationsTableProps> = ({ generatedCircs, o
                         <tbody className="divide-y divide-gray-100 dark:divide-white/5">
                             {filtered.map((c, idx) => {
                                 const color = LINE_COLORS[mainLiniaForFilter(c.linia)]?.hex || '#9ca3af';
+                                const isGenericUnit = !c.origUnit || c.origUnit === 'TREN GRÀFIC';
                                 return (
                                     <tr key={`${c.id}-${idx}`} className="group hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
                                         <td className="px-6 py-4">
@@ -104,15 +107,30 @@ const CirculationsTable: React.FC<CirculationsTableProps> = ({ generatedCircs, o
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
+                                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md border ${c.direction === 'ASCENDENT' ? 'border-orange-500/20 text-orange-500 bg-orange-500/5' : 'border-blue-500/20 text-blue-500 bg-blue-500/5'} uppercase tracking-tighter`}>
+                                                {c.direction || '---'}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4">
                                             <div className="flex flex-col">
                                                 <span className="text-[10px] font-bold text-blue-500">{c.sortida}</span>
                                                 <span className="text-[10px] font-bold text-orange-500">{c.arribada}</span>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
+                                            <span className="text-[10px] font-heavy text-gray-400 dark:text-gray-500 uppercase tracking-widest">{c.cycleId || '---'}</span>
+                                        </td>
+                                        <td className="px-6 py-4">
                                             <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
                                                 <Train size={12} />
-                                                <span className="text-[10px] font-bold">{c.train}</span>
+                                                <div className="flex flex-col">
+                                                    <span className={`text-[10px] font-bold ${isGenericUnit ? 'text-blue-500 italic flex items-center gap-1 cursor-pointer hover:underline' : ''}`}>
+                                                        {isGenericUnit ? 'Assignar Unitat...' : c.origUnit}
+                                                    </span>
+                                                    {!isGenericUnit && c.train !== c.origUnit && (
+                                                        <span className="text-[8px] opacity-50">Ara: {c.train}</span>
+                                                    )}
+                                                </div>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
