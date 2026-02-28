@@ -458,7 +458,7 @@ const CercarViewComponent: React.FC<{
           const allCodiSet = new Set<string>();
           allShifts.forEach(shift => {
             (shift.circulations as any[])?.forEach(c => {
-              const codi = typeof c === 'object' ? c.cicle : null;
+              const codi = typeof c === 'object' ? c.codi : null;
               if (c.cicle === searchVal) {
                 flattenedCircs.push({ ...c, shift_id: shift.id, codi });
                 if (codi && codi !== 'Viatger') allCodiSet.add(codi as string);
