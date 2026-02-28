@@ -32,9 +32,17 @@ interface WeatherDaily {
     windMax: number;
 }
 
+interface WeatherForecastDay {
+    date: string;
+    weatherCode: number;
+    tempMax: number;
+    tempMin: number;
+}
+
 interface WeatherData {
     current: WeatherCurrent;
     daily: WeatherDaily;
+    forecast: WeatherForecastDay[];
     lat: number;
     lon: number;
     municipality?: string;
@@ -119,9 +127,9 @@ export const WeatherWidget: React.FC = () => {
                     `latitude=${lat}`,
                     `longitude=${lon}`,
                     `current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,is_day,visibility,precipitation_probability,cloud_cover,pressure_msl`,
-                    `daily=sunrise,sunset,temperature_2m_max,temperature_2m_min,precipitation_sum,uv_index_max,wind_speed_10m_max`,
+                    `daily=weather_code,sunrise,sunset,temperature_2m_max,temperature_2m_min,precipitation_sum,uv_index_max,wind_speed_10m_max`,
                     `timezone=Europe%2FBerlin`,
-                    `forecast_days=1`
+                    `forecast_days=4`
                 ].join('&');
 
                 const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`);
@@ -129,6 +137,19 @@ export const WeatherWidget: React.FC = () => {
                 const data = await res.json();
                 const c = data.current;
                 const d = data.daily;
+
+                const forecastDays: WeatherForecastDay[] = [];
+                if (d.time && d.time.length > 1) {
+                    for (let i = 1; i < Math.min(d.time.length, 4); i++) {
+                        forecastDays.push({
+                            date: d.time[i],
+                            weatherCode: d.weather_code[i],
+                            tempMax: Math.round(d.temperature_2m_max?.[i] ?? 0),
+                            tempMin: Math.round(d.temperature_2m_min?.[i] ?? 0)
+                        });
+                    }
+                }
+
                 setWeather({
                     current: {
                         temperature: Math.round(c.temperature_2m),
@@ -153,6 +174,7 @@ export const WeatherWidget: React.FC = () => {
                         uvIndex: Math.round(d.uv_index_max?.[0] ?? 0),
                         windMax: Math.round(d.wind_speed_10m_max?.[0] ?? 0),
                     },
+                    forecast: forecastDays,
                     lat, lon,
                     municipality: locationName,
                     nearestStation: getNearestStationInfo(lat, lon)
@@ -386,6 +408,31 @@ export const WeatherWidget: React.FC = () => {
                                 </div>
                             </div>
                         </div>
+
+                        {/* Forecast (Next 3 Days) */}
+                        {weather.forecast && weather.forecast.length > 0 && (
+                            <div className="px-5 pb-5">
+                                <div className="flex flex-col gap-2 p-3 bg-gray-50/50 dark:bg-white/[0.02] border border-gray-100/50 dark:border-white/5 rounded-2xl">
+                                    <div className="text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest pl-1 mb-1">Propers dies</div>
+                                    <div className="flex justify-between divide-x divide-gray-200 dark:divide-white/5">
+                                        {weather.forecast.map((day, idx) => {
+                                            const dateObj = new Date(day.date);
+                                            const dayName = new Intl.DateTimeFormat('ca-ES', { weekday: 'short' }).format(dateObj).replace('.', '');
+                                            return (
+                                                <div key={idx} className="flex-1 flex flex-col items-center justify-center px-1">
+                                                    <span className="text-[10px] font-black text-gray-500 dark:text-gray-400 mb-2 uppercase">{dayName}</span>
+                                                    {getWeatherIcon(day.weatherCode, true, 18, 'drop-shadow-sm')}
+                                                    <div className="mt-2 text-xs flex items-center justify-center gap-1.5 font-bold">
+                                                        <span className="text-gray-800 dark:text-gray-200">{day.tempMax}°</span>
+                                                        <span className="text-gray-400 dark:text-gray-600 font-medium">{day.tempMin}°</span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Footer */}
                         <div className="px-5 pb-4 text-center">
