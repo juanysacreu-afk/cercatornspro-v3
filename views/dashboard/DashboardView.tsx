@@ -289,7 +289,7 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
             <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-5">
 
                 {/* Coverage Bar Chart */}
-                <GlassPanel className="lg:col-span-4 min-h-0 p-6 flex flex-col gap-5 animate-fade-up-premium stagger-5">
+                <GlassPanel className="lg:col-span-4 h-full p-6 flex flex-col gap-5 animate-fade-up-premium stagger-5">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <Radio size={18} className="text-fgc-green" />
@@ -310,7 +310,7 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                 </GlassPanel>
 
                 {/* Alerts Panel */}
-                <GlassPanel className="lg:col-span-5 min-h-0 p-6 flex flex-col gap-4 animate-fade-up-premium stagger-6">
+                <GlassPanel className="lg:col-span-5 h-full p-6 flex flex-col gap-4 animate-fade-up-premium stagger-6">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <AlertTriangle size={18} className="text-amber-500" />
@@ -355,7 +355,7 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                 </GlassPanel>
 
                 {/* Reserves Panel */}
-                <GlassPanel className="lg:col-span-3 min-h-0 p-6 flex flex-col gap-4 animate-fade-up-premium stagger-6">
+                <GlassPanel className="lg:col-span-3 h-full p-6 flex flex-col gap-4 animate-fade-up-premium stagger-6">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <MapPin size={18} className="text-fgc-green" />
