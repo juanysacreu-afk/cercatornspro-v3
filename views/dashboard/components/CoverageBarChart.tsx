@@ -51,7 +51,7 @@ export const CoverageBarChart: React.FC<{ lineStatuses: any[] }> = ({ lineStatus
                 );
             })()}
 
-            <div className="flex items-end justify-between flex-1 min-h-0 pt-4 pb-2 px-1 sm:px-2 w-full mt-2">
+            <div className="flex items-end justify-between flex-1 min-h-[100px] pt-4 pb-2 px-1 sm:px-2 w-full mt-2">
                 {sortedLines.map(line => {
                     const p = line.activeCirculations > 0 ? Math.min(100, Math.round((line.activeCirculations / maxActive) * 100)) : 0;
                     const isHovered = hoveredLine === line.linia;
