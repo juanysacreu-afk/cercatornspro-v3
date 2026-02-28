@@ -26,7 +26,7 @@ export const CoverageBarChart: React.FC<{ lineStatuses: any[] }> = ({ lineStatus
     const maxActive = Math.max(15, ...sortedLines.map(l => l.activeCirculations));
 
     return (
-        <div className="relative">
+        <div className="relative flex-1 flex flex-col min-h-0">
             {/* V2 – Hover tooltip */}
             {hoveredLine && (() => {
                 const line = sortedLines.find(l => l.linia === hoveredLine);
@@ -51,7 +51,7 @@ export const CoverageBarChart: React.FC<{ lineStatuses: any[] }> = ({ lineStatus
                 );
             })()}
 
-            <div className="flex items-end justify-between h-[180px] pt-4 pb-2 px-1 sm:px-2 w-full mt-2">
+            <div className="flex items-end justify-between flex-1 min-h-0 pt-4 pb-2 px-1 sm:px-2 w-full mt-2">
                 {sortedLines.map(line => {
                     const p = line.activeCirculations > 0 ? Math.min(100, Math.round((line.activeCirculations / maxActive) * 100)) : 0;
                     const isHovered = hoveredLine === line.linia;
@@ -67,7 +67,7 @@ export const CoverageBarChart: React.FC<{ lineStatuses: any[] }> = ({ lineStatus
                                 {line.totalCirculations > 0 ? line.activeCirculations : '-'}<br />
                                 <span className="opacity-50">/ {line.totalCirculations > 0 ? line.totalCirculations : '-'}</span>
                             </span>
-                            <div className="relative w-8 sm:w-10 h-28 bg-gray-100 dark:bg-white/5 rounded-t-xl overflow-hidden shadow-inner flex items-end">
+                            <div className="relative w-8 sm:w-10 flex-1 min-h-[40px] max-h-36 bg-gray-100 dark:bg-white/5 rounded-t-xl overflow-hidden shadow-inner flex items-end">
                                 <div
                                     className="w-full rounded-t-xl transition-all duration-1000 ease-out flex items-start justify-center pt-2 relative overflow-hidden"
                                     style={{

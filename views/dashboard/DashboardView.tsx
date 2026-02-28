@@ -166,7 +166,7 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
     }
 
     return (
-        <div className="flex flex-col lg:h-[calc(100vh-110px)] overflow-y-auto overflow-x-hidden space-y-6 sm:space-y-8 p-4 sm:p-8 animate-in fade-in duration-700 custom-scrollbar">
+        <div className="flex flex-col lg:h-[calc(100vh-110px)] overflow-hidden space-y-6 sm:space-y-8 p-4 sm:p-8 animate-in fade-in duration-700">
 
             {/* Header */}
             <header className="flex-none flex flex-col sm:flex-row sm:items-end justify-between gap-4 animate-fade-up-premium stagger-1">
@@ -286,10 +286,10 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                 />
             </div>
 
-            <div className="flex-1 min-h-[400px] grid grid-cols-1 lg:grid-cols-12 gap-5">
+            <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-5">
 
                 {/* Coverage Bar Chart */}
-                <GlassPanel className="lg:col-span-4 p-6 flex flex-col gap-5 animate-fade-up-premium stagger-5">
+                <GlassPanel className="lg:col-span-4 min-h-0 p-6 flex flex-col gap-5 animate-fade-up-premium stagger-5">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <Radio size={18} className="text-fgc-green" />
@@ -310,7 +310,7 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                 </GlassPanel>
 
                 {/* Alerts Panel */}
-                <GlassPanel className="lg:col-span-5 p-6 flex flex-col gap-4 animate-fade-up-premium stagger-6">
+                <GlassPanel className="lg:col-span-5 min-h-0 p-6 flex flex-col gap-4 animate-fade-up-premium stagger-6">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <AlertTriangle size={18} className="text-amber-500" />
@@ -355,7 +355,7 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                 </GlassPanel>
 
                 {/* Reserves Panel */}
-                <GlassPanel className="lg:col-span-3 p-6 flex flex-col gap-4 animate-fade-up-premium stagger-6">
+                <GlassPanel className="lg:col-span-3 min-h-0 p-6 flex flex-col gap-4 animate-fade-up-premium stagger-6">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <MapPin size={18} className="text-fgc-green" />
