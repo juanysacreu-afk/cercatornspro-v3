@@ -37,7 +37,7 @@ export const ShiftTimeline: React.FC<ShiftTimelineProps> = ({
             const locationCode = index === 0 ? (circ.machinistInici || turn.dependencia || '') : (circulations[index - 1].machinistFinal || '');
             segments.push({ start: currentPos, end: circStart, type: 'gap', codi: locationCode || 'DESCANS', color: getStatusColor(locationCode) });
         }
-        segments.push({ start: circStart, end: circEnd, type: 'circ', codi: circ.codi, realCodi: circ.realCodi, color: 'bg-gray-300 dark:bg-gray-700', linia: circ.linia, train: circ.train, cicle: circ.cicle });
+        segments.push({ start: circStart, end: circEnd, type: 'circ', codi: circ.codi, realCodi: circ.realCodi, color: 'bg-black/10 dark:bg-white/10', linia: circ.linia, train: circ.train, cicle: circ.cicle });
         currentPos = Math.max(currentPos, circEnd);
     });
 
@@ -74,7 +74,7 @@ export const ShiftTimeline: React.FC<ShiftTimelineProps> = ({
                                 style={{ flex: `${seg.end - seg.start} ${seg.end - seg.start} auto`, minWidth: '16px' }}
                                 className={`h-8 relative transition-all outline-none flex items-center justify-center group/seg ${isBroken ? 'bg-red-600' : seg.color} ${isGap ? 'rounded-xl' : 'rounded-none'} ${isSelected ? 'brightness-110 scale-y-110 z-10 shadow-lg ring-2 ring-white/50 dark:ring-white/20' : 'hover:brightness-110 hover:z-20'} ${isCurrent ? 'ring-2 ring-red-500 shadow-lg' : ''}`}
                             >
-                                {widthPct > 5 && (<span className={`text-[9px] font-black pointer-events-none truncate px-1 ${seg.type === 'circ' ? (isBroken ? 'text-white' : 'text-gray-600 dark:text-gray-300') : 'text-white'}`}>{seg.codi === 'Viatger' ? seg.realCodi : seg.codi}</span>)}
+                                {widthPct > 5 && (<span className={`text-[9px] font-black pointer-events-none truncate px-1 ${seg.type === 'circ' ? (isBroken ? 'text-white' : 'text-gray-600 dark:text-white/80') : 'text-white'}`}>{seg.codi === 'Viatger' ? seg.realCodi : seg.codi}</span>)}
                                 {isCurrent && (
                                     <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-red-600 rounded-full border border-white dark:border-gray-900 shadow-sm z-40" />
                                 )}

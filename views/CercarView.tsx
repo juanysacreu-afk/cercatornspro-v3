@@ -1201,7 +1201,7 @@ const CercarViewComponent: React.FC<{
                     {loc.speedInfo?.notes && (
                       <div className="mt-6 flex flex-col gap-2">
                         {loc.speedInfo.notes.map((noteObj: any, idx: number) => (
-                          <div key={idx} className={`flex items-start gap-3 p-3 rounded-xl border transition-colors ${noteObj.text ? 'bg-amber-500/5 border-amber-500/10' : 'bg-gray-50/50 dark:bg-white-[0.02] border-gray-100 dark:border-white/5'}`}>
+                          <div key={idx} className={`flex items-start gap-3 p-3 rounded-xl border transition-colors ${noteObj.text ? 'bg-amber-500/5 border-amber-500/10' : 'bg-gray-50/50 dark:bg-white/5 border-gray-100 dark:border-white/5'}`}>
                             {noteObj.text ? (
                               <AlertTriangle size={14} className="text-amber-500 mt-0.5 shrink-0" />
                             ) : (
