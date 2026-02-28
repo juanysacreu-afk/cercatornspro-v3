@@ -1198,12 +1198,19 @@ const CercarViewComponent: React.FC<{
                       </div>
                     </div>
 
-                    {loc.speedInfo?.notes && loc.speedInfo.notes.length > 0 && (
-                      <div className="mt-6 space-y-2">
-                        {loc.speedInfo.notes.map((note, idx) => (
-                          <div key={idx} className="flex items-start gap-3 p-3 bg-amber-500/5 rounded-xl border border-amber-500/10">
-                            <AlertTriangle size={14} className="text-amber-500 mt-0.5 shrink-0" />
-                            <p className="text-xs font-medium text-amber-700 dark:text-amber-400/80 italic">{note}</p>
+                    {loc.speedInfo?.notes && (
+                      <div className="mt-6 flex flex-col gap-2">
+                        {loc.speedInfo.notes.map((noteObj: any, idx: number) => (
+                          <div key={idx} className={`flex items-start gap-3 p-3 rounded-xl border transition-colors ${noteObj.text ? 'bg-amber-500/5 border-amber-500/10' : 'bg-gray-50/50 dark:bg-white-[0.02] border-gray-100 dark:border-white/5'}`}>
+                            {noteObj.text ? (
+                              <AlertTriangle size={14} className="text-amber-500 mt-0.5 shrink-0" />
+                            ) : (
+                              <Info size={14} className="text-gray-400 dark:text-gray-500 mt-0.5 shrink-0" />
+                            )}
+                            <p className={`text-xs ${noteObj.text ? 'font-medium text-amber-700 dark:text-amber-400/80 italic' : 'text-gray-500 dark:text-gray-400'}`}>
+                              <span className="font-bold mr-1">{noteObj.label}:</span>
+                              {noteObj.text || 'Sense limitacions addicionals'}
+                            </p>
                           </div>
                         ))}
                       </div>
