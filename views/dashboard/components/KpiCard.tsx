@@ -79,7 +79,7 @@ export const KpiCard: React.FC<{
     className?: string;
 }> = ({ label, value, subtitle, icon, color, pulse, trend, infoText, progress, sparklineData, className = '' }) => (
     <div className={`relative rounded-3xl p-5 sm:p-6 transition-all duration-500 hover:scale-[1.02] hover:shadow-xl
-        bg-white/70 dark:bg-white/[0.04] backdrop-blur-xl border border-white/20 dark:border-white/5 overflow-hidden
+        bg-white/70 dark:bg-white/[0.04] backdrop-blur-xl border border-white/20 dark:border-white/5
         shadow-[0_4px_24px_0_rgba(31,38,135,0.06)] dark:shadow-[0_4px_24px_0_rgba(0,0,0,0.25)] flex flex-col justify-between ${className}`}
     >
         {/* Accent Glow */}
@@ -107,11 +107,11 @@ export const KpiCard: React.FC<{
                 {infoText && (
                     <div className="group relative">
                         <Info size={16} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors cursor-help" />
-                        <div className="pointer-events-none absolute bottom-full -right-2 w-48 mb-2 opacity-0 group-hover:opacity-100 transition-opacity z-50">
-                            <div className="bg-gray-900 border border-gray-700 text-white text-[11px] p-2 rounded-xl shadow-xl">
+                        <div className="pointer-events-none absolute bottom-full -right-2 w-64 mb-3 opacity-0 group-hover:opacity-100 transition-all duration-200 translate-y-1 group-hover:translate-y-0 z-[100]">
+                            <div className="bg-gray-900/95 dark:bg-gray-800/95 border border-gray-700 dark:border-gray-600 text-white text-[11px] p-3 rounded-xl shadow-2xl backdrop-blur-md">
                                 {infoText}
                             </div>
-                            <div className="w-2 h-2 bg-gray-900 border-b border-r border-gray-700 transform rotate-45 absolute -bottom-1 right-3"></div>
+                            <div className="w-2.5 h-2.5 bg-gray-900/95 dark:bg-gray-800/95 border-b border-r border-gray-700 dark:border-gray-600 transform rotate-45 absolute -bottom-1.5 right-4"></div>
                         </div>
                     </div>
                 )}

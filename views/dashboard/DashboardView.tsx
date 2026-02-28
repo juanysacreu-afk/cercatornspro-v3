@@ -297,11 +297,11 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                         </div>
                         <div className="group relative">
                             <Info size={16} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors cursor-help" />
-                            <div className="pointer-events-none absolute bottom-full -right-2 w-56 mb-2 opacity-0 group-hover:opacity-100 transition-opacity z-50">
-                                <div className="bg-gray-900 border border-gray-700 text-white text-[11px] p-2.5 rounded-xl shadow-xl">
+                            <div className="pointer-events-none absolute bottom-full -right-2 w-64 mb-3 opacity-0 group-hover:opacity-100 transition-all duration-200 translate-y-1 group-hover:translate-y-0 z-[100]">
+                                <div className="bg-gray-900/95 dark:bg-gray-800/95 border border-gray-700 dark:border-gray-600 text-white text-[11px] p-3 rounded-xl shadow-2xl backdrop-blur-md">
                                     Gràfic interactiu: passa el cursor sobre les barres per veure els torns actius de cada línia.
                                 </div>
-                                <div className="w-2 h-2 bg-gray-900 border-b border-r border-gray-700 transform rotate-45 absolute -bottom-1 right-3" />
+                                <div className="w-2.5 h-2.5 bg-gray-900/95 dark:bg-gray-800/95 border-b border-r border-gray-700 dark:border-gray-600 transform rotate-45 absolute -bottom-1.5 right-4" />
                             </div>
                         </div>
                     </div>
@@ -310,7 +310,7 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                 </GlassPanel>
 
                 {/* Alerts Panel */}
-                <GlassPanel className="lg:col-span-5 p-6 flex flex-col overflow-hidden gap-4 animate-fade-up-premium stagger-6">
+                <GlassPanel className="lg:col-span-5 p-6 flex flex-col gap-4 animate-fade-up-premium stagger-6">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <AlertTriangle size={18} className="text-amber-500" />
@@ -321,11 +321,11 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                         <div className="flex items-center gap-3">
                             <div className="group relative">
                                 <Info size={16} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors cursor-help" />
-                                <div className="pointer-events-none absolute bottom-full right-0 w-64 mb-2 opacity-0 group-hover:opacity-100 transition-opacity z-50">
-                                    <div className="bg-gray-900 border border-gray-700 text-white text-[11px] p-2.5 rounded-xl shadow-xl">
+                                <div className="pointer-events-none absolute bottom-full right-0 w-72 mb-3 opacity-0 group-hover:opacity-100 transition-all duration-200 translate-y-1 group-hover:translate-y-0 z-[100]">
+                                    <div className="bg-gray-900/95 dark:bg-gray-800/95 border border-gray-700 dark:border-gray-600 text-white text-[11px] p-3 rounded-xl shadow-2xl backdrop-blur-md">
                                         Alertes detectades al sistema. Es reactualitzen en temps real via Supabase Realtime.
                                     </div>
-                                    <div className="w-2 h-2 bg-gray-900 border-b border-r border-gray-700 transform rotate-45 absolute -bottom-1 right-3" />
+                                    <div className="w-2.5 h-2.5 bg-gray-900/95 dark:bg-gray-800/95 border-b border-r border-gray-700 dark:border-gray-600 transform rotate-45 absolute -bottom-1.5 right-4" />
                                 </div>
                             </div>
                             {alerts.length > 0 && (
@@ -355,7 +355,7 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                 </GlassPanel>
 
                 {/* Reserves Panel */}
-                <GlassPanel className="lg:col-span-3 p-6 flex flex-col overflow-hidden gap-4 animate-fade-up-premium stagger-6">
+                <GlassPanel className="lg:col-span-3 p-6 flex flex-col gap-4 animate-fade-up-premium stagger-6">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <MapPin size={18} className="text-fgc-green" />
@@ -363,11 +363,11 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                         </div>
                         <div className="group relative">
                             <Info size={16} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors cursor-help" />
-                            <div className="pointer-events-none absolute bottom-full right-0 w-56 mb-2 opacity-0 group-hover:opacity-100 transition-opacity z-50">
-                                <div className="bg-gray-900 border border-gray-700 text-white text-[11px] p-2.5 rounded-xl shadow-xl">
+                            <div className="pointer-events-none absolute bottom-full right-0 w-64 mb-3 opacity-0 group-hover:opacity-100 transition-all duration-200 translate-y-1 group-hover:translate-y-0 z-[100]">
+                                <div className="bg-gray-900/95 dark:bg-gray-800/95 border border-gray-700 dark:border-gray-600 text-white text-[11px] p-3 rounded-xl shadow-2xl backdrop-blur-md">
                                     Clica sobre una estació per veure el detall dels maquinistes de reserva actius i l'historial d'assignacions del dia.
                                 </div>
-                                <div className="w-2 h-2 bg-gray-900 border-b border-r border-gray-700 transform rotate-45 absolute -bottom-1 right-3" />
+                                <div className="w-2.5 h-2.5 bg-gray-900/95 dark:bg-gray-800/95 border-b border-r border-gray-700 dark:border-gray-600 transform rotate-45 absolute -bottom-1.5 right-4" />
                             </div>
                         </div>
                     </div>
