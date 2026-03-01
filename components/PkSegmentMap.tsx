@@ -219,7 +219,7 @@ export const PkSegmentMap: React.FC<PkSegmentMapProps> = ({ result, onClose }) =
                             {speedInfo.notes.length > 0 && (
                                 <div className="mt-3 space-y-1">
                                     {speedInfo.notes.map((note, i) => (
-                                        <p key={i} className="text-[10px] italic text-amber-600 dark:text-amber-400">⚠ {note}</p>
+                                        <p key={i} className="text-[10px] italic text-amber-600 dark:text-amber-400">⚠ {note.label}{note.text ? `: ${note.text}` : ''}</p>
                                     ))}
                                 </div>
                             )}
