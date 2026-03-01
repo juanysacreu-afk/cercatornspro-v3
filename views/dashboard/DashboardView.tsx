@@ -170,8 +170,9 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
 
             {/* Header */}
             <header className="flex-none flex flex-col sm:flex-row sm:items-end justify-between gap-4 animate-fade-up-premium stagger-1">
-                <div>
-                    <h1 className="text-2xl sm:text-3xl font-bold text-[#4D5358] dark:text-white tracking-tight uppercase title-glow flex items-center gap-3">
+                <div className="min-w-0 flex-1">
+                    <h1 className="text-xl sm:text-2xl font-bold text-[#4D5358] dark:text-white tracking-tight uppercase title-glow flex items-center gap-3 truncate">
+
                         <Zap className="text-fgc-green" size={28} strokeWidth={2.5} />
                         CCO — Supervisió Operativa
                     </h1>

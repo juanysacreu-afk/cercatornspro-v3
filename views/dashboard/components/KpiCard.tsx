@@ -148,8 +148,8 @@ export const KpiCard: React.FC<{
                         </div>
                     </div>
                     <div className="min-w-0 flex-1">
-                        <div className="text-sm sm:text-base lg:text-lg 2xl:text-xl font-bold text-[#4D5358] dark:text-white leading-tight uppercase tracking-wide transition-all">{label}</div>
-                        {subtitle && <div className="text-[11px] sm:text-xs lg:text-sm 2xl:text-base font-medium text-gray-500 dark:text-gray-400 mt-1 lg:mt-1.5 leading-snug transition-all">{subtitle}</div>}
+                        <div className="text-xs sm:text-sm lg:text-base font-bold text-[#4D5358] dark:text-white leading-tight uppercase tracking-wide transition-all truncate" title={label}>{label}</div>
+                        {subtitle && <div className="text-[10px] sm:text-xs font-medium text-gray-500 dark:text-gray-400 mt-1 lg:mt-1.5 leading-snug transition-all truncate" title={subtitle}>{subtitle}</div>}
                         {/* Sparkline below the label for progress cards */}
                         {sparklineData && sparklineData.length >= 2 && (
                             <div className="mt-2">
@@ -163,7 +163,7 @@ export const KpiCard: React.FC<{
             <div className="relative z-10 mt-auto">
                 <div className="flex flex-row items-end justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                        <div className="text-3xl sm:text-4xl lg:text-5xl 2xl:text-6xl font-black tracking-tight text-[#4D5358] dark:text-white mt-1 lg:mt-4 transition-all duration-500" style={{ color }}>{value}</div>
+                        <div className="text-3xl sm:text-4xl font-black tracking-tight text-[#4D5358] dark:text-white mt-1 lg:mt-4 transition-all duration-500 truncate" style={{ color }}>{value}</div>
                         <div className="text-sm lg:text-sm 2xl:text-lg font-bold text-[#4D5358] dark:text-gray-300 mt-1 lg:mt-3 uppercase tracking-wide transition-all truncate" title={label}>{label}</div>
                         {subtitle && <div className="text-[10px] sm:text-xs lg:text-sm 2xl:text-base text-gray-400 dark:text-gray-500 mt-0.5 lg:mt-1.5 font-medium transition-all truncate" title={subtitle}>{subtitle}</div>}
                     </div>
