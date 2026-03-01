@@ -692,7 +692,12 @@ const App: React.FC = () => {
                     zIndex: isActive ? 10 : 0
                   }}
                   transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                  className={`absolute inset-0 overflow-x-hidden w-full px-4 sm:px-6 lg:px-8 border-none no-scrollbar ${tab.id === AppTab.Mensajeria ? 'pt-6 lg:pt-8 pb-2 lg:pb-4 h-full overflow-y-hidden' : 'py-8 safe-bottom overflow-y-auto'}`}
+                  className={`absolute inset-0 overflow-x-hidden w-full px-4 sm:px-6 lg:px-8 border-none no-scrollbar ${tab.id === AppTab.Mensajeria
+                    ? 'pt-6 lg:pt-8 pb-2 lg:pb-4 h-full overflow-y-hidden'
+                    : tab.id === AppTab.Dashboard
+                      ? 'p-0 overflow-y-auto'
+                      : 'py-8 safe-bottom overflow-y-auto'
+                    }`}
                 >
                   <div className={tab.id === AppTab.Mensajeria ? 'h-full flex flex-col' : ''}>
                     {tab.Component}

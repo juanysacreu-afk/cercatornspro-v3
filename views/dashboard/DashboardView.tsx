@@ -31,11 +31,11 @@ const LiveClock: React.FC = () => {
     const ss = time.getSeconds().toString().padStart(2, '0');
     // Pulse the seconds digit
     return (
-        <div className="flex items-center gap-1 font-mono text-2xl sm:text-3xl font-black text-[#4D5358] dark:text-white select-none tabular-nums">
+        <div className="flex items-center gap-1 font-mono text-lg sm:text-xl font-black text-[#4D5358] dark:text-white select-none tabular-nums">
             <span>{hh}</span>
             <span className="text-fgc-green animate-pulse">:</span>
             <span>{mm}</span>
-            <span className="text-gray-400 dark:text-gray-500 text-lg sm:text-xl">:<span className="transition-all duration-200">{ss}</span></span>
+            <span className="text-gray-400 dark:text-gray-500 flex items-center gap-1">:<span className="transition-all duration-200">{ss}</span></span>
         </div>
     );
 };
@@ -166,7 +166,7 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
     }
 
     return (
-        <div className="flex flex-col lg:h-[calc(100vh-110px)] overflow-y-auto overflow-x-hidden space-y-6 sm:space-y-8 p-4 sm:p-8 animate-in fade-in duration-700">
+        <div className="flex flex-col h-full overflow-y-auto overflow-x-hidden space-y-3 p-4 sm:pt-6 sm:pb-6 sm:px-8 animate-in fade-in duration-700">
 
             {/* Header */}
             <header className="flex-none flex flex-col sm:flex-row sm:items-end justify-between gap-4 animate-fade-up-premium stagger-1">
@@ -286,7 +286,7 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                 />
             </div>
 
-            <div className="flex-1 min-h-[300px] flex flex-col lg:flex-row gap-5">
+            <div className="flex-none h-[clamp(280px,45vh,460px)] flex flex-col lg:flex-row gap-4">
 
                 {/* Coverage Bar Chart */}
                 <GlassPanel className="w-full lg:w-4/12 flex flex-col min-h-0 p-6 gap-5 animate-fade-up-premium stagger-5">
