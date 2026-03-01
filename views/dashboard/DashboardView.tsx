@@ -288,10 +288,10 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                 />
             </div>
 
-            <div className="flex-none h-[clamp(280px,45vh,460px)] flex flex-col lg:flex-row gap-4">
+            <div className="flex-none flex flex-col lg:flex-row lg:h-[clamp(280px,45vh,460px)] gap-4">
 
                 {/* Coverage Bar Chart */}
-                <GlassPanel className="w-full lg:w-4/12 flex flex-col min-h-0 p-6 gap-5 animate-fade-up-premium stagger-5">
+                <GlassPanel className="w-full lg:w-4/12 flex flex-col min-h-0 min-h-[240px] lg:min-h-0 p-6 gap-5 animate-fade-up-premium stagger-5">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <Radio size={18} className="text-fgc-green" />
@@ -312,7 +312,7 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                 </GlassPanel>
 
                 {/* Alerts Panel */}
-                <GlassPanel className="w-full lg:w-5/12 flex flex-col min-h-0 p-6 gap-4 animate-fade-up-premium stagger-6">
+                <GlassPanel className="w-full lg:w-5/12 flex flex-col min-h-[200px] lg:min-h-0 p-6 gap-4 animate-fade-up-premium stagger-6">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <AlertTriangle size={18} className="text-amber-500" />
@@ -357,7 +357,7 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                 </GlassPanel>
 
                 {/* Reserves Panel */}
-                <GlassPanel className="w-full lg:w-3/12 flex flex-col min-h-0 p-6 gap-4 animate-fade-up-premium stagger-6">
+                <GlassPanel className="w-full lg:w-3/12 flex flex-col min-h-[240px] lg:min-h-0 p-6 gap-4 animate-fade-up-premium stagger-6">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <MapPin size={18} className="text-fgc-green" />
