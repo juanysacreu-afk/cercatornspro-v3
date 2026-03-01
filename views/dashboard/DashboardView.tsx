@@ -10,6 +10,7 @@ import { useDashboardData } from './hooks/useDashboardData';
 import { feedback } from '../../utils/feedback';
 import { useToast } from '../../components/ToastProvider';
 import { exportDashboardCSV } from '../../utils/export';
+import { getEffectiveDate } from '../../utils/serviceCalendar';
 
 // ── Sub-components (C1 extractions) ────────────────────
 import { KpiCard } from './components/KpiCard';
@@ -128,7 +129,7 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
     }, [kpis, alerts, reserves]);
 
     const formattedDate = useMemo(() => {
-        return new Date().toLocaleDateString('ca-ES', {
+        return getEffectiveDate().toLocaleDateString('ca-ES', {
             weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
         });
     }, []);

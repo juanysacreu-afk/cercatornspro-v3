@@ -56,6 +56,20 @@ export function invalidateServiceCalendarCache() {
 // Standard weekly fallback (when no DB entry exists)
 // ─────────────────────────────────────────────────────────
 
+/**
+ * Returns the "effective" FGC service date.
+ * FGC service days run from 03:00 AM to 02:59 AM the next day.
+ * So if the current time is before 03:00 AM, the effective date is yesterday.
+ */
+export function getEffectiveDate(now: Date = new Date()): Date {
+  if (now.getHours() < 3) {
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    return yesterday;
+  }
+  return now;
+}
+
 function getDefaultServiceForDate(date: Date): string {
   const day = date.getDay(); // 0 = Sun, 6 = Sat
   if (day === 0) return '500'; // Sunday
@@ -105,14 +119,14 @@ export function getServiceForDateSync(date: Date): string {
   return getDefaultServiceForDate(date);
 }
 
-/** Returns today's service code (async, preferred). */
+/** Returns today's service code (async, preferred). Uses 3 AM cutoff rule. */
 export async function getServiceTodayAsync(): Promise<string> {
-  return getServiceForDateAsync(new Date());
+  return getServiceForDateAsync(getEffectiveDate());
 }
 
-/** Kept for backward-compat with existing calls to getServiceToday(). Uses cache. */
+/** Kept for backward-compat with existing calls to getServiceToday(). Uses cache and 3 AM cutoff rule. */
 export function getServiceToday(): string {
-  return getServiceForDateSync(new Date());
+  return getServiceForDateSync(getEffectiveDate());
 }
 
 /** Kept for backward-compat with getServiceForDate(date) usage. Uses cache. */
