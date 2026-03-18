@@ -398,6 +398,9 @@ export function useDashboardData(onThresholdAlert?: (msg: string) => void) {
                 const isManuallyIndisposed = a.incident_start_time && a.incident_start_time !== '00:00';
                 const hasAbsenceCode = absType.includes('DIS') || absType.includes('DES') || absType.includes('VAC');
                 const tornId = a.torn.toUpperCase();
+                // Resolve full shift ID for navigation (a.torn is short format like Q014, shift.id is full like Q0014)
+                const matchedShift = shifts.find(s => getShortTornId(s.id) === a.torn || s.id === a.torn);
+                const fullTornId = matchedShift ? matchedShift.id : a.torn;
 
                 if (isManuallyIndisposed || hasAbsenceCode) {
                     alertList.push({
@@ -406,7 +409,7 @@ export function useDashboardData(onThresholdAlert?: (msg: string) => void) {
                         severity: 'warning',
                         title: `${a.cognoms}, ${a.nom} — ${isManuallyIndisposed ? 'INDISPOSICIÓ' : absType}`,
                         subtitle: `Torn: ${a.torn} ${isManuallyIndisposed ? `| Des de les ${a.incident_start_time}` : ''}`,
-                        tornId: a.torn,
+                        tornId: fullTornId,
                         nomina: a.empleat_id
                     });
                 }
@@ -421,7 +424,7 @@ export function useDashboardData(onThresholdAlert?: (msg: string) => void) {
                         severity: 'info',
                         title: `RESERVA OCUPADA: ${tornId}`,
                         subtitle: `${a.cognoms} ha sortit per cobrir ${target}`,
-                        tornId: a.torn
+                        tornId: fullTornId
                     });
                 }
             });
