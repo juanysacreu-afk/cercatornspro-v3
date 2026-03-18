@@ -111,10 +111,80 @@ function getPkInfoText(pk: number, segKey: string): string {
   return t;
 }
 
+// Common logic functions for bot operations
+async function handleEstat(chatId: string | number, todayStr: string) {
+  const { data: assignments } = await supabase.from('daily_assignments').select('torn, observacions').eq('data_servei', todayStr);
+  const { data: broken } = await supabase.from('train_status').select('train_number').eq('is_broken', true);
+  const freeQR = assignments?.filter(a => a.torn?.startsWith('QR') && !a.observacions?.toUpperCase().includes('COBREIX')).length || 0;
+  let text = `<b>📊 Estat Operativa (${todayStr}):</b>\n\n`;
+  text += `👥 <b>Personal:</b> ${assignments?.length || 0} agents assignats.\n`;
+  text += `🛡️ <b>Reserves:</b> ${freeQR} agents lliures.\n`;
+  text += `🚆 <b>Material:</b> ${broken?.length || 0} trens amb avaria.\n`;
+  await sendTelegramMessage(chatId, text);
+}
+
+async function handleReserves(chatId: string | number, todayStr: string) {
+  const { data: assignments } = await supabase.from('daily_assignments').select('*').eq('data_servei', todayStr).ilike('torn', 'QR%');
+  if (!assignments || assignments.length === 0) {
+    await sendTelegramMessage(chatId, "📭 No hi ha torns de reserva avui.");
+  } else {
+    const free = assignments.filter(a => !a.observacions?.toUpperCase().includes('COBREIX'));
+    const busy = assignments.filter(a => a.observacions?.toUpperCase().includes('COBREIX'));
+    let text = `<b>🛡️ Reserves (${todayStr}):</b>\n\n✅ <b>Lliures:</b>\n`;
+    free.forEach(f => text += `• ${f.torn}: ${f.cognoms}\n`);
+    if (busy.length > 0) {
+      text += `\n⚠️ <b>Ocupats:</b>\n`;
+      busy.forEach(b => text += `• ${b.torn}: ${b.cognoms}\n`);
+    }
+    await sendTelegramMessage(chatId, text);
+  }
+}
+
+async function handleDisponibles(chatId: string | number, todayStr: string) {
+  const { data: assignments } = await supabase.from('daily_assignments').select('*').eq('data_servei', todayStr).ilike('torn', 'QR%');
+  const free = assignments?.filter(a => !a.observacions?.toUpperCase().includes('COBREIX')) || [];
+
+  if (free.length === 0) {
+    await sendTelegramMessage(chatId, "📭 No hi ha agents de reserva disponibles ara mateix.");
+  } else {
+    let text = `<b>👨‍✈️ Agents Disponibles Ara:</b>\n\n`;
+    free.forEach(a => text += `• <b>${a.torn}</b>: ${a.cognoms}, ${a.nom}\n`);
+    text += `\n<i>Llista basada en torns de reserva (QR) no ocupats.</i>`;
+    await sendTelegramMessage(chatId, text, {
+      inline_keyboard: [[{ text: '🔄 Actualitzar', callback_data: 'menu__disponibles' }]]
+    });
+  }
+}
+
+async function handleHelp(chatId: string | number) {
+  const helpMsg = `<b>🤖 Assistent NEXUS</b>\n\nBenvolgut supervisor. Selecciona una opció o utilitza les ordres ràpides:\n\n` +
+    `• <code>/torn [torn]</code> - Qui porta un torn\n` +
+    `• <code>/qui [UT]</code> - Qui porta una unitat ara\n` +
+    `• <code>/tren [UT]</code> - Estat i posició d'un tren\n` +
+    `• <code>/servei [ID]</code> - Detall circulació y agent\n` +
+    `• <code>/pk [valor]</code> - Info tècnica PK\n` +
+    `• <code>/clima [estació]</code> - Clima xarxa`;
+
+  const keyboard = {
+    inline_keyboard: [
+      [{ text: '📊 Estat Operativa', callback_data: 'menu__estat' }],
+      [{ text: '🛡️ Reserves Avui', callback_data: 'menu__reserves' }, { text: '👨‍✈️ Lliures Ara', callback_data: 'menu__disponibles' }],
+      [{ text: '📏 Info PK', callback_data: 'menu__pk_prompt' }, { text: '🌤️ Clima', callback_data: 'menu__clima_prompt' }]
+    ]
+  };
+  await sendTelegramMessage(chatId, helpMsg, keyboard);
+}
+
 serve(async (req) => {
   try {
     const update = await req.json()
     console.log('Update received:', JSON.stringify(update));
+
+    // Calculate today with Barcelona timezone (UTC+1)
+    const now = new Date();
+    // Simple offset for Spain/Europe
+    const spainTime = new Date(now.getTime() + (1 * 60 * 60 * 1000));
+    const todayStr = spainTime.toISOString().split('T')[0];
 
     // ─── CALLBACK QUERIES ─────────────────────────────────────────────────────
     if (update.callback_query) {
@@ -125,14 +195,26 @@ serve(async (req) => {
       // Answer immediately
       await answerCallbackQuery(cqId);
 
-      if (cqChatId && cqData.startsWith('pk__')) {
-        const parts = cqData.split('__');
-        if (parts.length === 3) {
-          const pk = parseFloat(parts[1]);
-          const segKey = parts[2];
-          if (!isNaN(pk)) {
-            await sendTelegramMessage(cqChatId, getPkInfoText(pk, segKey));
+      if (cqChatId) {
+        if (cqData.startsWith('pk__')) {
+          const parts = cqData.split('__');
+          if (parts.length === 3) {
+            const pk = parseFloat(parts[1]);
+            const segKey = parts[2];
+            if (!isNaN(pk)) {
+              await sendTelegramMessage(cqChatId, getPkInfoText(pk, segKey));
+            }
           }
+        } else if (cqData === 'menu__estat') {
+          await handleEstat(cqChatId, todayStr);
+        } else if (cqData === 'menu__reserves') {
+          await handleReserves(cqChatId, todayStr);
+        } else if (cqData === 'menu__disponibles') {
+          await handleDisponibles(cqChatId, todayStr);
+        } else if (cqData === 'menu__pk_prompt') {
+          await sendTelegramMessage(cqChatId, "📏 Indica un PK numèric per consultar info tècnica. <b>Exemple:</b> <code>/pk 4.5</code>");
+        } else if (cqData === 'menu__clima_prompt') {
+          await sendTelegramMessage(cqChatId, "🌤️ Indica una estació o codi per veure el clima. <b>Exemple:</b> <code>/clima SC</code>");
         }
       }
       return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json' } });
@@ -142,12 +224,6 @@ serve(async (req) => {
     if (update.message && update.message.from && !update.message.from.is_bot) {
       const chatId = update.message.chat.id;
       const msgText: string = update.message.text || update.message.caption || '';
-
-      // Calculate today with Barcelona timezone (UTC+1)
-      const now = new Date();
-      // Simple offset for Spain/Europe
-      const spainTime = new Date(now.getTime() + (1 * 60 * 60 * 1000));
-      const todayStr = spainTime.toISOString().split('T')[0];
 
       // Save to database
       const senderName = [update.message.from.first_name, update.message.from.last_name].filter(Boolean).join(' ').trim();
@@ -167,17 +243,7 @@ serve(async (req) => {
 
         // /ajuda
         if (command === '/ajuda' || command === '/start') {
-          const helpMsg = `<b>🤖 Assistent NEXUS</b>\n\nBenvolgut supervisor. Pots utilitzar aquestes ordres:\n\n` +
-            `• <code>/torn [torn]</code> - Qui porta un torn\n` +
-            `• <code>/reserves</code> - Disponibilitat de reserves\n` +
-            `• <code>/estat</code> - Resum ràpid operativa\n` +
-            `• <code>/qui [UT]</code> - Qui porta una unitat ara\n` +
-            `• <code>/disponibles</code> - Agents lliures ara\n` +
-            `• <code>/tren [UT]</code> - Estat i posició d'un tren\n` +
-            `• <code>/servei [ID]</code> - Detall circulació i agent\n` +
-            `• <code>/pk [valor]</code> - Info tècnica d'un PK\n` +
-            `• <code>/clima [estació]</code> - Clima a la xarxa`;
-          await sendTelegramMessage(chatId, helpMsg);
+          await handleHelp(chatId);
         }
 
         // /torn
@@ -207,47 +273,17 @@ serve(async (req) => {
 
         // /reserves
         else if (command === '/reserves') {
-          const { data: assignments } = await supabase.from('daily_assignments').select('*').eq('data_servei', todayStr).ilike('torn', 'QR%');
-          if (!assignments || assignments.length === 0) {
-            await sendTelegramMessage(chatId, "📭 No hi ha torns de reserva avui.");
-          } else {
-            const free = assignments.filter(a => !a.observacions?.toUpperCase().includes('COBREIX'));
-            const busy = assignments.filter(a => a.observacions?.toUpperCase().includes('COBREIX'));
-            let text = `<b>🛡️ Reserves (${todayStr}):</b>\n\n✅ <b>Lliures:</b>\n`;
-            free.forEach(f => text += `• ${f.torn}: ${f.cognoms}\n`);
-            if (busy.length > 0) {
-              text += `\n⚠️ <b>Ocupats:</b>\n`;
-              busy.forEach(b => text += `• ${b.torn}: ${b.cognoms}\n`);
-            }
-            await sendTelegramMessage(chatId, text);
-          }
+          await handleReserves(chatId, todayStr);
         }
 
         // /disponibles (Alias of /reserves but more focused on "Now")
         else if (command === '/disponibles') {
-          const { data: assignments } = await supabase.from('daily_assignments').select('*').eq('data_servei', todayStr).ilike('torn', 'QR%');
-          const free = assignments?.filter(a => !a.observacions?.toUpperCase().includes('COBREIX')) || [];
-
-          if (free.length === 0) {
-            await sendTelegramMessage(chatId, "📭 No hi ha agents de reserva disponibles ara mateix.");
-          } else {
-            let text = `<b>👨‍✈️ Agents Disponibles Ara:</b>\n\n`;
-            free.forEach(a => text += `• <b>${a.torn}</b>: ${a.cognoms}, ${a.nom}\n`);
-            text += `\n<i>Llista basada en torns de reserva (QR) no ocupats.</i>`;
-            await sendTelegramMessage(chatId, text);
-          }
+          await handleDisponibles(chatId, todayStr);
         }
 
         // /estat
         else if (command === '/estat') {
-          const { data: assignments } = await supabase.from('daily_assignments').select('torn, observacions').eq('data_servei', todayStr);
-          const { data: broken } = await supabase.from('train_status').select('train_number').eq('is_broken', true);
-          const freeQR = assignments?.filter(a => a.torn?.startsWith('QR') && !a.observacions?.toUpperCase().includes('COBREIX')).length || 0;
-          let text = `<b>📊 Estat Operativa (${todayStr}):</b>\n\n`;
-          text += `👥 <b>Personal:</b> ${assignments?.length || 0} agents assignats.\n`;
-          text += `🛡️ <b>Reserves:</b> ${freeQR} agents lliures.\n`;
-          text += `🚆 <b>Material:</b> ${broken?.length || 0} trens amb avaria.\n`;
-          await sendTelegramMessage(chatId, text);
+          await handleEstat(chatId, todayStr);
         }
 
         // /qui [UT]
