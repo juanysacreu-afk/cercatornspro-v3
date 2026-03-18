@@ -381,7 +381,7 @@ const OrganitzaGantt: React.FC<{
     const handleViewTurn = () => {
         if (!contextMenu?.bar.shortId) return;
         feedback.deepClick();
-        onNavigateToSearch?.('torn', contextMenu.bar.shortId);
+        onNavigateToSearch?.('torn', contextMenu.bar.shiftId);
         setContextMenu(null);
     };
 
