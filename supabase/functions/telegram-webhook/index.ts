@@ -156,6 +156,36 @@ async function handleDisponibles(chatId: string | number, todayStr: string) {
   }
 }
 
+async function handleTorns(chatId: string | number, todayStr: string) {
+  const { data: assignments } = await supabase.from('daily_assignments').select('*').eq('data_servei', todayStr);
+  
+  if (!assignments || assignments.length === 0) {
+    await sendTelegramMessage(chatId, "📭 No hi ha assignacions per avui.");
+    return;
+  }
+
+  // Filter out reserves (torns starting with QR)
+  const nonReserves = assignments.filter(a => !(a.torn && a.torn.toUpperCase().startsWith('QR')));
+  
+  // Sort alphabetically by torn
+  nonReserves.sort((a, b) => a.torn?.localeCompare(b.torn || '') || 0);
+
+  if (nonReserves.length === 0) {
+    await sendTelegramMessage(chatId, "📭 No hi ha torns regulars assignats avui (sense comptar reserves).");
+    return;
+  }
+
+  let text = `<b>📋 Torns Oberts (${todayStr}):</b>\n\n`;
+  nonReserves.forEach(a => {
+    const isCovered = a.observacions?.toUpperCase().includes('COBREIX');
+    text += `• <b>${a.torn}</b>: ${a.cognoms}, ${a.nom}${isCovered ? ' (📝 Substitució)' : ''}\n`;
+  });
+
+  await sendTelegramMessage(chatId, text, {
+    inline_keyboard: [[{ text: '🔄 Actualitzar', callback_data: 'menu__torns' }]]
+  });
+}
+
 async function handleHelp(chatId: string | number) {
   const helpMsg = `<b>🤖 Assistent NEXUS</b>\n\nBenvolgut supervisor. Selecciona una opció o utilitza les ordres ràpides:\n\n` +
     `• <code>/torn [torn]</code> - Qui porta un torn\n` +
@@ -168,7 +198,7 @@ async function handleHelp(chatId: string | number) {
   const keyboard = {
     inline_keyboard: [
       [{ text: '📊 Estat Operativa', callback_data: 'menu__estat' }],
-      [{ text: '🛡️ Reserves Avui', callback_data: 'menu__reserves' }, { text: '👨‍✈️ Lliures Ara', callback_data: 'menu__disponibles' }],
+      [{ text: '🛡️ Reserves Avui', callback_data: 'menu__reserves' }, { text: '📋 Tots els Torns', callback_data: 'menu__torns' }],
       [{ text: '📏 Info PK', callback_data: 'menu__pk_prompt' }, { text: '🌤️ Clima', callback_data: 'menu__clima_prompt' }]
     ]
   };
@@ -209,6 +239,8 @@ serve(async (req) => {
           await handleEstat(cqChatId, todayStr);
         } else if (cqData === 'menu__reserves') {
           await handleReserves(cqChatId, todayStr);
+        } else if (cqData === 'menu__torns') {
+          await handleTorns(cqChatId, todayStr);
         } else if (cqData === 'menu__disponibles') {
           await handleDisponibles(cqChatId, todayStr);
         } else if (cqData === 'menu__pk_prompt') {
