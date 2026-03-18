@@ -289,7 +289,23 @@ serve(async (req) => {
         } else if (cqData === 'menu__disponibles') {
           await handleDisponibles(cqChatId, todayStr);
         } else if (cqData === 'menu__pk_prompt') {
-          await sendTelegramMessage(cqChatId, "📏 Indica un PK numèric per consultar info tècnica. <b>Exemple:</b> <code>/pk 4.5</code>");
+          const keyboard = {
+            inline_keyboard: [
+              [{ text: 'PC/RE', callback_data: 'pkz__PCRE' }, { text: 'GR/TB', callback_data: 'pkz__GRTB' }],
+              [{ text: 'SR/LP', callback_data: 'pkz__SRLP' }, { text: 'LP/TR', callback_data: 'pkz__LPTR' }],
+              [{ text: 'LP/NA', callback_data: 'pkz__LPNA' }, { text: 'SC/PN', callback_data: 'pkz__SCPN' }],
+              [{ text: 'BT/UN', callback_data: 'pkz__BTUN' }],
+              [{ text: "🔙 Tornar a l'Ajuda", callback_data: 'menu__back' }]
+            ]
+          };
+          await sendTelegramMessage(cqChatId, "<b>📏 Selecciona el tram per consultar el PK:</b>", keyboard);
+        } else if (cqData.startsWith('pkz__')) {
+          const segKey = cqData.split('__')[1];
+          const segLabel = SEG_LABELS[segKey] || segKey;
+          await sendTelegramMessage(cqChatId, `📏 Indica el PK numèric per la zona <b>${segLabel}</b> (ex: 4.5):`, {
+            force_reply: true,
+            selective: true
+          });
         } else if (cqData === 'menu__clima_prompt') {
           await sendTelegramMessage(cqChatId, "🌤️ Indica una estació o codi per veure el clima. <b>Exemple:</b> <code>/clima SC</code>");
         }
@@ -313,7 +329,25 @@ serve(async (req) => {
         created_at: new Date(update.message.date * 1000).toISOString()
       }], { onConflict: 'id' });
 
-      if (msgText.startsWith('/')) {
+      // Check for ForceReply
+      const replyToMsg = update.message.reply_to_message;
+      if (replyToMsg && replyToMsg.text && replyToMsg.text.includes('Indica el PK numèric per la zona')) {
+        let segKeyFound = '';
+        for (const [key, label] of Object.entries(SEG_LABELS)) {
+          if (replyToMsg.text.includes(label)) {
+            segKeyFound = key;
+            break;
+          }
+        }
+        if (segKeyFound) {
+          const pkVal = parseFloat(msgText.replace(',', '.'));
+          if (!isNaN(pkVal)) {
+            await sendTelegramMessage(chatId, getPkInfoText(pkVal, segKeyFound));
+          } else {
+            await sendTelegramMessage(chatId, "❌ El valor introduït no és un PK numèric vàlid.");
+          }
+        }
+      } else if (msgText.startsWith('/')) {
         const parts = msgText.trim().split(/\s+/);
         const command = parts[0].toLowerCase();
         const args = parts.slice(1);
