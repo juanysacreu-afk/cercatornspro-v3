@@ -11,7 +11,7 @@ interface TourStep {
 const TOUR_STEPS: TourStep[] = [
     {
         id: 'dashboard',
-        title: 'Monitor CCO',
+        title: 'Monitor CSO',
         content: 'Benvingut a CercatornsPro. Aquí pots veure les alertes crítiques, l\'estat de la xarxa i el personal de reserva en temps real.',
         targetSelector: '[data-tour="dashboard-tab"]'
     },
@@ -36,7 +36,7 @@ const TOUR_STEPS: TourStep[] = [
     {
         id: 'missatges',
         title: 'Missatgeria',
-        content: 'Comunica\'t amb la resta de l\'equip de CCO, comparteix arxius i fixa missatges importants.',
+        content: 'Comunica\'t amb la resta de l\'equip de CSO, comparteix arxius i fixa missatges importants.',
         targetSelector: '[data-tour="mensajeria-tab"]'
     },
     {

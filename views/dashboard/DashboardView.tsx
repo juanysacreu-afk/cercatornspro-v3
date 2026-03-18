@@ -175,7 +175,7 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                     <h1 className="text-xl sm:text-2xl font-bold text-[#4D5358] dark:text-white tracking-tight uppercase title-glow flex items-center gap-3 truncate">
 
                         <Zap className="text-fgc-green" size={28} strokeWidth={2.5} />
-                        CCO — Supervisió Operativa
+                        CSO — Supervisió Operativa
                     </h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400 font-medium tracking-tight mt-1 capitalize">
                         Servei {serviceToday.padStart(3, '0')} · {formattedDate}
@@ -211,7 +211,7 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                             <button
                                 onClick={() => setIsMonitorMode(true)}
                                 className="hidden sm:flex flex-none items-center gap-2 px-3 py-2 rounded-2xl bg-white/60 dark:bg-white/[0.04] border border-gray-100 dark:border-white/5 text-xs font-semibold text-[#4D5358] dark:text-gray-300 hover:bg-fgc-green/10 transition-all active:scale-95 group"
-                                title="Desplegar Monitor CCO"
+                                title="Desplegar Monitor CSO"
                             >
                                 <Maximize2 size={14} className="group-hover:text-fgc-green transition-colors" />
                                 <span>Monitor</span>
@@ -400,7 +400,7 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
 
 // ── Wrapped export with ErrorBoundary ──────────────────
 const DashboardView: React.FC<DashboardProps> = (props) => (
-    <ErrorBoundary sectionName="CCO — Supervisió Operativa">
+    <ErrorBoundary sectionName="CSO — Supervisió Operativa">
         <DashboardViewComponent {...props} />
     </ErrorBoundary>
 );

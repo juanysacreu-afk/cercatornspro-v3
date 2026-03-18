@@ -214,7 +214,7 @@ export const ShiftCommentsPane: React.FC<ShiftCommentsPaneProps> = ({ bar, selec
                     <div className="h-full flex flex-col items-center justify-center text-gray-400 text-center px-4">
                         <MessageSquare size={32} className="opacity-20 mb-3" />
                         <p className="text-sm font-medium">Cap comentari per aquest torn.</p>
-                        <p className="text-xs opacity-70 mt-1">Afegeix una nota rellevant per a l'equip CCO.</p>
+                        <p className="text-xs opacity-70 mt-1">Afegeix una nota rellevant per a l'equip CSO.</p>
                     </div>
                 ) : (
                     comments.map((comment, index) => {

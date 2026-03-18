@@ -40,7 +40,7 @@ export const MonitorView: React.FC<MonitorViewProps> = ({ kpis, criticalAlerts, 
                 <div>
                     <h1 className="text-4xl font-black text-white tracking-tight uppercase flex items-center gap-4">
                         <Zap className="text-fgc-green" size={40} strokeWidth={3} />
-                        MONITOR CCO
+                        MONITOR CSO
                     </h1>
                     <p className="text-xl text-gray-400 font-bold tracking-widest mt-2 uppercase">
                         Actualitzat {lastRefreshLabel}

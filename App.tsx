@@ -311,7 +311,7 @@ const App: React.FC = () => {
   };
 
   const navItems = [
-    { id: AppTab.Dashboard, label: 'CCO', icon: <Eye size={18} /> },
+    { id: AppTab.Dashboard, label: 'CSO', icon: <Eye size={18} /> },
     { id: AppTab.Cercar, label: 'Cercar', icon: <Search size={18} /> },
     { id: AppTab.Organitza, label: 'Organitza', icon: <RefreshCcw size={18} /> },
     { id: AppTab.Incidencia, label: 'Incidència', icon: <ShieldAlert size={18} /> },
