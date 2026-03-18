@@ -156,7 +156,19 @@ async function handleDisponibles(chatId: string | number, todayStr: string) {
   }
 }
 
-async function handleTorns(chatId: string | number, todayStr: string) {
+async function handleTornsMenu(chatId: string | number) {
+  const msg = "<b>📋 Selecciona els torns a consultar:</b>\n\nSense comptar reserves (QR).";
+  const keyboard = {
+    inline_keyboard: [
+      [{ text: '🌅 Matí (Imparells)', callback_data: 'menu__torns_mati' }],
+      [{ text: '🌇 Tarda (Parells)', callback_data: 'menu__torns_tarda' }],
+      [{ text: "🔙 Tornar a l'Ajuda", callback_data: 'menu__back' }]
+    ]
+  };
+  await sendTelegramMessage(chatId, msg, keyboard);
+}
+
+async function handleTornsList(chatId: string | number, todayStr: string, mode: 'mati' | 'tarda') {
   const { data: assignments } = await supabase.from('daily_assignments').select('*').eq('data_servei', todayStr);
   
   if (!assignments || assignments.length === 0) {
@@ -165,25 +177,52 @@ async function handleTorns(chatId: string | number, todayStr: string) {
   }
 
   // Filter out reserves (torns starting with QR)
-  const nonReserves = assignments.filter(a => !(a.torn && a.torn.toUpperCase().startsWith('QR')));
+  const nonReserves = assignments.filter((a: any) => !(a.torn && a.torn.toUpperCase().startsWith('QR')));
   
-  // Sort alphabetically by torn
-  nonReserves.sort((a, b) => a.torn?.localeCompare(b.torn || '') || 0);
+  // Filter mati (odd) or tarda (even)
+  const filtered = nonReserves.filter((a: any) => {
+    if (!a.torn) return false;
+    const match = a.torn.match(/\d+/);
+    if (!match) return false;
+    const num = parseInt(match[0], 10);
+    const isEven = num % 2 === 0;
+    return mode === 'mati' ? !isEven : isEven;
+  });
 
-  if (nonReserves.length === 0) {
-    await sendTelegramMessage(chatId, "📭 No hi ha torns regulars assignats avui (sense comptar reserves).");
+  // Sort alphabetically by torn
+  filtered.sort((a: any, b: any) => a.torn?.localeCompare(b.torn || '') || 0);
+
+  if (filtered.length === 0) {
+    await sendTelegramMessage(chatId, `📭 No hi ha torns de ${mode} assignats avui (sense reserves).`);
     return;
   }
 
-  let text = `<b>📋 Torns Oberts (${todayStr}):</b>\n\n`;
-  nonReserves.forEach(a => {
+  let text = `<b>📋 Torns de ${mode === 'mati' ? 'Matí 🌅' : 'Tarda 🌇'} (${todayStr}):</b>\n\n`;
+  filtered.forEach((a: any) => {
     const isCovered = a.observacions?.toUpperCase().includes('COBREIX');
     text += `• <b>${a.torn}</b>: ${a.cognoms}, ${a.nom}${isCovered ? ' (📝 Substitució)' : ''}\n`;
   });
 
-  await sendTelegramMessage(chatId, text, {
-    inline_keyboard: [[{ text: '🔄 Actualitzar', callback_data: 'menu__torns' }]]
-  });
+  if (text.length > 4000) {
+    const chunks = text.match(/[\s\S]{1,3900}(?=\n|$)/g) || [text];
+    for (const chunk of chunks) {
+      await sendTelegramMessage(chatId, chunk);
+    }
+    // Send keyboard in a separate small message if it was split
+    await sendTelegramMessage(chatId, "Opcions:", {
+      inline_keyboard: [
+        [{ text: '🔄 Actualitzar', callback_data: `menu__torns_${mode}` }],
+        [{ text: '🔙 Tornar', callback_data: 'menu__torns' }]
+      ]
+    });
+  } else {
+    await sendTelegramMessage(chatId, text, {
+      inline_keyboard: [
+        [{ text: '🔄 Actualitzar', callback_data: `menu__torns_${mode}` }],
+        [{ text: '🔙 Tornar', callback_data: 'menu__torns' }]
+      ]
+    });
+  }
 }
 
 async function handleHelp(chatId: string | number) {
@@ -240,7 +279,13 @@ serve(async (req) => {
         } else if (cqData === 'menu__reserves') {
           await handleReserves(cqChatId, todayStr);
         } else if (cqData === 'menu__torns') {
-          await handleTorns(cqChatId, todayStr);
+          await handleTornsMenu(cqChatId);
+        } else if (cqData === 'menu__torns_mati') {
+          await handleTornsList(cqChatId, todayStr, 'mati');
+        } else if (cqData === 'menu__torns_tarda') {
+          await handleTornsList(cqChatId, todayStr, 'tarda');
+        } else if (cqData === 'menu__back') {
+          await handleHelp(cqChatId);
         } else if (cqData === 'menu__disponibles') {
           await handleDisponibles(cqChatId, todayStr);
         } else if (cqData === 'menu__pk_prompt') {
