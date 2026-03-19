@@ -123,12 +123,6 @@ const CiclesFleetTab: React.FC<CiclesFleetTabProps> = ({
                     ))}
                 </div>
                 <GlassPanel className="overflow-hidden">
-                    <div className="p-6 border-b border-gray-100 dark:border-white/5 bg-gray-50/20 flex items-center justify-between"><h3 className="font-black flex items-center gap-2 text-fgc-grey dark:text-white"><LinkIcon size={18} /> ASSIGNACIONS</h3> {assignments.length > 0 && <button onClick={() => { if (window.confirm("Eliminar tot?")) handleDeleteAllAssignments(); }} className="text-[10px] font-black text-red-500 uppercase">Eliminar Tot</button>}</div>
-                    <div className="p-6 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-                        {assignments.map(a => <div key={a.cycle_id} className="p-4 rounded-xl border border-gray-100 dark:border-white/5 flex items-center justify-between"><div className="font-black text-sm text-gray-400">{a.cycle_id} <div className="text-lg text-fgc-grey dark:text-white">{a.train_number}</div></div> <button onClick={() => handleDeleteAssignment(a.cycle_id)} className="text-gray-300 hover:text-red-500"><Trash2 size={18} /></button></div>)}
-                    </div>
-                </GlassPanel>
-                <GlassPanel className="overflow-hidden">
                     <div className="p-6 border-b border-gray-100 dark:border-white/5 flex items-center justify-between"><h3 className="font-black flex items-center gap-2 text-fgc-grey dark:text-white"><LayoutGrid size={18} /> FLOTA</h3> <div className="flex gap-2">{FLEET_CONFIG.map(c => <button key={c.serie} onClick={() => setActiveFleetSerie(c.serie)} className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${activeFleetSerie === c.serie ? 'bg-fgc-grey text-white' : 'text-gray-400 hover:text-fgc-grey'}`}>{c.serie}</button>)}</div></div>
                     <div className="p-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                         {getTrainsBySerie(activeFleetSerie, FLEET_CONFIG.find(c => c.serie === activeFleetSerie)?.count || 0).filter(t => fleetFilter === 'BROKEN' ? brokenTrains.has(t) : fleetFilter === 'CLEANING' ? cleaningTrains.has(t) : fleetFilter === 'RECORDS' ? recordTrains.has(t) : fleetFilter === 'IMAGES' ? imageTrains.has(t) : true).map(t => (
@@ -142,6 +136,12 @@ const CiclesFleetTab: React.FC<CiclesFleetTabProps> = ({
                                 </div>
                             </div>
                         ))}
+                    </div>
+                </GlassPanel>
+                <GlassPanel className="overflow-hidden">
+                    <div className="p-6 border-b border-gray-100 dark:border-white/5 bg-gray-50/20 flex items-center justify-between"><h3 className="font-black flex items-center gap-2 text-fgc-grey dark:text-white"><LinkIcon size={18} /> ASSIGNACIONS</h3> {assignments.length > 0 && <button onClick={() => { if (window.confirm("Eliminar tot?")) handleDeleteAllAssignments(); }} className="text-[10px] font-black text-red-500 uppercase">Eliminar Tot</button>}</div>
+                    <div className="p-6 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                        {assignments.map(a => <div key={a.cycle_id} className="p-4 rounded-xl border border-gray-100 dark:border-white/5 flex items-center justify-between"><div className="font-black text-sm text-gray-400">{a.cycle_id} <div className="text-lg text-fgc-grey dark:text-white">{a.train_number}</div></div> <button onClick={() => handleDeleteAssignment(a.cycle_id)} className="text-gray-300 hover:text-red-500"><Trash2 size={18} /></button></div>)}
                     </div>
                 </GlassPanel>
             </div>
