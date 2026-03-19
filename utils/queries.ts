@@ -36,6 +36,8 @@ export async function fetchFullTurns(turnIds: string[], selectedServei?: string)
     });
 
     // 3. Fetch details, daily assignments, and helper shifts for Viatger mapping in parallel
+    const orCondition = shortIds.map(id => `observacions.ilike.*${id}*`).join(',');
+
     const queries: any[] = [
         supabase.from('circulations').select('*').in('id', Array.from(allCircIds)),
         supabase.from('daily_assignments').select('*').in('torn', shortIds)
@@ -48,10 +50,21 @@ export async function fetchFullTurns(turnIds: string[], selectedServei?: string)
         queries.push(Promise.resolve({ data: [] }));
     }
 
-    const [circDetailsRes, dailyRes, helperShiftsRes] = await Promise.all(queries);
+    if (shortIds.length > 0) {
+        queries.push(supabase.from('daily_assignments').select('*').or(orCondition));
+    } else {
+        queries.push(Promise.resolve({ data: [] }));
+    }
+
+    const [circDetailsRes, dailyRes, helperShiftsRes, coveringDailyRes] = await Promise.all(queries);
     const circDetails = circDetailsRes.data || [];
-    const dailyAssignments = dailyRes.data || [];
     const helperShifts = helperShiftsRes.data || [];
+
+    // Combine regular assignments and covering assignments, removing duplicates by ID
+    const rawDailyAssignments = [...(dailyRes.data || []), ...(coveringDailyRes.data || [])];
+    const dailyAssignmentsMap = new Map();
+    rawDailyAssignments.forEach((d: any) => dailyAssignmentsMap.set(d.id, d));
+    const dailyAssignments = Array.from(dailyAssignmentsMap.values());
 
     // 4. Resolve Viatger Cycle Map
     const viatgerCycleMap: Record<string, { cicle: string, train: string }> = {};
@@ -93,7 +106,18 @@ export async function fetchFullTurns(turnIds: string[], selectedServei?: string)
     return turnIds.map(id => {
         const shift = shifts.find(s => s.id === id);
         const sIdShort = getShortTornId(id);
-        const assignments = dailyAssignments.filter((d: any) => d.torn === sIdShort);
+        const assignments = dailyAssignments.filter((d: any) => {
+            if (d.torn === sIdShort) return true;
+            if (d.observacions) {
+                const obs = d.observacions.toUpperCase();
+                return obs.includes('COBREIX') && obs.includes(sIdShort.toUpperCase());
+            }
+            return false;
+        }).sort((a: any, b: any) => {
+            if (a.torn === sIdShort && b.torn !== sIdShort) return -1;
+            if (a.torn !== sIdShort && b.torn === sIdShort) return 1;
+            return 0;
+        });
 
         const isVirtual = !shift;
 
@@ -126,7 +150,9 @@ export async function fetchFullTurns(turnIds: string[], selectedServei?: string)
                 dta: assig.dta,
                 dpa: assig.dpa,
                 tipus_torn: assig.tipus_torn,
-                realTornId: realTornId
+                realTornId: realTornId,
+                torn: assig.torn,
+                isCovering: assig.torn !== sIdShort
             };
         });
 
