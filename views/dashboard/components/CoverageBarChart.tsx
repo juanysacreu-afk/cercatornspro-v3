@@ -51,7 +51,7 @@ export const CoverageBarChart: React.FC<{ lineStatuses: any[] }> = ({ lineStatus
                 );
             })()}
 
-            <div className="flex items-end justify-between flex-1 min-h-[100px] pt-4 pb-2 px-1 sm:px-2 w-full mt-2">
+            <div className="flex items-stretch justify-between flex-1 h-full min-h-[100px] pt-4 pb-2 px-1 sm:px-2 w-full mt-2">
                 {sortedLines.map(line => {
                     const p = line.activeCirculations > 0 ? Math.min(100, Math.round((line.activeCirculations / maxActive) * 100)) : 0;
                     const isHovered = hoveredLine === line.linia;
@@ -59,7 +59,7 @@ export const CoverageBarChart: React.FC<{ lineStatuses: any[] }> = ({ lineStatus
                     return (
                         <div
                             key={line.linia}
-                            className={`flex flex-col items-center gap-2 group w-10 sm:w-14 cursor-pointer transition-all duration-200 ${isHovered ? 'scale-110' : ''}`}
+                            className={`flex flex-col items-center justify-end gap-2 group w-10 sm:w-14 h-full cursor-pointer transition-all duration-200 ${isHovered ? 'scale-110' : ''}`}
                             onMouseEnter={() => setHoveredLine(line.linia)}
                             onMouseLeave={() => setHoveredLine(null)}
                         >
@@ -67,7 +67,7 @@ export const CoverageBarChart: React.FC<{ lineStatuses: any[] }> = ({ lineStatus
                                 {line.totalCirculations > 0 ? line.activeCirculations : '-'}<br />
                                 <span className="opacity-50">/ {line.totalCirculations > 0 ? line.totalCirculations : '-'}</span>
                             </span>
-                            <div className="relative w-8 sm:w-10 flex-1 min-h-[40px] max-h-36 bg-gray-100 dark:bg-white/5 rounded-t-xl overflow-hidden shadow-inner flex items-end">
+                            <div className="relative w-8 sm:w-10 flex-1 w-full bg-gray-100 dark:bg-white/5 rounded-t-xl overflow-hidden shadow-inner flex items-end">
                                 <div
                                     className="w-full rounded-t-xl transition-all duration-1000 ease-out flex items-start justify-center pt-2 relative overflow-hidden"
                                     style={{
