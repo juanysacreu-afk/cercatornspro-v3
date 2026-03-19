@@ -291,7 +291,7 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
             <div className="flex-none flex flex-col lg:flex-row lg:h-[clamp(280px,45vh,460px)] gap-4">
 
                 {/* Coverage Bar Chart */}
-                <GlassPanel className="w-full lg:w-4/12 flex flex-col min-h-0 min-h-[240px] lg:min-h-0 p-6 gap-5 animate-fade-up-premium stagger-5">
+                <GlassPanel className="w-full lg:w-4/12 flex flex-col h-[300px] lg:h-auto lg:min-h-0 p-6 gap-5 animate-fade-up-premium stagger-5">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <Radio size={18} className="text-fgc-green" />
