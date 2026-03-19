@@ -111,12 +111,12 @@ const CiclesFleetTab: React.FC<CiclesFleetTabProps> = ({
                 <GlassPanel className="p-3 sm:p-4 md:p-5 rounded-[32px] overflow-hidden shadow-sm border border-gray-100 dark:border-white/5 mx-auto w-full">
                     <div className="grid grid-cols-3 md:grid-cols-6 gap-2 sm:gap-3">
                         {[
-                            { id: 'ALL', label: 'T. Flota', count: allFleetTrains.length, icon: <Train size={24} strokeWidth={2.5} />, activeBg: 'bg-fgc-grey dark:bg-white', activeText: 'text-white dark:text-fgc-grey', activeRing: 'ring-fgc-grey/20 dark:ring-white/20', inactiveText: 'text-gray-500 dark:text-gray-400', inactiveBg: 'bg-gray-500/5' },
-                            { id: 'BROKEN', label: 'Avariades', count: brokenTrains.size, icon: <AlertTriangle size={24} strokeWidth={2.5} />, activeBg: 'bg-red-500', activeText: 'text-white', activeRing: 'ring-red-500/30', inactiveText: 'text-red-500', inactiveBg: 'bg-red-500/5' },
-                            { id: 'OPERATIONAL', label: 'Disponibles', count: allFleetTrains.length - brokenTrains.size, icon: <CheckCircle2 size={24} strokeWidth={2.5} />, activeBg: 'bg-green-500', activeText: 'text-white', activeRing: 'ring-green-500/30', inactiveText: 'text-green-500', inactiveBg: 'bg-green-500/5' },
-                            { id: 'CLEANING', label: 'Neteja', count: cleaningTrains.size, icon: <Brush size={24} strokeWidth={2.5} />, activeBg: 'bg-orange-500', activeText: 'text-white', activeRing: 'ring-orange-500/30', inactiveText: 'text-orange-500', inactiveBg: 'bg-orange-500/5' },
-                            { id: 'ASSIGNED', label: 'Assignades', count: assignedTrainNumbers.size, icon: <LinkIcon size={24} strokeWidth={2.5} />, activeBg: 'bg-blue-500', activeText: 'text-white', activeRing: 'ring-blue-500/30', inactiveText: 'text-blue-500', inactiveBg: 'bg-blue-500/5' },
-                            { id: 'UNASSIGNED', label: 'Lliures', count: allFleetTrains.length - assignedTrainNumbers.size, icon: <LayoutGrid size={24} strokeWidth={2.5} />, activeBg: 'bg-purple-500', activeText: 'text-white', activeRing: 'ring-purple-500/30', inactiveText: 'text-gray-500 dark:text-gray-400', inactiveBg: 'bg-purple-500/5' }
+                            { id: 'ALL', label: 'Total Flota', shortLabel: 'T. Flota', count: allFleetTrains.length, icon: <Train size={24} strokeWidth={2.5} />, activeBg: 'bg-fgc-grey dark:bg-white', activeText: 'text-white dark:text-fgc-grey', activeRing: 'ring-fgc-grey/20 dark:ring-white/20', inactiveText: 'text-gray-500 dark:text-gray-400', inactiveBg: 'bg-gray-500/5' },
+                            { id: 'BROKEN', label: 'Avariades', shortLabel: 'Avaria', count: brokenTrains.size, icon: <AlertTriangle size={24} strokeWidth={2.5} />, activeBg: 'bg-red-500', activeText: 'text-white', activeRing: 'ring-red-500/30', inactiveText: 'text-red-500', inactiveBg: 'bg-red-500/5' },
+                            { id: 'OPERATIONAL', label: 'Disponibles', shortLabel: 'Disp.', count: allFleetTrains.length - brokenTrains.size, icon: <CheckCircle2 size={24} strokeWidth={2.5} />, activeBg: 'bg-green-500', activeText: 'text-white', activeRing: 'ring-green-500/30', inactiveText: 'text-green-500', inactiveBg: 'bg-green-500/5' },
+                            { id: 'CLEANING', label: 'Neteja', shortLabel: 'Neteja', count: cleaningTrains.size, icon: <Brush size={24} strokeWidth={2.5} />, activeBg: 'bg-orange-500', activeText: 'text-white', activeRing: 'ring-orange-500/30', inactiveText: 'text-orange-500', inactiveBg: 'bg-orange-500/5' },
+                            { id: 'ASSIGNED', label: 'Assignades', shortLabel: 'Assig.', count: assignedTrainNumbers.size, icon: <LinkIcon size={24} strokeWidth={2.5} />, activeBg: 'bg-blue-500', activeText: 'text-white', activeRing: 'ring-blue-500/30', inactiveText: 'text-blue-500', inactiveBg: 'bg-blue-500/5' },
+                            { id: 'UNASSIGNED', label: 'Lliures', shortLabel: 'Lliures', count: allFleetTrains.length - assignedTrainNumbers.size, icon: <LayoutGrid size={24} strokeWidth={2.5} />, activeBg: 'bg-purple-500', activeText: 'text-white', activeRing: 'ring-purple-500/30', inactiveText: 'text-gray-500 dark:text-gray-400', inactiveBg: 'bg-purple-500/5' }
                         ].map(stat => {
                             const isActive = fleetFilter === stat.id;
                             return (
@@ -128,10 +128,11 @@ const CiclesFleetTab: React.FC<CiclesFleetTabProps> = ({
                                     <div className={`mb-3 transition-colors ${isActive ? 'text-inherit' : stat.inactiveText}`}>
                                         {stat.icon}
                                     </div>
-                                    <span className={`text-[10px] sm:text-xs font-black uppercase tracking-widest text-center w-full px-1 break-words leading-tight ${isActive ? 'text-inherit opacity-90' : 'text-gray-500 dark:text-gray-400'}`}>
-                                        {stat.label}
+                                    <span className={`text-[10px] sm:text-xs font-black uppercase tracking-widest text-center w-full px-1 truncate leading-tight ${isActive ? 'text-inherit opacity-90' : 'text-gray-500 dark:text-gray-400'}`}>
+                                        <span className="hidden xl:inline">{stat.label}</span>
+                                        <span className="xl:hidden">{stat.shortLabel}</span>
                                     </span>
-                                    <span className={`text-2xl sm:text-3xl font-black mt-2 leading-none ${isActive ? 'text-inherit' : 'text-fgc-grey dark:text-white'}`}>
+                                    <span className={`text-xl sm:text-2xl font-black mt-1.5 leading-none ${isActive ? 'text-inherit' : 'text-fgc-grey dark:text-white'}`}>
                                         {stat.count}
                                     </span>
                                 </button>
