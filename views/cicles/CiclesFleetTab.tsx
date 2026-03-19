@@ -108,55 +108,37 @@ const CiclesFleetTab: React.FC<CiclesFleetTabProps> = ({
                 </GlassPanel>
             </div>
             <div className="lg:col-span-2 space-y-8">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {/* 1. Total Flota */}
-                    <GlassPanel hover onClick={() => setFleetFilter('ALL')} className={`p-5 rounded-3xl flex flex-col justify-between gap-2 transition-all cursor-pointer ${fleetFilter === 'ALL' ? 'ring-2 ring-inset ring-fgc-green bg-fgc-green/5' : ''}`}>
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-gray-500/10 text-gray-500"><Train size={18} /></div>
-                        <div>
-                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Flota</p>
-                            <p className="text-2xl font-black text-fgc-grey dark:text-white leading-none mt-1">{allFleetTrains.length}</p>
-                        </div>
-                    </GlassPanel>
-
-                    {/* 2. Avariades / Disponibles */}
-                    <GlassPanel className="p-1 rounded-3xl flex overflow-hidden lg:col-span-1 shadow-sm border border-gray-100 dark:border-white/5">
-                        <div onClick={() => setFleetFilter('BROKEN')} className={`flex-1 p-3 flex flex-col items-center justify-center transition-all cursor-pointer rounded-[20px] ${fleetFilter === 'BROKEN' ? 'bg-red-500/10 text-red-500 ring-1 ring-inset ring-red-500/50' : 'hover:bg-gray-50 dark:hover:bg-white/5'}`}>
-                            <AlertTriangle size={18} className={fleetFilter === 'BROKEN' ? 'text-red-500' : 'text-gray-400'} />
-                            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-2 hidden xl:block">Avariades</p>
-                            <p className={`text-xl font-black mt-1 leading-none ${fleetFilter === 'BROKEN' ? 'text-red-500' : 'text-fgc-grey dark:text-white'}`}>{brokenTrains.size}</p>
-                        </div>
-                        <div className="w-[1px] my-4 bg-gray-100 dark:bg-white/5" />
-                        <div onClick={() => setFleetFilter('OPERATIONAL')} className={`flex-1 p-3 flex flex-col items-center justify-center transition-all cursor-pointer rounded-[20px] ${fleetFilter === 'OPERATIONAL' ? 'bg-green-500/10 text-green-500 ring-1 ring-inset ring-green-500/50' : 'hover:bg-gray-50 dark:hover:bg-white/5'}`}>
-                            <CheckCircle2 size={18} className={fleetFilter === 'OPERATIONAL' ? 'text-green-500' : 'text-gray-400'} />
-                            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-2 hidden xl:block">Disponibles</p>
-                            <p className={`text-xl font-black mt-1 leading-none ${fleetFilter === 'OPERATIONAL' ? 'text-green-500' : 'text-fgc-grey dark:text-white'}`}>{allFleetTrains.length - brokenTrains.size}</p>
-                        </div>
-                    </GlassPanel>
-
-                    {/* 3. Neteja */}
-                    <GlassPanel hover onClick={() => setFleetFilter('CLEANING')} className={`p-5 rounded-3xl flex flex-col justify-between gap-2 transition-all cursor-pointer ${fleetFilter === 'CLEANING' ? 'ring-2 ring-inset ring-orange-500 bg-orange-500/5' : ''}`}>
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${fleetFilter === 'CLEANING' ? 'bg-orange-500/10 text-orange-500' : 'bg-orange-500/10 text-orange-400'}`}><Brush size={18} /></div>
-                        <div>
-                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Neteja</p>
-                            <p className={`text-2xl font-black leading-none mt-1 ${fleetFilter === 'CLEANING' ? 'text-orange-500' : 'text-fgc-grey dark:text-white'}`}>{cleaningTrains.size}</p>
-                        </div>
-                    </GlassPanel>
-
-                    {/* 4. Assignades / Sense Assignar */}
-                    <GlassPanel className="p-1 rounded-3xl flex overflow-hidden lg:col-span-1 shadow-sm border border-gray-100 dark:border-white/5">
-                        <div onClick={() => setFleetFilter('ASSIGNED')} className={`flex-1 p-3 flex flex-col items-center justify-center transition-all cursor-pointer rounded-[20px] ${fleetFilter === 'ASSIGNED' ? 'bg-blue-500/10 text-blue-500 ring-1 ring-inset ring-blue-500/50' : 'hover:bg-gray-50 dark:hover:bg-white/5'}`}>
-                            <LinkIcon size={18} className={fleetFilter === 'ASSIGNED' ? 'text-blue-500' : 'text-gray-400'} />
-                            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-2 hidden xl:block">Assignades</p>
-                            <p className={`text-xl font-black mt-1 leading-none ${fleetFilter === 'ASSIGNED' ? 'text-blue-500' : 'text-fgc-grey dark:text-white'}`}>{assignedTrainNumbers.size}</p>
-                        </div>
-                        <div className="w-[1px] my-4 bg-gray-100 dark:bg-white/5" />
-                        <div onClick={() => setFleetFilter('UNASSIGNED')} className={`flex-1 p-3 flex flex-col items-center justify-center transition-all cursor-pointer rounded-[20px] ${fleetFilter === 'UNASSIGNED' ? 'bg-gray-500/10 text-gray-500 ring-1 ring-inset ring-gray-500/50' : 'hover:bg-gray-50 dark:hover:bg-white/5'}`}>
-                            <LayoutGrid size={18} className={fleetFilter === 'UNASSIGNED' ? 'text-gray-500' : 'text-gray-400'} />
-                            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-2 hidden xl:block">Lliures</p>
-                            <p className={`text-xl font-black mt-1 leading-none ${fleetFilter === 'UNASSIGNED' ? 'text-gray-500' : 'text-fgc-grey dark:text-white'}`}>{allFleetTrains.length - assignedTrainNumbers.size}</p>
-                        </div>
-                    </GlassPanel>
-                </div>
+                <GlassPanel className="p-3 sm:p-4 md:p-5 rounded-[32px] overflow-hidden shadow-sm border border-gray-100 dark:border-white/5 mx-auto w-full">
+                    <div className="grid grid-cols-3 md:grid-cols-6 gap-2 sm:gap-3">
+                        {[
+                            { id: 'ALL', label: 'T. Flota', count: allFleetTrains.length, icon: <Train size={24} strokeWidth={2.5} />, activeBg: 'bg-fgc-grey dark:bg-white', activeText: 'text-white dark:text-fgc-grey', activeRing: 'ring-fgc-grey/20 dark:ring-white/20', inactiveText: 'text-gray-500 dark:text-gray-400', inactiveBg: 'bg-gray-500/5' },
+                            { id: 'BROKEN', label: 'Avariades', count: brokenTrains.size, icon: <AlertTriangle size={24} strokeWidth={2.5} />, activeBg: 'bg-red-500', activeText: 'text-white', activeRing: 'ring-red-500/30', inactiveText: 'text-red-500', inactiveBg: 'bg-red-500/5' },
+                            { id: 'OPERATIONAL', label: 'Disponibles', count: allFleetTrains.length - brokenTrains.size, icon: <CheckCircle2 size={24} strokeWidth={2.5} />, activeBg: 'bg-green-500', activeText: 'text-white', activeRing: 'ring-green-500/30', inactiveText: 'text-green-500', inactiveBg: 'bg-green-500/5' },
+                            { id: 'CLEANING', label: 'Neteja', count: cleaningTrains.size, icon: <Brush size={24} strokeWidth={2.5} />, activeBg: 'bg-orange-500', activeText: 'text-white', activeRing: 'ring-orange-500/30', inactiveText: 'text-orange-500', inactiveBg: 'bg-orange-500/5' },
+                            { id: 'ASSIGNED', label: 'Assignades', count: assignedTrainNumbers.size, icon: <LinkIcon size={24} strokeWidth={2.5} />, activeBg: 'bg-blue-500', activeText: 'text-white', activeRing: 'ring-blue-500/30', inactiveText: 'text-blue-500', inactiveBg: 'bg-blue-500/5' },
+                            { id: 'UNASSIGNED', label: 'Lliures', count: allFleetTrains.length - assignedTrainNumbers.size, icon: <LayoutGrid size={24} strokeWidth={2.5} />, activeBg: 'bg-purple-500', activeText: 'text-white', activeRing: 'ring-purple-500/30', inactiveText: 'text-gray-500 dark:text-gray-400', inactiveBg: 'bg-purple-500/5' }
+                        ].map(stat => {
+                            const isActive = fleetFilter === stat.id;
+                            return (
+                                <button
+                                    key={stat.id}
+                                    onClick={() => setFleetFilter(stat.id as any)}
+                                    className={`relative flex flex-col items-center justify-center p-3 sm:p-4 rounded-[20px] transition-all duration-300 w-full hover:scale-105 active:scale-95 border ${isActive ? `${stat.activeBg} ${stat.activeText} shadow-xl ring-4 ring-inset ${stat.activeRing} border-transparent scale-105 z-10` : `${stat.inactiveBg} border-gray-200/50 dark:border-white/5 hover:bg-white dark:hover:bg-white/10`}`}
+                                >
+                                    <div className={`mb-3 transition-colors ${isActive ? 'text-inherit' : stat.inactiveText}`}>
+                                        {stat.icon}
+                                    </div>
+                                    <span className={`text-[10px] sm:text-xs font-black uppercase tracking-widest text-center w-full px-1 break-words leading-tight ${isActive ? 'text-inherit opacity-90' : 'text-gray-500 dark:text-gray-400'}`}>
+                                        {stat.label}
+                                    </span>
+                                    <span className={`text-2xl sm:text-3xl font-black mt-2 leading-none ${isActive ? 'text-inherit' : 'text-fgc-grey dark:text-white'}`}>
+                                        {stat.count}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </GlassPanel>
                 <GlassPanel className="overflow-hidden">
                     <div className="p-6 border-b border-gray-100 dark:border-white/5 flex items-center justify-between"><h3 className="font-black flex items-center gap-2 text-fgc-grey dark:text-white"><LayoutGrid size={18} /> FLOTA <span className="text-sm font-bold text-gray-400 ml-2 hidden sm:inline-block">— {{ ALL: 'TOTAL FLOTA', BROKEN: 'AVARIADES', OPERATIONAL: 'DISPONIBLES', CLEANING: 'NETEJA', RECORDS: 'REGISTRES', IMAGES: 'IMATGES', ASSIGNED: 'ASSIGNADES', UNASSIGNED: 'SENSE ASSIGNAR' }[fleetFilter as string]}</span></h3> <div className="flex gap-2">{FLEET_CONFIG.map(c => <button key={c.serie} onClick={() => setActiveFleetSerie(c.serie)} className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${activeFleetSerie === c.serie ? 'bg-fgc-grey text-white' : 'text-gray-400 hover:text-fgc-grey'}`}>{c.serie}</button>)}</div></div>
                     <div className="p-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
