@@ -2,6 +2,7 @@ import React from 'react';
 import { X, Train, ArrowRight, Activity, Clock, Users, MapPin, Info, AlertTriangle, Timer } from 'lucide-react';
 import { getLiniaColorHex, LINIA_STATIONS, resolveStationId } from '../utils/stations';
 import type { GeoTrenEnhanced } from '../views/incidencia/hooks/useLiveMapData';
+import { decodeGeotrenUt } from '../views/incidencia/utils/decodeUt';
 
 interface GeoTrenInspectorPopupProps {
     gt: GeoTrenEnhanced;
@@ -14,6 +15,7 @@ const GeoTrenInspectorPopup: React.FC<GeoTrenInspectorPopupProps> = ({ gt, onClo
     const liniaColor = getLiniaColorHex(gt.lin);
     const isPunctual = (gt as any).en_hora === 'True';
     const hasDelay = gt.delayMin > 1;
+    const decodedUt = decodeGeotrenUt((gt as any).ut);
 
     // Extract next stops
     let nextStops: any[] = [];
@@ -96,7 +98,7 @@ const GeoTrenInspectorPopup: React.FC<GeoTrenInspectorPopupProps> = ({ gt, onClo
                             </span>
                         </div>
                         <h3 className="text-3xl font-black text-white font-mono tracking-tighter flex items-center gap-2">
-                            UT {gt.tipus_unitat}
+                            UT {decodedUt || gt.tipus_unitat}
                             <span className={`w-2 h-2 rounded-full ${isPunctual ? 'bg-fgc-green' : 'bg-red-500'} animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.8)]`} />
                         </h3>
                     </div>
@@ -222,11 +224,17 @@ const GeoTrenInspectorPopup: React.FC<GeoTrenInspectorPopupProps> = ({ gt, onClo
                     )}
 
                     {/* Technical Info */}
-                    <div className="pt-4 border-t border-white/10">
+                    <div className="pt-4 border-t border-white/10 space-y-1">
                         <div className="flex items-center gap-2 opacity-40">
                             <Info size={10} className="text-gray-400" />
                             <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">ID SIRTRAN: {gt.id.split('|')[0]}</span>
                         </div>
+                        {(gt as any).ut && (
+                            <div className="flex items-center gap-2 opacity-40">
+                                <Info size={10} className="text-gray-400" />
+                                <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">UT HEX: {(gt as any).ut}</span>
+                            </div>
+                        )}
                     </div>
 
                     <button
