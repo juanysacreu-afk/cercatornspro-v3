@@ -164,7 +164,9 @@ export interface GeoTrenPoint {
   /** Delay in seconds (positive = late) */
   retard?: number;
   // FGC public API additional fields
+  ut?: string;
   tipus_unitat?: string;
+
   dir?: string;
   en_hora?: string;
   origen?: string;

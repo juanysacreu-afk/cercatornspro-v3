@@ -9,7 +9,9 @@ import {
 } from '../../../utils/stationGeoData';
 import { MAP_STATIONS } from '../mapConstants';
 import { getFullPath } from '../mapUtils';
+import { decodeGeotrenUt } from '../utils/decodeUt';
 import type { LivePersonnel, IncidenciaMode, GeoTrenPoint, Shift } from '../../../types';
+
 
 
 // ── GeoTren Enhanced Types ──────────────────────────────────────────────
@@ -226,12 +228,41 @@ export const useLiveMapData = ({
             const resp = await fetch(GEOTREN_API);
             if (!resp.ok) return;
             const data: GeoTrenPoint[] = await resp.json();
-            const enhanced = data.map(buildEnhanced).filter(gt => gt.mapX !== 0 || gt.mapY !== 0);
-            setGeoTrenData(enhanced);
+            // Only include Barcelona-Vallès lines (our map only has BV stations)
+            const BV_LINES = new Set(['S1', 'S2', 'L6', 'L66', 'L7', 'L12', 'MS1', 'MS2', 'ML6', 'ML7', 'ES2']);
+            const bvData = data.filter(gt => BV_LINES.has(gt.lin?.toUpperCase?.() || ''));
+            const enhanced = bvData.map(buildEnhanced).filter(gt => gt.mapX !== 0 || gt.mapY !== 0);
+
+            // Deduplicate by decoded unit number
+            // Physics: the same physical unit cannot be in two places at once.
+            // If the API returns duplicates (stale records), we keep the most likely "live" one.
+            const uniqueTrains = new Map<string, GeoTrenEnhanced>();
+            enhanced.forEach(gt => {
+                const label = decodeGeotrenUt(gt.ut, gt.tipus_unitat);
+                // If it's a full unit (e.g. "113.04"), use it as the key for deduplication
+                const key = (label && label.includes('.')) ? label : gt.id;
+
+                const existing = uniqueTrains.get(key);
+                if (!existing) {
+                    uniqueTrains.set(key, gt);
+                } else {
+                    // Resolution: Prefer moving trains over stationary/stopped ones
+                    const existingActive = !existing.estacionat_a || existing.isMoving;
+                    const currentActive = !gt.estacionat_a || gt.isMoving;
+
+                    if (currentActive && !existingActive) {
+                        uniqueTrains.set(key, gt);
+                    }
+                    // If both same state, first one wins to avoid jitter
+                }
+            });
+
+            setGeoTrenData(Array.from(uniqueTrains.values()));
         } catch (err) {
             console.error('[GeoTren] fetch error:', err);
         }
     }, [buildEnhanced]);
+
 
     useEffect(() => {
         if (isGeoTrenEnabled && !isPaused) {

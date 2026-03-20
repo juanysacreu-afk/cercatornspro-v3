@@ -510,8 +510,9 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                                 .map((gt, idx) => {
                                                     const mainLinia = mainLiniaForFilter(gt.lin);
                                                     const color = getLiniaColorHex(mainLinia);
-                                                    const decoded = decodeGeotrenUt((gt as any).ut);
-                                                    const utLabel = decoded || (gt as any).tipus_unitat || '???';
+                                                    const decoded = decodeGeotrenUt(gt.ut, gt.tipus_unitat);
+                                                    const utLabel = decoded || gt.tipus_unitat || '???';
+                                                    const bgWidth = utLabel.length > 3 ? 42 : 32;
                                                     // Use pre-computed mapX/mapY from hook
                                                     const x = gt.mapX;
                                                     const y = gt.mapY;
@@ -598,7 +599,7 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                                                 );
                                                             })()}
                                                             {/* Label */}
-                                                            <rect x={-18} y={-22} width={36} height={12} rx={4} fill="rgba(0,0,0,0.75)" />
+                                                            <rect x={-(bgWidth / 2)} y={-22} width={bgWidth} height={12} rx={4} fill="rgba(0,0,0,0.75)" />
                                                             <text
                                                                 x={0} y={-13}
                                                                 textAnchor="middle"

@@ -15,7 +15,8 @@ const GeoTrenInspectorPopup: React.FC<GeoTrenInspectorPopupProps> = ({ gt, onClo
     const liniaColor = getLiniaColorHex(gt.lin);
     const isPunctual = (gt as any).en_hora === 'True';
     const hasDelay = gt.delayMin > 1;
-    const decodedUt = decodeGeotrenUt((gt as any).ut);
+    const decodedUt = decodeGeotrenUt(gt.ut, gt.tipus_unitat);
+
 
     // Extract next stops
     let nextStops: any[] = [];
@@ -229,13 +230,14 @@ const GeoTrenInspectorPopup: React.FC<GeoTrenInspectorPopupProps> = ({ gt, onClo
                             <Info size={10} className="text-gray-400" />
                             <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">ID SIRTRAN: {gt.id.split('|')[0]}</span>
                         </div>
-                        {(gt as any).ut && (
+                        {gt.ut && (
                             <div className="flex items-center gap-2 opacity-40">
                                 <Info size={10} className="text-gray-400" />
-                                <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">UT HEX: {(gt as any).ut}</span>
+                                <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">UT HEX: {gt.ut}</span>
                             </div>
                         )}
                     </div>
+
 
                     <button
                         onClick={onClose}
