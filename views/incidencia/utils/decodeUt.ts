@@ -1,74 +1,113 @@
 /**
- * Utility function to decode the FGC Train Unit (UT) from its original hexadecimal string.
- * Example of hex string: "1f2cc5fd027d" -> Series 112, Unit 13 -> "112.13"
+ * Definitive UT decoding based on the official FGC lookup table.
  *
- * The logic is primarily based on interpreting the prefix for the series and the
- * final two hexadecimal digits for the unit number within that series.
+ * Structure of a 12-char hex UT code:
+ *   [0-4]  Prefix   "1f2cc"  (manufacturer ID, always the same)
+ *   [5-7]  Series   "5fd"=112, "4fd"=113, "3fd"=114, "2fd"=115
+ *   [8-11] Suffix   maps directly to the unit number via lookup table
  *
- * Known prefix → series mapping (from live API data):
- *   1f2cc5fd → 112    1f2cc4fd → 113    1f2cc3fd → 114
- *   1f2cc2fd → 115    1c2cc4fd → 213    1d2cc6e0 → 213x2
- *   1d2dc6e0 → 213x2
+ * The suffix encodes the unit number using a combination of a
+ * "tens block" identifier and a final-digit transformation (XOR 4).
  */
 
 const SERIES_MAP: Record<string, string> = {
     '5fd': '112',
     '4fd': '113',
     '3fd': '114',
-    '2fd': '115'
+    '2fd': '115',
 };
 
-const TENS_MAP: Record<string, number> = {
-    '02': 0,  // 01 to 10
-    '03': 10, // 11 to 20
-    '00': 20, // 21 to 30
-    '01': 30  // 31 to 40
+/**
+ * Complete suffix-to-unit lookup table.
+ * Derived from the official FGC reference table.
+ * Key = last 4 hex chars (positions 8-11), Value = unit number.
+ */
+const SUFFIX_TO_UNIT: Record<string, number> = {
+    // Block 02 — Units 01 to 10
+    '0275': 1,
+    '0276': 2,
+    '0277': 3,
+    '0270': 4,
+    '0271': 5,
+    '0272': 6,
+    '0273': 7,
+    '027c': 8,
+    '027d': 9,
+    '0274': 10,
+    // Block 03 — Units 11 to 20
+    '0375': 11,
+    '0376': 12,
+    '0377': 13,
+    '0370': 14,
+    '0371': 15,
+    '0372': 16,
+    '0373': 17,
+    '037c': 18,
+    '037d': 19,
+    '0374': 20,
+    // Block 00 — Units 21 to 30
+    '0075': 21,
+    '0074': 22,
+    '0077': 23,
+    '0070': 24,
+    '0071': 25,
+    '0072': 26,
+    '0073': 27,
+    '007c': 28,
+    '007d': 29,
+    '0076': 30,
+    // Block 01 — Units 31 to 40
+    '0175': 31,
+    '0176': 32,
+    '0177': 33,
+    '0170': 34,
+    '0171': 35,
+    '0172': 36,
+    '0173': 37,
+    '017c': 38,
+    '017d': 39,
+    '0174': 40,
+};
+
+/** Fleet limits per series */
+const FLEET_MAX: Record<string, number> = {
+    '112': 22,
+    '113': 19,
+    '114': 5,
+    '115': 15,
 };
 
 export const decodeGeotrenUt = (hexUt?: string | null, tipusUnitat?: string | null): string | null => {
     if (!hexUt || hexUt === 'None' || hexUt.length < 12) return tipusUnitat || null;
 
-    const prefix = hexUt.substring(0, 5).toLowerCase();
+    const hex = hexUt.toLowerCase();
+    const prefix = hex.substring(0, 5);
 
-    // If it's not the standard FGC UT prefix, we fallback to just the series if available
+    // Must start with the standard FGC manufacturer prefix
     if (prefix !== '1f2cc') {
         return tipusUnitat || null;
     }
 
-    // Extract series identifier (3 chars)
-    const seriesHex = hexUt.substring(5, 8).toLowerCase();
+    // Resolve the series from characters 5-7
+    const seriesHex = hex.substring(5, 8);
     const series = SERIES_MAP[seriesHex] || tipusUnitat;
-
     if (!series) return null;
 
-    // Extract tens block identifier (2 chars)
-    const blockHex = hexUt.substring(8, 10).toLowerCase();
-    const tens = TENS_MAP[blockHex];
+    // Look up the unit number from the suffix (characters 8-11)
+    const suffix = hex.substring(8, 12);
+    const unitNumber = SUFFIX_TO_UNIT[suffix];
 
-    if (tens === undefined) return series;
-
-    // Extract the final digit for the XOR 4 transformation
-    const lastCharHex = hexUt.substring(11).toLowerCase();
-    const lastCharDec = parseInt(lastCharHex, 16);
-
-    if (isNaN(lastCharDec)) return series;
-
-    // The definitive "Rule of 4": XOR operation with 4
-    let digit = lastCharDec ^ 4;
-
-    // A resulting digit of 0 implies the maximum number of that tens block (e.g., 10, 20)
-    if (digit === 0) {
-        digit = 10;
+    if (unitNumber === undefined) {
+        // Unknown suffix — show only the series
+        return series;
     }
 
-    const unitNumber = tens + digit;
-
-    // Safety check for non-existent unit 00
-    if (unitNumber <= 0) {
+    // Validate against fleet size
+    const max = FLEET_MAX[series];
+    if (max && unitNumber > max) {
         return series;
     }
 
     const formattedUnit = unitNumber.toString().padStart(2, '0');
     return `${series}.${formattedUnit}`;
 };
-
