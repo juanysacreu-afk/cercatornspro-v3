@@ -48,8 +48,15 @@ export const decodeGeotrenCirculation = (fullId?: string | null): CirculationInf
     const tensHex = parseInt(last3[0], 16);  // First of last 3
     const unitHex = parseInt(last3[2], 16);  // Last char
 
-    // XOR 9 for tens
-    const tens = tensHex ^ 9;
+    // Fórmula definitiva para la red de Vallès (S1, S2):
+    // tens  → 21 - int(tens_char, 16)
+    // units → int(unit_char, 16) XOR 2
+    //
+    // Verified cases:
+    //  7 → 21-7=14 (D140, F143) ✓
+    //  6 → 21-6=15 (D151, D152, F157) ✓
+    //  5 → 21-5=16 (D160, D162) ✓
+    const tens = 21 - tensHex;
     // XOR 2 for units
     const unitDigit = unitHex ^ 2;
 
