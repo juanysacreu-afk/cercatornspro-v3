@@ -57,25 +57,41 @@ export const decodeGeotrenCirculation = (fullId?: string | null): CirculationInf
     const tensHex = parseInt(last3[0], 16);  // First of last 3
     const unitHex = parseInt(last3[2], 16);  // Last char
 
-    // Universal FGC Circulation Tens Mapping
-    // This maps the hex digit T (tensHex) to the actual circulation tens (e.g. 14 for D140).
-    const TENS_MAP: Record<number, number> = {
-        2: 11,  // Verified: A116
-        // 12 ?
-        // 13 ?
-        7: 14,  // Verified: D140, A143, F143
-        6: 15,  // Verified: D151, D152, F157
-        5: 16,  // Verified: D160, D162
-        4: 17,  // Verified: L171
-        11: 18, // Verified: A184 (b)
-        10: 19, // Verified: D192, B194, F196 (a)
-        3: 20,  // Verified: B201
-        
-        // Extrapolations for missing ones (safe fallbacks):
-        0: 13, 1: 12, 8: 22, 9: 21, 12: 24, 13: 23, 14: 26, 15: 25
-    };
+    let tens = 0;
 
-    const tens = TENS_MAP[tensHex] || 0;
+    // FGC utilizes a hex countdown for tens:
+    // 14-17 (K=21): T=7,6,5,4 -> 14,15,16,17
+    // 18-19 (K=29): T=b,a -> 18,19
+    // 20-23 (K=23): T=3,2,1,0 -> 20,21,22,23
+    
+    // There is a known conflict: T=2 is used for 11 (A116) in L6, but for 21 (e.g. D212) in S1/S2.
+    if (tensHex === 2) {
+        tens = (lineId === '6f') ? 11 : 21; // 6f = L6 (A), others get 21.
+    } else if (tensHex === 3) {
+        tens = 20; // B201, D202, etc. (Verified)
+    } else if (tensHex === 1) {
+        tens = 22; // D229 (Verified)
+    } else if (tensHex === 0) {
+        tens = 23; // F230, etc. (Verified)
+    } else if (tensHex === 4) {
+        tens = 17; // L171 (Verified)
+    } else if (tensHex === 5) {
+        tens = 16; // D162 (Verified)
+    } else if (tensHex === 6) {
+        tens = 15; // D151 (Verified)
+    } else if (tensHex === 7) {
+        tens = 14; // D140 (Verified)
+    } else if (tensHex === 10) { // a
+        tens = 19; // D192, B194 (Verified)
+    } else if (tensHex === 11) { // b
+        tens = 18; // A184 (Verified)
+    } else {
+        // Safe fallbacks for extremely high/low unseen numbers
+        const FALLBACK_MAP: Record<number, number> = {
+            8: 24, 9: 25, 12: 26, 13: 27, 14: 28, 15: 29
+        };
+        tens = FALLBACK_MAP[tensHex] || 0;
+    }
 
     // XOR 2 for units
     const unitDigit = unitHex ^ 2;
