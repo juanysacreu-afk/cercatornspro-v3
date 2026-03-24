@@ -57,30 +57,25 @@ export const decodeGeotrenCirculation = (fullId?: string | null): CirculationInf
     const tensHex = parseInt(last3[0], 16);  // First of last 3
     const unitHex = parseInt(last3[2], 16);  // Last char
 
-    let tens = 0;
+    // Universal FGC Circulation Tens Mapping
+    // This maps the hex digit T (tensHex) to the actual circulation tens (e.g. 14 for D140).
+    const TENS_MAP: Record<number, number> = {
+        2: 11,  // Verified: A116
+        // 12 ?
+        // 13 ?
+        7: 14,  // Verified: D140, A143, F143
+        6: 15,  // Verified: D151, D152, F157
+        5: 16,  // Verified: D160, D162
+        4: 17,  // Verified: L171
+        11: 18, // Verified: A184 (b)
+        10: 19, // Verified: D192, B194, F196 (a)
+        3: 20,  // Verified: B201
+        
+        // Extrapolations for missing ones (safe fallbacks):
+        0: 13, 1: 12, 8: 22, 9: 21, 12: 24, 13: 23, 14: 26, 15: 25
+    };
 
-    // Decoding tens block
-    if (lineId === '6f') {
-        // L6 Logic
-        // In the 6e block, '2' -> 11 (13 - 2)
-        // In the 7e block, 'b' -> 18 (29 - 11)
-        const block = ncPart.slice(4, 6); // '6e' or '7e'
-        if (block === '6e') {
-            tens = 13 - tensHex;
-        } else if (block === '7e') {
-            tens = 29 - tensHex; // Assuming A084 was a typo for A184
-        } else {
-            tens = 13 - tensHex; // Fallback
-        }
-    } else if (lineId === '6c') {
-        // L7 Logic
-        // B194: 'ea06' -> a=10 -> 19 (29 - 10)
-        tens = 29 - tensHex;
-    } else {
-        // S1, S2, L12 Logic (6a, 68, 62)
-        // 7 -> 14 (21-7), 6 -> 15 (21-6), 5 -> 16 (21-5), 4 -> 17 (21-4)
-        tens = 21 - tensHex;
-    }
+    const tens = TENS_MAP[tensHex] || 0;
 
     // XOR 2 for units
     const unitDigit = unitHex ^ 2;
