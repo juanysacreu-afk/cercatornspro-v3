@@ -30,7 +30,7 @@ interface CirculationInfo {
 const LINE_MAP: Record<string, { line: string; dir: string }> = {
     '6a': { line: 'S1', dir: 'D' },
     '68': { line: 'S2', dir: 'F' },  // Sabadell → F
-    '6c': { line: 'L7', dir: 'D' },  // TBD
+    '6c': { line: 'L7', dir: 'B' },  // Tibidabo → B
     '6f': { line: 'L6', dir: 'A' },  // Sarrià → A
 };
 
@@ -71,6 +71,10 @@ export const decodeGeotrenCirculation = (fullId?: string | null): CirculationInf
         } else {
             tens = 13 - tensHex; // Fallback
         }
+    } else if (lineId === '6c') {
+        // L7 Logic
+        // B194: 'ea06' -> a=10 -> 19 (29 - 10)
+        tens = 29 - tensHex;
     } else {
         // S1, S2 Logic (6a, 68)
         // 7 -> 14 (21-7), 6 -> 15 (21-6), 5 -> 16 (21-5)
