@@ -57,41 +57,27 @@ export const decodeGeotrenCirculation = (fullId?: string | null): CirculationInf
     const tensHex = parseInt(last3[0], 16);  // First of last 3
     const unitHex = parseInt(last3[2], 16);  // Last char
 
-    let tens = 0;
+    // --- THE SIRTRAN CIRCULATION BREAKTHROUGH ---
+    // The FGC system uses a bitwise XOR 3 operation on the hex character to encode the LAST DIGIT of the circulation tens.
+    // e.g. T=7 -> 7^3 = 4 (tens 14). T=a(10) -> 10^3 = 9 (tens 19).
+    const lastDigitOfTens = tensHex ^ 3;
 
-    // FGC utilizes a hex countdown for tens:
-    // 14-17 (K=21): T=7,6,5,4 -> 14,15,16,17
-    // 18-19 (K=29): T=b,a -> 18,19
-    // 20-23 (K=23): T=3,2,1,0 -> 20,21,22,23
-    
-    // There is a known conflict: T=2 is used for 11 (A116) in L6, but for 21 (e.g. D212) in S1/S2.
-    if (tensHex === 2) {
-        tens = (lineId === '6f') ? 11 : 21; // 6f = L6 (A), others get 21.
-    } else if (tensHex === 3) {
-        tens = 20; // B201, D202, etc. (Verified)
-    } else if (tensHex === 1) {
-        tens = 22; // D229 (Verified)
-    } else if (tensHex === 0) {
-        tens = 23; // F230, etc. (Verified)
-    } else if (tensHex === 4) {
-        tens = 17; // L171 (Verified)
-    } else if (tensHex === 5) {
-        tens = 16; // D162 (Verified)
-    } else if (tensHex === 6) {
-        tens = 15; // D151 (Verified)
-    } else if (tensHex === 7) {
-        tens = 14; // D140 (Verified)
-    } else if (tensHex === 10) { // a
-        tens = 19; // D192, B194 (Verified)
-    } else if (tensHex === 11) { // b
-        tens = 18; // A184 (Verified)
+    // To get the full tens number (e.g. 14, 26), we add a base offset (10 or 20).
+    // The base offset is determined by the railway line and standard FGC numbering ranges.
+    let baseTens = 10;
+
+    if (lineId === '6c') {
+        // L7 (B) handles trains in the 190s (9) and 200s/260s (0-8)
+        baseTens = (lastDigitOfTens === 9) ? 10 : 20;
+    } else if (lineId === '6a' || lineId === '68') {
+        // S1, S2 (D, F) handles 140s-160s, 190s (4-9), and 200s, 210s, 220s, 230s (0-3)
+        baseTens = (lastDigitOfTens <= 3) ? 20 : 10;
     } else {
-        // Safe fallbacks for extremely high/low unseen numbers
-        const FALLBACK_MAP: Record<number, number> = {
-            8: 24, 9: 25, 12: 26, 13: 27, 14: 28, 15: 29
-        };
-        tens = FALLBACK_MAP[tensHex] || 0;
+        // L6, L12 (A, L) exclusively operate in the 110s, 170s, 180s.
+        baseTens = 10;
     }
+
+    const tens = baseTens + lastDigitOfTens;
 
     // XOR 2 for units
     const unitDigit = unitHex ^ 2;
