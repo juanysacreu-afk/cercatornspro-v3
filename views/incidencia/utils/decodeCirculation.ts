@@ -32,6 +32,7 @@ const LINE_MAP: Record<string, { line: string; dir: string }> = {
     '68': { line: 'S2', dir: 'F' },  // Sabadell → F
     '6c': { line: 'L7', dir: 'B' },  // Tibidabo → B
     '6f': { line: 'L6', dir: 'A' },  // Sarrià → A
+    '62': { line: 'L12', dir: 'L' }, // Reina Elisenda → L
 };
 
 export const decodeGeotrenCirculation = (fullId?: string | null): CirculationInfo | null => {
@@ -76,8 +77,8 @@ export const decodeGeotrenCirculation = (fullId?: string | null): CirculationInf
         // B194: 'ea06' -> a=10 -> 19 (29 - 10)
         tens = 29 - tensHex;
     } else {
-        // S1, S2 Logic (6a, 68)
-        // 7 -> 14 (21-7), 6 -> 15 (21-6), 5 -> 16 (21-5)
+        // S1, S2, L12 Logic (6a, 68, 62)
+        // 7 -> 14 (21-7), 6 -> 15 (21-6), 5 -> 16 (21-5), 4 -> 17 (21-4)
         tens = 21 - tensHex;
     }
 

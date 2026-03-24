@@ -104,8 +104,8 @@ const GeoTrenInspectorPopup: React.FC<GeoTrenInspectorPopupProps> = ({ gt, onClo
                             <span className={`w-2 h-2 rounded-full ${isPunctual ? 'bg-fgc-green' : 'bg-red-500'} animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.8)]`} />
                         </h3>
                         {(() => {
-                            // Decode circulation ID for S1, S2, L6, and L7
-                            const supportedLines = ['S1', 'S2', 'L6', 'L7'];
+                            // Decode circulation ID for S1, S2, L6, L7, and L12
+                            const supportedLines = ['S1', 'S2', 'L6', 'L7', 'L12'];
                             if (supportedLines.includes(gt.lin) && gt.id) {
                                 const decodedCirc = decodeGeotrenCirculation(gt.id);
                                 if (decodedCirc) {
