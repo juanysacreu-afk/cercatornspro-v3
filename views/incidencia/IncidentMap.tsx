@@ -106,6 +106,82 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
         setSelectedCutSegments(new Set());
         setAltServiceIsland(null);
     };
+
+    const [isResettingCicles, setIsResettingCicles] = useState(false);
+
+    const handleResetCicles = async () => {
+        if (!window.confirm("¿Estàs segur d'eliminar totes les assignacions actuals i sobreescriure-les amb les dades en temps real de GeoTren?")) {
+            return;
+        }
+        setIsResettingCicles(true);
+        try {
+            // 1. Delete all current assignments
+            await supabase.from('assignments').delete().neq('cycle_id', '');
+
+            // 2. Fetch all shifts to map circulations to cycles honoring the selected servei
+            let shifts = allShifts;
+            if (!shifts || shifts.length === 0) {
+                const { data } = await supabase.from('shifts').select('*');
+                if (data) {
+                    shifts = data;
+                    setAllShifts(data);
+                }
+            }
+
+            const activeShifts = (selectedServei && selectedServei !== 'Tots') 
+                ? shifts.filter(s => s.servei === selectedServei) 
+                : shifts;
+
+            const circToCicle: Record<string, string> = {};
+            activeShifts.forEach(shift => {
+                const circs = Array.isArray(shift.circulations) ? shift.circulations : [];
+                circs.forEach((cRef: any) => {
+                    if (cRef?.codi && cRef?.cicle) {
+                        circToCicle[cRef.codi.toUpperCase()] = cRef.cicle;
+                    }
+                });
+            });
+
+            // 3. Extract UTs from live GeoTren map
+            const upsertPayload: { cycle_id: string, train_number: string }[] = [];
+            let unassignedCount = 0;
+
+            (geoTrenData as any[]).forEach(gt => {
+                if (gt.id) {
+                    const decodedCirc = decodeGeotrenCirculation(gt.id);
+                    const decodedUt = decodeGeotrenUt(gt.ut, gt.tipus_unitat);
+                    if (decodedCirc && decodedUt) {
+                        const numPadded = decodedCirc.number.padStart(3, '0');
+                        const circStr = `${decodedCirc.direction}${numPadded}`.toUpperCase();
+                        
+                        const matchedCicle = circToCicle[circStr];
+                        if (matchedCicle) {
+                            upsertPayload.push({ cycle_id: matchedCicle, train_number: decodedUt });
+                        } else {
+                            unassignedCount++;
+                        }
+                    }
+                }
+            });
+
+            // 4. Batch insert into database
+            if (upsertPayload.length > 0) {
+                const { error } = await supabase.from('assignments').upsert(upsertPayload, { onConflict: 'cycle_id' });
+                if (error) throw error;
+            }
+
+            // 5. Present results
+            let msg = `S'han assignat ${upsertPayload.length} unitats correctament.`;
+            if (unassignedCount > 0) {
+                msg += `\nAlerta: ${unassignedCount} circulacions del mapa no tenien cicle definit al servei actiu.`;
+            }
+            alert(msg);
+
+        } catch (e: any) {
+            alert(`Error inesperat: ${e.message}`);
+        }
+        setIsResettingCicles(false);
+    };
     // Update position history
     useEffect(() => {
         const now = Date.now();
@@ -249,9 +325,20 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                         <div className="w-px h-6 bg-gray-200 dark:bg-white/10 mx-1 hidden sm:block"></div>
                         <button onClick={() => setIsGeoTrenEnabled(!isGeoTrenEnabled)} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-bold uppercase transition-all ${isGeoTrenEnabled ? 'bg-blue-500 text-white shadow-md' : 'text-gray-400 hover:text-fgc-grey'}`} title="Activar posicionament real GPS (GeoTren)"><Activity size={14} className={isGeoTrenEnabled ? 'animate-pulse' : ''} /> GeoTren</button>
                         {isGeoTrenEnabled && (
-                            <div className="flex bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl p-0.5 animate-in fade-in slide-in-from-left-2 duration-300">
-                                <button onClick={() => setGeoTrenDisplayMode('UT')} className={`px-3 py-1.5 text-[9px] font-bold uppercase transition-all rounded-[10px] ${geoTrenDisplayMode === 'UT' ? 'bg-white dark:bg-white/20 text-fgc-grey dark:text-white shadow-sm' : 'text-gray-500 hover:text-fgc-grey dark:text-gray-400 dark:hover:text-white'}`}>Unitat</button>
-                                <button onClick={() => setGeoTrenDisplayMode('CIRC')} className={`px-3 py-1.5 text-[9px] font-bold uppercase transition-all rounded-[10px] ${geoTrenDisplayMode === 'CIRC' ? 'bg-white dark:bg-white/20 text-fgc-grey dark:text-white shadow-sm' : 'text-gray-500 hover:text-fgc-grey dark:text-gray-400 dark:hover:text-white'}`}>Circulació</button>
+                            <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-300">
+                                <div className="flex bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl p-0.5">
+                                    <button onClick={() => setGeoTrenDisplayMode('UT')} className={`px-3 py-1.5 text-[9px] font-bold uppercase transition-all rounded-[10px] ${geoTrenDisplayMode === 'UT' ? 'bg-white dark:bg-white/20 text-fgc-grey dark:text-white shadow-sm' : 'text-gray-500 hover:text-fgc-grey dark:text-gray-400 dark:hover:text-white'}`}>Unitat</button>
+                                    <button onClick={() => setGeoTrenDisplayMode('CIRC')} className={`px-3 py-1.5 text-[9px] font-bold uppercase transition-all rounded-[10px] ${geoTrenDisplayMode === 'CIRC' ? 'bg-white dark:bg-white/20 text-fgc-grey dark:text-white shadow-sm' : 'text-gray-500 hover:text-fgc-grey dark:text-gray-400 dark:hover:text-white'}`}>Circulació</button>
+                                </div>
+                                <button 
+                                    onClick={handleResetCicles} 
+                                    disabled={isResettingCicles}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[9px] font-bold uppercase transition-all bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500 hover:text-white border border-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed" 
+                                    title="Auto-assignar unitats als cicles basat en GeoTren"
+                                >
+                                    <RefreshCw size={12} className={isResettingCicles ? 'animate-spin' : ''} />
+                                    Reset Cicles
+                                </button>
                             </div>
                         )}
                         <div className="w-px h-6 bg-gray-200 dark:bg-white/10 mx-1 hidden sm:block"></div>
