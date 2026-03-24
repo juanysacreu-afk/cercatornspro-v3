@@ -14,16 +14,24 @@
 
 interface CirculationInfo {
     line: string;
-    direction: 'A' | 'D' | 'L' | 'R' | 'S';
+    direction: string;   // FGC prefix letter: D, F, A, R, S...
     number: string;
     fullName: string;
 }
 
-const LINE_MAP: Record<string, { line: string; dir: 'A' | 'D' }> = {
+/**
+ * Mapping from NC code prefix (first 2 chars after '|') to line and direction letter.
+ * Direction letter follows FGC naming convention (not ascending/descending):
+ *   D = S1 trains (PC ↔ Terrassa/Rubí)
+ *   F = S2 / S12 trains (PC ↔ Sabadell)
+ *   A = L6 trains (PC ↔ Sarrià)
+ *   Pending: L7, R5, R6, S8...
+ */
+const LINE_MAP: Record<string, { line: string; dir: string }> = {
     '6a': { line: 'S1', dir: 'D' },
-    '68': { line: 'S2', dir: 'A' },
-    '6c': { line: 'S5', dir: 'D' },
-    '6f': { line: 'L6', dir: 'D' }, // Confirmed by data cross-reference
+    '68': { line: 'S2', dir: 'F' },  // Sabadell → F
+    '6c': { line: 'L7', dir: 'D' },  // TBD
+    '6f': { line: 'L6', dir: 'A' },  // Sarrià → A
 };
 
 export const decodeGeotrenCirculation = (fullId?: string | null): CirculationInfo | null => {
