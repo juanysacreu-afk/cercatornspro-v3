@@ -3,6 +3,7 @@ import { X, Train, ArrowRight, Activity, Clock, Users, MapPin, Info, AlertTriang
 import { getLiniaColorHex, LINIA_STATIONS, resolveStationId } from '../utils/stations';
 import type { GeoTrenEnhanced } from '../views/incidencia/hooks/useLiveMapData';
 import { decodeGeotrenUt } from '../views/incidencia/utils/decodeUt';
+import { decodeGeotrenCirculation } from '../views/incidencia/utils/decodeCirculation';
 
 interface GeoTrenInspectorPopupProps {
     gt: GeoTrenEnhanced;
@@ -94,7 +95,7 @@ const GeoTrenInspectorPopup: React.FC<GeoTrenInspectorPopupProps> = ({ gt, onClo
                     <div>
                         <div className="flex items-center gap-2 mb-1">
                             <span className="text-[10px] font-black text-gray-300 uppercase tracking-[0.3em]">GeoTren Real-time</span>
-                            <span className={`px-2 py-0.5 rounded-[4px] text-[8px] font-black text-white uppercase`} style={{ backgroundColor: liniaColor }}>
+                            <span className={`px-2 py-0.5 rounded-[4px] text-[8px] font-black text-white uppercase `} style={{ backgroundColor: liniaColor }}>
                                 {gt.lin}
                             </span>
                         </div>
@@ -102,6 +103,20 @@ const GeoTrenInspectorPopup: React.FC<GeoTrenInspectorPopupProps> = ({ gt, onClo
                             UT {decodedUt || gt.tipus_unitat}
                             <span className={`w-2 h-2 rounded-full ${isPunctual ? 'bg-fgc-green' : 'bg-red-500'} animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.8)]`} />
                         </h3>
+                        {(() => {
+                            // Decode circulation ID
+                            if (gt.lin === 'S1' && gt.id) {
+                                const decodedCirc = decodeGeotrenCirculation(gt.id);
+                                if (decodedCirc) {
+                                    return (
+                                        <div className="text-3xl font-black text-white font-mono tracking-tighter mt-1 opacity-90">
+                                            {decodedCirc.fullName}
+                                        </div>
+                                    );
+                                }
+                            }
+                            return null;
+                        })()}
                     </div>
                     <button
                         onClick={(e) => {
