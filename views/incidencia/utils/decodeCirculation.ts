@@ -37,13 +37,16 @@ export const decodeGeotrenCirculation = (fullId?: string | null): CirculationInf
     const lineId = ncPart.substring(0, 2);
     const lineConfig = LINE_MAP[lineId];
 
-    // Extraction of circulation components from the last 3 characters (usually)
-    // Structure: [LINE_ID]2dc[6e/7e][TENS_XOR][UNIT_XOR]
-    const suffix = ncPart.substring(7); // e.g. "6e702" or "7eb02" or "6e603"
-    if (suffix.length < 3) return null;
+    // The NC code ends in exactly 3 encoding chars: [TENS_XOR][MID][UNIT_XOR]
+    // e.g. "702" → tens='7', mid='0', unit='2'
+    // e.g. "603" → tens='6', mid='0', unit='3'
+    // e.g. "b02" → tens='b', mid='0', unit='2'
+    // We take the LAST 3 chars of ncPart
+    const last3 = ncPart.slice(-3);
+    if (last3.length < 3) return null;
 
-    const tensHex = parseInt(suffix[suffix.length - 2], 16);
-    const unitHex = parseInt(suffix[suffix.length - 1], 16);
+    const tensHex = parseInt(last3[0], 16);  // First of last 3
+    const unitHex = parseInt(last3[2], 16);  // Last char
 
     // XOR 9 for tens
     const tens = tensHex ^ 9;
