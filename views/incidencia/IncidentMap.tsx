@@ -143,7 +143,7 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
             });
 
             // 3. Extract UTs from live GeoTren map
-            const upsertPayload: { cycle_id: string, train_number: string }[] = [];
+            const uniqueAssignments = new Map<string, string>(); // cycle_id -> train_number
             let unassignedCount = 0;
 
             (geoTrenData as any[]).forEach(gt => {
@@ -156,7 +156,8 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                         
                         const matchedCicle = circToCicle[circStr];
                         if (matchedCicle) {
-                            upsertPayload.push({ cycle_id: matchedCicle, train_number: decodedUt });
+                            // Using a Map prevents duplicate cycle_id in the upsert payload
+                            uniqueAssignments.set(matchedCicle, decodedUt);
                         } else {
                             unassignedCount++;
                         }
@@ -165,6 +166,7 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
             });
 
             // 4. Batch insert into database
+            const upsertPayload = Array.from(uniqueAssignments.entries()).map(([cycle_id, train_number]) => ({ cycle_id, train_number }));
             if (upsertPayload.length > 0) {
                 const { error } = await supabase.from('assignments').upsert(upsertPayload, { onConflict: 'cycle_id' });
                 if (error) throw error;
