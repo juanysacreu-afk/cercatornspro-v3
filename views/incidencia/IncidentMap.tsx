@@ -16,6 +16,7 @@ import { getMapPositionForPk } from './mapUtils';
 import StationDiagramModal from './StationDiagramModal';
 import CutAnalysisPanel from './CutAnalysisPanel';
 import { decodeGeotrenUt } from '../../views/incidencia/utils/decodeUt';
+import { decodeGeotrenCirculation } from '../../views/incidencia/utils/decodeCirculation';
 interface IncidentMapProps {
     liveData: LivePersonnel[];
     parkedUnits: any[];
@@ -79,6 +80,7 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
     const transformRef = useRef<any>(null);
     const [hoveredTrain, setHoveredTrain] = useState<string | null>(null);
     const [selectedGeoTren, setSelectedGeoTren] = useState<any | null>(null);
+    const [geoTrenDisplayMode, setGeoTrenDisplayMode] = useState<'UT' | 'CIRC'>('UT');
     const positionHistoryRef = useRef<Record<string, Array<{ x: number; y: number; time: number }>>>({});
     // Helper functions for map interaction
     const toggleStationCut = (id: string) => {
@@ -246,6 +248,12 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                         </button>
                         <div className="w-px h-6 bg-gray-200 dark:bg-white/10 mx-1 hidden sm:block"></div>
                         <button onClick={() => setIsGeoTrenEnabled(!isGeoTrenEnabled)} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-bold uppercase transition-all ${isGeoTrenEnabled ? 'bg-blue-500 text-white shadow-md' : 'text-gray-400 hover:text-fgc-grey'}`} title="Activar posicionament real GPS (GeoTren)"><Activity size={14} className={isGeoTrenEnabled ? 'animate-pulse' : ''} /> GeoTren</button>
+                        {isGeoTrenEnabled && (
+                            <div className="flex bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl p-0.5 animate-in fade-in slide-in-from-left-2 duration-300">
+                                <button onClick={() => setGeoTrenDisplayMode('UT')} className={`px-3 py-1.5 text-[9px] font-bold uppercase transition-all rounded-[10px] ${geoTrenDisplayMode === 'UT' ? 'bg-white dark:bg-white/20 text-fgc-grey dark:text-white shadow-sm' : 'text-gray-500 hover:text-fgc-grey dark:text-gray-400 dark:hover:text-white'}`}>Unitat</button>
+                                <button onClick={() => setGeoTrenDisplayMode('CIRC')} className={`px-3 py-1.5 text-[9px] font-bold uppercase transition-all rounded-[10px] ${geoTrenDisplayMode === 'CIRC' ? 'bg-white dark:bg-white/20 text-fgc-grey dark:text-white shadow-sm' : 'text-gray-500 hover:text-fgc-grey dark:text-gray-400 dark:hover:text-white'}`}>Circulació</button>
+                            </div>
+                        )}
                         <div className="w-px h-6 bg-gray-200 dark:bg-white/10 mx-1 hidden sm:block"></div>
                         <button onClick={() => { setIsRealTime(true); setIsPaused(false); setIsGeoTrenEnabled(false); }} className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase transition-all ${isRealTime && !isGeoTrenEnabled ? 'bg-fgc-grey dark:bg-fgc-green text-white dark:text-fgc-grey shadow-md' : 'text-gray-400 hover:text-fgc-grey'}`}>Live</button>
                         <button onClick={() => setIsPaused(!isPaused)} className={`p-2 rounded-xl text-xs font-bold transition-all ${isPaused ? 'bg-orange-500 text-white shadow-md' : 'bg-white dark:bg-white/5 text-gray-400 hover:text-fgc-grey'}`}>{isPaused ? <FastForward size={14} fill="currentColor" /> : <span className="flex gap-1"><div className="w-1 h-3 bg-current rounded-full" /><div className="w-1 h-3 bg-current rounded-full" /></span>}</button>
@@ -510,8 +518,21 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                                 .map((gt, idx) => {
                                                     const mainLinia = mainLiniaForFilter(gt.lin);
                                                     const color = getLiniaColorHex(mainLinia);
-                                                    const decoded = decodeGeotrenUt(gt.ut, gt.tipus_unitat);
-                                                    const utLabel = decoded || gt.tipus_unitat || '???';
+                                                    let utLabel = '';
+                                                    if (geoTrenDisplayMode === 'CIRC' && gt.id) {
+                                                        const decodedCirc = decodeGeotrenCirculation(gt.id);
+                                                        if (decodedCirc) {
+                                                            const numPadded = decodedCirc.number.padStart(3, '0');
+                                                            utLabel = `${decodedCirc.direction}${numPadded}`;
+                                                        } else {
+                                                            const decoded = decodeGeotrenUt(gt.ut, gt.tipus_unitat);
+                                                            utLabel = decoded || gt.tipus_unitat || '???';
+                                                        }
+                                                    } else {
+                                                        const decoded = decodeGeotrenUt(gt.ut, gt.tipus_unitat);
+                                                        utLabel = decoded || gt.tipus_unitat || '???';
+                                                    }
+                                                    
                                                     const bgWidth = utLabel.length > 3 ? 42 : 32;
                                                     // Use pre-computed mapX/mapY from hook
                                                     const x = gt.mapX;
