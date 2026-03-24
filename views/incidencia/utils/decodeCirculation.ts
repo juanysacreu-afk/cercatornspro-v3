@@ -56,15 +56,27 @@ export const decodeGeotrenCirculation = (fullId?: string | null): CirculationInf
     const tensHex = parseInt(last3[0], 16);  // First of last 3
     const unitHex = parseInt(last3[2], 16);  // Last char
 
-    // Fórmula definitiva para la red de Vallès (S1, S2):
-    // tens  → 21 - int(tens_char, 16)
-    // units → int(unit_char, 16) XOR 2
-    //
-    // Verified cases:
-    //  7 → 21-7=14 (D140, F143) ✓
-    //  6 → 21-6=15 (D151, D152, F157) ✓
-    //  5 → 21-5=16 (D160, D162) ✓
-    const tens = 21 - tensHex;
+    let tens = 0;
+
+    // Decoding tens block
+    if (lineId === '6f') {
+        // L6 Logic
+        // In the 6e block, '2' -> 11 (13 - 2)
+        // In the 7e block, 'b' -> 18 (29 - 11)
+        const block = ncPart.slice(4, 6); // '6e' or '7e'
+        if (block === '6e') {
+            tens = 13 - tensHex;
+        } else if (block === '7e') {
+            tens = 29 - tensHex; // Assuming A084 was a typo for A184
+        } else {
+            tens = 13 - tensHex; // Fallback
+        }
+    } else {
+        // S1, S2 Logic (6a, 68)
+        // 7 -> 14 (21-7), 6 -> 15 (21-6), 5 -> 16 (21-5)
+        tens = 21 - tensHex;
+    }
+
     // XOR 2 for units
     const unitDigit = unitHex ^ 2;
 
