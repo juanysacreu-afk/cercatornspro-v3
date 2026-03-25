@@ -69,17 +69,20 @@ export const decodeGeotrenCirculation = (fullId?: string | null): CirculationInf
 
     if (lineId === '6a' || lineId === '68') {
         // S1, S2 (D, F)
-        if (mid === 'c8e') baseTens = -10; // For future proofing (if needed)
+        if (mid === 'c8e') baseTens = -10; 
         else if (mid === 'c7e') baseTens = 0;   // 09x
         else if (mid === 'c6e') baseTens = 10;  // 10x, 16x
         else if (mid === 'c5e') baseTens = 20;  // 20x, 22x
         else if (mid === 'c4e') baseTens = 30;
-    } else if (lineId === '6c' || lineId === '6f' || lineId === '62') {
-        // L7 (B), L6 (A), L12 (L)
-        if (mid === 'c8e') baseTens = 0;   // 0xx
-        else if (mid === 'c7e') baseTens = 10;  // 11x, 19x
+    } else if (lineId === '6c') {
+        // L7 (B) handles trains in the 190s (9) and 200s/260s (0-8)
+        if (mid === 'c8e') baseTens = 0;   
+        else if (mid === 'c7e') baseTens = 10;  // 19x
         else if (mid === 'c6e') baseTens = 20;  // 20x, 26x
         else if (mid === 'c5e') baseTens = 30;
+    } else {
+        // L6 (A), L12 (L) and others typically stick to 100s (11x, 17x)
+        baseTens = 10;
     }
 
     const tens = baseTens + lastDigitOfTens;
