@@ -339,22 +339,15 @@ const OrganitzaGantt: React.FC<{
     }, [tooltip, selectedShiftForComments, assigningModeBar]);
 
     const handleBarContextMenu = useCallback((bar: GanttBar, e: React.MouseEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-
-        const rect = containerRef.current?.getBoundingClientRect();
-        if (!rect) return;
+        if (e.preventDefault) e.preventDefault();
+        if (e.stopPropagation) e.stopPropagation();
 
         const now = new Date();
         const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
 
-        const menuHeight = 180;
-        let adjustedY = e.clientY - rect.top;
-        if (adjustedY + menuHeight > rect.height) adjustedY -= menuHeight;
-
         setContextMenu({
-            x: e.clientX - rect.left,
-            y: adjustedY,
+            x: e.clientX,
+            y: e.clientY,
             bar,
             clickedTime: timeStr,
         });

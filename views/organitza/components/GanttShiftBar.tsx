@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { MessageSquare } from 'lucide-react';
 import type { GanttBar } from '../hooks/useGanttData';
 import { getFgcMinutes } from '../../../utils/stations';
@@ -56,6 +56,50 @@ export const GanttShiftBar: React.FC<ShiftBarProps> = ({
     isDragSource = false, isDragTarget = false,
     onDragStart, onDragEnd, onDrop,
 }) => {
+    const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+    const [isLongPressing, setIsLongPressing] = useState(false);
+
+    const handleTouchStart = (e: React.TouchEvent) => {
+        setIsLongPressing(true);
+        const touch = e.touches[0];
+        const clientX = touch.clientX;
+        const clientY = touch.clientY;
+
+        longPressTimer.current = setTimeout(() => {
+            setIsLongPressing(false);
+            // Create a pseudo-mouse event for the context menu handler
+            const pseudoEvent = {
+                preventDefault: () => { },
+                stopPropagation: () => { },
+                clientX,
+                clientY,
+            } as unknown as React.MouseEvent;
+
+            onContextMenu(bar, pseudoEvent);
+        }, 600); // 600ms for long press
+    };
+
+    const handleTouchEnd = () => {
+        if (longPressTimer.current) {
+            clearTimeout(longPressTimer.current);
+            longPressTimer.current = null;
+        }
+        setIsLongPressing(false);
+    };
+
+    const handleTouchMove = () => {
+        if (longPressTimer.current) {
+            clearTimeout(longPressTimer.current);
+            longPressTimer.current = null;
+        }
+        setIsLongPressing(false);
+    };
+
+    useEffect(() => {
+        return () => {
+            if (longPressTimer.current) clearTimeout(longPressTimer.current);
+        };
+    }, []);
     const startLeft = toPercent(bar.startMin);
     const endRight = toPercent(bar.endMin);
     const width = endRight - startLeft;
@@ -161,7 +205,7 @@ export const GanttShiftBar: React.FC<ShiftBarProps> = ({
 
     return (
         <div
-            className={`absolute h-7 rounded-md border ${Object.keys(bgStyle).length === 0 ? baseBgClass : ''} ${borderClass} cursor-pointer transition-all duration-300 hover:scale-y-110 hover:z-20 hover:shadow-lg ${dragSourceFx} ${dragTargetFx}`}
+            className={`absolute h-7 rounded-md border ${Object.keys(bgStyle).length === 0 ? baseBgClass : ''} ${borderClass} cursor-pointer transition-all duration-300 ${isLongPressing ? 'scale-95 brightness-75' : 'hover:scale-y-110'} hover:z-20 hover:shadow-lg ${dragSourceFx} ${dragTargetFx}`}
             style={{
                 left: `${renderLeft}%`,
                 width: `${Math.max(renderWidth, 0.3)}%`,
@@ -170,6 +214,10 @@ export const GanttShiftBar: React.FC<ShiftBarProps> = ({
             }}
             onClick={(e) => onClick(bar, e)}
             onContextMenu={(e) => onContextMenu(bar, e)}
+            // Mobile Long Press
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+            onTouchMove={handleTouchMove}
             // F2 – HTML5 Drag and Drop
             draggable={isDraggable}
             onDragStart={(e) => {
