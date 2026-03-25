@@ -35,6 +35,73 @@ import { PkSegmentMap } from '../components/PkSegmentMap';
 const normalizeStr = (str: string) =>
   (str || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
+const formatMinsToHHMM = (mins: number) => {
+  const rounded = Math.round(mins);
+  let h = Math.floor(rounded / 60);
+  const m = rounded % 60;
+  if (h >= 24) h %= 24;
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+};
+
+const fetchNextCircsForPk = async (loc: PkLocationResult, nowMins: number) => {
+  if (!loc.prevStation || !loc.nextStation) return { nextAsc: null, nextDesc: null };
+  const prevName = (STATION_CODE_MAP[loc.prevStation.name] || loc.prevStation.name).trim().toUpperCase();
+  const nextName = (STATION_CODE_MAP[loc.nextStation.name] || loc.nextStation.name).trim().toUpperCase();
+
+  const { data: matchedCircs } = await supabase.from('circulations')
+    .select('id, inici, final, estacions, sortida, arribada')
+    .or(`inici.ilike.${prevName},final.ilike.${prevName},estacions.cs.[{"nom":"${prevName}"}]`);
+
+  if (!matchedCircs) return { nextAsc: null, nextDesc: null };
+
+  let bestAscMins = Infinity;
+  let bestDescMins = Infinity;
+  let nextAsc: any = null;
+  let nextDesc: any = null;
+
+  matchedCircs.forEach(c => {
+    let timePrev: string | null = null;
+    let timeNext: string | null = null;
+
+    if (c.inici?.trim().toUpperCase() === prevName) timePrev = c.sortida;
+    else if (c.final?.trim().toUpperCase() === prevName) timePrev = c.arribada;
+    else {
+      const st = (c.estacions as any[])?.find(s => s.nom?.trim().toUpperCase() === prevName);
+      if (st) timePrev = st.hora || st.sortida || st.arribada;
+    }
+
+    if (c.inici?.trim().toUpperCase() === nextName) timeNext = c.sortida;
+    else if (c.final?.trim().toUpperCase() === nextName) timeNext = c.arribada;
+    else {
+      const st = (c.estacions as any[])?.find(s => s.nom?.trim().toUpperCase() === nextName);
+      if (st) timeNext = st.hora || st.sortida || st.arribada;
+    }
+
+    if (timePrev && timeNext) {
+      const minPrev = getFgcMinutes(timePrev);
+      const minNext = getFgcMinutes(timeNext);
+      
+      if (minPrev <= minNext) {
+        // Ascending
+        const pkMins = minPrev + loc.percentage * (minNext - minPrev);
+        if (pkMins >= nowMins && pkMins < bestAscMins) {
+          bestAscMins = pkMins;
+          nextAsc = { id: c.id, time: formatMinsToHHMM(pkMins) };
+        }
+      } else {
+        // Descending
+        const pkMins = minNext + (1 - loc.percentage) * (minPrev - minNext);
+        if (pkMins >= nowMins && pkMins < bestDescMins) {
+          bestDescMins = pkMins;
+          nextDesc = { id: c.id, time: formatMinsToHHMM(pkMins) };
+        }
+      }
+    }
+  });
+
+  return { nextAsc, nextDesc };
+};
+
 const CercarViewComponent: React.FC<{
   isPrivacyMode: boolean,
   externalSearch?: { type: string, query: string } | null,
@@ -564,7 +631,8 @@ const CercarViewComponent: React.FC<{
           const pk = parseFloat(valToSearch.replace(',', '.'));
           const location = findPkLocation(selectedPkSegment, pk);
           if (location) {
-            newResults = [{ type: 'pk_location', ...location }];
+            const nextCircs = await fetchNextCircsForPk(location, nowMin);
+            newResults = [{ type: 'pk_location', ...location, ...nextCircs }];
           }
         } else {
           // Assume station search within PK
@@ -572,7 +640,8 @@ const CercarViewComponent: React.FC<{
           if (station) {
             const location = findPkLocation(station.pkSegment, station.pk);
             if (location) {
-              newResults = [{ type: 'pk_location', ...location }];
+              const nextCircs = await fetchNextCircsForPk(location, nowMin);
+              newResults = [{ type: 'pk_location', ...location, ...nextCircs }];
             }
           }
 
@@ -1073,7 +1142,7 @@ const CercarViewComponent: React.FC<{
             }
 
             if (group.type === 'pk_location') {
-              const loc = group as PkLocationResult;
+              const loc = group as PkLocationResult & { nextAsc?: { id: string, time: string }, nextDesc?: { id: string, time: string } };
               return (
                 <GlassPanel key={idx} className="p-8 sm:p-10 !rounded-[40px] animate-in fade-in slide-in-from-bottom-12 duration-700 relative overflow-hidden group">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -1156,6 +1225,31 @@ const CercarViewComponent: React.FC<{
                       <p className="text-[11px] font-bold text-gray-500 dark:text-gray-400 text-center uppercase tracking-tight mt-4">
                         Posició al <span className="text-fgc-green text-sm">{(loc.percentage * 100).toFixed(1)}%</span> del trajecte
                       </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-10 pt-10 border-t border-gray-100 dark:border-white/5">
+                    <div className="flex items-center gap-3 mb-6">
+                      <Train className="text-fgc-green" size={20} />
+                      <h3 className="text-sm font-bold text-[#4D5358] dark:text-white uppercase tracking-tight">Pròximes Circulacions</h3>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Sentit Ascendent</span>
+                        <div className="text-2xl font-bold text-[#4D5358] dark:text-white flex items-center justify-between">
+                          <span>{loc.nextAsc ? loc.nextAsc.id : '---'}</span>
+                          {loc.nextAsc && <span className="text-sm font-medium text-gray-400">{loc.nextAsc.time}</span>}
+                        </div>
+                      </div>
+
+                      <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Sentit Descendent</span>
+                        <div className="text-2xl font-bold text-[#4D5358] dark:text-white flex items-center justify-between">
+                          <span>{loc.nextDesc ? loc.nextDesc.id : '---'}</span>
+                          {loc.nextDesc && <span className="text-sm font-medium text-gray-400">{loc.nextDesc.time}</span>}
+                        </div>
+                      </div>
                     </div>
                   </div>
 
