@@ -323,8 +323,8 @@ const OrganitzaGantt: React.FC<{
 
         setSelectedShiftForComments({
             bar,
-            clientX: e.clientX - rect.left,
-            clientY: e.clientY - rect.top,
+            clientX: e.clientX,
+            clientY: e.clientY,
         });
         setTooltip(null);
     }, [selectedShiftForComments, assigningModeBar, assignToShift]);

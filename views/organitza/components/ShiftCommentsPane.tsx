@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Send, MessageSquare, AlertTriangle, Loader2, Trash2 } from 'lucide-react';
 import { supabase } from '../../../supabaseClient';
 import { GanttBar } from '../hooks/useGanttData';
@@ -151,19 +152,19 @@ export const ShiftCommentsPane: React.FC<ShiftCommentsPaneProps> = ({ bar, selec
         return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
     };
 
-    return (
+    if (typeof document === 'undefined') return null;
+
+    return createPortal(
         <>
-            {isMobile && (
-                <div
-                    className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[998] animate-in fade-in duration-300"
-                    onClick={onClose}
-                />
-            )}
             <div
-                className={`z-[999] bg-white dark:bg-gray-900 border border-gray-200 dark:border-white/10 rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.5)] flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden ${isMobile ? 'fixed' : 'absolute'}`}
+                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9998] animate-in fade-in duration-300"
+                onClick={onClose}
+            />
+            <div
+                className="fixed z-[9999] bg-white dark:bg-gray-900 border border-gray-200 dark:border-white/10 rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.5)] flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden"
                 style={{
-                    top: isMobile ? '50%' : `min(${Math.max(10, clientY - 150)}px, calc(100% - 490px))`,
-                    left: isMobile ? '50%' : `min(${clientX + 20}px, calc(100% - 380px))`,
+                    top: isMobile ? '50%' : `min(${Math.max(10, clientY - 150)}px, calc(100vh - 490px))`,
+                    left: isMobile ? '50%' : `min(${clientX + 20}px, calc(100vw - 380px))`,
                     transform: isMobile ? 'translate(-50%, -50%)' : 'none',
                     width: isMobile ? 'min(400px, 92vw)' : '360px',
                     height: isMobile ? 'min(640px, 80vh)' : '480px',
@@ -288,6 +289,7 @@ export const ShiftCommentsPane: React.FC<ShiftCommentsPaneProps> = ({ bar, selec
                 </form>
             </div>
             </div>
-        </>
+        </>,
+        document.body
     );
 };
