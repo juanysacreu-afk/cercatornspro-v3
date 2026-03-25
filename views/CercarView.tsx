@@ -1107,8 +1107,19 @@ const CercarViewComponent: React.FC<{
                           <span className="text-sm font-bold text-[#4D5358] dark:text-white uppercase">{loc.nextStation?.name || '---'}</span>
                         </div>
                         <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
-                          <span className="text-xs font-bold text-gray-400">GPS COORDINATES</span>
-                          <span className="text-xs font-mono font-bold text-[#4D5358] dark:text-gray-300">{loc.lat.toFixed(6)}, {loc.lon.toFixed(6)}</span>
+                          <span className="text-xs font-bold text-gray-400">COORDENADES GPS</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-mono font-bold text-[#4D5358] dark:text-gray-300">{loc.lat.toFixed(6)}, {loc.lon.toFixed(6)}</span>
+                            <a
+                              href={`https://www.google.com/maps?q=${loc.lat},${loc.lon}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center justify-center p-1.5 bg-blue-500/10 text-blue-600 dark:bg-blue-400/10 dark:text-blue-400 hover:bg-blue-500 hover:text-white rounded-lg transition-colors group"
+                              title="Obrir a Google Maps"
+                            >
+                              <MapPin size={14} className="group-hover:scale-110 transition-transform" />
+                            </a>
+                          </div>
                         </div>
                       </div>
                     </div>
