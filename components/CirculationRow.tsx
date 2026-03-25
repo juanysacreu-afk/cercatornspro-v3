@@ -58,7 +58,7 @@ export const CirculationRow: React.FC<CirculationRowProps> = ({
     }
 
     return (
-        <div id={`circ-row-${itemKey}`} className={`p-2 sm:p-4 grid grid-cols-[auto_1fr_1fr_auto] md:grid-cols-[1fr_1.2fr_1.8fr_1.8fr_1.2fr] items-center gap-2 sm:gap-4 w-full relative transition-all scroll-mt-24 ${isActive ? 'bg-red-50/30 dark:bg-red-950/20' : isBroken ? 'bg-red-50/20 dark:bg-red-950/10 shadow-inner' : ''}`}>
+        <div id={`circ-row-${itemKey}`} className={`p-2 sm:p-4 grid grid-cols-[auto_1fr_1fr_auto] md:grid-cols-[1fr_1.2fr_1.8fr_1.8fr_1.2fr] items-center gap-1.5 sm:gap-4 w-full relative transition-all scroll-mt-24 ${isActive ? 'bg-red-50/30 dark:bg-red-950/20' : isBroken ? 'bg-red-50/20 dark:bg-red-950/10 shadow-inner' : ''}`}>
             <div className="flex items-center gap-2 overflow-visible px-1">
                 <button
                     onClick={() => circ.cicle && openUnitMenu(circ, circ.cicle)}
@@ -121,15 +121,22 @@ export const CirculationRow: React.FC<CirculationRowProps> = ({
                     </button>
                 ) : (<span className="text-[10px] text-gray-300 dark:text-gray-600 font-bold uppercase tracking-widest italic opacity-40">Sense assignar</span>)}
             </div>
-            <div className="flex items-center gap-2 sm:gap-4 justify-center min-w-0">
+            <div className="flex items-center gap-1 sm:gap-4 justify-center min-w-0">
                 <div className={`text-base sm:text-2xl font-black tabular-nums w-14 sm:w-16 text-center ${isActive || isBroken ? 'text-red-600' : 'text-fgc-grey dark:text-gray-200'}`}>{circ.sortida || '--:--'}</div>
-                <div className="bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-grey dark:text-fgc-green border border-fgc-green/30 dark:border-fgc-green/20 px-2 py-0.5 rounded text-[10px] font-black shadow-sm shrink-0">V{circ.via_inici || '?'}</div>
+                <div className="hidden md:flex bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-grey dark:text-fgc-green border border-fgc-green/30 dark:border-fgc-green/20 px-2 py-0.5 rounded text-[10px] font-black shadow-sm shrink-0">V{circ.via_inici || '?'}</div>
                 <span className="text-[10px] sm:text-xs font-bold text-gray-400 dark:text-gray-500 truncate max-w-[100px] hidden md:block">{circ.machinistInici || circ.inici || '---'}</span>
             </div>
-            <div className="flex items-center gap-2 sm:gap-4 justify-center min-w-0">
+            <div className="flex items-center gap-1 sm:gap-4 justify-center min-w-0">
                 <span className="text-[10px] sm:text-xs font-bold text-gray-400 dark:text-gray-500 truncate max-w-[100px] text-right hidden md:block">{circ.machinistFinal || circ.final || '---'}</span>
-                <div className="bg-fgc-grey/10 dark:bg-white/5 text-fgc-grey dark:text-gray-400 border border-gray-200 dark:border-white/10 px-2 py-0.5 rounded text-[10px] font-black shadow-sm shrink-0">V{circ.via_final || '?'}</div>
+                <div className="hidden md:flex bg-fgc-grey/10 dark:bg-white/5 text-fgc-grey dark:text-gray-400 border border-gray-200 dark:border-white/10 px-2 py-0.5 rounded text-[10px] font-black shadow-sm shrink-0">V{circ.via_final || '?'}</div>
                 <div className={`text-base sm:text-2xl font-black tabular-nums w-14 sm:w-16 text-center ${isActive || isBroken ? 'text-red-600' : 'text-fgc-grey dark:text-gray-200'}`}>{circ.arribada || '--:--'}</div>
+                {/* Mobile: train number next to arrival time */}
+                {circ.train && (
+                    <div className="md:hidden flex items-center gap-0.5 bg-fgc-green/10 dark:bg-fgc-green/10 border border-fgc-green/20 text-fgc-green rounded px-1.5 py-0.5 shrink-0">
+                        <Radio size={8} className="opacity-70" />
+                        <span className="text-[10px] font-black">{circ.train}</span>
+                    </div>
+                )}
             </div>
             <div className="flex justify-end items-center gap-2 sm:gap-3 px-1 sm:px-4">
                 {/* Desktop Status Icons */}
