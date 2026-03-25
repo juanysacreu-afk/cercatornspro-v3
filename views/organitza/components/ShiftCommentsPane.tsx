@@ -25,7 +25,15 @@ export const ShiftCommentsPane: React.FC<ShiftCommentsPaneProps> = ({ bar, selec
     const [comments, setComments] = useState<ShiftComment[]>([]);
     const [inputText, setInputText] = useState('');
     const [isLoading, setIsLoading] = useState(true);
+    const [isMobile, setIsMobile] = useState(false);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const checkMobile = () => setIsMobile(window.innerWidth < 640);
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
 
     // Get current user profile
     const userProfileStr = localStorage.getItem('user_profile');
@@ -144,16 +152,24 @@ export const ShiftCommentsPane: React.FC<ShiftCommentsPaneProps> = ({ bar, selec
     };
 
     return (
-        <div
-            className="absolute z-[999] bg-white dark:bg-gray-900 border border-gray-200 dark:border-white/10 rounded-3xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.3)] flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden"
-            style={{
-                top: `min(${Math.max(10, clientY - 150)}px, calc(100% - 490px))`,
-                left: `min(${clientX + 20}px, calc(100% - 380px))`,
-                width: '360px',
-                height: '480px',
-            }}
-            onClick={(e) => e.stopPropagation()}
-        >
+        <>
+            {isMobile && (
+                <div
+                    className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[998] animate-in fade-in duration-300"
+                    onClick={onClose}
+                />
+            )}
+            <div
+                className={`z-[999] bg-white dark:bg-gray-900 border border-gray-200 dark:border-white/10 rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.5)] flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden ${isMobile ? 'fixed' : 'absolute'}`}
+                style={{
+                    top: isMobile ? '50%' : `min(${Math.max(10, clientY - 150)}px, calc(100% - 490px))`,
+                    left: isMobile ? '50%' : `min(${clientX + 20}px, calc(100% - 380px))`,
+                    transform: isMobile ? 'translate(-50%, -50%)' : 'none',
+                    width: isMobile ? 'min(400px, 92vw)' : '360px',
+                    height: isMobile ? 'min(640px, 80vh)' : '480px',
+                }}
+                onClick={(e) => e.stopPropagation()}
+            >
             {/* Header */}
             <div className="px-5 py-4 border-b border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-black/20 flex items-center justify-between shrink-0">
                 <div>
@@ -271,6 +287,7 @@ export const ShiftCommentsPane: React.FC<ShiftCommentsPaneProps> = ({ bar, selec
                     </button>
                 </form>
             </div>
-        </div>
+            </div>
+        </>
     );
 };
