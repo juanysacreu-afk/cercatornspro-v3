@@ -59,40 +59,49 @@ export const CirculationRow: React.FC<CirculationRowProps> = ({
 
     return (
         <div id={`circ-row-${itemKey}`} className={`p-2 sm:p-4 grid grid-cols-[auto_1fr_1fr_auto] md:grid-cols-[1fr_1.2fr_1.8fr_1.8fr_1.2fr] items-center gap-1.5 sm:gap-4 w-full relative transition-all scroll-mt-24 ${isActive ? 'bg-red-50/30 dark:bg-red-950/20' : isBroken ? 'bg-red-50/20 dark:bg-red-950/10 shadow-inner' : ''}`}>
-            <div className="flex items-center gap-2 overflow-visible px-1">
-                <button
-                    onClick={() => circ.cicle && openUnitMenu(circ, circ.cicle)}
-                    className={`px-2.5 py-1.5 ${isViatger ? 'bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800' : getLiniaColor(circ.linia)} rounded-lg font-black text-xs sm:text-sm shadow-sm flex items-center justify-center min-w-[62px] hover:scale-105 active:scale-95 transition-transform group relative`}
-                    title="Gestionar Unitat"
-                >
-                    {isViatger ? (
-                        <div className="flex flex-col items-center justify-center leading-none py-0.5">
-                            <span className="text-[7.5px] font-black text-sky-600 dark:text-sky-400 tracking-tighter uppercase mb-0.5">VIATGER</span>
-                            <span className="text-[11px] font-black text-sky-800 dark:text-sky-100">{circ.realCodi || '---'}</span>
-                        </div>
-                    ) : (
-                        <span className="text-white">{circ.codi}</span>
-                    )}
-                    {circ.cicle && <div className="absolute -top-1 -right-1 bg-white dark:bg-black rounded-full p-0.5 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"><Settings size={8} className="text-fgc-grey dark:text-gray-400" /></div>}
-                </button>
-
-                <div className="flex flex-col md:flex-row items-center gap-1 md:gap-2 -space-y-0.5 md:space-y-0">
-                    {passengerInfo && passengerInfo.length > 0 && (
-                        <div className="flex items-center flex-shrink-0 z-10 relative" title={`Viatgers:\n${passengerTooltip}`}>
-                            <div className={`p-[1px] md:p-1 rounded-full bg-white dark:bg-[#2d2d2d] shadow-sm border border-gray-100 dark:border-gray-700 ${hasFullCoverage ? 'text-blue-500' : 'text-orange-500'}`}>
-                                <User className="w-3 h-3 md:w-3.5 md:h-3.5" strokeWidth={3} />
+            {/* COL 1: Badge + train number on mobile */}
+            <div className="flex flex-col items-start gap-0.5">
+                <div className="flex items-center gap-2 overflow-visible">
+                    <button
+                        onClick={() => circ.cicle && openUnitMenu(circ, circ.cicle)}
+                        className={`px-2.5 py-1.5 ${isViatger ? 'bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800' : getLiniaColor(circ.linia)} rounded-lg font-black text-xs sm:text-sm shadow-sm flex items-center justify-center min-w-[62px] hover:scale-105 active:scale-95 transition-transform group relative`}
+                        title="Gestionar Unitat"
+                    >
+                        {isViatger ? (
+                            <div className="flex flex-col items-center justify-center leading-none py-0.5">
+                                <span className="text-[7.5px] font-black text-sky-600 dark:text-sky-400 tracking-tighter uppercase mb-0.5">VIATGER</span>
+                                <span className="text-[11px] font-black text-sky-800 dark:text-sky-100">{circ.realCodi || '---'}</span>
                             </div>
-                        </div>
-                    )}
+                        ) : (
+                            <span className="text-white">{circ.codi}</span>
+                        )}
+                        {circ.cicle && <div className="absolute -top-1 -right-1 bg-white dark:bg-black rounded-full p-0.5 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"><Settings size={8} className="text-fgc-grey dark:text-gray-400" /></div>}
+                    </button>
 
-                    {circ.train && trainPhone && (
-                        <a href={isPrivacyMode ? undefined : `tel:${trainPhone}`} onClick={(e) => e.stopPropagation()} className={`md:hidden p-[3px] rounded bg-white dark:bg-[#2d2d2d] border shadow-sm transition-all active:scale-90 ${isBroken ? 'bg-red-600 text-white border-red-700' : 'bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-green border-fgc-green/30 dark:border-fgc-green/20'} ${isPrivacyMode ? 'cursor-default' : ''}`}>
-                            <Radio size={10} />
-                        </a>
-                    )}
+                    <div className="flex flex-col md:flex-row items-center gap-1 md:gap-2 -space-y-0.5 md:space-y-0">
+                        {passengerInfo && passengerInfo.length > 0 && (
+                            <div className="flex items-center flex-shrink-0 z-10 relative" title={`Viatgers:\n${passengerTooltip}`}>
+                                <div className={`p-[1px] md:p-1 rounded-full bg-white dark:bg-[#2d2d2d] shadow-sm border border-gray-100 dark:border-gray-700 ${hasFullCoverage ? 'text-blue-500' : 'text-orange-500'}`}>
+                                    <User className="w-3 h-3 md:w-3.5 md:h-3.5" strokeWidth={3} />
+                                </div>
+                            </div>
+                        )}
+
+                        {circ.train && trainPhone && (
+                            <a href={isPrivacyMode ? undefined : `tel:${trainPhone}`} onClick={(e) => e.stopPropagation()} className={`md:hidden p-[3px] rounded bg-white dark:bg-[#2d2d2d] border shadow-sm transition-all active:scale-90 ${isBroken ? 'bg-red-600 text-white border-red-700' : 'bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-green border-fgc-green/30 dark:border-fgc-green/20'} ${isPrivacyMode ? 'cursor-default' : ''}`}>
+                                <Radio size={10} />
+                            </a>
+                        )}
+                    </div>
+
+                    <span className={`hidden md:flex px-2 py-1 ${getLiniaColor(circ.linia)} text-white rounded-md font-black text-[9px] sm:text-[11px] shadow-sm flex-shrink-0`}>{circ.linia || '??'}</span>
                 </div>
-
-                <span className={`hidden md:flex px-2 py-1 ${getLiniaColor(circ.linia)} text-white rounded-md font-black text-[9px] sm:text-[11px] shadow-sm flex-shrink-0`}>{circ.linia || '??'}</span>
+                {/* Mobile-only: train number below the badge, no icon */}
+                {circ.train && (
+                    <span className="md:hidden text-[10px] font-black text-fgc-green dark:text-fgc-green pl-1 tracking-tight">
+                        {circ.train}
+                    </span>
+                )}
             </div>
             <div className="hidden md:flex justify-center">
                 {circ.cicle ? (
@@ -121,22 +130,17 @@ export const CirculationRow: React.FC<CirculationRowProps> = ({
                     </button>
                 ) : (<span className="text-[10px] text-gray-300 dark:text-gray-600 font-bold uppercase tracking-widest italic opacity-40">Sense assignar</span>)}
             </div>
-            <div className="flex items-center gap-1 sm:gap-4 justify-center min-w-0">
-                <div className={`text-base sm:text-2xl font-black tabular-nums w-14 sm:w-16 text-center ${isActive || isBroken ? 'text-red-600' : 'text-fgc-grey dark:text-gray-200'}`}>{circ.sortida || '--:--'}</div>
-                <div className="hidden md:flex bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-grey dark:text-fgc-green border border-fgc-green/30 dark:border-fgc-green/20 px-2 py-0.5 rounded text-[10px] font-black shadow-sm shrink-0">V{circ.via_inici || '?'}</div>
-                <span className="text-[10px] sm:text-xs font-bold text-gray-400 dark:text-gray-500 truncate max-w-[100px] hidden md:block">{circ.machinistInici || circ.inici || '---'}</span>
+            {/* COL 3: Departure time only on mobile */}
+            <div className="flex items-center justify-center min-w-0">
+                <div className={`text-base sm:text-2xl font-black tabular-nums text-center ${isActive || isBroken ? 'text-red-600' : 'text-fgc-grey dark:text-gray-200'}`}>{circ.sortida || '--:--'}</div>
+                <div className="hidden md:flex ml-2 bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-grey dark:text-fgc-green border border-fgc-green/30 dark:border-fgc-green/20 px-2 py-0.5 rounded text-[10px] font-black shadow-sm shrink-0">V{circ.via_inici || '?'}</div>
+                <span className="text-[10px] sm:text-xs font-bold text-gray-400 dark:text-gray-500 truncate max-w-[100px] hidden md:block ml-2">{circ.machinistInici || circ.inici || '---'}</span>
             </div>
-            <div className="flex items-center gap-1 sm:gap-4 justify-center min-w-0">
-                <span className="text-[10px] sm:text-xs font-bold text-gray-400 dark:text-gray-500 truncate max-w-[100px] text-right hidden md:block">{circ.machinistFinal || circ.final || '---'}</span>
-                <div className="hidden md:flex bg-fgc-grey/10 dark:bg-white/5 text-fgc-grey dark:text-gray-400 border border-gray-200 dark:border-white/10 px-2 py-0.5 rounded text-[10px] font-black shadow-sm shrink-0">V{circ.via_final || '?'}</div>
-                <div className={`text-base sm:text-2xl font-black tabular-nums w-14 sm:w-16 text-center ${isActive || isBroken ? 'text-red-600' : 'text-fgc-grey dark:text-gray-200'}`}>{circ.arribada || '--:--'}</div>
-                {/* Mobile: train number next to arrival time */}
-                {circ.train && (
-                    <div className="md:hidden flex items-center gap-0.5 bg-fgc-green/10 dark:bg-fgc-green/10 border border-fgc-green/20 text-fgc-green rounded px-1.5 py-0.5 shrink-0">
-                        <Radio size={8} className="opacity-70" />
-                        <span className="text-[10px] font-black">{circ.train}</span>
-                    </div>
-                )}
+            {/* COL 4: Arrival time only on mobile */}
+            <div className="flex items-center justify-center min-w-0">
+                <span className="text-[10px] sm:text-xs font-bold text-gray-400 dark:text-gray-500 truncate max-w-[100px] text-right hidden md:block mr-2">{circ.machinistFinal || circ.final || '---'}</span>
+                <div className="hidden md:flex mr-2 bg-fgc-grey/10 dark:bg-white/5 text-fgc-grey dark:text-gray-400 border border-gray-200 dark:border-white/10 px-2 py-0.5 rounded text-[10px] font-black shadow-sm shrink-0">V{circ.via_final || '?'}</div>
+                <div className={`text-base sm:text-2xl font-black tabular-nums text-center ${isActive || isBroken ? 'text-red-600' : 'text-fgc-grey dark:text-gray-200'}`}>{circ.arribada || '--:--'}</div>
             </div>
             <div className="flex justify-end items-center gap-2 sm:gap-3 px-1 sm:px-4">
                 {/* Desktop Status Icons */}
