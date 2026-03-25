@@ -62,19 +62,24 @@ export const decodeGeotrenCirculation = (fullId?: string | null): CirculationInf
     // e.g. T=7 -> 7^3 = 4 (tens 14). T=a(10) -> 10^3 = 9 (tens 19).
     const lastDigitOfTens = tensHex ^ 3;
 
-    // To get the full tens number (e.g. 14, 26), we add a base offset (10 or 20).
-    // The base offset is determined by the railway line and standard FGC numbering ranges.
+    // Use the 'mid' string (characters 4 to 6 of ncPart) to determine the exact hundred/tens base.
+    // Observed mappings: 'c7e' -> 09x (S1), 19x (L7/L6). 'c6e' -> 10x (S1), 20x (L7).
+    const mid = ncPart.slice(4, 7);
     let baseTens = 10;
 
-    if (lineId === '6c') {
-        // L7 (B) handles trains in the 190s (9) and 200s/260s (0-8)
-        baseTens = (lastDigitOfTens === 9) ? 10 : 20;
-    } else if (lineId === '6a' || lineId === '68') {
-        // S1, S2 (D, F) handles 140s-160s, 190s (4-9), and 200s, 210s, 220s, 230s (0-3)
-        baseTens = (lastDigitOfTens <= 3) ? 20 : 10;
-    } else {
-        // L6, L12 (A, L) exclusively operate in the 110s, 170s, 180s.
-        baseTens = 10;
+    if (lineId === '6a' || lineId === '68') {
+        // S1, S2 (D, F)
+        if (mid === 'c8e') baseTens = -10; // For future proofing (if needed)
+        else if (mid === 'c7e') baseTens = 0;   // 09x
+        else if (mid === 'c6e') baseTens = 10;  // 10x, 16x
+        else if (mid === 'c5e') baseTens = 20;  // 20x, 22x
+        else if (mid === 'c4e') baseTens = 30;
+    } else if (lineId === '6c' || lineId === '6f' || lineId === '62') {
+        // L7 (B), L6 (A), L12 (L)
+        if (mid === 'c8e') baseTens = 0;   // 0xx
+        else if (mid === 'c7e') baseTens = 10;  // 11x, 19x
+        else if (mid === 'c6e') baseTens = 20;  // 20x, 26x
+        else if (mid === 'c5e') baseTens = 30;
     }
 
     const tens = baseTens + lastDigitOfTens;
