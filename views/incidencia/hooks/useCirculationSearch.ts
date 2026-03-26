@@ -90,6 +90,8 @@ export const useCirculationSearch = ({ selectedServei }: UseCirculationSearchPro
             if (allPossibleTurnIds.length === 0) { setLoading(false); return; }
 
             // Find Main Driver & Passengers
+            let localMainDriverInfo = null;
+            let localPassengerResults: EnrichedShift[] = [];
             let mainDriverShiftId = null;
             const passengerShiftIds: string[] = [];
             allShifts.forEach(shift => {
@@ -113,7 +115,8 @@ export const useCirculationSearch = ({ selectedServei }: UseCirculationSearchPro
                     localMainDriverInfo = enrichedTurns.find(t => t.id === mainDriverShiftId);
                     setMainDriverInfo(localMainDriverInfo);
                 }
-                setPassengerResults(enrichedTurns.filter(t => passengerShiftIds.includes(t.id)));
+                localPassengerResults = enrichedTurns.filter(t => passengerShiftIds.includes(t.id));
+                setPassengerResults(localPassengerResults);
             }
 
             // Fetch all required circulation details for analysis
@@ -484,14 +487,16 @@ export const useCirculationSearch = ({ selectedServei }: UseCirculationSearchPro
 
             setRestingResults(processedResting);
 
-            setExtensibleResults(resExtensible.map(t => {
+            const processedExtensible = resExtensible.map(t => {
                 const sInici = getFgcMinutes(t.inici_torn) || 0;
                 const realId = t.drivers?.[0]?.realTornId || t.id;
                 const originalDuration = (getFgcMinutes(t.final_torn) || 0) - sInici;
                 const targetStation = getTargetEndStation(t.id) || t.dependencia;
                 const returnTime = getTravelTime(depFinal, targetStation);
                 return { ...t, id: realId, extData: { originalDuration, extraNeeded: Math.max(0, (arribadaMin + returnTime) - (getFgcMinutes(t.final_torn) || 0)), estimatedReturn: arribadaMin + returnTime } };
-            }).filter(t => !restingCandidates.includes(t.id)));
+            }).filter(t => !restingCandidates.includes(t.id));
+
+            setExtensibleResults(processedExtensible);
 
             // Resolve Reserve Intercepts with path analysis
             const allIntercepts: ReserveInterceptResult[] = [];
@@ -509,8 +514,16 @@ export const useCirculationSearch = ({ selectedServei }: UseCirculationSearchPro
             });
 
             // 3. Extensible Drivers (who finished their duty)
-            extensibleResults.forEach(t => {
+            processedExtensible.forEach(t => {
                 // Exclude the missing driver (mainDriverShiftId)
+                if (t.id !== mainDriverShiftId) {
+                    if (!candidateMap.has(t.id)) candidateMap.set(t.id, t);
+                }
+            });
+
+            // 4. Passenger Drivers (Viatgers inside the train)
+            localPassengerResults.forEach(t => {
+                // Exclude the missing driver
                 if (t.id !== mainDriverShiftId) {
                     if (!candidateMap.has(t.id)) candidateMap.set(t.id, t);
                 }
