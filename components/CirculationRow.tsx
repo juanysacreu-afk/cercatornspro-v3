@@ -96,9 +96,9 @@ export const CirculationRow: React.FC<CirculationRowProps> = ({
 
                     <span className={`hidden md:flex px-2 py-1 ${getLiniaColor(circ.linia)} text-white rounded-md font-black text-[9px] sm:text-[11px] shadow-sm flex-shrink-0`}>{circ.linia || '??'}</span>
                 </div>
-                {/* Mobile-only: train number below the badge, no icon */}
+                {/* Mobile-only: train number centered below the badge, no icon */}
                 {circ.train && (
-                    <span className="md:hidden text-[10px] font-black text-fgc-green dark:text-fgc-green pl-1 tracking-tight">
+                    <span className="md:hidden text-[10px] font-black text-fgc-green dark:text-fgc-green tracking-tight w-full text-center">
                         {circ.train}
                     </span>
                 )}
@@ -130,17 +130,21 @@ export const CirculationRow: React.FC<CirculationRowProps> = ({
                     </button>
                 ) : (<span className="text-[10px] text-gray-300 dark:text-gray-600 font-bold uppercase tracking-widest italic opacity-40">Sense assignar</span>)}
             </div>
-            {/* COL 3: Departure time only on mobile */}
-            <div className="flex items-center justify-center min-w-0">
+            {/* COL 3: Departure time + via_inici on mobile */}
+            <div className="flex flex-col items-center justify-center min-w-0">
                 <div className={`text-base sm:text-2xl font-black tabular-nums text-center ${isActive || isBroken ? 'text-red-600' : 'text-fgc-grey dark:text-gray-200'}`}>{circ.sortida || '--:--'}</div>
                 <div className="hidden md:flex ml-2 bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-grey dark:text-fgc-green border border-fgc-green/30 dark:border-fgc-green/20 px-2 py-0.5 rounded text-[10px] font-black shadow-sm shrink-0">V{circ.via_inici || '?'}</div>
                 <span className="text-[10px] sm:text-xs font-bold text-gray-400 dark:text-gray-500 truncate max-w-[100px] hidden md:block ml-2">{circ.machinistInici || circ.inici || '---'}</span>
+                {/* Mobile: via_inici below departure time */}
+                <span className="md:hidden text-[10px] font-black text-fgc-green dark:text-fgc-green tracking-tight">V{circ.via_inici || '?'}</span>
             </div>
-            {/* COL 4: Arrival time only on mobile */}
-            <div className="flex items-center justify-center min-w-0">
+            {/* COL 4: Arrival time + via_final on mobile */}
+            <div className="flex flex-col items-center justify-center min-w-0">
                 <span className="text-[10px] sm:text-xs font-bold text-gray-400 dark:text-gray-500 truncate max-w-[100px] text-right hidden md:block mr-2">{circ.machinistFinal || circ.final || '---'}</span>
                 <div className="hidden md:flex mr-2 bg-fgc-grey/10 dark:bg-white/5 text-fgc-grey dark:text-gray-400 border border-gray-200 dark:border-white/10 px-2 py-0.5 rounded text-[10px] font-black shadow-sm shrink-0">V{circ.via_final || '?'}</div>
                 <div className={`text-base sm:text-2xl font-black tabular-nums text-center ${isActive || isBroken ? 'text-red-600' : 'text-fgc-grey dark:text-gray-200'}`}>{circ.arribada || '--:--'}</div>
+                {/* Mobile: via_final below arrival time */}
+                <span className="md:hidden text-[10px] font-black text-fgc-green dark:text-fgc-green tracking-tight">V{circ.via_final || '?'}</span>
             </div>
             <div className="flex justify-end items-center gap-2 sm:gap-3 px-1 sm:px-4">
                 {/* Desktop Status Icons */}
