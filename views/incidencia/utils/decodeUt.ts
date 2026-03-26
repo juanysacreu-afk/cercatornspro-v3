@@ -26,7 +26,7 @@ const SERIES_MAP: Record<string, string> = {
  *       (chars 5-7) changes between 112/113/114/115 fleet families.
  */
 const SUFFIX_TO_UNIT: Record<string, number> = {
-    // Block 02 — Units 01 to 10
+    // Block 02 — Units 01 to 09
     '0275': 1,
     '0276': 2,
     '0277': 3,
@@ -36,9 +36,9 @@ const SUFFIX_TO_UNIT: Record<string, number> = {
     '0273': 7,
     '027c': 8,
     '027d': 9,
-    '0274': 10,
-    // Block 03 — Units 11 to 20
-    // Pattern matches Block 02: last nibbles 5,6,7,0,1,2,3,c,d,4
+    
+    // Block 03 — Units 10 to 19
+    '0374': 10,
     '0375': 11,
     '0376': 12,
     '0377': 13,
@@ -48,10 +48,11 @@ const SUFFIX_TO_UNIT: Record<string, number> = {
     '0373': 17,
     '037c': 18,
     '037d': 19,
-    '0374': 20,
-    // Block 00 — Units 21 to 30
+    
+    // Block 00 — Units 20 to 29
+    '0074': 20,
     '0075': 21,
-    '0074': 22,
+    '0076': 22,
     '0077': 23,
     '0070': 24,
     '0071': 25,
@@ -59,8 +60,9 @@ const SUFFIX_TO_UNIT: Record<string, number> = {
     '0073': 27,
     '007c': 28,
     '007d': 29,
-    '0076': 30,
-    // Block 01 — Units 31 to 40
+    
+    // Block 01 — Units 30 to 39
+    '0174': 30,
     '0175': 31,
     '0176': 32,
     '0177': 33,
@@ -70,7 +72,9 @@ const SUFFIX_TO_UNIT: Record<string, number> = {
     '0173': 37,
     '017c': 38,
     '017d': 39,
-    '0174': 40,
+    
+    // Block 02 (looped for 40)
+    '0274': 40,
 };
 
 /** Fleet limits per series */
