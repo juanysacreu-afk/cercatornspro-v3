@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'fgc-pro-v2.2'; // Canviar aquest número quan vulguis forçar una actualització
+const CACHE_NAME = 'NEXUS-v2.3'; // Canviar per forçar actualització i desfer conflictes amb altres projectes
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

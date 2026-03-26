@@ -3,17 +3,31 @@
 
 <head>
   <meta charset="UTF-8">
+  <script>
+    // NEXUS - Anti-Conflict script: Unregister old service workers from other projects on port 3000
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(registrations => {
+        for (let registration of registrations) {
+          if (registration.active && !registration.active.scriptURL.includes('sw.js')) {
+            console.log('Unregistering conflicting SW:', registration.active.scriptURL);
+            registration.unregister();
+            window.location.reload();
+          }
+        }
+      });
+    }
+  </script>
   <!-- Force Production Rebuild - Refresh Branding Colors 22:56:51 -->
   <meta name="viewport"
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>Nexus</title>
+  <title>NEXUS Supervisors</title>
 
   <!-- PWA Meta Tags -->
   <meta name="theme-color" content="#4D5358">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Nexus">
+  <meta name="apple-mobile-web-app-title" content="NEXUS Supervisors">
   <meta name="application-name" content="Nexus">
 
   <!-- Icons -->
