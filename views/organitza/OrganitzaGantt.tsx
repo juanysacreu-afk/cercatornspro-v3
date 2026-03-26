@@ -223,7 +223,7 @@ const GanttLegend: React.FC = () => (
                 <span className="inline-block w-3 h-2.5 rounded-sm bg-gradient-to-r from-emerald-400 to-emerald-500" /> Matí Cobert
             </span>
             <span className="flex items-center gap-1.5">
-                <span className="inline-block w-3 h-2.5 rounded-sm bg-gradient-to-r from-amber-400 to-orange-500" /> Tarda Cobert
+                <span className="inline-block w-3 h-2.5 rounded-sm bg-gradient-to-r from-teal-400 to-cyan-500" /> Tarda Cobert
             </span>
             <span className="flex items-center gap-1.5">
                 <span className="inline-block w-3 h-2.5 rounded-sm bg-gradient-to-r from-indigo-500 to-violet-600" /> Nit Cobert

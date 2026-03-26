@@ -22,10 +22,10 @@ function getShiftTimePalette(startMin: number): {
             assignedBorder: 'border-emerald-500/50',
         };
     } else if (hour >= 12 && hour < 21) {
-        // Tarda → amber-orange
+        // Tarda → teal/cyan (intermediate between emerald and indigo)
         return {
-            assigned: 'bg-gradient-to-r from-amber-400/85 to-orange-500/85 dark:from-amber-500/80 dark:to-orange-600/80',
-            assignedBorder: 'border-orange-400/50',
+            assigned: 'bg-gradient-to-r from-teal-400/90 to-cyan-500/90 dark:from-teal-500/80 dark:to-cyan-600/80',
+            assignedBorder: 'border-teal-500/50',
         };
     } else {
         // Nit → indigo/violet
@@ -158,7 +158,7 @@ export const GanttShiftBar: React.FC<ShiftBarProps> = ({
 
             if (!bar.coveringExtraShiftId) {
                 const hour = Math.floor(bar.startMin / 60) % 24;
-                if (hour >= 12 && hour < 21) coveredColor = 'rgba(245, 158, 11, 0.9)'; // amber
+                if (hour >= 12 && hour < 21) coveredColor = 'rgba(20, 184, 166, 0.9)'; // teal-500
                 else if (hour >= 21 || hour < 4) coveredColor = 'rgba(99, 102, 241, 0.9)'; // indigo
             }
 
@@ -187,9 +187,16 @@ export const GanttShiftBar: React.FC<ShiftBarProps> = ({
             const incidentMin = getFgcMinutes(bar.incidentStartTime);
             if (incidentMin && incidentMin > bar.startMin && incidentMin < bar.endMin) {
                 const splitPercent = ((incidentMin - bar.startMin) / (bar.endMin - bar.startMin)) * 100;
+                
+                // Determine the "OK" color based on the shift time
+                const hour = Math.floor(bar.startMin / 60) % 24;
+                let okColor = 'rgba(16, 185, 129, 0.9)'; // emerald (matí)
+                if (hour >= 12 && hour < 21) okColor = 'rgba(20, 184, 166, 0.9)'; // teal (tarda)
+                else if (hour >= 21 || hour < 4) okColor = 'rgba(99, 102, 241, 0.9)'; // indigo (nit)
+
                 bgStyle = {
                     background: `linear-gradient(90deg,
-                        rgba(16, 185, 129, 0.9) 0%, rgba(16, 185, 129, 0.9) ${splitPercent}%,
+                        ${okColor} 0%, ${okColor} ${splitPercent}%,
                         rgba(245, 158, 11, 0.9) ${splitPercent}%, rgba(245, 158, 11, 0.9) 100%)`
                 };
                 borderClass = selectedRing || 'border-amber-500/50';
@@ -199,6 +206,7 @@ export const GanttShiftBar: React.FC<ShiftBarProps> = ({
             }
         }
     }
+
 
     // F2 – draggable only for EXTRA or reserve bars
     const isDraggable = bar.dependencia === 'EXTRA' || /^QR/i.test(bar.shortId);

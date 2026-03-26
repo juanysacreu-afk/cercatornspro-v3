@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
 import './index.css'; // Import estilos Tailwind
 import { ToastProvider } from './components/ToastProvider.tsx';
-console.log('NEXUS Supervisors Project v3 Loaded');
+
 
 // Registro del Service Worker para PWA con autoupdate
 if ('serviceWorker' in navigator) {
