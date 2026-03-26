@@ -648,6 +648,21 @@ export const useLiveMapData = ({
         if (mode === 'LINIA') fetchLiveMapData();
     }, [mode, Math.floor(displayMin), selectedServei, manualOverrides]); // Only refetch data when MINUTE changes
 
+    useEffect(() => {
+        const channel = supabase.channel('incidencia_map_realtime')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'assignments' }, () => {
+                if (mode === 'LINIA') fetchLiveMapData();
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_assignments' }, () => {
+                if (mode === 'LINIA') fetchLiveMapData();
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [mode, selectedServei]);
+
     return {
         liveData, loading, geoTrenData, displayMin, allShifts, setAllShifts
     };

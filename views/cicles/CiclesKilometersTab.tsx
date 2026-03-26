@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Gauge, Loader2, Save, History, Trash2 } from 'lucide-react';
 import GlassPanel from '../../components/common/GlassPanel';
+import ConfirmModal from '../../components/common/ConfirmModal';
 import { useToast } from '../../components/ToastProvider';
 
 interface CiclesKilometersTabProps {
@@ -23,8 +24,11 @@ const CiclesKilometersTab: React.FC<CiclesKilometersTabProps> = ({
     const { showToast } = useToast();
     const [newTrainId, setNewTrainId] = useState('');
     const [kmFilterSerie, setKmFilterSerie] = useState<string>('ALL');
+    const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+
 
     return (
+        <>
         <div className="animate-in fade-in slide-in-from-right-8 duration-700 space-y-8 pb-20">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-1">
@@ -182,11 +186,7 @@ const CiclesKilometersTab: React.FC<CiclesKilometersTabProps> = ({
                                                 </div>
                                             </div>
                                             <button
-                                                onClick={() => {
-                                                    if (window.confirm("Eliminar aquest registre?")) {
-                                                        handleDeleteKilometerRecord(rec.id);
-                                                    }
-                                                }}
+                                                onClick={() => setPendingDeleteId(rec.id)}
                                                 className="p-2 text-gray-300 hover:text-red-500 transition-colors"
                                             >
                                                 <Trash2 size={16} />
@@ -201,7 +201,16 @@ const CiclesKilometersTab: React.FC<CiclesKilometersTabProps> = ({
                     </GlassPanel>
                 </div>
             </div >
-        </div >
+        </div>
+        {pendingDeleteId && (
+            <ConfirmModal
+                message="Eliminar aquest registre de kilòmetres? Aquesta acció no es pot desfer."
+                confirmLabel="Sí, eliminar"
+                onConfirm={() => { handleDeleteKilometerRecord(pendingDeleteId); setPendingDeleteId(null); }}
+                onCancel={() => setPendingDeleteId(null)}
+            />
+        )}
+        </>
     );
 };
 

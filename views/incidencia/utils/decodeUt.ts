@@ -2,7 +2,7 @@
  * Definitive UT decoding based on the official FGC lookup table.
  *
  * Structure of a 12-char hex UT code:
- *   [0-4]  Prefix   "1f2cc"  (manufacturer ID, always the same)
+ *   [0-4]  Prefix   "1f2cc" or "1c2cc"  (manufacturer variants)
  *   [5-7]  Series   "5fd"=112, "4fd"=113, "3fd"=114, "2fd"=115
  *   [8-11] Suffix   maps directly to the unit number via lookup table
  *
@@ -19,8 +19,11 @@ const SERIES_MAP: Record<string, string> = {
 
 /**
  * Complete suffix-to-unit lookup table.
- * Derived from the official FGC reference table.
+ * Derived from the official FGC reference table (image provided by user).
  * Key = last 4 hex chars (positions 8-11), Value = unit number.
+ *
+ * NOTE: The suffix is shared across all series — only the series hex
+ *       (chars 5-7) changes between 112/113/114/115 fleet families.
  */
 const SUFFIX_TO_UNIT: Record<string, number> = {
     // Block 02 — Units 01 to 10
@@ -35,6 +38,7 @@ const SUFFIX_TO_UNIT: Record<string, number> = {
     '027d': 9,
     '0274': 10,
     // Block 03 — Units 11 to 20
+    // Pattern matches Block 02: last nibbles 5,6,7,0,1,2,3,c,d,4
     '0375': 11,
     '0376': 12,
     '0377': 13,
@@ -77,14 +81,17 @@ const FLEET_MAX: Record<string, number> = {
     '115': 15,
 };
 
+/** Valid FGC manufacturer prefixes (both variants seen in live API) */
+const VALID_PREFIXES = new Set(['1f2cc', '1c2cc']);
+
 export const decodeGeotrenUt = (hexUt?: string | null, tipusUnitat?: string | null): string | null => {
     if (!hexUt || hexUt === 'None' || hexUt.length < 12) return tipusUnitat || null;
 
     const hex = hexUt.toLowerCase();
     const prefix = hex.substring(0, 5);
 
-    // Must start with the standard FGC manufacturer prefix
-    if (prefix !== '1f2cc') {
+    // Must start with a known FGC manufacturer prefix
+    if (!VALID_PREFIXES.has(prefix)) {
         return tipusUnitat || null;
     }
 

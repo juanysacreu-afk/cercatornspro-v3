@@ -514,6 +514,14 @@ export function useDashboardData(onThresholdAlert?: (msg: string) => void) {
             .channel('dashboard-realtime')
             .on(
                 'postgres_changes',
+                { event: '*', schema: 'public', table: 'assignments' },
+                (payload) => {
+                    console.log('[Dashboard] Realtime: assignments changed', payload.eventType);
+                    fetchData();
+                }
+            )
+            .on(
+                'postgres_changes',
                 { event: '*', schema: 'public', table: 'daily_assignments' },
                 (payload) => {
                     console.log('[Dashboard] Realtime: daily_assignments changed', payload.eventType);

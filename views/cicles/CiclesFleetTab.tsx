@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Loader2, Save, Train, AlertTriangle, Brush, CheckCircle2, Link as LinkIcon, LayoutGrid, Trash2, Camera, FileText, Plus } from 'lucide-react';
 import GlassPanel from '../../components/common/GlassPanel';
+import ConfirmModal from '../../components/common/ConfirmModal';
 import { Assignment } from '../../types';
 
 interface CiclesFleetTabProps {
@@ -31,6 +32,8 @@ const CiclesFleetTab: React.FC<CiclesFleetTabProps> = ({
     const [showTrainSuggestions, setShowTrainSuggestions] = useState(false);
     const [fleetFilter, setFleetFilter] = useState<'ALL' | 'BROKEN' | 'OPERATIONAL' | 'CLEANING' | 'RECORDS' | 'IMAGES' | 'ASSIGNED' | 'UNASSIGNED'>('ALL');
     const [activeFleetSerie, setActiveFleetSerie] = useState('ALL');
+    const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
+
 
     const cycleSuggestionsRef = useRef<HTMLDivElement>(null);
     const trainSuggestionsRef = useRef<HTMLDivElement>(null);
@@ -157,7 +160,15 @@ const CiclesFleetTab: React.FC<CiclesFleetTabProps> = ({
                     </div>
                 </GlassPanel>
                 <GlassPanel className="overflow-hidden">
-                    <div className="p-6 border-b border-gray-100 dark:border-white/5 bg-gray-50/20 flex items-center justify-between"><h3 className="font-black flex items-center gap-2 text-fgc-grey dark:text-white"><LinkIcon size={18} /> ASSIGNACIONS</h3> {assignments.length > 0 && <button onClick={() => { if (window.confirm("Eliminar tot?")) handleDeleteAllAssignments(); }} className="text-[10px] font-black text-red-500 uppercase">Eliminar Tot</button>}</div>
+                    <div className="p-6 border-b border-gray-100 dark:border-white/5 bg-gray-50/20 flex items-center justify-between"><h3 className="font-black flex items-center gap-2 text-fgc-grey dark:text-white"><LinkIcon size={18} /> ASSIGNACIONS</h3> {assignments.length > 0 && <button onClick={() => setShowDeleteAllConfirm(true)} className="text-[10px] font-black text-red-500 uppercase">Eliminar Tot</button>}</div>
+                    {showDeleteAllConfirm && (
+                        <ConfirmModal
+                            message="Eliminar totes les assignacions d'unitats? Aquesta acció no es pot desfer."
+                            confirmLabel="Sí, eliminar tot"
+                            onConfirm={() => { setShowDeleteAllConfirm(false); handleDeleteAllAssignments(); }}
+                            onCancel={() => setShowDeleteAllConfirm(false)}
+                        />
+                    )}
                     <div className="p-6 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                         {assignments.map(a => <div key={a.cycle_id} className="p-4 rounded-xl border border-gray-100 dark:border-white/5 flex items-center justify-between"><div className="font-black text-sm text-gray-400">{a.cycle_id} <div className="text-lg text-fgc-grey dark:text-white">{a.train_number}</div></div> <button onClick={() => handleDeleteAssignment(a.cycle_id)} className="text-gray-300 hover:text-red-500"><Trash2 size={18} /></button></div>)}
                     </div>

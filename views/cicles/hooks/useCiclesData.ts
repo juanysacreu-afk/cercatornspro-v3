@@ -88,6 +88,24 @@ export const useCiclesData = (parkedUnits: any[], onParkedUnitsChange: () => Pro
         fetchAvailableCycles();
     }, []);
 
+    // Realtime Subscriptions
+    useEffect(() => {
+        const channel = supabase.channel('assignments-realtime')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'assignments' },
+                (payload) => {
+                    console.log('[Cicles] Realtime: assignments changed', payload.eventType);
+                    fetchAllData();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, []);
+
 
     // -- Actions --
 

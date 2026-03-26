@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../../../supabaseClient';
 import { fetchFullTurns } from '../../../utils/queries';
 import { getShortTornId, getFgcMinutes, formatFgcTime, getSegments, getTravelTime, S1_STATIONS, S2_STATIONS, mainLiniaForFilter, resolveStationId } from '../../../utils/stations';
@@ -634,6 +634,27 @@ export const useCirculationSearch = ({ selectedServei }: UseCirculationSearchPro
             setLoading(false);
         }
     };
+
+    // Realtime Sync for search results
+    useEffect(() => {
+        if (!query) return;
+
+        const channel = supabase.channel('incidenciaSearchRealtime')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'assignments' }, () => {
+                handleSearchCirculation();
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_assignments' }, () => {
+                handleSearchCirculation();
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'train_status' }, () => {
+                handleSearchCirculation();
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [query, selectedServei]);
 
     return {
         query, setQuery, loading, searchedCircData, mainDriverInfo,

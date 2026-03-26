@@ -246,6 +246,27 @@ const CercarViewComponent: React.FC<{
     fetchTrainStatuses();
   }, [results]);
 
+  // Realtime Subscriptions for Assignments
+  useEffect(() => {
+    const channel = supabase.channel('cercar-assignments-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'assignments' },
+        (payload) => {
+          console.log('[Cercar] Realtime: assignments changed', payload.eventType);
+          // If we are currently viewing cycle results, refresh them
+          if (searchType === SearchType.Cicle && query) {
+            executeSearch(query, SearchType.Cicle);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [searchType, query]);
+
   useEffect(() => {
     if (searchType === SearchType.Estacio) {
       setStartTime(getCurrentTimeStr());

@@ -7,6 +7,7 @@ import GlassPanel from '../../components/common/GlassPanel';
 import TrainInspectorPopup from '../../components/TrainInspectorPopup';
 import GeoTrenInspectorPopup from '../../components/GeoTrenInspectorPopup';
 import DepotModal from '../../components/DepotModal';
+import ConfirmModal from '../../components/common/ConfirmModal';
 import ListPersonnelRow from './ListPersonnelRow';
 import { MAP_STATIONS, MAP_SEGMENTS, MAP_CROSSOVERS } from './mapConstants';
 import { getFullPath, getConnectivityIslands } from './mapUtils';
@@ -17,6 +18,8 @@ import StationDiagramModal from './StationDiagramModal';
 import CutAnalysisPanel from './CutAnalysisPanel';
 import { decodeGeotrenUt } from '../../views/incidencia/utils/decodeUt';
 import { decodeGeotrenCirculation } from '../../views/incidencia/utils/decodeCirculation';
+import { resetAssignmentsFromGeoTren } from '../../utils/assignmentService';
+import { useToast } from '../../components/ToastProvider';
 interface IncidentMapProps {
     liveData: LivePersonnel[];
     parkedUnits: any[];
@@ -77,6 +80,7 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
     allShifts, setAllShifts, setRealMallaCircs, setIsRealMallaOpen, setQuery,
     handleSearchCirculation, setLoading, focusLocation
 }) => {
+    const { showToast } = useToast();
     const transformRef = useRef<any>(null);
     const [hoveredTrain, setHoveredTrain] = useState<string | null>(null);
     const [selectedGeoTren, setSelectedGeoTren] = useState<any | null>(null);
@@ -108,82 +112,33 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
     };
 
     const [isResettingCicles, setIsResettingCicles] = useState(false);
+    const [showResetConfirm, setShowResetConfirm] = useState(false);
 
-    const handleResetCicles = async () => {
-        if (!window.confirm("¿Estàs segur d'eliminar totes les assignacions actuals i sobreescriure-les amb les dades en temps real de GeoTren?")) {
-            return;
-        }
+    const doResetCicles = async () => {
+        setShowResetConfirm(false);
         setIsResettingCicles(true);
         try {
-            // 1. Delete all current assignments
-            await supabase.from('assignments').delete().neq('cycle_id', '');
-
-            // 2. Fetch all shifts to map circulations to cycles honoring the selected servei
-            let shifts = allShifts;
-            if (!shifts || shifts.length === 0) {
-                const { data } = await supabase.from('shifts').select('*');
-                if (data) {
-                    shifts = data;
-                    setAllShifts(data);
+            const result = await resetAssignmentsFromGeoTren(selectedServei, allShifts);
+            if (result.success) {
+                if (result.shifts && result.shifts.length > 0) {
+                    setAllShifts(result.shifts);
                 }
-            }
-
-            const activeShifts = (selectedServei && selectedServei !== 'Tots') 
-                ? shifts.filter(s => s.servei === selectedServei) 
-                : shifts;
-
-            const circToCicle: Record<string, string> = {};
-            activeShifts.forEach(shift => {
-                const circs = Array.isArray(shift.circulations) ? shift.circulations : [];
-                circs.forEach((cRef: any) => {
-                    if (cRef?.codi && cRef?.cicle) {
-                        circToCicle[cRef.codi.toUpperCase()] = cRef.cicle;
-                    }
-                });
-            });
-
-            // 3. Extract UTs from live GeoTren map
-            const uniqueAssignments = new Map<string, string>(); // cycle_id -> train_number
-            let unassignedCount = 0;
-
-            (geoTrenData as any[]).forEach(gt => {
-                if (gt.id) {
-                    const decodedCirc = decodeGeotrenCirculation(gt.id);
-                    const decodedUt = decodeGeotrenUt(gt.ut, gt.tipus_unitat);
-                    if (decodedCirc && decodedUt) {
-                        const numPadded = decodedCirc.number.padStart(3, '0');
-                        const circStr = `${decodedCirc.direction}${numPadded}`.toUpperCase();
-                        
-                        const matchedCicle = circToCicle[circStr];
-                        if (matchedCicle) {
-                            // Using a Map prevents duplicate cycle_id in the upsert payload
-                            uniqueAssignments.set(matchedCicle, decodedUt);
-                        } else {
-                            unassignedCount++;
-                        }
-                    }
+                let msg = `S'han assignat ${result.count} unitats correctament.`;
+                if (result.unassignedCount > 0) {
+                    msg += ` Alerta: ${result.unassignedCount} circulacions sense cicle.`;
                 }
-            });
-
-            // 4. Batch insert into database
-            const upsertPayload = Array.from(uniqueAssignments.entries()).map(([cycle_id, train_number]) => ({ cycle_id, train_number }));
-            if (upsertPayload.length > 0) {
-                const { error } = await supabase.from('assignments').upsert(upsertPayload, { onConflict: 'cycle_id' });
-                if (error) throw error;
+                showToast(msg, 'success');
+                if (onParkedUnitsChange) await onParkedUnitsChange();
+            } else {
+                showToast('Error en el reset de cicles.', 'error');
             }
-
-            // 5. Present results
-            let msg = `S'han assignat ${upsertPayload.length} unitats correctament.`;
-            if (unassignedCount > 0) {
-                msg += `\nAlerta: ${unassignedCount} circulacions del mapa no tenien cicle definit al servei actiu.`;
-            }
-            alert(msg);
-
         } catch (e: any) {
-            alert(`Error inesperat: ${e.message}`);
+            showToast(`Error inesperat: ${e.message}`, 'error');
         }
         setIsResettingCicles(false);
     };
+
+    const handleResetCicles = () => setShowResetConfirm(true);
     // Update position history
     useEffect(() => {
         const now = Date.now();
@@ -341,6 +296,14 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                     <RefreshCw size={12} className={isResettingCicles ? 'animate-spin' : ''} />
                                     Reset Cicles
                                 </button>
+                                {showResetConfirm && (
+                                    <ConfirmModal
+                                        message="Estàs segur d'eliminar totes les assignacions actuals i sobreescriure-les amb les dades en temps real de GeoTren?"
+                                        confirmLabel="Sí, Reset"
+                                        onConfirm={doResetCicles}
+                                        onCancel={() => setShowResetConfirm(false)}
+                                    />
+                                )}
                             </div>
                         )}
                         <div className="w-px h-6 bg-gray-200 dark:bg-white/10 mx-1 hidden sm:block"></div>

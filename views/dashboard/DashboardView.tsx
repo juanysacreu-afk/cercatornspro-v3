@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import {
-    Activity, AlertTriangle, Train, Users, Shield, RefreshCcw,
-    Clock, Zap, Gauge, TrendingUp, Radio, MapPin, Info,
-    Download, Timer, Maximize2
+import { 
+    Activity, AlertTriangle, Train, Users, Shield, RefreshCcw, 
+    Clock, Zap, Gauge, TrendingUp, Radio, MapPin, Info, 
+    Download, Timer, Maximize2, RefreshCw, Search, Trash2, Calendar, Layout, UserCog, Signal, Database 
 } from 'lucide-react';
 import GlassPanel from '../../components/common/GlassPanel';
 import ErrorBoundary from '../../components/common/ErrorBoundary';
@@ -10,7 +10,9 @@ import { useDashboardData } from './hooks/useDashboardData';
 import { feedback } from '../../utils/feedback';
 import { useToast } from '../../components/ToastProvider';
 import { exportDashboardCSV } from '../../utils/export';
-import { getEffectiveDate } from '../../utils/serviceCalendar';
+import { getEffectiveDate, getServiceToday } from '../../utils/serviceCalendar';
+import { formatFgcTime } from '../../utils/stations';
+import { resetAssignmentsFromGeoTren } from '../../utils/assignmentService';
 
 // ── Sub-components (C1 extractions) ────────────────────
 import { KpiCard } from './components/KpiCard';
@@ -115,11 +117,33 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
 
     const [isRefreshing, setIsRefreshing] = useState(false);
 
+    /**
+     * CSO Main Refresh Action
+     * 1. Haptic / Click feedback
+     * 2. Traditional dashboard metrics refresh
+     * 3. TRIGGER SYNC: Reset unit cicles from GeoTren (as requested by user)
+     */
     const handleRefresh = async () => {
         feedback.click();
         setIsRefreshing(true);
-        await refresh();
-        setTimeout(() => setIsRefreshing(false), 600);
+        try {
+            // Traditional Dashboard refresh
+            await refresh();
+
+            // SYNC SYNC: Reset units assigned to cycles from live GeoTren map
+            // This streamlines operational synchronization between CCO and real-time fleet state.
+            const serviceKey = getServiceToday();
+            const result = await resetAssignmentsFromGeoTren(serviceKey);
+            
+            if (result.success && result.count > 0) {
+                showToast(`S'han sincronitzat ${result.count} unitats amb GeoTren`, 'success');
+            }
+        } catch (err) {
+            console.error('[Dashboard] Error during global refresh:', err);
+            showToast('Error al sincronitzar dades de flota', 'error');
+        } finally {
+            setTimeout(() => setIsRefreshing(false), 600);
+        }
     };
 
     // F5 – export handler (delegates to utils/export.ts)
