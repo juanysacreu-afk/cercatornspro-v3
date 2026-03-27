@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertTriangle, RefreshCcw, Search, GitBranch, Phone, Clock } from 'lucide-react';
+import { AlertTriangle, RefreshCcw, Search, GitBranch, Phone, Clock, Users } from 'lucide-react';
 import type { GanttBar } from '../hooks/useGanttData';
 import { feedback } from '../../../utils/feedback';
 
@@ -15,13 +15,14 @@ export interface ContextMenuProps {
     onClearIncident: () => void;
     onViewTurn: () => void;
     onAssignAnother: () => void;
+    onAssignPerson: () => void;
     isPrivacyMode: boolean;
 }
 
 export const GanttContextMenu: React.FC<ContextMenuProps> = ({
     x, y, bar, clickedTime, onClose,
     onMarkIncident, onMarkUncovered, onClearIncident,
-    onViewTurn, onAssignAnother, isPrivacyMode
+    onViewTurn, onAssignAnother, onAssignPerson, isPrivacyMode
 }) => {
     const [isMobile, setIsMobile] = useState(false);
 
@@ -114,6 +115,16 @@ export const GanttContextMenu: React.FC<ContextMenuProps> = ({
                 >
                     <GitBranch size={12} />
                     Assignar a un altre torn
+                </button>
+            )}
+
+            {(!bar.driverNomina || bar.incidentStartTime) && (
+                <button
+                    onClick={onAssignPerson}
+                    className="w-full text-left px-3 py-2 text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 flex items-center gap-2"
+                >
+                    <Users size={13} />
+                    Assignar personals (DIS/DES...)
                 </button>
             )}
 

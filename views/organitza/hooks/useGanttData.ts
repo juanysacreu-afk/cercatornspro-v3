@@ -19,17 +19,22 @@ export interface GanttBar {
     endMin: number;
     driverName: string | null;
     driverNomina: string | null;
+    driverPhone: string | null;
+    originalDriverName?: string | null;
+    originalDriverNomina?: string | null;
+    originalDriverPhone?: string | null;
     absType: string | null;      // DIS, DES, VAC, etc.
     incidentStartTime: string | null; // HH:mm format for partial absence
     isAssigned: boolean;
     assignmentId: number | null;
-    driverPhone: string | null;
     circulations: GanttCircSegment[];
     coveringShiftId?: string | null;
     coveringDriverName?: string | null;
+    coveringDriverNomina?: string | null;
     coveringExtraShiftId?: string | null;
     coveringExtraStartMin?: number | null;
     coveringExtraEndMin?: number | null;
+    isCoveredByExtra?: boolean;
     hasComments?: boolean;
 }
 
@@ -39,6 +44,13 @@ export interface GanttCircSegment {
     startMin: number;
     endMin: number;
     type: 'circ' | 'gap';
+}
+
+export interface AvailableAgent {
+    nomina: string;
+    name: string;
+    surname: string;
+    originalTurn: string;
 }
 
 export interface GanttGroup {
@@ -58,6 +70,7 @@ export type GanttZoomLevel = 'full' | '12h' | '8h' | '4h';
 export function useGanttData() {
     const [loading, setLoading] = useState(true);
     const [allBars, setAllBars] = useState<GanttBar[]>([]);
+    const [availableAgents, setAvailableAgents] = useState<AvailableAgent[]>([]);
     const [groupBy, setGroupBy] = useState<GanttGroupBy>('dependencia');
     const [filterMode, setFilterMode] = useState<GanttFilterMode>('all');
     const [timeFilter, setTimeFilter] = useState<GanttTimeFilter>('all');
@@ -158,49 +171,50 @@ export function useGanttData() {
 
                 const shortId = getMatchId(shift.id);
 
-                // Find assigned driver
-                // Priority 1: Explicit Cover via Observacions (e.g. "Cobreix Q004")
-                // This ensures reserves moved to another shift are correctly targeted to that shift first.
-                let isCoveredByExtra = false;
-                let assignment = assignments.find(a => {
+                // New logic: Find BOTH original and covering driver
+                let originalAssignment = assignments.find(a => {
+                    const aTorn = getMatchId((a.torn || '').toUpperCase());
+                    return aTorn === shortId;
+                });
+
+                let coveringAssignment = assignments.find(a => {
                     if (usedAssignmentIds.has(a.id) || !a.observacions) return false;
                     const obs = a.observacions.toUpperCase();
-                    // Match against short ID (e.g. Q004) or full ID (e.g. Q0004)
                     return obs.includes(`COBREIX ${shortId}`) ||
                         obs.includes(`COBREIX ${shift.id.toUpperCase()}`) ||
                         obs.includes(`COBREIX: ${shortId}`) ||
-                        obs.includes(shortId) && obs.includes('COBREIX');
+                        (obs.includes(shortId) && obs.includes('COBREIX'));
                 });
 
-                if (assignment) {
-                    isCoveredByExtra = true;
-                } else {
-                    // Priority 2: Exact Match (torn === shortId)
-                    // We ONLY match here if the driver isn't explicitly covering something else
-                    assignment = assignments.find(a => {
-                        if (usedAssignmentIds.has(a.id)) return false;
-                        const aTorn = getMatchId((a.torn || '').toUpperCase());
-                        if (aTorn !== shortId) return false;
-
-                        // If this driver is explicitly covering another shift, they don't belong here
-                        const obs = (a.observacions || '').toUpperCase();
-                        if (obs.includes('COBREIX') && !obs.includes(shortId)) return false;
-
-                        return true;
-                    });
+                // If covering assignment exists, mark it as used
+                if (coveringAssignment) {
+                    usedAssignmentIds.add(coveringAssignment.id);
+                    assignmentToShiftMap.set(coveringAssignment.id, shortId);
+                }
+                
+                // If original assignment exists and NOT same as covering, mark it used too
+                // (Unless it's already used by covering something else, but here we checking for shift match)
+                if (originalAssignment && (!coveringAssignment || originalAssignment.id !== coveringAssignment.id)) {
+                    // Only mark as used if it's not explicitly covering another shift
+                    const obs = (originalAssignment.observacions || '').toUpperCase();
+                    if (!(obs.includes('COBREIX') && !obs.includes(shortId))) {
+                         usedAssignmentIds.add(originalAssignment.id);
+                    }
                 }
 
-                if (assignment) {
-                    usedAssignmentIds.add(assignment.id);
-                    assignmentToShiftMap.set(assignment.id, shortId);
-                }
+                const assignment = coveringAssignment || originalAssignment;
+                const isCoveredByExtra = !!coveringAssignment && !!originalAssignment && coveringAssignment.id !== originalAssignment.id;
 
                 const driverName = assignment ? `${assignment.cognoms}, ${assignment.nom}` : null;
                 const driverNomina = assignment?.empleat_id ? String(assignment.empleat_id).trim().replace(/^0+/, '') : null;
                 const driverPhone = driverNomina ? agentPhones[driverNomina] : null;
 
+                const originalDriverName = originalAssignment ? `${originalAssignment.cognoms}, ${originalAssignment.nom}` : null;
+                const originalDriverNomina = originalAssignment?.empleat_id ? String(originalAssignment.empleat_id).trim().replace(/^0+/, '') : null;
+                const originalDriverPhone = originalDriverNomina ? agentPhones[originalDriverNomina] : null;
+
                 const absType = assignment?.abs_parc_c || null;
-                const incidentStartTime = assignment?.incident_start_time || null;
+                const incidentStartTime = originalAssignment?.incident_start_time || assignment?.incident_start_time || null;
 
                 // Parse circulation segments
                 const rawCircs = (shift.circulations as any[]) || [];
@@ -251,18 +265,23 @@ export function useGanttData() {
                     startMin,
                     endMin,
                     driverName,
-                    driverNomina: assignment?.empleat_id || null,
+                    driverNomina,
+                    driverPhone,
+                    originalDriverName,
+                    originalDriverNomina,
+                    originalDriverPhone,
                     absType,
                     incidentStartTime,
                     isAssigned: !!assignment,
                     assignmentId: assignment?.id || null,
-                    driverPhone,
                     circulations: segments,
                     coveringShiftId: null,
-                    coveringDriverName: isCoveredByExtra ? driverName : null,
+                    coveringDriverName: coveringAssignment ? `${coveringAssignment.cognoms}, ${coveringAssignment.nom}` : null,
+                    coveringDriverNomina: coveringAssignment?.empleat_id || null,
                     coveringExtraShiftId: isCoveredByExtra ? assignment?.torn : null,
                     coveringExtraStartMin,
                     coveringExtraEndMin,
+                    isCoveredByExtra,
                     hasComments: commentsHashes.has(shift.id.toString())
                 };
             });
@@ -372,6 +391,18 @@ export function useGanttData() {
             // Sort by start time within each group
             all.sort((a, b) => a.startMin - b.startMin);
             setAllBars(all);
+
+            // Populate available agents (not working today)
+            const EXCLUDED_CODES = ['VAC', 'AJN', 'DAG', 'DES', 'DIS', 'FOR'];
+            const available = assignments
+                .filter(a => EXCLUDED_CODES.includes((a.torn || '').toUpperCase()))
+                .map(a => ({
+                    nomina: String(a.empleat_id || '').trim().replace(/^0+/, ''),
+                    name: a.nom || '',
+                    surname: a.cognoms || '',
+                    originalTurn: (a.torn || '').toUpperCase()
+                }));
+            setAvailableAgents(available);
         } catch (err) {
             console.error('[Gantt] Error fetching data:', err);
         } finally {
@@ -527,6 +558,47 @@ export function useGanttData() {
         }
     };
 
+    const assignAgentToTurn = async (assignmentId: number, targetShiftShortId: string, agent: AvailableAgent) => {
+        if (!assignmentId || !agent.nomina) return;
+
+        // Get the current service date (it should be today's operational date)
+        const serviceDate = getServiceToday();
+
+        // 1. Find the agent's registration for today (DES, DIS, etc.)
+        const { data: agentRegistration, error: findError } = await supabase
+            .from('daily_assignments')
+            .select('id, observacions')
+            .eq('empleat_id', agent.nomina)
+            .eq('data_servei', serviceDate)
+            .limit(1)
+            .single();
+
+        if (findError || !agentRegistration) {
+            console.error('Could not find agent registration for today:', findError);
+            throw new Error('No s\'ha trobat el registre de l\'agent per avui');
+        }
+
+        // 2. Clear old coverage and set new one
+        let existingObs = agentRegistration.observacions || '';
+        let cleanObs = existingObs.replace(/Cobreix\s+[A-Z0-9]+/gi, '').replace(/\s*-\s*$/, '').trim();
+        const newObs = cleanObs ? `${cleanObs} - Cobreix ${targetShiftShortId}` : `Cobreix ${targetShiftShortId}`;
+
+        // 3. Update the AGENT'S record, not the shift record
+        const { error } = await supabase
+            .from('daily_assignments')
+            .update({
+                observacions: newObs
+            })
+            .eq('id', agentRegistration.id);
+
+        if (error) {
+            console.error('Error assigning agent to turn:', error);
+            throw error;
+        } else {
+            fetchData();
+        }
+    };
+
     // ── Dynamic View Range (Zoom F1) ──
     const viewRange = useMemo(() => {
         // Time-filter presets take priority
@@ -549,6 +621,7 @@ export function useGanttData() {
         loading, groups, stats, groupBy, setGroupBy, filterMode, setFilterMode,
         timeFilter, setTimeFilter, zoomLevel, setZoomLevel,
         viewRange, nowMin, selectedService, setSelectedService, availableServices,
-        refresh: fetchData, updateIncidentTime, assignToShift
+        availableAgents,
+        refresh: fetchData, updateIncidentTime, assignToShift, assignAgentToTurn
     };
 }

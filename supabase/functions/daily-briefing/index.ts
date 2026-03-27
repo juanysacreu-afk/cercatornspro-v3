@@ -137,7 +137,7 @@ serve(async (req) => {
       sender_name: '🤖 BOT NEXUS',
       sender_id: 'bot',
       is_alert: isAlert,
-      created_at: spainTime.toISOString()
+      created_at: now.toISOString()
     });
 
     await supabase.from('briefing_logs').upsert({ date: todayStr, slot: slot });

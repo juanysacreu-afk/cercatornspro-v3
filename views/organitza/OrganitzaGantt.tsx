@@ -9,13 +9,14 @@ import {
     useGanttData,
     GANTT_START_MIN, GANTT_TOTAL_MINUTES,
     GanttBar, GanttGroup,
-    GanttZoomLevel
+    GanttZoomLevel, AvailableAgent
 } from './hooks/useGanttData';
 import { getFgcMinutes } from '../../utils/stations';
 import { feedback } from '../../utils/feedback';
 import { GanttContextMenu } from './components/GanttContextMenu';
 import { GanttShiftBar } from './components/GanttShiftBar';
 import { ShiftCommentsPane } from './components/ShiftCommentsPane';
+import ConfirmModal from '../../components/common/ConfirmModal';
 
 // ── Helper: position as % ──────────────────────────────
 const calculatePercent = (minutes: number, start: number, total: number): number => {
@@ -265,13 +266,17 @@ const OrganitzaGantt: React.FC<{
         filterMode, setFilterMode, timeFilter, setTimeFilter,
         zoomLevel, setZoomLevel,
         viewRange, nowMin, selectedService, setSelectedService,
-        availableServices, refresh, updateIncidentTime, assignToShift,
+        availableServices, availableAgents, refresh, 
+        updateIncidentTime, assignToShift, assignAgentToTurn
     } = useGanttData();
 
     const [tooltip, setTooltip] = useState<TooltipState | null>(null);
     const [selectedShiftForComments, setSelectedShiftForComments] = useState<{ bar: GanttBar; clientX: number; clientY: number } | null>(null);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number; bar: GanttBar; clickedTime: string } | null>(null);
     const [assigningModeBar, setAssigningModeBar] = useState<GanttBar | null>(null);
+    const [assignPersonBar, setAssignPersonBar] = useState<GanttBar | null>(null);
+    const [timePickerInfo, setTimePickerInfo] = useState<{ bar: GanttBar; initialTime: string; onConfirm: (time: string) => void } | null>(null);
+    const [confirmInfo, setConfirmInfo] = useState<{ message: string; onConfirm: () => void; danger?: boolean } | null>(null);
     // F2 – drag state
     const [dragSourceBar, setDragSourceBar] = useState<GanttBar | null>(null);
     // F5 – group search
@@ -308,8 +313,18 @@ const OrganitzaGantt: React.FC<{
 
         if (assigningModeBar && assigningModeBar.assignmentId) {
             feedback.deepClick();
-            await assignToShift(assigningModeBar.assignmentId, bar.shortId);
-            setAssigningModeBar(null);
+            setConfirmInfo({
+                message: `Vols assignar el torn ${assigningModeBar.shortId} per cobrir el torn ${bar.shortId}?`,
+                danger: false,
+                onConfirm: async () => {
+                    if (assigningModeBar.assignmentId) {
+                        setConfirmInfo(null);
+                        await assignToShift(assigningModeBar.assignmentId, bar.shortId);
+                        setAssigningModeBar(null);
+                        feedback.success();
+                    }
+                }
+            });
             return;
         }
 
@@ -355,19 +370,49 @@ const OrganitzaGantt: React.FC<{
 
     const handleMarkIncident = async () => {
         if (!contextMenu?.bar.assignmentId) return;
-        await updateIncidentTime(contextMenu.bar.assignmentId, contextMenu.clickedTime);
+        feedback.click();
+        
+        setTimePickerInfo({
+            bar: contextMenu.bar,
+            initialTime: contextMenu.clickedTime || '10:00',
+            onConfirm: async (time) => {
+                if (contextMenu.bar.assignmentId) {
+                    await updateIncidentTime(contextMenu.bar.assignmentId, time);
+                }
+            }
+        });
         setContextMenu(null);
     };
 
     const handleMarkUncovered = async () => {
         if (!contextMenu?.bar.assignmentId) return;
-        await updateIncidentTime(contextMenu.bar.assignmentId, '00:00');
+        setConfirmInfo({
+            message: `Vols marcar el torn ${contextMenu.bar.shortId} com a DESCOBERT?`,
+            danger: true,
+            onConfirm: async () => {
+                if (contextMenu.bar.assignmentId) {
+                    await updateIncidentTime(contextMenu.bar.assignmentId, '00:00');
+                    setConfirmInfo(null);
+                    feedback.success();
+                }
+            }
+        });
         setContextMenu(null);
     };
 
     const handleClearIncident = async () => {
         if (!contextMenu?.bar.assignmentId) return;
-        await updateIncidentTime(contextMenu.bar.assignmentId, null);
+        setConfirmInfo({
+            message: `Vols esborrar la marcació d'indisposició del torn ${contextMenu.bar.shortId}?`,
+            danger: false,
+            onConfirm: async () => {
+                if (contextMenu.bar.assignmentId) {
+                    await updateIncidentTime(contextMenu.bar.assignmentId, null);
+                    setConfirmInfo(null);
+                    feedback.success();
+                }
+            }
+        });
         setContextMenu(null);
     };
 
@@ -391,8 +436,18 @@ const OrganitzaGantt: React.FC<{
     const handleDrop = useCallback(async (targetBar: GanttBar) => {
         if (!dragSourceBar?.assignmentId) return;
         feedback.deepClick();
-        await assignToShift(dragSourceBar.assignmentId, targetBar.shortId);
-        setDragSourceBar(null);
+        setConfirmInfo({
+            message: `Vols assignar el torn ${dragSourceBar.shortId} per cobrir el torn ${targetBar.shortId}?`,
+            danger: false,
+            onConfirm: async () => {
+                if (dragSourceBar.assignmentId) {
+                    setConfirmInfo(null);
+                    await assignToShift(dragSourceBar.assignmentId, targetBar.shortId);
+                    setDragSourceBar(null);
+                    feedback.success();
+                }
+            }
+        });
     }, [dragSourceBar, assignToShift]);
 
     // F3 – Export Gantt as PNG using html-to-image / canvas
@@ -771,8 +826,155 @@ const OrganitzaGantt: React.FC<{
                         setAssigningModeBar(contextMenu.bar);
                         setContextMenu(null);
                     }}
+                    onAssignPerson={() => {
+                        feedback.click();
+                        setAssignPersonBar(contextMenu.bar);
+                        setContextMenu(null);
+                    }}
                     isPrivacyMode={isPrivacyMode}
                 />
+            )}
+
+            {/* Modal de selecció de persona disponible */}
+            {assignPersonBar && (
+                <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setAssignPersonBar(null)} />
+                    <GlassPanel className="relative w-full max-w-lg p-0 overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="p-4 border-b border-white/10 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-lg font-black text-white">Assignar Persona Disponible</h3>
+                                <p className="text-xs text-gray-400">Selecciona un agent de la llista de DIS/DES/FOR/DAG per cobrir el torn {assignPersonBar.shortId}</p>
+                            </div>
+                            <button onClick={() => setAssignPersonBar(null)} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                                <X size={20} className="text-gray-400" />
+                            </button>
+                        </div>
+                        
+                        <div className="max-h-[60vh] overflow-y-auto p-2 space-y-1 custom-scrollbar">
+                            {availableAgents.length === 0 ? (
+                                <div className="py-10 text-center text-gray-500 text-sm">No s'han trobat persones disponibles per hoy.</div>
+                            ) : (
+                                availableAgents.sort((a,b) => a.originalTurn.localeCompare(b.originalTurn)).map(agent => (
+                                    <button
+                                        key={agent.nomina}
+                                        onClick={() => {
+                                            if (!assignPersonBar.assignmentId) return;
+                                            setConfirmInfo({
+                                                message: `Vols assignar a l'agent ${agent.name} ${agent.surname} (${agent.originalTurn}) per cobrir el torn ${assignPersonBar.shortId}?`,
+                                                danger: false,
+                                                onConfirm: async () => {
+                                                    if (assignPersonBar.assignmentId) {
+                                                        const targetId = assignPersonBar.assignmentId;
+                                                        const targetShortId = assignPersonBar.shortId;
+                                                        setConfirmInfo(null);
+                                                        setAssignPersonBar(null);
+                                                        try {
+                                                            await assignAgentToTurn(targetId, targetShortId, agent);
+                                                            feedback.success();
+                                                        } catch (e) {
+                                                            console.error('Error en l\'assignació:', e);
+                                                            // NEXUS will just silent failure for now or show error later
+                                                        }
+                                                    }
+                                                }
+                                            });
+                                        }}
+                                        className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-white/5 border border-transparent hover:border-white/10 group transition-all"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className={`p-2 rounded-lg ${
+                                                agent.originalTurn === 'DIS' ? 'bg-emerald-500/20 text-emerald-400' :
+                                                agent.originalTurn === 'DES' ? 'bg-amber-500/20 text-amber-400' :
+                                                'bg-indigo-500/20 text-indigo-400'
+                                            }`}>
+                                                <Users size={16} />
+                                            </div>
+                                            <div className="text-left">
+                                                <div className="text-sm font-bold text-white group-hover:text-fgc-green transition-colors">{agent.surname}, {agent.name}</div>
+                                                <div className="text-[10px] text-gray-500 font-mono">ID: {agent.nomina}</div>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-white/10 text-gray-400 uppercase tracking-tighter">
+                                                {agent.originalTurn}
+                                            </span>
+                                            <GitBranch size={14} className="text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                        </div>
+                                    </button>
+                                ))
+                            )}
+                        </div>
+                        
+                        <div className="p-4 bg-black/20 border-t border-white/5 flex justify-end">
+                            <button
+                                onClick={() => setAssignPersonBar(null)}
+                                className="px-5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-sm font-bold text-white transition-all"
+                            >
+                                Tancar
+                            </button>
+                        </div>
+                    </GlassPanel>
+                </div>
+            )}
+
+            {/* Modal de Selector d'Hora Personalitzat (NEXUS) */}
+            {timePickerInfo && (
+                <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4">
+                    <div className="fixed inset-0 bg-black/70 backdrop-blur-md" onClick={() => setTimePickerInfo(null)} />
+                    <GlassPanel className="relative w-full max-w-xs p-6 overflow-hidden animate-in zoom-in-95 duration-200 border-white/20">
+                        <div className="flex flex-col items-center gap-6">
+                            <div className="w-16 h-16 rounded-2xl bg-amber-500/20 flex items-center justify-center text-amber-500">
+                                <Clock size={32} />
+                            </div>
+                            
+                            <div className="text-center">
+                                <h3 className="text-xl font-black text-white uppercase tracking-tight text-center">Establir Hora</h3>
+                                <p className="text-xs text-gray-400 mt-1 font-medium italic text-center">Indisposició {timePickerInfo.bar.shortId}</p>
+                            </div>
+
+                            <div className="w-full space-y-4">
+                                <input
+                                    type="time"
+                                    defaultValue={timePickerInfo.initialTime}
+                                    autoFocus
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            const val = (e.target as HTMLInputElement).value;
+                                            if (val) {
+                                                timePickerInfo.onConfirm(val);
+                                                setTimePickerInfo(null);
+                                                feedback.success();
+                                            }
+                                        }
+                                    }}
+                                    className="w-full bg-white/5 border border-white/20 rounded-2xl px-6 py-4 text-3xl font-black text-center text-white focus:outline-none focus:border-fgc-green focus:ring-4 focus:ring-fgc-green/20 transition-all dark:color-scheme-dark"
+                                    id="nexus-time-picker-input"
+                                />
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button
+                                        onClick={() => setTimePickerInfo(null)}
+                                        className="px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-sm font-bold text-gray-400 transition-all"
+                                    >
+                                        Cancel·lar
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            const input = document.getElementById('nexus-time-picker-input') as HTMLInputElement;
+                                            if (input.value) {
+                                                timePickerInfo.onConfirm(input.value);
+                                                setTimePickerInfo(null);
+                                                feedback.success();
+                                            }
+                                        }}
+                                        className="px-4 py-3 rounded-xl bg-fgc-green text-gray-900 text-sm font-black hover:scale-105 active:scale-95 transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)]"
+                                    >
+                                        Confirmar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </GlassPanel>
+                </div>
             )}
 
             {/* Shift Comments ────────────────────────────────────── */}
@@ -782,7 +984,30 @@ const OrganitzaGantt: React.FC<{
                     selectedService={selectedService}
                     clientX={selectedShiftForComments.clientX}
                     clientY={selectedShiftForComments.clientY}
+                    onUpdateIncidentTime={async (id, time) => {
+                        // Pass it through the time picker for consistency if needed, 
+                        // or just implement the prompt replacement in ShiftCommentsPane too.
+                        // Let's use the same TimePicker for everything!
+                        setTimePickerInfo({
+                            bar: selectedShiftForComments.bar,
+                            initialTime: time,
+                            onConfirm: async (newTime) => {
+                                await updateIncidentTime(id, newTime);
+                            }
+                        });
+                    }}
                     onClose={() => setSelectedShiftForComments(null)}
+                />
+            )}
+
+            {confirmInfo && (
+                <ConfirmModal
+                    message={confirmInfo.message}
+                    onConfirm={confirmInfo.onConfirm}
+                    onCancel={() => setConfirmInfo(null)}
+                    danger={confirmInfo.danger}
+                    confirmLabel="Confirmar"
+                    cancelLabel="Enrere"
                 />
             )}
         </div>

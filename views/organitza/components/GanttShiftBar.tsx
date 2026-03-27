@@ -197,12 +197,18 @@ export const GanttShiftBar: React.FC<ShiftBarProps> = ({
                 bgStyle = {
                     background: `linear-gradient(90deg,
                         ${okColor} 0%, ${okColor} ${splitPercent}%,
-                        rgba(245, 158, 11, 0.9) ${splitPercent}%, rgba(245, 158, 11, 0.9) 100%)`
+                        ${bar.coveringDriverName ? 'rgba(147, 51, 234, 0.9)' : 'rgba(245, 158, 11, 0.9)'} ${splitPercent}%, 
+                        ${bar.coveringDriverName ? 'rgba(147, 51, 234, 0.9)' : 'rgba(245, 158, 11, 0.9)'} 100%)`
                 };
-                borderClass = selectedRing || 'border-amber-500/50';
+                borderClass = selectedRing || (bar.coveringDriverName ? 'border-purple-500/50' : 'border-amber-500/50');
             } else if (incidentMin && incidentMin <= bar.startMin) {
-                baseBgClass = 'bg-gradient-to-r from-amber-400/80 to-amber-500/80 dark:from-amber-500/70 dark:to-amber-600/70';
-                borderClass = selectedRing || 'border-amber-500/50';
+                if (bar.coveringDriverName) {
+                    baseBgClass = 'bg-gradient-to-r from-purple-500/90 to-purple-600/90 dark:from-purple-600/80 dark:to-purple-700/80';
+                    borderClass = selectedRing || 'border-purple-500/50';
+                } else {
+                    baseBgClass = 'bg-gradient-to-r from-amber-400/80 to-amber-500/80 dark:from-amber-500/70 dark:to-amber-600/70';
+                    borderClass = selectedRing || 'border-amber-500/50';
+                }
             }
         }
     }
@@ -274,15 +280,28 @@ export const GanttShiftBar: React.FC<ShiftBarProps> = ({
                             </div>
                         )}
                         {bar.coveringDriverName ? (
-                            <span className="text-[7.5px] font-bold text-white bg-purple-600/90 px-1.5 py-[2px] rounded-md truncate leading-none border border-purple-400/50 shadow-sm tracking-wide">
-                                ↺ {bar.coveringExtraShiftId ? `${bar.coveringExtraShiftId} - ` : ''}
-                                {(() => {
-                                    const parts = bar.coveringDriverName.split(',');
-                                    const surname = parts[0]?.trim().split(' ')[0] || '';
-                                    const name = parts[1]?.trim().split(' ')[0] || '';
-                                    return name ? `${name} ${surname}` : surname;
-                                })()}
-                            </span>
+                            <div className="flex items-center gap-1.5 overflow-hidden">
+                                {bar.originalDriverName && (
+                                    <span className="text-[7.5px] font-medium text-white/70 px-0.5 truncate leading-none">
+                                        {(() => {
+                                            const parts = bar.originalDriverName.split(',');
+                                            const surname = parts[0]?.trim().split(' ')[0] || '';
+                                            const name = parts[1]?.trim().split(' ')[0] || '';
+                                            return name ? `${name} ${surname}` : surname;
+                                        })()}
+                                    </span>
+                                )}
+                                <span className="text-[7px] text-white/50">➔</span>
+                                <span className="text-[7.5px] font-bold text-white bg-purple-600/90 px-1.5 py-[2px] rounded-md truncate leading-none border border-purple-400/50 shadow-sm tracking-wide">
+                                    ↺ {bar.coveringExtraShiftId ? `${bar.coveringExtraShiftId} - ` : ''}
+                                    {(() => {
+                                        const parts = bar.coveringDriverName.split(',');
+                                        const surname = parts[0]?.trim().split(' ')[0] || '';
+                                        const name = parts[1]?.trim().split(' ')[0] || '';
+                                        return name ? `${name} ${surname}` : surname;
+                                    })()}
+                                </span>
+                            </div>
                         ) : (
                             bar.driverName && renderWidth > 6 && (
                                 <span className="text-[7.5px] font-medium text-white/90 px-1 truncate leading-none">

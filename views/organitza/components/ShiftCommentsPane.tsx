@@ -1,15 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Send, MessageSquare, AlertTriangle, Loader2, Trash2 } from 'lucide-react';
+import { X, Send, MessageSquare, AlertTriangle, Loader2, Trash2, Clock } from 'lucide-react';
 import { supabase } from '../../../supabaseClient';
 import { GanttBar } from '../hooks/useGanttData';
 import { playSendSound } from '../../../utils/sounds';
+import { feedback } from '../../../utils/feedback';
 
 interface ShiftCommentsPaneProps {
     bar: GanttBar;
     selectedService: string;
     clientX: number;
     clientY: number;
+    onUpdateIncidentTime: (assignmentId: number, time: string) => Promise<void>;
     onClose: () => void;
 }
 
@@ -22,7 +24,7 @@ interface ShiftComment {
     created_at: string;
 }
 
-export const ShiftCommentsPane: React.FC<ShiftCommentsPaneProps> = ({ bar, selectedService, clientX, clientY, onClose }) => {
+export const ShiftCommentsPane: React.FC<ShiftCommentsPaneProps> = ({ bar, selectedService, clientX, clientY, onUpdateIncidentTime, onClose }) => {
     const [comments, setComments] = useState<ShiftComment[]>([]);
     const [inputText, setInputText] = useState('');
     const [isLoading, setIsLoading] = useState(true);
@@ -210,12 +212,26 @@ export const ShiftCommentsPane: React.FC<ShiftCommentsPaneProps> = ({ bar, selec
                         </div>
                     )}
                     {bar.incidentStartTime && (
-                        <div className="flex justify-between items-center text-xs bg-amber-500/10 rounded-md px-2 py-1 mt-1">
-                            <span className="text-amber-600 dark:text-amber-500 font-bold flex items-center gap-1"><AlertTriangle size={12} /> Indisposició</span>
-                            <span className="font-black text-amber-600 dark:text-amber-400">
-                                a les {bar.incidentStartTime}
+                        <button 
+                            onClick={async () => {
+                                feedback.click();
+                                // This prop call should now trigger the Custom Modal in the parent (OrganitzaGantt)
+                                if (bar.incidentStartTime) {
+                                    await onUpdateIncidentTime(bar.assignmentId!, bar.incidentStartTime);
+                                }
+                            }}
+                            className="flex justify-between items-center text-xs bg-amber-500/10 hover:bg-amber-500/20 rounded-md px-2 py-1.5 mt-1 border border-amber-500/20 transition-all group w-full"
+                        >
+                            <span className="text-amber-600 dark:text-amber-500 font-bold flex items-center gap-1">
+                                <AlertTriangle size={12} /> Indisposició
                             </span>
-                        </div>
+                            <div className="flex items-center gap-1.5">
+                                <span className="font-black text-amber-600 dark:text-amber-400">
+                                    {bar.incidentStartTime}
+                                </span>
+                                <Clock size={10} className="text-amber-500/50 group-hover:text-amber-500 transition-colors" />
+                            </div>
+                        </button>
                     )}
                 </div>
             </div>
