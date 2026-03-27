@@ -159,11 +159,11 @@ export const ShiftCommentsPane: React.FC<ShiftCommentsPaneProps> = ({ bar, selec
     return createPortal(
         <>
             <div
-                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9998] animate-in fade-in duration-300"
+                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9000] animate-in fade-in duration-300"
                 onClick={onClose}
             />
             <div
-                className="fixed z-[9999] bg-white dark:bg-gray-900 border border-gray-200 dark:border-white/10 rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.5)] flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden"
+                className="fixed z-[9001] bg-white dark:bg-gray-900 border border-gray-200 dark:border-white/10 rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.5)] flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden"
                 style={{
                     top: isMobile ? '50%' : `min(${Math.max(10, clientY - 150)}px, calc(100vh - 490px))`,
                     left: isMobile ? '50%' : `min(${clientX + 20}px, calc(100vw - 380px))`,

@@ -201,6 +201,9 @@ export const GanttShiftBar: React.FC<ShiftBarProps> = ({
                         ${bar.coveringDriverName ? 'rgba(147, 51, 234, 0.9)' : 'rgba(245, 158, 11, 0.9)'} 100%)`
                 };
                 borderClass = selectedRing || (bar.coveringDriverName ? 'border-purple-500/50' : 'border-amber-500/50');
+                
+                // Save it for labels
+                (bar as any)._splitPercent = splitPercent;
             } else if (incidentMin && incidentMin <= bar.startMin) {
                 if (bar.coveringDriverName) {
                     baseBgClass = 'bg-gradient-to-r from-purple-500/90 to-purple-600/90 dark:from-purple-600/80 dark:to-purple-700/80';
@@ -268,57 +271,101 @@ export const GanttShiftBar: React.FC<ShiftBarProps> = ({
 
             {/* Label inside bar */}
             {renderWidth > 2.5 && (
-                <div className="absolute inset-0 flex flex-col items-start justify-center px-1.5 text-white truncate select-none drop-shadow-sm leading-tight">
-                    <div className="flex items-center gap-1 w-full pr-1">
-                        <span className="text-[9px] sm:text-[10px] font-bold shrink-0">{bar.shortId}</span>
-                        {bar.hasComments && (
-                            <div className="relative flex items-center justify-center ml-0.5" title="Aquest torn té notes d'operativa">
-                                <div className="absolute inset-0 bg-white/60 rounded-full blur-[2px] animate-pulse" />
-                                <div className="bg-white text-indigo-600 rounded-full p-[3px] shadow-md border border-indigo-100 z-10">
-                                    <MessageSquare size={9} strokeWidth={2.5} className="fill-indigo-100" />
+                <div className="absolute inset-0 flex flex-col items-start justify-center px-1.5 text-white select-none drop-shadow-sm leading-tight">
+                        {(bar as any)._splitPercent ? (
+                            <div className="absolute inset-0 overflow-hidden">
+                                {/* Fixed ID layer (always at start) */}
+                                <div className="absolute left-1.5 inset-y-0 flex items-center z-20">
+                                    <span className="text-[9px] sm:text-[11px] font-black tracking-tight text-white drop-shadow-[0_1.2px_1.2px_rgba(0,0,0,0.8)] pr-1.5">{bar.shortId}</span>
+                                    {bar.hasComments && (
+                                        <div className="bg-white/95 text-indigo-700 rounded-full p-[2px] shadow-sm transform scale-90">
+                                            <MessageSquare size={8} strokeWidth={3} />
+                                        </div>
+                                    )}
+                                </div>
+                                
+                                <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                                    {/* Layer 1: Titular Name (Always starts after ID, full width allowed) */}
+                                    <div className="absolute inset-y-0 left-0 flex items-center pr-2" style={{ width: '100%' }}>
+                                        <div className="pl-[2.3rem] min-w-0 flex items-center h-full"> {/* Exact space for ID */}
+                                            {bar.originalDriverName && (
+                                                <span className="text-[8px] font-bold text-white drop-shadow-md truncate leading-none">
+                                                    {(() => {
+                                                        const parts = bar.originalDriverName.split(',');
+                                                        const surname = parts[0]?.trim() || '';
+                                                        const name = parts[1]?.trim().split(' ')[0] || '';
+                                                        return name ? `${name} ${surname}` : surname;
+                                                    })()}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Layer 2: Covering Name (Starts at split point, covers Layer 1 if it overlaps) */}
+                                    {(bar as any)._splitPercent > 0 && (
+                                        <div 
+                                            className={`absolute inset-y-0 h-full flex items-center gap-1 pl-1.5 shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.2)] ${bar.coveringDriverName || !bar.isAssigned ? (bar.coveringExtraShiftId ? 'bg-purple-600' : 'bg-amber-600') : ''}`}
+                                            style={{ 
+                                                left: `${(bar as any)._splitPercent}%`,
+                                                width: `${100 - (bar as any)._splitPercent}%` 
+                                            }}
+                                        >
+                                            <span className="text-[7px] text-white/50 shrink-0">➔</span>
+                                            {bar.coveringDriverName ? (
+                                                <span className={`text-[8px] font-black text-white px-1.5 py-[2px] rounded-sm truncate leading-none border border-white/20 shadow-sm tracking-tight ${bar.coveringExtraShiftId ? 'bg-purple-500/50' : 'bg-amber-500/50'}`}>
+                                                    {bar.coveringDriverName.split(',')[1]?.trim().split(' ')[0] || ''} {bar.coveringDriverName.split(',')[0]?.trim() || ''}
+                                                </span>
+                                            ) : (
+                                                <span className="text-[7.5px] font-black text-white/95 uppercase tracking-tighter truncate drop-shadow-sm">
+                                                    {bar.absType || 'DESCUBERT'}
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
-                        )}
-                        {bar.coveringDriverName ? (
-                            <div className="flex items-center gap-1.5 overflow-hidden">
-                                {bar.originalDriverName && (
-                                    <span className="text-[7.5px] font-medium text-white/70 px-0.5 truncate leading-none">
-                                        {(() => {
-                                            const parts = bar.originalDriverName.split(',');
-                                            const surname = parts[0]?.trim().split(' ')[0] || '';
-                                            const name = parts[1]?.trim().split(' ')[0] || '';
-                                            return name ? `${name} ${surname}` : surname;
-                                        })()}
-                                    </span>
-                                )}
-                                <span className="text-[7px] text-white/50">➔</span>
-                                <span className="text-[7.5px] font-bold text-white bg-purple-600/90 px-1.5 py-[2px] rounded-md truncate leading-none border border-purple-400/50 shadow-sm tracking-wide">
-                                    ↺ {bar.coveringExtraShiftId ? `${bar.coveringExtraShiftId} - ` : ''}
-                                    {(() => {
-                                        const parts = bar.coveringDriverName.split(',');
-                                        const surname = parts[0]?.trim().split(' ')[0] || '';
-                                        const name = parts[1]?.trim().split(' ')[0] || '';
-                                        return name ? `${name} ${surname}` : surname;
-                                    })()}
-                                </span>
-                            </div>
                         ) : (
-                            bar.driverName && renderWidth > 6 && (
-                                <span className="text-[7.5px] font-medium text-white/90 px-1 truncate leading-none">
-                                    {(() => {
-                                        const parts = bar.driverName.split(',');
-                                        const surname = parts[0]?.trim();
-                                        const name = parts[1]?.trim().split(' ')[0] || '';
-                                        return name ? `${name} ${surname}` : surname;
-                                    })()}
-                                </span>
-                            )
+                            <div className="flex items-center gap-1.5 w-full pr-1 overflow-hidden">
+                                <span className="text-[9px] sm:text-[11px] font-black tracking-tight shrink-0">{bar.shortId}</span>
+                                {bar.hasComments && (
+                                    <div className="relative flex items-center justify-center ml-0.5">
+                                        <div className="absolute inset-0 bg-white/60 rounded-full blur-[2px]" />
+                                        <div className="bg-white text-indigo-600 rounded-full p-[2px] shadow-sm border border-indigo-100 z-10">
+                                            <MessageSquare size={8} strokeWidth={3} className="fill-indigo-100" />
+                                        </div>
+                                    </div>
+                                )}
+                                {bar.coveringDriverName ? (
+                                    <div className="flex items-center gap-1.5 overflow-hidden">
+                                        <span className="text-[7px] text-white/50">➔</span>
+                                        <span className="text-[7.5px] font-bold text-white bg-purple-600/90 px-1.5 py-[2px] rounded-md truncate leading-none border border-purple-400/50 shadow-sm tracking-wide">
+                                            ↺ {bar.coveringExtraShiftId ? `${bar.coveringExtraShiftId} - ` : ''}
+                                            {(() => {
+                                                const parts = bar.coveringDriverName.split(',');
+                                                const surname = parts[0]?.trim() || '';
+                                                const name = parts[1]?.trim().split(' ')[0] || '';
+                                                return name ? `${name} ${surname}` : surname;
+                                            })()}
+                                        </span>
+                                    </div>
+                                ) : (
+                                    bar.driverName && renderWidth > 6 && (
+                                        <span className="text-[7.5px] font-medium text-white/90 px-1 truncate leading-none">
+                                            {(() => {
+                                                const parts = bar.driverName.split(',');
+                                                const surname = parts[0]?.trim();
+                                                const name = parts[1]?.trim().split(' ')[0] || '';
+                                                return name ? `${name} ${surname}` : surname;
+                                            })()}
+                                        </span>
+                                    )
+                                )}
+                                {/* F2 – drag handle indicator */}
+                                {isDraggable && (
+                                    <span className="ml-auto text-[8px] opacity-50 select-none">⠿</span>
+                                )}
+                            </div>
                         )}
-                        {/* F2 – drag handle indicator */}
-                        {isDraggable && (
-                            <span className="ml-auto text-[8px] opacity-50 select-none">⠿</span>
-                        )}
-                    </div>
                     {bar.coveringShiftId && (
                         <span className="text-[7.5px] font-medium opacity-90 -mt-[1px] truncate max-w-full">
                             Cobreix {bar.coveringShiftId}

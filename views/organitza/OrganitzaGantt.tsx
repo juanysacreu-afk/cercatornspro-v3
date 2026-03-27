@@ -1,4 +1,5 @@
-import React, { useRef, useMemo, useState, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
     Loader2, GanttChart, Users, AlertTriangle, RefreshCcw, Layers,
     GitBranch, Filter, Clock, Sunrise, Sunset, Moon, Search, ZoomIn, ZoomOut,
@@ -836,8 +837,8 @@ const OrganitzaGantt: React.FC<{
             )}
 
             {/* Modal de selecció de persona disponible */}
-            {assignPersonBar && (
-                <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+            {assignPersonBar && createPortal(
+                <div className="fixed inset-0 z-[500000] flex items-center justify-center p-4">
                     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setAssignPersonBar(null)} />
                     <GlassPanel className="relative w-full max-w-lg p-0 overflow-hidden animate-in zoom-in-95 duration-200">
                         <div className="p-4 border-b border-white/10 flex items-center justify-between">
@@ -914,12 +915,13 @@ const OrganitzaGantt: React.FC<{
                             </button>
                         </div>
                     </GlassPanel>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* Modal de Selector d'Hora Personalitzat (NEXUS) */}
-            {timePickerInfo && (
-                <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4">
+            {timePickerInfo && createPortal(
+                <div className="fixed inset-0 z-[500001] flex items-center justify-center p-4">
                     <div className="fixed inset-0 bg-black/70 backdrop-blur-md" onClick={() => setTimePickerInfo(null)} />
                     <GlassPanel className="relative w-full max-w-xs p-6 overflow-hidden animate-in zoom-in-95 duration-200 border-white/20">
                         <div className="flex flex-col items-center gap-6">
@@ -974,7 +976,8 @@ const OrganitzaGantt: React.FC<{
                             </div>
                         </div>
                     </GlassPanel>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* Shift Comments ────────────────────────────────────── */}
@@ -1000,7 +1003,7 @@ const OrganitzaGantt: React.FC<{
                 />
             )}
 
-            {confirmInfo && (
+            {confirmInfo && createPortal(
                 <ConfirmModal
                     message={confirmInfo.message}
                     onConfirm={confirmInfo.onConfirm}
@@ -1008,7 +1011,8 @@ const OrganitzaGantt: React.FC<{
                     danger={confirmInfo.danger}
                     confirmLabel="Confirmar"
                     cancelLabel="Enrere"
-                />
+                />,
+                document.body
             )}
         </div>
     );

@@ -171,20 +171,31 @@ export function useGanttData() {
 
                 const shortId = getMatchId(shift.id);
 
-                // New logic: Find BOTH original and covering driver
-                let originalAssignment = assignments.find(a => {
-                    const aTorn = getMatchId((a.torn || '').toUpperCase());
-                    return aTorn === shortId;
-                });
-
+                // NEW Logic: Find all candidates for this turn
+                const candidates = assignments.filter(a => getMatchId(a.torn || '') === shortId);
+                
+                // Original is the one with an incident or the first one found
+                let originalAssignment = candidates.find(a => a.incident_start_time || a.abs_parc_c) || candidates[0];
+                
+                // Covering is either someone else on the same turn, or someone explicitly covering from another turn
                 let coveringAssignment = assignments.find(a => {
                     if (usedAssignmentIds.has(a.id) || !a.observacions) return false;
                     const obs = a.observacions.toUpperCase();
-                    return obs.includes(`COBREIX ${shortId}`) ||
-                        obs.includes(`COBREIX ${shift.id.toUpperCase()}`) ||
-                        obs.includes(`COBREIX: ${shortId}`) ||
-                        (obs.includes(shortId) && obs.includes('COBREIX'));
+                    const sId = shortId.toUpperCase();
+                    const sFull = shift.id.toUpperCase();
+                    
+                    // Match "Cobreix Q104", "Cobreix Q0104", "Cobrint Q104", etc.
+                    return obs.includes(`COBREIX ${sId}`) || 
+                           obs.includes(`COBREIX ${sFull}`) ||
+                           obs.includes(`COBRINT ${sId}`) ||
+                           obs.includes(`COBREIX: ${sId}`) ||
+                           (obs.includes(sId) && (obs.includes('COBREIX') || obs.includes('COBRINT') || obs.includes('COBRE')));
                 });
+
+                // If no explicit cover found by observations, but there's another candidate on the SAME turn
+                if (!coveringAssignment && candidates.length > 1) {
+                    coveringAssignment = candidates.find(a => a.id !== originalAssignment?.id);
+                }
 
                 // If covering assignment exists, mark it as used
                 if (coveringAssignment) {
@@ -193,13 +204,8 @@ export function useGanttData() {
                 }
                 
                 // If original assignment exists and NOT same as covering, mark it used too
-                // (Unless it's already used by covering something else, but here we checking for shift match)
                 if (originalAssignment && (!coveringAssignment || originalAssignment.id !== coveringAssignment.id)) {
-                    // Only mark as used if it's not explicitly covering another shift
-                    const obs = (originalAssignment.observacions || '').toUpperCase();
-                    if (!(obs.includes('COBREIX') && !obs.includes(shortId))) {
-                         usedAssignmentIds.add(originalAssignment.id);
-                    }
+                     usedAssignmentIds.add(originalAssignment.id);
                 }
 
                 const assignment = coveringAssignment || originalAssignment;
