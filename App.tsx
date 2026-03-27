@@ -132,6 +132,20 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    const triggerBriefing = async () => {
+      try {
+        await supabase.functions.invoke('daily-briefing');
+      } catch (e) {
+        console.warn('Daily briefing briefing failed to trigger:', e);
+      }
+    };
+    // Trigger after initialization is complete or nearly complete
+    if (!isInitializing) {
+      triggerBriefing();
+    }
+  }, [isInitializing]);
+
+  useEffect(() => {
     const fetchProfile = async () => {
       const saved = localStorage.getItem('user_profile');
       if (saved) {

@@ -5,6 +5,7 @@ import GlassPanel from '../../components/common/GlassPanel';
 import { sendTelegramMessage, getTelegramMemberCount, deleteTelegramMessage, sendTelegramFile } from '../../src/lib/telegram';
 import { supabase } from '../../supabaseClient';
 import { playSendSound, playReceiveSound, requestNotificationPermission, showLocalNotification } from '../../utils/sounds';
+import ConfirmModal from '../../components/common/ConfirmModal';
 
 // ── Types ───────────────────────────────────────────────
 interface UserProfile {
@@ -53,6 +54,11 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
     const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
     // msgId -> true means the emoji picker is open for that message
     const [openPickerFor, setOpenPickerFor] = useState<string | null>(null);
+    const [modalConfig, setModalConfig] = useState<{
+        message: string;
+        onConfirm: () => void;
+        danger?: boolean;
+    } | null>(null);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -211,11 +217,47 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
     };
 
     // ── Clear history ─────────────────────────────────
-    const handleClearHistory = async () => {
-        if (!window.confirm('Estàs segur que vols esborrar tot l\'historial local de missatges? (No s\'esborraran de Telegram)')) return;
+    const handleClearHistory = (e: React.MouseEvent) => {
+        e.stopPropagation();
         setIsMenuOpen(false);
-        const { error } = await supabase.from('telegram_messages').delete().not('id', 'is', null);
-        if (!error) setMessages([]);
+        setModalConfig({
+            message: 'Estàs segur que vols esborrar tot l\'historial local de missatges? (No s\'esborraran de Telegram)',
+            danger: true,
+            onConfirm: async () => {
+                const { error } = await supabase.from('telegram_messages').delete().not('id', 'is', null);
+                if (!error) setMessages([]);
+                setModalConfig(null);
+            }
+        });
+    };
+
+    const handleClearPastHistory = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setIsMenuOpen(false);
+        setModalConfig({
+            message: 'Estàs segur que vols esborrar tot l\'historial passat i deixar només els missatges del dia en curs?',
+            danger: true,
+            onConfirm: async () => {
+                const now = new Date();
+                const serviceStart = new Date(now);
+                serviceStart.setHours(3, 0, 0, 0);
+                if (now.getHours() < 3) {
+                    serviceStart.setDate(serviceStart.getDate() - 1);
+                }
+
+                const { error } = await supabase
+                    .from('telegram_messages')
+                    .delete()
+                    .lt('created_at', serviceStart.toISOString());
+
+                if (!error) {
+                    setMessages(prev => prev.filter(m => new Date(m.created_at) >= serviceStart));
+                } else {
+                    alert('Error al esborrar l\'historial passat.');
+                }
+                setModalConfig(null);
+            }
+        });
     };
 
     // ── File upload ───────────────────────────────────
@@ -380,7 +422,15 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                                 </button>
                                 <div className="h-px bg-gray-100 dark:border-white/5 my-1 mx-2" />
                                 <button
-                                    onClick={handleClearHistory}
+                                    onClick={(e) => handleClearPastHistory(e)}
+                                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-amber-50 dark:hover:bg-amber-500/10 text-left transition-colors group"
+                                >
+                                    <Trash2 size={16} className="text-amber-400 group-hover:text-amber-500" />
+                                    <span className="text-sm font-bold text-amber-600 dark:text-amber-500">Esborrar fins avui</span>
+                                </button>
+                                <div className="h-px bg-gray-100 dark:border-white/5 my-1 mx-2" />
+                                <button
+                                    onClick={(e) => handleClearHistory(e)}
                                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-red-50 dark:hover:bg-red-500/10 text-left transition-colors group"
                                 >
                                     <Trash2 size={16} className="text-red-400 group-hover:text-red-500" />
@@ -439,7 +489,7 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                                         <p className="text-[11px] font-black uppercase text-orange-600 dark:text-orange-400 tracking-wider mb-1 flex justify-center items-center gap-1">
                                             <AlertTriangle size={12} /> ALERTA DE SISTEMA
                                         </p>
-                                        <p className="text-sm text-gray-800 dark:text-orange-200">{msg.text}</p>
+                                        <p className="text-sm text-gray-800 dark:text-orange-200 whitespace-pre-wrap">{msg.text}</p>
                                         <span className="text-[10px] text-orange-400/80 mt-2 block">{formatTime(msg.created_at)}</span>
                                     </div>
                                 </div>
@@ -474,7 +524,7 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                                             ? 'bg-fgc-green text-gray-900 rounded-tr-sm'
                                             : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border border-gray-100 dark:border-white/5 rounded-tl-sm'
                                             }`}>
-                                            <p className="text-[14px] md:text-[15px] leading-snug break-words">{msg.text}</p>
+                                            <p className="text-[14px] md:text-[15px] leading-snug break-words whitespace-pre-wrap">{msg.text}</p>
                                             <div className={`text-[10px] mt-1 flex items-center justify-end gap-1 ${isMe ? 'text-gray-900/60' : 'text-gray-400'}`}>
                                                 {msg.pinned && <Pin size={10} className="mr-0.5 text-amber-500" fill="currentColor" />}
                                                 {formatTime(msg.created_at)}
@@ -610,6 +660,18 @@ const MensajeriaView: React.FC<MensajeriaViewProps> = ({ currentProfile }) => {
                     </div>
                 </div>
             </GlassPanel>
+
+            {/* Custom Confirm Modal */}
+            {modalConfig && (
+                <ConfirmModal
+                    message={modalConfig.message}
+                    danger={modalConfig.danger}
+                    onConfirm={modalConfig.onConfirm}
+                    onCancel={() => setModalConfig(null)}
+                    confirmLabel="Eliminar"
+                    cancelLabel="Cancelar"
+                />
+            )}
         </div>
     );
 };
