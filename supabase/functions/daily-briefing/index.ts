@@ -19,21 +19,30 @@ serve(async (req) => {
 
   try {
     const now = new Date();
-    const spainTime = new Date(now.getTime() + (1 * 60 * 60 * 1000));
+    const spainTimeStr = now.toLocaleString('en-US', { timeZone: 'Europe/Madrid' });
+    const spainTime = new Date(spainTimeStr);
     const hour = spainTime.getHours();
+
+    if (hour !== 6 && hour !== 14 && hour !== 22) {
+      return new Response(JSON.stringify({ ok: true, message: `Ignoring briefing request at local hour ${hour}` }), { headers: { ...CORS, 'Content-Type': 'application/json' } });
+    }
     
     let effectiveDate = new Date(spainTime);
     if (hour < 3) {
       effectiveDate.setDate(effectiveDate.getDate() - 1);
     }
-    const todayStr = effectiveDate.toISOString().split('T')[0];
+    
+    const y = effectiveDate.getFullYear();
+    const m = String(effectiveDate.getMonth() + 1).padStart(2, '0');
+    const d = String(effectiveDate.getDate()).padStart(2, '0');
+    const todayStr = `${y}-${m}-${d}`;
 
     let slot = 0;
     let greeting = 'Bon dia';
-    if (hour >= 22 || hour < 6) {
+    if (hour === 22) {
       slot = 2;
       greeting = 'Bona nit';
-    } else if (hour >= 14) {
+    } else if (hour === 14) {
       slot = 1;
       greeting = 'Bona tarda';
     }
