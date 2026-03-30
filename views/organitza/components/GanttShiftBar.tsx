@@ -1,7 +1,8 @@
 import React, { useMemo, useRef, useState, useEffect } from 'react';
-import { MessageSquare } from 'lucide-react';
-import type { GanttBar } from '../hooks/useGanttData';
-import { getFgcMinutes } from '../../../utils/stations';
+import { motion, AnimatePresence } from 'framer-motion';
+import { MessageSquare, Clock } from 'lucide-react';
+import type { GanttBar, GanttCircSegment } from '../hooks/useGanttData';
+import { getFgcMinutes, formatFgcTime } from '../../../utils/stations';
 
 // ── Shift-time colour palette (V3) ─────────────────────────────────────────
 // Determined by inici_torn (startMin in FGC minutes, base=04:00)
@@ -58,6 +59,17 @@ export const GanttShiftBar: React.FC<ShiftBarProps> = ({
 }) => {
     const longPressTimer = useRef<NodeJS.Timeout | null>(null);
     const [isLongPressing, setIsLongPressing] = useState(false);
+    const [isHovered, setIsHovered] = useState(false);
+    const [activeSegment, setActiveSegment] = useState<GanttCircSegment | null>(null);
+    const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+
+    // Simple time formatter for tooltip
+    const formatTime = (min: number) => {
+        const total = Math.round(min);
+        const h = Math.floor(total / 60) % 24;
+        const m = total % 60;
+        return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+    };
 
     const handleTouchStart = (e: React.TouchEvent) => {
         setIsLongPressing(true);
@@ -93,6 +105,43 @@ export const GanttShiftBar: React.FC<ShiftBarProps> = ({
             longPressTimer.current = null;
         }
         setIsLongPressing(false);
+    };
+
+    const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+        if (!bar.circulations) return;
+        
+        const rect = e.currentTarget.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const xPercent = x / rect.width;
+        
+        // Map relative X to absolute FGC minutes
+        const hoveredMin = bar.startMin + (xPercent * (bar.endMin - bar.startMin));
+        
+        // Find segment (circ or gap)
+        const segment = bar.circulations.find(s => 
+            hoveredMin >= s.startMin && hoveredMin <= s.endMin
+        );
+        
+        // Fallback for "Descans" if no segment found but inside bar boundaries
+        if (!segment && hoveredMin >= bar.startMin && hoveredMin <= bar.endMin) {
+            // Find gaps between existing segments
+            setActiveSegment({
+                codi: 'DESCANS',
+                linia: '',
+                startMin: bar.startMin, // simplified
+                endMin: bar.endMin,     // simplified
+                type: 'gap'
+            });
+        } else {
+            setActiveSegment(segment || null);
+        }
+        
+        setMousePos({ x: e.clientX, y: e.clientY });
+    };
+
+    const handleMouseLeave = () => {
+        setIsHovered(false);
+        setActiveSegment(null);
     };
 
     useEffect(() => {
@@ -222,7 +271,7 @@ export const GanttShiftBar: React.FC<ShiftBarProps> = ({
 
     return (
         <div
-            className={`absolute h-7 rounded-md border ${Object.keys(bgStyle).length === 0 ? baseBgClass : ''} ${borderClass} cursor-pointer transition-all duration-300 ${isLongPressing ? 'scale-95 brightness-75' : 'hover:scale-y-110'} hover:z-20 hover:shadow-lg ${dragSourceFx} ${dragTargetFx}`}
+            className={`absolute h-7 rounded-md border ${Object.keys(bgStyle).length === 0 ? baseBgClass : ''} ${borderClass} cursor-pointer transition-all duration-300 ${isLongPressing ? 'scale-95 brightness-75' : 'hover:scale-y-110'} hover:z-20 hover:shadow-xl ${dragSourceFx} ${dragTargetFx}`}
             style={{
                 left: `${renderLeft}%`,
                 width: `${Math.max(renderWidth, 0.3)}%`,
@@ -231,6 +280,9 @@ export const GanttShiftBar: React.FC<ShiftBarProps> = ({
             }}
             onClick={(e) => onClick(bar, e)}
             onContextMenu={(e) => onContextMenu(bar, e)}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
             // Mobile Long Press
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
@@ -373,6 +425,47 @@ export const GanttShiftBar: React.FC<ShiftBarProps> = ({
                     )}
                 </div>
             )}
+
+            {/* Dynamic Hover Tooltip – Cursor Tracking */}
+            <AnimatePresence>
+                {isHovered && activeSegment && (
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        transition={{ duration: 0.15 }}
+                        className="fixed z-[999] pointer-events-none"
+                        style={{ 
+                            left: mousePos.x, 
+                            top: mousePos.y - 45, // Positioned slightly above the cursor
+                            transform: 'translateX(-50%)' 
+                        }}
+                    >
+                        <div className="bg-slate-900/95 dark:bg-slate-800/95 backdrop-blur-md border border-white/20 rounded-lg shadow-2xl p-2 px-3 flex flex-col items-center gap-0.5 min-w-[100px]">
+                            <div className="flex items-center gap-1.5 w-full justify-center">
+                                {activeSegment.type === 'circ' ? (
+                                    <>
+                                        <Clock size={10} className="text-sky-400" />
+                                        <span className="text-[10px] font-black text-white uppercase tracking-wider">{activeSegment.codi}</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400/80 animate-pulse" />
+                                        <span className="text-[10px] font-black text-emerald-300 uppercase tracking-wider">Descans</span>
+                                    </>
+                                )}
+                            </div>
+                            <div className="flex items-center gap-1 text-[9px] text-white/70 font-medium">
+                                <span>{formatTime(activeSegment.startMin)}</span>
+                                <span className="opacity-30">→</span>
+                                <span>{formatTime(activeSegment.endMin)}</span>
+                            </div>
+                            {/* Tooltip arrow */}
+                            <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-[1px] border-l-[4px] border-r-[4px] border-t-[4px] border-l-transparent border-r-transparent border-t-slate-800/95" />
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };

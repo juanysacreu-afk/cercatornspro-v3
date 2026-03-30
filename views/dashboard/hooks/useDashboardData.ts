@@ -142,7 +142,7 @@ export function useDashboardData(onThresholdAlert?: (msg: string) => void) {
 
             let circsRes: { data: any[] | null } = { data: [] };
             try {
-                const res = await supabase.from('circulations').select('id, codi, sortida, arribada');
+                const res = await supabase.from('circulations').select('id, sortida, arribada');
                 if (res.error) console.warn('[Dashboard] Optional circulations fetch failed:', res.error);
                 else circsRes = res;
             } catch (e) { console.warn('Failed to fetch circulations', e); }
@@ -154,7 +154,6 @@ export function useDashboardData(onThresholdAlert?: (msg: string) => void) {
                 const e = getFgcMinutes(c.arribada);
                 if (s !== null && e !== null) {
                     circMap.set(c.id, { start: s, end: e });
-                    circMap.set(c.codi, { start: s, end: e });
                 }
             });
 

@@ -804,11 +804,7 @@ const OrganitzaGantt: React.FC<{
                             <p className="text-[10px] text-amber-400 font-bold mt-0.5">⚠️ {tooltip.bar.absType}</p>
                         )}
 
-                        {tooltip.bar.circulations.filter(c => c.type === 'circ').length > 0 && (
-                            <p className="text-[9px] text-gray-400 mt-2 pt-1 border-t border-white/5">
-                                {tooltip.bar.circulations.filter(c => c.type === 'circ').length} circulacions
-                            </p>
-                        )}
+
                     </div>
                 </div>
             )}
