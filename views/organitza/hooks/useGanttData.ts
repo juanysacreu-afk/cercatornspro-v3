@@ -198,38 +198,66 @@ export function useGanttData() {
                 let sharedSecondEndMin: number | null = null;
 
                 if (candidates.length >= 2) {
-                    // Extract time range from observacions: e.g. "4:43-7:23h" → {start: 4:43, end: 7:23}
-                    const getObsTimeRange = (a: typeof candidates[0]): { obsStart: number; obsEnd: number } | null => {
-                        if (!a.observacions) return null;
-                        const timeMatch = a.observacions.match(/(\d{1,2}[:h.]\d{2})\s*[-–]\s*(\d{1,2}[:h.]\d{2})/);
-                        if (!timeMatch) return null;
-                        const startStr = timeMatch[1].replace(/[h.]/g, ':');
-                        const endStr = timeMatch[2].replace(/[h.]/g, ':');
-                        const s = getFgcMinutes(startStr);
-                        const e = getFgcMinutes(endStr);
-                        if (s === null || e === null) return null;
-                        return { obsStart: s, obsEnd: e };
+                    // Extract time range from: 1) observacions (e.g. "4:43-7:23h") or 2) nom (e.g. "AITOR * 16:00-21:59")
+                    const getTimeRange = (a: typeof candidates[0]): { rangeStart: number; rangeEnd: number } | null => {
+                        const timePattern = /(\d{1,2}[:h.]\d{2})\s*[-–]\s*(\d{1,2}[:h.]\d{2})/;
+                        // 1. Check observacions
+                        if (a.observacions) {
+                            const m = a.observacions.match(timePattern);
+                            if (m) {
+                                const s = getFgcMinutes(m[1].replace(/[h.]/g, ':'));
+                                const e = getFgcMinutes(m[2].replace(/[h.]/g, ':'));
+                                if (s !== null && e !== null) return { rangeStart: s, rangeEnd: e };
+                            }
+                        }
+                        // 2. Check nom field (e.g. "AITOR * 16:00-21:59")
+                        if (a.nom) {
+                            const m = a.nom.match(timePattern);
+                            if (m) {
+                                const s = getFgcMinutes(m[1].replace(/[h.]/g, ':'));
+                                const e = getFgcMinutes(m[2].replace(/[h.]/g, ':'));
+                                if (s !== null && e !== null) return { rangeStart: s, rangeEnd: e };
+                            }
+                        }
+                        return null;
                     };
 
-                    // The person with a time range in observacions does a PARTIAL segment
-                    const partialCandidate = candidates.find(a => getObsTimeRange(a) !== null);
+                    // Clean name: strip "* HH:MM-HH:MM" suffix from nom if present
+                    const cleanNom = (nom: string): string => nom.replace(/\s*\*\s*\d{1,2}[:h.]\d{2}\s*[-–]\s*\d{1,2}[:h.]\d{2}\s*$/, '').trim();
+
+                    // The person with a time range does a PARTIAL segment
+                    const partialCandidate = candidates.find(a => getTimeRange(a) !== null);
                     const fullCandidate = candidates.find(a => a.id !== partialCandidate?.id);
 
                     if (partialCandidate && fullCandidate) {
-                        const range = getObsTimeRange(partialCandidate)!;
-                        let splitEnd = range.obsEnd < startMin ? range.obsEnd + 24 * 60 : range.obsEnd;
+                        const range = getTimeRange(partialCandidate)!;
+                        let rangeStartAdj = range.rangeStart < startMin ? range.rangeStart + 24 * 60 : range.rangeStart;
+                        let rangeEndAdj = range.rangeEnd < startMin ? range.rangeEnd + 24 * 60 : range.rangeEnd;
 
-                        sharedSplitMin = splitEnd; // visual split point on the Gantt bar
+                        // Determine chronological order:
+                        // If the partial person's range starts at/near the turn start → they go FIRST, split = their end
+                        // If the partial person's range starts later → they go SECOND, split = their start
+                        const startsAtTurnBegin = Math.abs(rangeStartAdj - startMin) < 30; // within 30 min of turn start
 
-                        // First driver = partial (observacions range)
-                        sharedFirstDriverName = `${partialCandidate.cognoms}, ${partialCandidate.nom}`;
-                        sharedFirstStartMin = startMin; // or range.obsStart if different
-                        sharedFirstEndMin = splitEnd;
-
-                        // Second driver = full turn
-                        sharedSecondDriverName = `${fullCandidate.cognoms}, ${fullCandidate.nom}`;
-                        sharedSecondStartMin = startMin;
-                        sharedSecondEndMin = endMin;
+                        if (startsAtTurnBegin) {
+                            // Partial person does the FIRST segment (e.g. Q0005: Melero 4:43→7:23)
+                            sharedSplitMin = rangeEndAdj;
+                            sharedFirstDriverName = `${partialCandidate.cognoms}, ${cleanNom(partialCandidate.nom)}`;
+                            sharedFirstStartMin = rangeStartAdj;
+                            sharedFirstEndMin = rangeEndAdj;
+                            sharedSecondDriverName = `${fullCandidate.cognoms}, ${cleanNom(fullCandidate.nom)}`;
+                            sharedSecondStartMin = startMin;
+                            sharedSecondEndMin = endMin;
+                        } else {
+                            // Partial person does the SECOND segment (e.g. Q0016: Aboy 16:00→21:59)
+                            sharedSplitMin = rangeStartAdj;
+                            sharedFirstDriverName = `${fullCandidate.cognoms}, ${cleanNom(fullCandidate.nom)}`;
+                            sharedFirstStartMin = startMin;
+                            sharedFirstEndMin = rangeStartAdj;
+                            sharedSecondDriverName = `${partialCandidate.cognoms}, ${cleanNom(partialCandidate.nom)}`;
+                            sharedSecondStartMin = rangeStartAdj;
+                            sharedSecondEndMin = rangeEndAdj;
+                        }
 
                         // Mark both as used
                         usedAssignmentIds.add(partialCandidate.id);

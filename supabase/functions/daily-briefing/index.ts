@@ -18,14 +18,18 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: CORS })
 
   try {
-    const now = new Date();
-    const spainTimeStr = now.toLocaleString('en-US', { timeZone: 'Europe/Madrid' });
-    const spainTime = new Date(spainTimeStr);
-    const hour = spainTime.getHours();
+    const currentDate = new Date();
+    // Use Intl.DateTimeFormat to reliably parse the hour in Spain timezone.
+    const formatter = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/Madrid',
+      hour: '2-digit',
+      hour12: false
+    });
+    const hourStr = formatter.format(currentDate);
+    const hour = parseInt(hourStr, 10);
 
-    if (hour !== 6 && hour !== 14 && hour !== 22) {
-      return new Response(JSON.stringify({ ok: true, message: `Ignoring briefing request at local hour ${hour}` }), { headers: { ...CORS, 'Content-Type': 'application/json' } });
-    }
+    const spainTimeStr = currentDate.toLocaleString('en-US', { timeZone: 'Europe/Madrid' });
+    const spainTime = new Date(spainTimeStr);
     
     let effectiveDate = new Date(spainTime);
     if (hour < 3) {
@@ -39,10 +43,10 @@ serve(async (req) => {
 
     let slot = 0;
     let greeting = 'Bon dia';
-    if (hour === 22) {
+    if (hour >= 20 || hour < 4) {
       slot = 2;
       greeting = 'Bona nit';
-    } else if (hour === 14) {
+    } else if (hour >= 12 && hour < 20) {
       slot = 1;
       greeting = 'Bona tarda';
     }
@@ -146,7 +150,7 @@ serve(async (req) => {
       sender_name: '🤖 BOT NEXUS',
       sender_id: 'bot',
       is_alert: isAlert,
-      created_at: now.toISOString()
+      created_at: currentDate.toISOString()
     });
 
     await supabase.from('briefing_logs').upsert({ date: todayStr, slot: slot });

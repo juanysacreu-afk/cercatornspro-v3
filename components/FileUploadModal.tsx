@@ -220,8 +220,9 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
         throw new Error("No s'han pogut identificar dades vàlides al PDF. Comprova que el format coincideix amb el llistat de torns.");
       }
 
-      // Netejem dades existents abans de la nova càrrega
-      const { error: deleteError } = await supabase.from('daily_assignments').delete().not('id', 'is', null);
+      // Netejem dades existents abans de la nova càrrega per evitar duplicats i escombrar modificacions
+      const { error: deleteError } = await supabase.from('daily_assignments').delete().gte('id', 0);
+      if (deleteError) throw deleteError;
       if (deleteError) throw deleteError;
 
       // Inserció per blocs per evitar límits de payload
