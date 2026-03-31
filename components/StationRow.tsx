@@ -93,7 +93,11 @@ export const StationRow: React.FC<StationRowProps> = ({
                         </div>
                         {circ.train && (
                             <div className={`flex items-center gap-1.5 ml-1 pl-1.5 border-l ${isBroken ? 'border-white/30' : isViatger ? 'border-sky-200 dark:border-sky-800' : 'border-fgc-green/40 dark:border-fgc-green/20'}`}>
-                                <a href={trainPhone ? `tel:${trainPhone}` : '#'} className={`${isBroken ? 'text-white' : isViatger ? 'text-sky-600 dark:text-sky-400' : 'text-fgc-green dark:text-fgc-green'} hover:text-blue-700 transition-colors flex items-center`}>
+                                <a 
+                                    href={trainPhone ? `tel:${trainPhone}` : '#'} 
+                                    onClick={(e) => e.stopPropagation()}
+                                    className={`${isBroken ? 'text-white' : isViatger ? 'text-sky-600 dark:text-sky-400' : 'text-fgc-green dark:text-fgc-green'} hover:text-blue-700 transition-colors flex items-center`}
+                                >
                                     <Radio size={8} className="opacity-80" />
                                     <span className="text-[10px] ml-0.5">{circ.train}</span>
                                 </a>
