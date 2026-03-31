@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageSquare, Clock } from 'lucide-react';
+import { MessageSquare, Clock, Info } from 'lucide-react';
 import type { GanttBar, GanttCircSegment } from '../hooks/useGanttData';
 import { getFgcMinutes, formatFgcTime } from '../../../utils/stations';
 
@@ -487,45 +488,48 @@ export const GanttShiftBar: React.FC<ShiftBarProps> = ({
             )}
 
             {/* Dynamic Hover Tooltip – Cursor Tracking */}
-            <AnimatePresence>
-                {isHovered && activeSegment && (
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
-                        transition={{ duration: 0.15 }}
-                        className="fixed z-[999] pointer-events-none"
-                        style={{ 
-                            left: mousePos.x, 
-                            top: mousePos.y - 45, // Positioned slightly above the cursor
-                            transform: 'translateX(-50%)' 
-                        }}
-                    >
-                        <div className="bg-slate-900/95 dark:bg-slate-800/95 backdrop-blur-md border border-white/20 rounded-lg shadow-2xl p-2 px-3 flex flex-col items-center gap-0.5 min-w-[100px]">
-                            <div className="flex items-center gap-1.5 w-full justify-center">
-                                {activeSegment.type === 'circ' ? (
-                                    <>
-                                        <Clock size={10} className="text-sky-400" />
-                                        <span className="text-[10px] font-black text-white uppercase tracking-wider">{activeSegment.codi}</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400/80 animate-pulse" />
-                                        <span className="text-[10px] font-black text-emerald-300 uppercase tracking-wider">Descans</span>
-                                    </>
-                                )}
+            {typeof document !== 'undefined' && createPortal(
+                <AnimatePresence>
+                    {isHovered && activeSegment && (
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ duration: 0.15 }}
+                            className="fixed z-[9999] pointer-events-none"
+                            style={{ 
+                                left: mousePos.x, 
+                                top: mousePos.y - 45, // Positioned slightly above the cursor
+                                transform: 'translateX(-50%)' 
+                            }}
+                        >
+                            <div className="bg-slate-900/95 dark:bg-slate-800/95 backdrop-blur-md border border-white/20 rounded-lg shadow-2xl p-2 px-3 flex flex-col items-center gap-0.5 min-w-[100px]">
+                                <div className="flex items-center gap-1.5 w-full justify-center">
+                                    {activeSegment.type === 'circ' ? (
+                                        <>
+                                            <Clock size={10} className="text-sky-400" />
+                                            <span className="text-[10px] font-black text-white uppercase tracking-wider">{activeSegment.codi}</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400/80 animate-pulse" />
+                                            <span className="text-[10px] font-black text-emerald-300 uppercase tracking-wider">Descans</span>
+                                        </>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-1 text-[9px] text-white/70 font-medium">
+                                    <span>{formatTime(activeSegment.startMin)}</span>
+                                    <span className="opacity-30">→</span>
+                                    <span>{formatTime(activeSegment.endMin)}</span>
+                                </div>
+                                {/* Tooltip arrow */}
+                                <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-[1px] border-l-[4px] border-r-[4px] border-t-[4px] border-l-transparent border-r-transparent border-t-slate-800/95" />
                             </div>
-                            <div className="flex items-center gap-1 text-[9px] text-white/70 font-medium">
-                                <span>{formatTime(activeSegment.startMin)}</span>
-                                <span className="opacity-30">→</span>
-                                <span>{formatTime(activeSegment.endMin)}</span>
-                            </div>
-                            {/* Tooltip arrow */}
-                            <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-[1px] border-l-[4px] border-r-[4px] border-t-[4px] border-l-transparent border-r-transparent border-t-slate-800/95" />
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                        </motion.div>
+                    )}
+                </AnimatePresence>,
+                document.body
+            )}
         </div>
     );
 };
