@@ -225,7 +225,7 @@ export function useGanttData() {
                     // Clean name: strip "* HH:MM-HH:MM" suffix from nom if present
                     const cleanNom = (nom: string): string => nom.replace(/\s*\*\s*\d{1,2}[:h.]\d{2}\s*[-–]\s*\d{1,2}[:h.]\d{2}\s*$/, '').trim();
 
-                    // The person with a time range does a PARTIAL segment
+                    // ── Path A: one candidate has a time range in obs or nom ──
                     const partialCandidate = candidates.find(a => getTimeRange(a) !== null);
                     const fullCandidate = candidates.find(a => a.id !== partialCandidate?.id);
 
@@ -234,13 +234,11 @@ export function useGanttData() {
                         let rangeStartAdj = range.rangeStart < startMin ? range.rangeStart + 24 * 60 : range.rangeStart;
                         let rangeEndAdj = range.rangeEnd < startMin ? range.rangeEnd + 24 * 60 : range.rangeEnd;
 
-                        // Determine chronological order:
-                        // If the partial person's range starts at/near the turn start → they go FIRST, split = their end
-                        // If the partial person's range starts later → they go SECOND, split = their start
-                        const startsAtTurnBegin = Math.abs(rangeStartAdj - startMin) < 30; // within 30 min of turn start
+                        // If partial range starts at/near turn start → they go FIRST (e.g. Q0005: Melero 4:43→7:23)
+                        // If partial range starts later → they go SECOND (e.g. Q0016: Aboy 16:00→21:59)
+                        const startsAtTurnBegin = Math.abs(rangeStartAdj - startMin) < 30;
 
                         if (startsAtTurnBegin) {
-                            // Partial person does the FIRST segment (e.g. Q0005: Melero 4:43→7:23)
                             sharedSplitMin = rangeEndAdj;
                             sharedFirstDriverName = `${partialCandidate.cognoms}, ${cleanNom(partialCandidate.nom)}`;
                             sharedFirstStartMin = rangeStartAdj;
@@ -249,7 +247,6 @@ export function useGanttData() {
                             sharedSecondStartMin = startMin;
                             sharedSecondEndMin = endMin;
                         } else {
-                            // Partial person does the SECOND segment (e.g. Q0016: Aboy 16:00→21:59)
                             sharedSplitMin = rangeStartAdj;
                             sharedFirstDriverName = `${fullCandidate.cognoms}, ${cleanNom(fullCandidate.nom)}`;
                             sharedFirstStartMin = startMin;
@@ -259,9 +256,45 @@ export function useGanttData() {
                             sharedSecondEndMin = rangeEndAdj;
                         }
 
-                        // Mark both as used
                         usedAssignmentIds.add(partialCandidate.id);
                         usedAssignmentIds.add(fullCandidate.id);
+
+                    } else if (candidates.length === 2) {
+                        // ── Path B: no obs/nom time range — use each candidate's own hora_inici/hora_fi ──
+                        // e.g. Q0032: Paniello 14:58→18:33, Gomez 15:58→22:58 (no observacions)
+                        const [candA, candB] = candidates;
+                        const aStart = getFgcMinutes(candA.hora_inici || '');
+                        const aEnd   = getFgcMinutes(candA.hora_fi   || '');
+                        const bStart = getFgcMinutes(candB.hora_inici || '');
+                        const bEnd   = getFgcMinutes(candB.hora_fi   || '');
+
+                        // Only trigger if they actually have different times (not both identical to turn times)
+                        if (aStart !== null && aEnd !== null && bStart !== null && bEnd !== null &&
+                            (aStart !== bStart || aEnd !== bEnd)) {
+
+                            // Adjust for overnight
+                            let aS = aStart < startMin ? aStart + 24*60 : aStart;
+                            let aE = aEnd   < startMin ? aEnd   + 24*60 : aEnd;
+                            let bS = bStart < startMin ? bStart + 24*60 : bStart;
+                            let bE = bEnd   < startMin ? bEnd   + 24*60 : bEnd;
+
+                            // Sort chronologically by start time (then by end time)
+                            const [first, fS, fE, second, sS, sE] = aS <= bS
+                                ? [candA, aS, aE, candB, bS, bE]
+                                : [candB, bS, bE, candA, aS, aE];
+
+                            // Split point = where the first person's segment ends
+                            sharedSplitMin = fE;
+                            sharedFirstDriverName  = `${first.cognoms},  ${cleanNom(first.nom)}`;
+                            sharedFirstStartMin    = fS;
+                            sharedFirstEndMin      = fE;
+                            sharedSecondDriverName = `${second.cognoms}, ${cleanNom(second.nom)}`;
+                            sharedSecondStartMin   = sS;
+                            sharedSecondEndMin     = sE;
+
+                            usedAssignmentIds.add(first.id);
+                            usedAssignmentIds.add(second.id);
+                        }
                     }
                 }
 
