@@ -25,6 +25,12 @@ export interface GanttBar {
     originalDriverPhone?: string | null;
     absType: string | null;      // DIS, DES, VAC, etc.
     incidentStartTime: string | null; // HH:mm format for partial absence
+    /** When a turn is COMPARTIT (2 people planned), the minute where person1 ends and person2 begins */
+    sharedSplitMin?: number | null;
+    /** Name of the first person in a COMPARTIT turn (who covers the first segment) */
+    sharedFirstDriverName?: string | null;
+    /** Name of the second person in a COMPARTIT turn (who covers the rest) */
+    sharedSecondDriverName?: string | null;
     isAssigned: boolean;
     assignmentId: number | null;
     circulations: GanttCircSegment[];
@@ -171,47 +177,73 @@ export function useGanttData() {
 
                 const shortId = getMatchId(shift.id);
 
-                // NEW Logic: Find all candidates for this turn
-                const candidates = assignments.filter(a => getMatchId(a.torn || '') === shortId);
-                
-                // Original is the one with an incident or the first one found
+                // Find all candidates for this turn (could be 2 for COMPARTIT turns)
+                const candidates = assignments.filter(a => !usedAssignmentIds.has(a.id) && getMatchId(a.torn || '') === shortId);
+
+                // ── Detect COMPARTIT (planned split): 2 people, one has explicit hora_fi ──
+                let sharedSplitMin: number | null = null;
+                let sharedFirstDriverName: string | null = null;
+                let sharedSecondDriverName: string | null = null;
+
+                if (candidates.length >= 2) {
+                    // Person with hora_fi defined covers the FIRST segment
+                    const withTime = candidates.find(a => a.hora_fi && getFgcMinutes(a.hora_fi) !== null);
+                    const withoutTime = candidates.find(a => a.id !== withTime?.id);
+
+                    if (withTime && withoutTime) {
+                        const splitMin = getFgcMinutes(withTime.hora_fi!);
+                        if (splitMin !== null) {
+                            sharedSplitMin = splitMin < startMin ? splitMin + 24 * 60 : splitMin;
+                            sharedFirstDriverName = `${withTime.cognoms}, ${withTime.nom}`;
+                            sharedSecondDriverName = `${withoutTime.cognoms}, ${withoutTime.nom}`;
+                            // Mark both as used
+                            usedAssignmentIds.add(withTime.id);
+                            usedAssignmentIds.add(withoutTime.id);
+                        }
+                    }
+                }
+
+                // Original is the one with an incident or the first one found (from remaining candidates)
                 let originalAssignment = candidates.find(a => a.incident_start_time || a.abs_parc_c) || candidates[0];
-                
+
                 // Covering is either someone else on the same turn, or someone explicitly covering from another turn
                 let coveringAssignment = assignments.find(a => {
                     if (usedAssignmentIds.has(a.id) || !a.observacions) return false;
                     const obs = a.observacions.toUpperCase();
                     const sId = shortId.toUpperCase();
                     const sFull = shift.id.toUpperCase();
-                    
+
                     // Match "Cobreix Q104", "Cobreix Q0104", "Cobrint Q104", etc.
-                    return obs.includes(`COBREIX ${sId}`) || 
+                    return obs.includes(`COBREIX ${sId}`) ||
                            obs.includes(`COBREIX ${sFull}`) ||
                            obs.includes(`COBRINT ${sId}`) ||
                            obs.includes(`COBREIX: ${sId}`) ||
                            (obs.includes(sId) && (obs.includes('COBREIX') || obs.includes('COBRINT') || obs.includes('COBRE')));
                 });
 
-                // If no explicit cover found by observations, but there's another candidate on the SAME turn
-                if (!coveringAssignment && candidates.length > 1) {
-                    coveringAssignment = candidates.find(a => a.id !== originalAssignment?.id);
+                // If no explicit cover found by observations, but there's another unmarked candidate on the SAME turn
+                if (!coveringAssignment && candidates.length > 1 && !sharedSplitMin) {
+                    coveringAssignment = candidates.find(a => a.id !== originalAssignment?.id && !usedAssignmentIds.has(a.id));
                 }
 
-                // If covering assignment exists, mark it as used
+                // Mark covering as used
                 if (coveringAssignment) {
                     usedAssignmentIds.add(coveringAssignment.id);
                     assignmentToShiftMap.set(coveringAssignment.id, shortId);
                 }
-                
-                // If original assignment exists and NOT same as covering, mark it used too
-                if (originalAssignment && (!coveringAssignment || originalAssignment.id !== coveringAssignment.id)) {
-                     usedAssignmentIds.add(originalAssignment.id);
+
+                // Mark original as used
+                if (originalAssignment && !usedAssignmentIds.has(originalAssignment.id)) {
+                    usedAssignmentIds.add(originalAssignment.id);
                 }
 
                 const assignment = coveringAssignment || originalAssignment;
                 const isCoveredByExtra = !!coveringAssignment && !!originalAssignment && coveringAssignment.id !== originalAssignment.id;
 
-                const driverName = assignment ? `${assignment.cognoms}, ${assignment.nom}` : null;
+                // For display: if it's a COMPARTIT, use the second person as the main driverName (they cover the majority)
+                const driverName = sharedSplitMin
+                    ? sharedSecondDriverName
+                    : (assignment ? `${assignment.cognoms}, ${assignment.nom}` : null);
                 const driverNomina = assignment?.empleat_id ? String(assignment.empleat_id).trim().replace(/^0+/, '') : null;
                 const driverPhone = driverNomina ? agentPhones[driverNomina] : null;
 
@@ -266,7 +298,7 @@ export function useGanttData() {
 
                 return {
                     shiftId: shift.id,
-                    shortId, // Use the matched short ID for display
+                    shortId,
                     dependencia: (shift.dependencia || 'Altres').toUpperCase(),
                     startMin,
                     endMin,
@@ -278,7 +310,10 @@ export function useGanttData() {
                     originalDriverPhone,
                     absType,
                     incidentStartTime,
-                    isAssigned: !!assignment,
+                    sharedSplitMin,
+                    sharedFirstDriverName,
+                    sharedSecondDriverName,
+                    isAssigned: !!assignment || sharedSplitMin !== null,
                     assignmentId: assignment?.id || null,
                     circulations: segments,
                     coveringShiftId: null,

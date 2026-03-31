@@ -221,11 +221,23 @@ export const GanttShiftBar: React.FC<ShiftBarProps> = ({
         }
     }
 
-    // V3 Enhancement: If explicitly covered by extra, use purple base if not already gradient
-    if (isCoveredByExtra && Object.keys(bgStyle).length === 0) {
-        baseBgClass = 'bg-gradient-to-r from-purple-500/90 to-purple-600/90 dark:from-purple-600/80 dark:to-purple-700/80';
-        borderClass = selectedRing || 'border-purple-500/50';
+    // ── COMPARTIT (planned split shift): two people planned on same turn ─────
+    const isCompartit = typeof bar.sharedSplitMin === 'number' && bar.sharedSplitMin !== null;
+    if (isCompartit && !bar.incidentStartTime && Object.keys(bgStyle).length === 0) {
+        const splitPercent = ((bar.sharedSplitMin! - bar.startMin) / (bar.endMin - bar.startMin)) * 100;
+        const clampedSplit = Math.max(5, Math.min(95, splitPercent));
+        // Person 1: sky-blue segment; Person 2: emerald/teal segment
+        bgStyle = {
+            background: `linear-gradient(90deg,
+                rgba(14, 165, 233, 0.92) 0%, rgba(14, 165, 233, 0.92) ${clampedSplit}%,
+                rgba(16, 185, 129, 0.92) ${clampedSplit}%, rgba(5, 150, 105, 0.92) 100%)`
+        };
+        baseBgClass = '';
+        borderClass = selectedRing || 'border-sky-400/50';
+        // Store split percent for label rendering
+        (bar as any)._sharedSplitPercent = clampedSplit;
     }
+
 
     // Incident Styling
     if (bar.incidentStartTime && bar.isAssigned && !isAbsent) {
@@ -324,7 +336,55 @@ export const GanttShiftBar: React.FC<ShiftBarProps> = ({
             {/* Label inside bar */}
             {renderWidth > 2.5 && (
                 <div className="absolute inset-0 flex flex-col items-start justify-center px-1.5 text-white select-none drop-shadow-sm leading-tight">
-                        {(bar as any)._splitPercent ? (
+                        {/* ── COMPARTIT: two planned people on same turn ── */}
+                        {(bar as any)._sharedSplitPercent != null ? (
+                            <div className="absolute inset-0 overflow-hidden">
+                                {/* Fixed ID at left */}
+                                <div className="absolute left-1.5 inset-y-0 flex items-center z-20">
+                                    <span className="text-[9px] sm:text-[11px] font-black tracking-tight text-white drop-shadow-[0_1.2px_1.2px_rgba(0,0,0,0.8)] pr-1">{bar.shortId}</span>
+                                    {bar.hasComments && (
+                                        <div className="bg-white/95 text-indigo-700 rounded-full p-[2px] shadow-sm transform scale-90">
+                                            <MessageSquare size={8} strokeWidth={3} />
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                                    {/* Segment 1 – first driver name */}
+                                    <div
+                                        className="absolute inset-y-0 left-0 flex items-center pl-[2.3rem] pr-1"
+                                        style={{ width: `${(bar as any)._sharedSplitPercent}%` }}
+                                    >
+                                        {bar.sharedFirstDriverName && (
+                                            <span className="text-[8px] font-bold text-white drop-shadow-md truncate leading-none">
+                                                {(() => {
+                                                    const parts = bar.sharedFirstDriverName.split(',');
+                                                    const surname = parts[0]?.trim() || '';
+                                                    const name = parts[1]?.trim().split(' ')[0] || '';
+                                                    return name ? `${name} ${surname}` : surname;
+                                                })()}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {/* Segment 2 – second driver name */}
+                                    <div
+                                        className="absolute inset-y-0 flex items-center gap-1 pl-1.5"
+                                        style={{ left: `${(bar as any)._sharedSplitPercent}%`, width: `${100 - (bar as any)._sharedSplitPercent}%` }}
+                                    >
+                                        <span className="text-[7px] text-white/50 shrink-0">➔</span>
+                                        {bar.sharedSecondDriverName && (
+                                            <span className="text-[8px] font-black text-white truncate leading-none">
+                                                {(() => {
+                                                    const parts = bar.sharedSecondDriverName.split(',');
+                                                    const surname = parts[0]?.trim() || '';
+                                                    const name = parts[1]?.trim().split(' ')[0] || '';
+                                                    return name ? `${name} ${surname}` : surname;
+                                                })()}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (bar as any)._splitPercent ? (
                             <div className="absolute inset-0 overflow-hidden">
                                 {/* Fixed ID layer (always at start) */}
                                 <div className="absolute left-1.5 inset-y-0 flex items-center z-20">
