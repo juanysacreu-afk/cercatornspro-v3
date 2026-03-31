@@ -180,18 +180,37 @@ export function useGanttData() {
                 // Find all candidates for this turn (could be 2 for COMPARTIT turns)
                 const candidates = assignments.filter(a => !usedAssignmentIds.has(a.id) && getMatchId(a.torn || '') === shortId);
 
-                // ── Detect COMPARTIT (planned split): 2 people, one has explicit hora_fi ──
+                // ── Detect COMPARTIT (planned split): 2 people on same turn ──
                 let sharedSplitMin: number | null = null;
                 let sharedFirstDriverName: string | null = null;
                 let sharedSecondDriverName: string | null = null;
 
                 if (candidates.length >= 2) {
-                    // Person with hora_fi defined covers the FIRST segment
-                    const withTime = candidates.find(a => a.hora_fi && getFgcMinutes(a.hora_fi) !== null);
+                    // Helper: extract end time from a candidate (hora_fi field OR HH:MM-HH:MM in observacions)
+                    const getEndMinForCandidate = (a: typeof candidates[0]): number | null => {
+                        // 1. Prefer explicit hora_fi field
+                        if (a.hora_fi) {
+                            const m = getFgcMinutes(a.hora_fi);
+                            if (m !== null) return m;
+                        }
+                        // 2. Fall back to time range in observacions: e.g. "4:43-7:23" or "04:43 - 07:23"
+                        if (a.observacions) {
+                            const timeMatch = a.observacions.match(/(\d{1,2}[:h.]\d{2})\s*[-–]\s*(\d{1,2}[:h.]\d{2})/);
+                            if (timeMatch) {
+                                const endStr = timeMatch[2].replace(/[h.]/g, ':');
+                                const m = getFgcMinutes(endStr);
+                                if (m !== null) return m;
+                            }
+                        }
+                        return null;
+                    };
+
+                    // Person with a defined end time covers the FIRST segment
+                    const withTime = candidates.find(a => getEndMinForCandidate(a) !== null);
                     const withoutTime = candidates.find(a => a.id !== withTime?.id);
 
                     if (withTime && withoutTime) {
-                        const splitMin = getFgcMinutes(withTime.hora_fi!);
+                        const splitMin = getEndMinForCandidate(withTime);
                         if (splitMin !== null) {
                             sharedSplitMin = splitMin < startMin ? splitMin + 24 * 60 : splitMin;
                             sharedFirstDriverName = `${withTime.cognoms}, ${withTime.nom}`;

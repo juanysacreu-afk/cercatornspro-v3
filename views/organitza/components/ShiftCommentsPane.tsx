@@ -203,14 +203,34 @@ export const ShiftCommentsPane: React.FC<ShiftCommentsPaneProps> = ({ bar, selec
                             {formatMins(bar.startMin)} - {formatMins(bar.endMin)}
                         </span>
                     </div>
-                    {bar.driverName && (
+                    {/* COMPARTIT: show both drivers with time split */}
+                    {bar.sharedFirstDriverName && bar.sharedSecondDriverName ? (
+                        <div className="flex flex-col gap-1">
+                            <div className="flex justify-between items-center text-xs">
+                                <span className="text-sky-500 font-semibold text-[10px]">
+                                    {formatMins(bar.startMin)} → {bar.sharedSplitMin ? formatMins(bar.sharedSplitMin) : '?'}
+                                </span>
+                                <span className="font-bold text-sky-600 bg-sky-500/10 px-2 py-0.5 rounded-md text-[11px]">
+                                    {bar.sharedFirstDriverName}
+                                </span>
+                            </div>
+                            <div className="flex justify-between items-center text-xs">
+                                <span className="text-fgc-green font-semibold text-[10px]">
+                                    {bar.sharedSplitMin ? formatMins(bar.sharedSplitMin) : '?'} → {formatMins(bar.endMin)}
+                                </span>
+                                <span className="font-bold text-fgc-green bg-fgc-green/10 px-2 py-0.5 rounded-md text-[11px]">
+                                    {bar.sharedSecondDriverName}
+                                </span>
+                            </div>
+                        </div>
+                    ) : bar.driverName ? (
                         <div className="flex justify-between items-center text-xs">
                             <span className="text-gray-500">Agent:</span>
                             <span className="font-bold text-fgc-green bg-fgc-green/10 px-2 py-0.5 rounded-md">
                                 {bar.driverName}
                             </span>
                         </div>
-                    )}
+                    ) : null}
                     {bar.incidentStartTime && (
                         <button 
                             onClick={async () => {
