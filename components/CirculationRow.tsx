@@ -88,7 +88,7 @@ export const CirculationRow: React.FC<CirculationRowProps> = ({
                         )}
 
                         {circ.train && trainPhone && (
-                            <a href={isPrivacyMode ? undefined : `tel:${trainPhone}`} onClick={(e) => e.stopPropagation()} className={`md:hidden p-[3px] rounded bg-white dark:bg-[#2d2d2d] border shadow-sm transition-all active:scale-90 ${isBroken ? 'bg-red-600 text-white border-red-700' : 'bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-green border-fgc-green/30 dark:border-fgc-green/20'} ${isPrivacyMode ? 'cursor-default' : ''}`}>
+                            <a href={`tel:${trainPhone}`} onClick={(e) => e.stopPropagation()} className={`md:hidden p-[3px] rounded bg-white dark:bg-[#2d2d2d] border shadow-sm transition-all active:scale-90 ${isBroken ? 'bg-red-600 text-white border-red-700' : 'bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-green border-fgc-green/30 dark:border-fgc-green/20'}`}>
                                 <Radio size={10} />
                             </a>
                         )}
@@ -121,7 +121,7 @@ export const CirculationRow: React.FC<CirculationRowProps> = ({
                         </div>
                         {circ.train && (
                             <div className={`flex items-center gap-1.5 pl-2 border-l ${isBroken ? 'border-white/30' : isViatger ? 'border-sky-200 dark:border-sky-800' : 'border-fgc-green/40 dark:border-fgc-green/20'}`}>
-                                <a href={trainPhone ? (isPrivacyMode ? undefined : `tel:${trainPhone}`) : '#'} className={`${isBroken ? 'text-white' : isViatger ? 'text-sky-600 dark:text-sky-400' : 'text-fgc-green dark:text-fgc-green'} hover:text-blue-700 transition-colors flex items-center gap-1 ${(!trainPhone || isPrivacyMode) && 'pointer-events-none'}`}>
+                                <a href={trainPhone ? `tel:${trainPhone}` : '#'} className={`${isBroken ? 'text-white' : isViatger ? 'text-sky-600 dark:text-sky-400' : 'text-fgc-green dark:text-fgc-green'} hover:text-blue-700 transition-colors flex items-center gap-1 ${!trainPhone && 'pointer-events-none'}`}>
                                     <Radio size={10} className="opacity-80" />
                                     <span className="text-[10px] sm:text-xs">{circ.train}</span>
                                 </a>
@@ -132,17 +132,17 @@ export const CirculationRow: React.FC<CirculationRowProps> = ({
             </div>
             {/* COL 3: Departure time + via_inici on mobile */}
             <div className="flex flex-col items-center justify-center min-w-0">
-                <div className={`text-base sm:text-2xl font-black tabular-nums text-center ${isActive || isBroken ? 'text-red-600' : 'text-fgc-grey dark:text-gray-200'}`}>{circ.sortida || '--:--'}</div>
-                <div className="hidden md:flex ml-2 bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-grey dark:text-fgc-green border border-fgc-green/30 dark:border-fgc-green/20 px-2 py-0.5 rounded text-[10px] font-black shadow-sm shrink-0">V{circ.via_inici || '?'}</div>
-                <span className="text-[10px] sm:text-xs font-bold text-gray-400 dark:text-gray-500 truncate max-w-[100px] hidden md:block ml-2">{circ.machinistInici || circ.inici || '---'}</span>
+                <div className={`text-base sm:text-2xl font-black tabular-nums text-center ${isActive || isBroken ? 'text-blue-600' : 'text-fgc-grey dark:text-gray-200'}`}>{circ.sortida || '--:--'}</div>
+                <div className="hidden md:flex bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-grey dark:text-fgc-green border border-fgc-green/30 dark:border-fgc-green/20 px-2 py-0.5 rounded text-[10px] font-black shadow-sm shrink-0">V{circ.via_inici || '?'}</div>
+                <span className="text-[10px] sm:text-xs font-bold text-gray-400 dark:text-gray-500 truncate max-w-[100px] hidden md:block">{circ.machinistInici || circ.inici || '---'}</span>
                 {/* Mobile: via_inici below departure time */}
                 <span className="md:hidden text-[10px] font-black text-fgc-green dark:text-fgc-green tracking-tight">V{circ.via_inici || '?'}</span>
             </div>
             {/* COL 4: Arrival time + via_final on mobile */}
             <div className="flex flex-col items-center justify-center min-w-0">
-                <span className="text-[10px] sm:text-xs font-bold text-gray-400 dark:text-gray-500 truncate max-w-[100px] text-right hidden md:block mr-2">{circ.machinistFinal || circ.final || '---'}</span>
-                <div className="hidden md:flex mr-2 bg-fgc-grey/10 dark:bg-white/5 text-fgc-grey dark:text-gray-400 border border-gray-200 dark:border-white/10 px-2 py-0.5 rounded text-[10px] font-black shadow-sm shrink-0">V{circ.via_final || '?'}</div>
                 <div className={`text-base sm:text-2xl font-black tabular-nums text-center ${isActive || isBroken ? 'text-red-600' : 'text-fgc-grey dark:text-gray-200'}`}>{circ.arribada || '--:--'}</div>
+                <div className="hidden md:flex bg-fgc-grey/10 dark:bg-white/5 text-fgc-grey dark:text-gray-400 border border-gray-200 dark:border-white/10 px-2 py-0.5 rounded text-[10px] font-black shadow-sm shrink-0">V{circ.via_final || '?'}</div>
+                <span className="text-[10px] sm:text-xs font-bold text-gray-400 dark:text-gray-500 truncate max-w-[100px] hidden md:block">{circ.machinistFinal || circ.final || '---'}</span>
                 {/* Mobile: via_final below arrival time */}
                 <span className="md:hidden text-[10px] font-black text-fgc-green dark:text-fgc-green tracking-tight">V{circ.via_final || '?'}</span>
             </div>

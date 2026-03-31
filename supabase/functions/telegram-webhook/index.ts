@@ -828,17 +828,17 @@ serve(async (req: Request) => {
         } else if (cqData.startsWith('pkz__')) {
           const segKey = cqData.split('__')[1];
           const segLabel = SEG_LABELS[segKey] || segKey;
-          await sendTelegramMessage(cqChatId, `📏 ${PROMPT_PK} per <b>${segLabel}</b>:`, { force_reply: true, selective: true });
+          await sendTelegramMessage(cqChatId, `📏 ${PROMPT_PK} per <b>${segLabel}</b>:`, { force_reply: true });
         } else if (cqData === 'menu__clima_prompt') {
-          await sendTelegramMessage(cqChatId, `🌤️ ${PROMPT_CLIMA}. <b>Example:</b> SC`, { force_reply: true, selective: true });
+          await sendTelegramMessage(cqChatId, `🌤️ ${PROMPT_CLIMA}. <b>Example:</b> SC`, { force_reply: true });
         } else if (cqData === 'menu__torn_prompt') {
-          await sendTelegramMessage(cqChatId, `📋 ${PROMPT_TORN} (ex: Q004):`, { force_reply: true, selective: true });
+          await sendTelegramMessage(cqChatId, `📋 ${PROMPT_TORN} (ex: Q004):`, { force_reply: true });
         } else if (cqData === 'menu__qui_prompt') {
-          await sendTelegramMessage(cqChatId, `👤 Indica la <b>UT</b> per ${PROMPT_QUI} (ex: 112.01):`, { force_reply: true, selective: true });
+          await sendTelegramMessage(cqChatId, `👤 Indica la <b>UT</b> per ${PROMPT_QUI} (ex: 112.01):`, { force_reply: true });
         } else if (cqData === 'menu__tren_prompt') {
-          await sendTelegramMessage(cqChatId, `🚆 Indica la <b>UT</b> per conèixer ${PROMPT_TREN} (ex: 115.01):`, { force_reply: true, selective: true });
+          await sendTelegramMessage(cqChatId, `🚆 Indica la <b>UT</b> per conèixer ${PROMPT_TREN} (ex: 115.01):`, { force_reply: true });
         } else if (cqData === 'menu__servei_prompt') {
-          await sendTelegramMessage(cqChatId, `🎫 ${PROMPT_SERVEI} (ex: B107):`, { force_reply: true, selective: true });
+          await sendTelegramMessage(cqChatId, `🎫 ${PROMPT_SERVEI} (ex: B107):`, { force_reply: true });
         } else if (cqData === 'menu__all_commands') {
           const listMsg = `<b>⌨️ Comandes Disponibles:</b>\n\n` +
             `• <code>/torn [torn]</code> - Qui porta un torn\n` +
@@ -875,23 +875,23 @@ serve(async (req: Request) => {
 
       if (replyToMsg && replyToMsg.text) {
         const rt = replyToMsg.text;
-        const rtLower = rt.toLowerCase();
+        const rtClean = rt.replace(/<[^>]*>/g, '').toLowerCase();
         console.log(`Processing reply. Prompt: "${rt.substring(0, 40)}...", Input: "${msgText}"`);
         
-        if (rtLower.includes(PROMPT_PK.toLowerCase())) {
-          const segKey = Object.keys(SEG_LABELS).find(k => rtLower.includes(SEG_LABELS[k].toLowerCase())) || 'PCRE';
+        if (rtClean.includes('pk')) {
+          const segKey = Object.keys(SEG_LABELS).find(k => rtClean.includes(SEG_LABELS[k].toLowerCase())) || 'PCRE';
           const pkVal = parseFloat(msgText.replace(',', '.'));
           if (!isNaN(pkVal)) await sendTelegramMessage(chatId, getPkInfoText(pkVal, segKey));
           else await sendTelegramMessage(chatId, "❌ El valor del PK ha de ser numèric.");
-        } else if (rtLower.includes(PROMPT_CLIMA.toLowerCase())) {
+        } else if (rtClean.includes('estacio') || rtClean.includes('clima')) {
           await handleCommand('/clima', [msgText], chatId, todayStr, spainTime);
-        } else if (rtLower.includes(PROMPT_TORN.toLowerCase())) {
+        } else if (rtClean.includes('torn')) {
           await handleCommand('/torn', [msgText], chatId, todayStr, spainTime);
-        } else if (rtLower.includes(PROMPT_QUI.toLowerCase())) {
+        } else if (rtClean.includes('qui')) {
           await handleCommand('/qui', [msgText], chatId, todayStr, spainTime);
-        } else if (rtLower.includes(PROMPT_TREN.toLowerCase())) {
+        } else if (rtClean.includes('tren') || rtClean.includes('estat')) {
           await handleCommand('/tren', [msgText], chatId, todayStr, spainTime);
-        } else if (rtLower.includes(PROMPT_SERVEI.toLowerCase())) {
+        } else if (rtClean.includes('servei') || rtClean.includes('circulacio')) {
           await handleCommand('/servei', [msgText], chatId, todayStr, spainTime);
         } else {
           console.log(`Reply prompt not recognized: "${rt}"`);
@@ -902,16 +902,17 @@ serve(async (req: Request) => {
         const command = parts[0].split('@')[0].toLowerCase();
         await handleCommand(command, parts.slice(1), chatId, todayStr, spainTime);
       } else {
-        // Smart "naked" input parsing (when no command or reply context is used)
-        const utRegex = /^\d{3}\.?\d{2}$/;
-        const tornRegex = /^Q\d{3}$/i;
-        const serveiRegex = /^[BFS]\d{3,4}$/i;
+        // Smart "naked" input parsing (improved regexes)
+        const utRegex = /^(\d{2,3}([.]\d{2})?|\d{4,5})$/; 
+        const tornRegex = /^[A-Z][A-Z0-9]{2,5}$/i;
+        const serveiRegex = /^[BFGSR]\d{3,4}$/i;
 
         if (utRegex.test(msgText)) {
-          // If it matches a UT, normalize to XXX.YY and run /tren (most common use case)
           let normalizedUT = msgText;
           if (!msgText.includes('.') && msgText.length === 5) {
             normalizedUT = msgText.substring(0, 3) + '.' + msgText.substring(3);
+          } else if (!msgText.includes('.') && msgText.length === 4) {
+            normalizedUT = msgText.substring(0, 2) + '.' + msgText.substring(2);
           }
           await handleCommand('/tren', [normalizedUT], chatId, todayStr, spainTime);
         } else if (tornRegex.test(msgText)) {
@@ -919,8 +920,7 @@ serve(async (req: Request) => {
         } else if (serveiRegex.test(msgText)) {
           await handleCommand('/servei', [msgText.toUpperCase()], chatId, todayStr, spainTime);
         } else if (msgText.length >= 2 && msgText.length <= 4 && isStationCode(msgText)) {
-           // Maybe it's a station code for climate?
-           await handleCommand('/clima', [msgText.toUpperCase()], chatId, todayStr, spainTime);
+          await handleCommand('/clima', [msgText.toUpperCase()], chatId, todayStr, spainTime);
         }
       }
     }
