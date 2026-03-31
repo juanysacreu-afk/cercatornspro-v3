@@ -29,8 +29,16 @@ export interface GanttBar {
     sharedSplitMin?: number | null;
     /** Name of the first person in a COMPARTIT turn (who covers the first segment) */
     sharedFirstDriverName?: string | null;
+    /** Start minute of the first person's segment */
+    sharedFirstStartMin?: number | null;
+    /** End minute of the first person's segment */
+    sharedFirstEndMin?: number | null;
     /** Name of the second person in a COMPARTIT turn (who covers the rest) */
     sharedSecondDriverName?: string | null;
+    /** Start minute of the second person's segment */
+    sharedSecondStartMin?: number | null;
+    /** End minute of the second person's segment */
+    sharedSecondEndMin?: number | null;
     isAssigned: boolean;
     assignmentId: number | null;
     circulations: GanttCircSegment[];
@@ -184,41 +192,48 @@ export function useGanttData() {
                 let sharedSplitMin: number | null = null;
                 let sharedFirstDriverName: string | null = null;
                 let sharedSecondDriverName: string | null = null;
+                let sharedFirstStartMin: number | null = null;
+                let sharedFirstEndMin: number | null = null;
+                let sharedSecondStartMin: number | null = null;
+                let sharedSecondEndMin: number | null = null;
 
                 if (candidates.length >= 2) {
-                    // Helper: extract end time from a candidate (hora_fi field OR HH:MM-HH:MM in observacions)
-                    const getEndMinForCandidate = (a: typeof candidates[0]): number | null => {
-                        // 1. Prefer explicit hora_fi field
-                        if (a.hora_fi) {
-                            const m = getFgcMinutes(a.hora_fi);
-                            if (m !== null) return m;
-                        }
-                        // 2. Fall back to time range in observacions: e.g. "4:43-7:23" or "04:43 - 07:23"
-                        if (a.observacions) {
-                            const timeMatch = a.observacions.match(/(\d{1,2}[:h.]\d{2})\s*[-–]\s*(\d{1,2}[:h.]\d{2})/);
-                            if (timeMatch) {
-                                const endStr = timeMatch[2].replace(/[h.]/g, ':');
-                                const m = getFgcMinutes(endStr);
-                                if (m !== null) return m;
-                            }
-                        }
-                        return null;
+                    // Extract time range from observacions: e.g. "4:43-7:23h" → {start: 4:43, end: 7:23}
+                    const getObsTimeRange = (a: typeof candidates[0]): { obsStart: number; obsEnd: number } | null => {
+                        if (!a.observacions) return null;
+                        const timeMatch = a.observacions.match(/(\d{1,2}[:h.]\d{2})\s*[-–]\s*(\d{1,2}[:h.]\d{2})/);
+                        if (!timeMatch) return null;
+                        const startStr = timeMatch[1].replace(/[h.]/g, ':');
+                        const endStr = timeMatch[2].replace(/[h.]/g, ':');
+                        const s = getFgcMinutes(startStr);
+                        const e = getFgcMinutes(endStr);
+                        if (s === null || e === null) return null;
+                        return { obsStart: s, obsEnd: e };
                     };
 
-                    // Person with a defined end time covers the FIRST segment
-                    const withTime = candidates.find(a => getEndMinForCandidate(a) !== null);
-                    const withoutTime = candidates.find(a => a.id !== withTime?.id);
+                    // The person with a time range in observacions does a PARTIAL segment
+                    const partialCandidate = candidates.find(a => getObsTimeRange(a) !== null);
+                    const fullCandidate = candidates.find(a => a.id !== partialCandidate?.id);
 
-                    if (withTime && withoutTime) {
-                        const splitMin = getEndMinForCandidate(withTime);
-                        if (splitMin !== null) {
-                            sharedSplitMin = splitMin < startMin ? splitMin + 24 * 60 : splitMin;
-                            sharedFirstDriverName = `${withTime.cognoms}, ${withTime.nom}`;
-                            sharedSecondDriverName = `${withoutTime.cognoms}, ${withoutTime.nom}`;
-                            // Mark both as used
-                            usedAssignmentIds.add(withTime.id);
-                            usedAssignmentIds.add(withoutTime.id);
-                        }
+                    if (partialCandidate && fullCandidate) {
+                        const range = getObsTimeRange(partialCandidate)!;
+                        let splitEnd = range.obsEnd < startMin ? range.obsEnd + 24 * 60 : range.obsEnd;
+
+                        sharedSplitMin = splitEnd; // visual split point on the Gantt bar
+
+                        // First driver = partial (observacions range)
+                        sharedFirstDriverName = `${partialCandidate.cognoms}, ${partialCandidate.nom}`;
+                        sharedFirstStartMin = startMin; // or range.obsStart if different
+                        sharedFirstEndMin = splitEnd;
+
+                        // Second driver = full turn
+                        sharedSecondDriverName = `${fullCandidate.cognoms}, ${fullCandidate.nom}`;
+                        sharedSecondStartMin = startMin;
+                        sharedSecondEndMin = endMin;
+
+                        // Mark both as used
+                        usedAssignmentIds.add(partialCandidate.id);
+                        usedAssignmentIds.add(fullCandidate.id);
                     }
                 }
 
@@ -331,7 +346,11 @@ export function useGanttData() {
                     incidentStartTime,
                     sharedSplitMin,
                     sharedFirstDriverName,
+                    sharedFirstStartMin,
+                    sharedFirstEndMin,
                     sharedSecondDriverName,
+                    sharedSecondStartMin,
+                    sharedSecondEndMin,
                     isAssigned: !!assignment || sharedSplitMin !== null,
                     assignmentId: assignment?.id || null,
                     circulations: segments,

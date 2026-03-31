@@ -208,7 +208,7 @@ export const ShiftCommentsPane: React.FC<ShiftCommentsPaneProps> = ({ bar, selec
                         <div className="flex flex-col gap-1">
                             <div className="flex justify-between items-center text-xs">
                                 <span className="text-sky-500 font-semibold text-[10px]">
-                                    {formatMins(bar.startMin)} → {bar.sharedSplitMin ? formatMins(bar.sharedSplitMin) : '?'}
+                                    {bar.sharedFirstStartMin != null ? formatMins(bar.sharedFirstStartMin) : formatMins(bar.startMin)} → {bar.sharedFirstEndMin != null ? formatMins(bar.sharedFirstEndMin) : '?'}
                                 </span>
                                 <span className="font-bold text-sky-600 bg-sky-500/10 px-2 py-0.5 rounded-md text-[11px]">
                                     {bar.sharedFirstDriverName}
@@ -216,7 +216,7 @@ export const ShiftCommentsPane: React.FC<ShiftCommentsPaneProps> = ({ bar, selec
                             </div>
                             <div className="flex justify-between items-center text-xs">
                                 <span className="text-fgc-green font-semibold text-[10px]">
-                                    {bar.sharedSplitMin ? formatMins(bar.sharedSplitMin) : '?'} → {formatMins(bar.endMin)}
+                                    {bar.sharedSecondStartMin != null ? formatMins(bar.sharedSecondStartMin) : '?'} → {bar.sharedSecondEndMin != null ? formatMins(bar.sharedSecondEndMin) : formatMins(bar.endMin)}
                                 </span>
                                 <span className="font-bold text-fgc-green bg-fgc-green/10 px-2 py-0.5 rounded-md text-[11px]">
                                     {bar.sharedSecondDriverName}
