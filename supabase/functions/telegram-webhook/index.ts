@@ -870,13 +870,27 @@ serve(async (req: Request) => {
       const chatId = update.message.chat.id;
       const msgText: string = (update.message.text || '').trim();
       const replyToMsg = update.message.reply_to_message;
+      const from = update.message.from;
+      const senderName = [from.first_name, from.last_name].filter(Boolean).join(' ') || from.username || 'Usuari';
 
-      console.log(`Message from ${chatId}: "${msgText}"`);
+      console.log(`Message from ${senderName} (${chatId}): "${msgText}"`);
+
+      // Save incoming message to database immediately
+      if (msgText) {
+        await supabase.from('telegram_messages').upsert([{
+          id: `user-${update.message.message_id}`,
+          text: msgText,
+          sender_name: senderName,
+          sender_id: from.id.toString(),
+          is_alert: false,
+          created_at: new Date(update.message.date * 1000).toISOString()
+        }], { onConflict: 'id' });
+      }
 
       if (replyToMsg && replyToMsg.text) {
         const rt = replyToMsg.text;
         const rtClean = rt.replace(/<[^>]*>/g, '').toLowerCase();
-        console.log(`Processing reply. Prompt: "${rt.substring(0, 40)}...", Input: "${msgText}"`);
+        console.log(`Processing reply from ${senderName}. Prompt: "${rt.substring(0, 40)}...", Input: "${msgText}"`);
         
         if (rtClean.includes('pk')) {
           const segKey = Object.keys(SEG_LABELS).find(k => rtClean.includes(SEG_LABELS[k].toLowerCase())) || 'PCRE';
@@ -893,9 +907,6 @@ serve(async (req: Request) => {
           await handleCommand('/tren', [msgText], chatId, todayStr, spainTime);
         } else if (rtClean.includes('servei') || rtClean.includes('circulacio')) {
           await handleCommand('/servei', [msgText], chatId, todayStr, spainTime);
-        } else {
-          console.log(`Reply prompt not recognized: "${rt}"`);
-          await sendTelegramMessage(chatId, "⚠️ No he pogut identificar el context d'aquesta resposta. Torna a seleccionar l'opció al menú.");
         }
       } else if (msgText.startsWith('/')) {
         const parts = msgText.trim().split(/\s+/);
