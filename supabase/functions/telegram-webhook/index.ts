@@ -905,7 +905,7 @@ serve(async (req: Request) => {
         // Smart "naked" input parsing (improved regexes)
         const utRegex = /^(\d{2,3}([.]\d{2})?|\d{4,5})$/; 
         const tornRegex = /^[A-Z][A-Z0-9]{2,5}$/i;
-        const serveiRegex = /^[BFGSR]\d{3,4}$/i;
+        const serveiRegex = /^[BFGSRDLTAV]\d{1,5}$/i;
 
         if (utRegex.test(msgText)) {
           let normalizedUT = msgText;
@@ -915,10 +915,11 @@ serve(async (req: Request) => {
             normalizedUT = msgText.substring(0, 2) + '.' + msgText.substring(2);
           }
           await handleCommand('/tren', [normalizedUT], chatId, todayStr, spainTime);
+        } else if (serveiRegex.test(msgText)) {
+          // Prioritize service IDs (B107, F151, etc.) over torn IDs
+          await handleCommand('/servei', [msgText.toUpperCase()], chatId, todayStr, spainTime);
         } else if (tornRegex.test(msgText)) {
           await handleCommand('/torn', [msgText.toUpperCase()], chatId, todayStr, spainTime);
-        } else if (serveiRegex.test(msgText)) {
-          await handleCommand('/servei', [msgText.toUpperCase()], chatId, todayStr, spainTime);
         } else if (msgText.length >= 2 && msgText.length <= 4 && isStationCode(msgText)) {
           await handleCommand('/clima', [msgText.toUpperCase()], chatId, todayStr, spainTime);
         }
