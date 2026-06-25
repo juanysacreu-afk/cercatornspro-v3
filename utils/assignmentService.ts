@@ -1,6 +1,7 @@
 import { supabase } from '../supabaseClient';
 import { decodeGeotrenUt } from '../views/incidencia/utils/decodeUt';
 import { decodeGeotrenCirculation } from '../views/incidencia/utils/decodeCirculation';
+import { calendarCodeToFilterCode } from './serviceCalendar';
 
 const GEOTREN_API = 'https://dadesobertes.fgc.cat/api/v2/catalog/datasets/posicionament-dels-trens/exports/json';
 
@@ -12,6 +13,10 @@ const VALID_UNIT_RE = /^\d{3}\.\d{2}$/;
 
 export async function resetAssignmentsFromGeoTren(selectedServei: string, allShifts?: any[]) {
     try {
+        // Normalize calendar codes (e.g. "000", "200", "700") to DB filter codes ("0", "100", "400", "500")
+        // The service_calendar table stores fine-grained codes, but shifts.servei uses bucket codes.
+        const normalizedServei = calendarCodeToFilterCode(selectedServei);
+
         // 1. Fetch GeoTren Data
         const resp = await fetch(GEOTREN_API);
         if (!resp.ok) throw new Error('No s\'ha pogut connectar amb l\'API de GeoTren');
@@ -31,8 +36,8 @@ export async function resetAssignmentsFromGeoTren(selectedServei: string, allShi
             shifts = data || [];
         }
 
-        const activeShifts = (selectedServei && selectedServei !== 'Tots' && selectedServei !== '') 
-            ? shifts.filter((s: any) => s.servei === selectedServei) 
+        const activeShifts = (normalizedServei && normalizedServei !== 'Tots' && normalizedServei !== '') 
+            ? shifts.filter((s: any) => s.servei === normalizedServei) 
             : shifts;
 
         const circToCicle: Record<string, string> = {};
