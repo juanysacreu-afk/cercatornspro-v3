@@ -87,7 +87,8 @@ export enum SearchType {
   Circulacio = 'circulacio',
   Estacio = 'estacio',
   Cicle = 'cicle',
-  PK = 'pk'
+  PK = 'pk',
+  Unitat = 'unitat'
 }
 
 export enum OrganizeType {

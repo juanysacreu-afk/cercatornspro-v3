@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { SearchType } from '../types.ts';
-import { Search, User, Train, MapPin, Map as MapIcon, Hash, ArrowRight, Loader2, Info, Phone, Clock, FileText, ChevronDown, LayoutGrid, Timer, X, BookOpen, AlertTriangle, Users, Camera, Brush, Save, Check, Share2, Zap, ArrowUp, ArrowDown, RefreshCcw, Milestone, TrendingUp } from 'lucide-react';
+import { Search, User, Train, MapPin, Map as MapIcon, Hash, ArrowRight, Loader2, Info, Phone, Clock, FileText, ChevronDown, LayoutGrid, Timer, X, BookOpen, AlertTriangle, Users, Camera, Brush, Save, Check, Share2, Zap, ArrowUp, ArrowDown, RefreshCcw, Milestone, TrendingUp, TrainFront, Activity } from 'lucide-react';
 
-
+import { decodeGeotrenUt } from '../views/incidencia/utils/decodeUt';
+import { decodeGeotrenCirculation } from '../views/incidencia/utils/decodeCirculation';
 
 import { supabase } from '../supabaseClient.ts';
 
@@ -31,6 +32,10 @@ import { getMapPositionForPk } from './incidencia/mapUtils.ts';
 import { PkSegmentMap } from '../components/PkSegmentMap';
 
 
+
+const GEOTREN_API = 'https://dadesobertes.fgc.cat/api/v2/catalog/datasets/posicionament-dels-trens/exports/json';
+const BV_LINES = new Set(['S1', 'S2', 'L6', 'L66', 'L7', 'L12', 'MS1', 'MS2', 'ML6', 'ML7', 'ES2']);
+const VALID_UNIT_RE = /^\d{3}\.\d{2}$/;
 
 const normalizeStr = (str: string) =>
   (str || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -367,6 +372,7 @@ const CercarViewComponent: React.FC<{
     { id: SearchType.Estacio, label: 'Estació', icon: <MapPin size={16} /> },
     { id: SearchType.Cicle, label: 'Cicle', icon: <RefreshCcw size={16} /> },
     { id: SearchType.PK, label: 'PK', icon: <Milestone size={18} /> },
+    { id: SearchType.Unitat, label: 'Unitat', icon: <TrainFront size={16} /> },
   ];
   // For desktop, combine all in one flat list
   const filterButtons = [...filterButtonsRow1, ...filterButtonsRow2];
@@ -667,6 +673,194 @@ const CercarViewComponent: React.FC<{
           }
 
         }
+      } else if (currentType === SearchType.Unitat) {
+        const unitQuery = (overrideQuery || query).trim();
+        if (!unitQuery) { setLoading(false); return; }
+
+        try {
+          // 1. Fetch real-time GeoTren data
+          const resp = await fetch(GEOTREN_API);
+          if (!resp.ok) throw new Error('No s\'ha pogut connectar amb l\'API de GeoTren');
+          const rawData: any[] = await resp.json();
+          const geoTrenData = rawData.filter(gt => BV_LINES.has((gt.lin || '').toUpperCase()));
+
+          // 2. Decode all units and find matches
+          const normalizedQuery = unitQuery.replace(/\s/g, '').toLowerCase();
+          const matchingTrains: any[] = [];
+
+          geoTrenData.forEach(gt => {
+            const decodedUt = decodeGeotrenUt(gt.ut, gt.tipus_unitat);
+            if (!decodedUt) return;
+            const normalizedUt = decodedUt.replace(/\s/g, '').toLowerCase();
+
+            // Match by full unit (113.04), by series (113), by partial (04), or by number without dot (11304)
+            const matches = normalizedUt === normalizedQuery
+              || normalizedUt.startsWith(normalizedQuery)
+              || normalizedUt.endsWith(normalizedQuery)
+              || normalizedUt.replace('.', '') === normalizedQuery.replace('.', '')
+              || normalizedUt.split('.')[1] === normalizedQuery.padStart(2, '0');
+
+            if (matches) {
+              const decodedCirc = decodeGeotrenCirculation(gt.id);
+
+              // Parse next stops
+              let nextStops: any[] = [];
+              if (gt.properes_parades && typeof gt.properes_parades === 'string') {
+                try { nextStops = gt.properes_parades.split(';').map((p: string) => JSON.parse(p)); } catch (_) {}
+              } else if (Array.isArray(gt.properes_parades)) {
+                nextStops = gt.properes_parades;
+              }
+
+              // Occupation
+              const coaches = [
+                { name: 'M1', val: gt.ocupacio_m1_percent },
+                { name: 'RI', val: gt.ocupacio_ri_percent },
+                { name: 'MI', val: gt.ocupacio_mi_percent },
+                { name: 'M2', val: gt.ocupacio_m2_percent }
+              ].filter(c => c.val !== null && c.val !== undefined);
+              const avgOccupation = coaches.length > 0
+                ? Math.round(coaches.reduce((acc: number, c: any) => acc + (parseFloat(c.val) || 0), 0) / coaches.length)
+                : null;
+
+              matchingTrains.push({
+                raw: gt,
+                decodedUt,
+                decodedCirc,
+                nextStops,
+                coaches,
+                avgOccupation,
+                isPunctual: gt.en_hora === 'True',
+                delaySeconds: typeof gt.retard === 'number' ? gt.retard : 0,
+              });
+            }
+          });
+
+          if (matchingTrains.length === 0) {
+            newResults = [];
+          } else {
+            // 3. For each match, find the associated cycle + shift + driver from Supabase
+            let qShifts = supabase.from('shifts').select('*');
+            if (selectedServei !== 'Tots') qShifts = qShifts.eq('servei', selectedServei);
+            const allShiftsData = await fetchAllFromSupabase('shifts', qShifts);
+
+            // Build circulation -> cycle map
+            const circToCicle: Record<string, string> = {};
+            const circToShiftId: Record<string, string> = {};
+            allShiftsData?.forEach((shift: any) => {
+              (shift.circulations as any[])?.forEach((cRef: any) => {
+                const codi = (typeof cRef === 'string' ? cRef : cRef?.codi)?.toUpperCase();
+                if (codi && cRef?.cicle) {
+                  circToCicle[codi] = cRef.cicle;
+                  circToShiftId[codi] = shift.id;
+                }
+              });
+            });
+
+            const enrichedResults = await Promise.all(matchingTrains.map(async (train) => {
+              const circCode = train.decodedCirc?.fullName?.toUpperCase() || null;
+              const matchedCycleId = circCode ? circToCicle[circCode] : null;
+              const matchedShiftId = circCode ? circToShiftId[circCode] : null;
+
+              // Find all circulations in this cycle + their order
+              let cycleCirculations: any[] = [];
+              let nextCirculation: any = null;
+              let assignedTrain: string | null = null;
+              let shiftData: any = null;
+              let driverData: any = null;
+
+              if (matchedCycleId) {
+                // Get assignment (unit in DB)
+                const { data: assignData } = await supabase.from('assignments')
+                  .select('train_number').eq('cycle_id', matchedCycleId).single();
+                assignedTrain = assignData?.train_number || null;
+
+                // Get all circs in this cycle
+                allShiftsData?.forEach((shift: any) => {
+                  (shift.circulations as any[])?.forEach((cRef: any) => {
+                    if (cRef?.cicle === matchedCycleId) {
+                      cycleCirculations.push({
+                        codi: typeof cRef === 'string' ? cRef : cRef.codi,
+                        sortida: cRef.sortida,
+                        arribada: cRef.arribada,
+                        inici: cRef.inici,
+                        final: cRef.final,
+                        linia: cRef.linia,
+                        cicle: cRef.cicle,
+                        shift_id: shift.id,
+                      });
+                    }
+                  });
+                });
+
+                // Enrich with real circulation details (inici/final often missing from shift refs)
+                const cycleCircIds = cycleCirculations.map((c: any) => c.codi).filter(Boolean);
+                if (cycleCircIds.length > 0) {
+                  const { data: circDetails } = await supabase.from('circulations')
+                    .select('id, inici, final, linia, sortida, arribada').in('id', cycleCircIds);
+                  if (circDetails) {
+                    const detailMap = new Map(circDetails.map((d: any) => [d.id, d]));
+                    cycleCirculations = cycleCirculations.map((cc: any) => {
+                      const detail = detailMap.get(cc.codi);
+                      if (detail) {
+                        return {
+                          ...cc,
+                          inici: cc.inici || detail.inici,
+                          final: cc.final || detail.final,
+                          linia: cc.linia || detail.linia,
+                          sortida: cc.sortida || detail.sortida,
+                          arribada: cc.arribada || detail.arribada,
+                        };
+                      }
+                      return cc;
+                    });
+                  }
+                }
+
+                cycleCirculations.sort((a: any, b: any) => getFgcMinutes(a.sortida || '00:00') - getFgcMinutes(b.sortida || '00:00'));
+
+                // Find current and next
+                const currentIdx = cycleCirculations.findIndex((c: any) => c.codi?.toUpperCase() === circCode);
+                if (currentIdx !== -1 && currentIdx < cycleCirculations.length - 1) {
+                  nextCirculation = cycleCirculations[currentIdx + 1];
+                }
+              }
+
+              if (matchedShiftId) {
+                // Get full shift data
+                shiftData = allShiftsData?.find((s: any) => s.id === matchedShiftId);
+
+                // Get driver
+                const shortTorn = getShortTornId(matchedShiftId);
+                const { data: driverAssignment } = await supabase.from('daily_assignments')
+                  .select('*').eq('torn', shortTorn).limit(1);
+                if (driverAssignment && driverAssignment.length > 0) {
+                  const da = driverAssignment[0];
+                  const { data: phoneData } = await supabase.from('phonebook')
+                    .select('phones').eq('nomina', da.empleat_id).single();
+                  driverData = { ...da, phones: phoneData?.phones || [] };
+                }
+              }
+
+              return {
+                type: 'unit_result',
+                ...train,
+                circCode,
+                matchedCycleId,
+                matchedShiftId,
+                cycleCirculations,
+                nextCirculation,
+                assignedTrain,
+                shiftData,
+                driverData,
+              };
+            }));
+
+            newResults = enrichedResults;
+          }
+        } catch (err) {
+          console.error('[Unitat] Error fetching GeoTren:', err);
+          newResults = [];
+        }
       } else {
 
         let turnIds: string[] = [];
@@ -879,7 +1073,7 @@ const CercarViewComponent: React.FC<{
               </button>
             ))}
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-4 gap-2">
             {filterButtonsRow2.map((btn) => (
               <button key={btn.id} onClick={() => { feedback.click(); setSearchType(btn.id); setResults([]); setQuery(''); setSuggestions([]); setShowSuggestions(false); }} className={`flex items-center justify-center gap-1 px-1 py-2.5 rounded-xl text-[12px] font-bold transition-all ${searchType === btn.id ? 'bg-fgc-green text-[#4D5358] shadow-xl shadow-fgc-green/20' : 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500 hover:bg-gray-50 dark:hover:bg-white/10'}`}>
                 <span className="shrink-0">{btn.icon}</span>
@@ -967,7 +1161,7 @@ const CercarViewComponent: React.FC<{
                   name="search-query"
                   autoComplete="off"
                   data-1p-ignore="true"
-                  placeholder={searchType === 'general' ? 'Cerca torn, maquinista o circulació...' : `Cerca per ${searchType.toUpperCase()}...`}
+                  placeholder={searchType === 'general' ? 'Cerca torn, maquinista o circulació...' : searchType === SearchType.Unitat ? 'Cerca per unitat (ex: 113.04, 112, 07...)' : `Cerca per ${searchType.toUpperCase()}...`}
                   className="relative z-10 w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] sm:rounded-[32px] py-4 sm:py-6 pl-14 sm:pl-16 pr-14 sm:pr-16 focus:ring-4 focus:ring-fgc-green/20 outline-none text-lg sm:text-2xl font-bold placeholder:text-gray-300 dark:text-white dark:placeholder:text-gray-600 transition-all shadow-inner"
                   value={query}
                   onChange={(e) => handleInputChange(e.target.value)}
@@ -1345,6 +1539,266 @@ const CercarViewComponent: React.FC<{
 
                 </GlassPanel>
               )
+            }
+
+            if (group.type === 'unit_result') {
+              const u = group;
+              const gt = u.raw;
+              const delayMin = Math.round(u.delaySeconds / 60);
+              const trainPhone = getTrainPhone(u.decodedUt);
+
+              return (
+                <GlassPanel key={idx} className="p-6 sm:p-10 !rounded-[40px] sm:!rounded-[56px] animate-in fade-in slide-in-from-bottom-12 duration-700 relative overflow-hidden group">
+                  <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-fgc-green/5 to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+
+                  {/* Header */}
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
+                    <div className="flex items-center gap-5">
+                      <div className="min-w-[4.5rem] min-h-[4.5rem] bg-fgc-grey dark:bg-black text-white rounded-[28px] flex flex-col items-center justify-center shadow-lg px-3">
+                        <TrainFront size={22} className="mb-0.5" />
+                        <span className="text-lg font-black tracking-tighter leading-none">{u.decodedUt}</span>
+                      </div>
+                      <div>
+                        <h2 className="text-2xl sm:text-3xl font-bold text-[#4D5358] dark:text-white tracking-tighter uppercase">Unitat {u.decodedUt}</h2>
+                        <div className="flex items-center gap-3 mt-1 flex-wrap">
+                          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase ${u.isPunctual ? 'bg-fgc-green/20 text-fgc-green' : 'bg-red-500/20 text-red-500'}`}>
+                            <span className={`w-2 h-2 rounded-full ${u.isPunctual ? 'bg-fgc-green' : 'bg-red-500'} animate-pulse`} />
+                            {u.isPunctual ? 'Puntual' : `Retard +${delayMin} min`}
+                          </span>
+                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{gt.lin} · {gt.dir === 'A' ? 'Ascendent' : 'Descendent'}</span>
+                        </div>
+                      </div>
+                    </div>
+                    {trainPhone && (
+                      <a href={`tel:${trainPhone}`} className="flex items-center gap-2 px-5 py-3 bg-fgc-grey text-white rounded-2xl text-sm font-bold hover:bg-fgc-dark transition-all active:scale-95 shadow-lg">
+                        <Phone size={16} />
+                        {trainPhone}
+                      </a>
+                    )}
+                  </div>
+
+                  {/* Grid principal */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Columna izquierda: Circulació actual + Pròxima */}
+                    <div className="space-y-4">
+                      {/* Circulació actual */}
+                      <div className="bg-gray-50 dark:bg-white/5 p-5 rounded-[24px] border border-gray-100 dark:border-white/5 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                            <Activity size={12} className="text-red-500" />
+                            Circulació Actual
+                          </span>
+                          <span className="px-2.5 py-1 bg-red-500 text-white text-[9px] font-black uppercase rounded-lg animate-pulse shadow-md">LIVE</span>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <span className="text-3xl font-black text-[#4D5358] dark:text-white tracking-tighter font-mono">
+                            {u.decodedCirc ? u.decodedCirc.fullName : gt.id?.split('|')[0] || '---'}
+                          </span>
+                          {u.decodedCirc && (
+                            <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold text-white ${getLiniaColor(u.decodedCirc.line)}`}>{u.decodedCirc.line}</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 text-sm font-bold text-gray-500 dark:text-gray-400">
+                          <span className="uppercase">{gt.origen || '---'}</span>
+                          <ArrowRight size={14} className="opacity-50" />
+                          <span className="uppercase">{gt.desti || '---'}</span>
+                        </div>
+                        {gt.estacionat_a && (
+                          <div className="flex items-center gap-2 text-xs font-bold text-fgc-green">
+                            <MapPin size={14} />
+                            Estacionat a: <span className="uppercase">{gt.estacionat_a}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Pròxima circulació */}
+                      <div className={`p-5 rounded-[24px] border space-y-3 ${u.nextCirculation ? 'bg-blue-50/50 dark:bg-blue-500/5 border-blue-100 dark:border-blue-500/10' : 'bg-gray-50 dark:bg-white/5 border-gray-100 dark:border-white/5'}`}>
+                        <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                          <Clock size={12} className="text-blue-500" />
+                          Pròxima Circulació
+                        </span>
+                        {u.nextCirculation ? (
+                          <>
+                            <div className="flex items-center gap-4">
+                              <span className="text-2xl font-black text-[#4D5358] dark:text-white tracking-tighter font-mono">{u.nextCirculation.codi}</span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3 text-xs font-bold text-gray-500">
+                              <span className="flex items-center gap-1.5 uppercase">{u.nextCirculation.inici || '---'} <ArrowRight size={12} className="opacity-50" /> {u.nextCirculation.final || '---'}</span>
+                              <span className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400"><Clock size={12} />{u.nextCirculation.sortida} — {u.nextCirculation.arribada}</span>
+                            </div>
+                          </>
+                        ) : (
+                          <p className="text-sm font-bold text-gray-400 italic">Última circulació del cicle</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Columna derecha: Torn / Cicle / Maquinista */}
+                    <div className="space-y-4">
+                      {/* Cicle i Torn */}
+                      <div className="bg-gray-50 dark:bg-white/5 p-5 rounded-[24px] border border-gray-100 dark:border-white/5 space-y-4">
+                        <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Assignació</span>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Cicle</span>
+                            {u.matchedCycleId ? (
+                              <button onClick={() => handleCycleClick(u.matchedCycleId)} className="text-xl font-black text-fgc-green hover:underline cursor-pointer tracking-tight">{u.matchedCycleId}</button>
+                            ) : (
+                              <span className="text-xl font-bold text-gray-300 dark:text-gray-600">---</span>
+                            )}
+                          </div>
+                          <div>
+                            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Torn</span>
+                            <span className="text-xl font-black text-[#4D5358] dark:text-white tracking-tight">{u.matchedShiftId || '---'}</span>
+                          </div>
+                        </div>
+                        {u.shiftData && (
+                          <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-gray-500 pt-2 border-t border-gray-100 dark:border-white/5">
+                            <Clock size={14} className="text-fgc-green" />
+                            <span>{u.shiftData.inici_torn} — {u.shiftData.final_torn}</span>
+                            <span className="text-gray-300 dark:text-gray-600">·</span>
+                            <span>{u.shiftData.duracio}</span>
+                            <span className="text-gray-300 dark:text-gray-600">·</span>
+                            <MapPin size={12} />
+                            <span className="uppercase">{u.shiftData.dependencia}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Maquinista */}
+                      <div className={`p-5 rounded-[24px] border space-y-3 ${u.driverData ? 'bg-fgc-green/10 border-fgc-green/20' : 'bg-gray-50 dark:bg-white/5 border-gray-100 dark:border-white/5'}`}>
+                        <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                          <User size={12} />
+                          Maquinista
+                        </span>
+                        {u.driverData ? (
+                          <div className="space-y-2">
+                            <p className="text-lg font-bold text-[#4D5358] dark:text-white uppercase tracking-tight">
+                              {u.driverData.cognoms}, {u.driverData.nom}
+                            </p>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="px-2.5 py-0.5 bg-fgc-grey text-white rounded-lg text-[10px] font-bold uppercase tracking-widest">
+                                Nòmina: {u.driverData.empleat_id}
+                              </span>
+                              {u.driverData.observacions && (
+                                <span className="text-[10px] font-bold text-gray-500 italic truncate max-w-[200px]">{u.driverData.observacions}</span>
+                              )}
+                            </div>
+                            {u.driverData.phones?.length > 0 && (
+                              <div className="flex flex-wrap gap-2 pt-1">
+                                {u.driverData.phones.map((p: string, i: number) => (
+                                  <a key={i} href={isPrivacyMode ? undefined : `tel:${p}`} className={`flex items-center gap-2 bg-fgc-grey text-white px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-fgc-dark transition-all active:scale-95 ${isPrivacyMode ? 'cursor-default' : ''}`}>
+                                    <Phone size={12} />
+                                    {isPrivacyMode ? '*** ** ** **' : p}
+                                  </a>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-sm font-bold text-gray-400 italic">Sense maquinista assignat</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Ocupació + Pròximes parades */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                    {/* Ocupació */}
+                    <div className="bg-gray-50 dark:bg-white/5 p-5 rounded-[24px] border border-gray-100 dark:border-white/5 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                          <Users size={12} /> Ocupació
+                        </span>
+                        {u.avgOccupation !== null && <span className="text-sm font-black text-[#4D5358] dark:text-white">{u.avgOccupation}%</span>}
+                      </div>
+                      {u.coaches.length > 0 ? (
+                        <div className="grid grid-cols-4 gap-2">
+                          {u.coaches.map((c: any) => (
+                            <div key={c.name} className="space-y-1">
+                              <div className="h-12 bg-white dark:bg-black/20 rounded-xl relative overflow-hidden border border-gray-100 dark:border-white/5">
+                                <div className="absolute bottom-0 left-0 w-full bg-fgc-green/40 transition-all duration-1000" style={{ height: `${c.val}%` }} />
+                                <div className="absolute inset-0 flex items-center justify-center text-[11px] font-black text-[#4D5358] dark:text-white">{Math.round(c.val)}%</div>
+                              </div>
+                              <p className="text-[9px] font-bold text-center text-gray-400 uppercase">{c.name}</p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs font-bold text-gray-400 italic text-center py-2">Sense dades d'ocupació</p>
+                      )}
+                    </div>
+
+                    {/* Pròximes parades */}
+                    <div className="bg-gray-50 dark:bg-white/5 p-5 rounded-[24px] border border-gray-100 dark:border-white/5 space-y-3">
+                      <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                        <MapPin size={12} /> Pròximes Parades
+                      </span>
+                      {u.nextStops.length > 0 ? (
+                        <div className="space-y-2">
+                          {u.nextStops.slice(0, 5).map((s: any, i: number) => (
+                            <div key={i} className="flex items-center justify-between py-1 px-2">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full ${i === 0 ? 'bg-fgc-green animate-pulse' : 'bg-gray-300 dark:bg-gray-600'}`} />
+                                <span className="text-sm font-bold text-[#4D5358] dark:text-white uppercase">{s.parada}</span>
+                              </div>
+                              {s.hora_prevista && <span className="text-xs font-bold text-gray-400 font-mono">{s.hora_prevista}</span>}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs font-bold text-gray-400 italic text-center py-2">Sense dades de parades</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Cicle cronograma (mini) */}
+                  {u.cycleCirculations.length > 1 && (
+                    <div className="mt-6 pt-6 border-t border-gray-100 dark:border-white/5">
+                      <div className="flex items-center gap-2 mb-4">
+                        <RefreshCcw size={14} className="text-fgc-green" />
+                        <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">
+                          Cronograma del Cicle {u.matchedCycleId}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {u.cycleCirculations.map((cc: any, ci: number) => {
+                          const isCurrent = cc.codi?.toUpperCase() === u.circCode;
+                          const isPast = getFgcMinutes(cc.arribada || '00:00') < nowMin && !isCurrent;
+                          return (
+                            <div key={ci} className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold border transition-all ${
+                              isCurrent
+                                ? 'bg-red-500 text-white border-red-500 shadow-lg shadow-red-500/20 scale-105'
+                                : isPast
+                                  ? 'bg-gray-100 dark:bg-white/5 text-gray-300 dark:text-gray-600 border-gray-100 dark:border-white/5 line-through'
+                                  : 'bg-white dark:bg-white/5 text-[#4D5358] dark:text-gray-200 border-gray-100 dark:border-white/10'
+                            }`}>
+                              <span className="font-mono font-black">{cc.codi}</span>
+                              <span className="text-[9px] opacity-70">{cc.sortida}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Footer técnico */}
+                  <div className="mt-6 pt-4 border-t border-gray-100 dark:border-white/5 flex flex-wrap items-center gap-4 opacity-40">
+                    <div className="flex items-center gap-1.5 text-[9px] font-bold text-gray-400 uppercase tracking-widest">
+                      <Info size={10} />
+                      Font: GeoTren Dades Obertes FGC
+                    </div>
+                    {gt.ut && (
+                      <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">
+                        UT HEX: {gt.ut}
+                      </div>
+                    )}
+                    <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">
+                      ID SIRTRAN: {gt.id?.split('|')[0]}
+                    </div>
+                  </div>
+                </GlassPanel>
+              );
             }
 
             const currentStatus = getShiftCurrentStatus(group, idx);
