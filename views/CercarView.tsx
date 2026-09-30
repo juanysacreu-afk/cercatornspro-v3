@@ -1061,9 +1061,69 @@ const CercarViewComponent: React.FC<{
                 timeStatusLabel,
               };
 
+              // Enriquir pròximes parades amb codi, nom complet i hora teòrica oficial de pas
+              let enrichedNextStops = (train.nextStops || []).map((s: any) => {
+                const sRaw = s.parada || '';
+                const sCode = resolveStationId(sRaw, gt.lin) || sRaw;
+                const sName = resolveStationName(sRaw, gt.lin) || sRaw;
+
+                let matched = officialStops.find(os => os.code === sCode);
+                if (!matched && sRaw) {
+                  const normRaw = normalizeStr(sRaw);
+                  matched = officialStops.find(os => {
+                    const normNom = normalizeStr(os.nom);
+                    return normNom.includes(normRaw) || normRaw.includes(normNom);
+                  });
+                }
+
+                const horaTeorica = matched?.hora ? formatTimeToHHMMSS(matched.hora) : (s.hora_prevista ? formatTimeToHHMMSS(s.hora_prevista) : null);
+
+                return {
+                  ...s,
+                  parada: sRaw,
+                  code: sCode,
+                  nom: sName,
+                  horaTeorica,
+                };
+              });
+
+              // Si GeoTren no retorna parades o en té poques, i tenim horari oficial de la circulació,
+              // completar amb les pròximes parades oficials a partir de la posició actual
+              if (enrichedNextStops.length < 5 && officialStops.length > 0) {
+                const currentStationCode = exactStationCode || (train.nextStops?.[0]?.parada ? resolveStationId(train.nextStops[0].parada, gt.lin) : null);
+                let startIdx = 0;
+                if (currentStationCode) {
+                  const foundIdx = officialStops.findIndex(os => os.code === currentStationCode);
+                  if (foundIdx !== -1) {
+                    startIdx = isAtStation ? Math.min(foundIdx + 1, officialStops.length) : foundIdx;
+                  }
+                }
+
+                const upcomingFromOfficial = officialStops.slice(startIdx).map(os => ({
+                  parada: os.code,
+                  code: os.code,
+                  nom: resolveStationName(os.code, gt.lin) || os.nom,
+                  horaTeorica: formatTimeToHHMMSS(os.hora),
+                }));
+
+                if (enrichedNextStops.length === 0) {
+                  enrichedNextStops = upcomingFromOfficial;
+                } else {
+                  const existingCodes = new Set(enrichedNextStops.map((st: any) => st.code));
+                  for (const st of upcomingFromOfficial) {
+                    if (!existingCodes.has(st.code)) {
+                      enrichedNextStops.push(st);
+                      existingCodes.add(st.code);
+                    }
+                  }
+                }
+              }
+
               return {
                 type: 'unit_result',
                 ...train,
+                nextStops: enrichedNextStops,
+                officialStops,
                 circCode,
                 currentCircDetail,
                 scheduleComparison,
@@ -2162,20 +2222,52 @@ const CercarViewComponent: React.FC<{
 
                     {/* Pròximes parades */}
                     <div className="bg-gray-50 dark:bg-white/5 p-5 rounded-[24px] border border-gray-100 dark:border-white/5 space-y-3">
-                      <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                        <MapPin size={12} /> Pròximes Parades
-                      </span>
-                      {u.nextStops.length > 0 ? (
-                        <div className="space-y-2">
-                          {u.nextStops.slice(0, 5).map((s: any, i: number) => (
-                            <div key={i} className="flex items-center justify-between py-1 px-2">
-                              <div className="flex items-center gap-2">
-                                <div className={`w-2 h-2 rounded-full ${i === 0 ? 'bg-fgc-green animate-pulse' : 'bg-gray-300 dark:bg-gray-600'}`} />
-                                <span className="text-sm font-bold text-[#4D5358] dark:text-white uppercase">{resolveStationName(s.parada, u.linia) || s.parada}</span>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                          <MapPin size={12} /> Pròximes Parades
+                        </span>
+                        <span className="text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest font-mono">
+                          H. Teòrica
+                        </span>
+                      </div>
+                      {u.nextStops && u.nextStops.length > 0 ? (
+                        <div className="space-y-1.5">
+                          {u.nextStops.slice(0, 5).map((s: any, i: number) => {
+                            const stCode = s.code || resolveStationId(s.parada, gt.lin) || s.parada;
+                            const stName = s.nom || resolveStationName(s.parada, gt.lin) || s.parada;
+
+                            let timeDisplay = s.horaTeorica;
+                            if (!timeDisplay && u.officialStops) {
+                              const matched = u.officialStops.find((os: any) => os.code === stCode);
+                              if (matched?.hora) timeDisplay = formatTimeToHHMMSS(matched.hora);
+                            }
+                            if (!timeDisplay && s.hora_prevista) {
+                              timeDisplay = formatTimeToHHMMSS(s.hora_prevista);
+                            }
+
+                            return (
+                              <div key={i} className="flex items-center justify-between py-1.5 px-2.5 rounded-xl hover:bg-white/60 dark:hover:bg-white/5 transition-colors">
+                                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                  <div className={`w-2 h-2 rounded-full shrink-0 ${i === 0 ? 'bg-fgc-green animate-pulse' : 'bg-gray-300 dark:bg-gray-600'}`} />
+                                  
+                                  {/* Vista telèfon: sigles de l'estació */}
+                                  <span className="sm:hidden font-mono font-black text-sm text-[#4D5358] dark:text-white uppercase tracking-tight">
+                                    {stCode}
+                                  </span>
+
+                                  {/* Vista pantalla gran: nom complet de l'estació */}
+                                  <span className="hidden sm:inline font-bold text-sm text-[#4D5358] dark:text-white uppercase truncate">
+                                    {stName}
+                                  </span>
+                                </div>
+
+                                {/* Hora teòrica de pas */}
+                                <span className="text-xs font-black font-mono text-gray-500 dark:text-gray-400 shrink-0 ml-2">
+                                  {timeDisplay || '---'}
+                                </span>
                               </div>
-                              {s.hora_prevista && <span className="text-xs font-bold text-gray-400 font-mono">{s.hora_prevista}</span>}
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       ) : (
                         <p className="text-xs font-bold text-gray-400 italic text-center py-2">Sense dades de parades</p>
