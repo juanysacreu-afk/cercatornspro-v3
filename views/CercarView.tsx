@@ -949,16 +949,23 @@ const CercarViewComponent: React.FC<{
 
               const stationFullName = exactStationCode ? resolveStationName(exactStationCode, gt.lin) : null;
               const nextStopRaw = (train.nextStops && train.nextStops.length > 0) ? train.nextStops[0].parada : null;
+              const nextStopCode = nextStopRaw ? resolveStationId(nextStopRaw, gt.lin) : (gt.desti ? resolveStationId(gt.desti, gt.lin) : '');
               const nextStopFullName = nextStopRaw ? resolveStationName(nextStopRaw, gt.lin) : (gt.desti ? resolveStationName(gt.desti, gt.lin) : '');
 
-              let locationDisplayText = '';
-              if (isAtStation && stationFullName) {
-                locationDisplayText = `Estacionat a ${stationFullName}`;
-              } else if (nextStopFullName) {
-                locationDisplayText = `En trajecte cap a ${nextStopFullName}`;
-              } else {
-                locationDisplayText = 'En circulació';
-              }
+              // Adaptació per pantalla:
+              // Mòbil: "En [Sigla]" o "Cap a [Sigla]"
+              // Pantalles grans: "Estacionat a [Nom]" o "En trajecte cap a [Nom]"
+              const mobileLocationText = isAtStation
+                ? `En ${exactStationCode || stationFullName || 'estació'}`
+                : `Cap a ${nextStopCode || nextStopFullName || 'destí'}`;
+
+              const desktopLocationText = isAtStation
+                ? `Estacionat a ${stationFullName || exactStationCode || 'estació'}`
+                : (nextStopFullName || nextStopCode
+                    ? `En trajecte cap a ${nextStopFullName || nextStopCode}`
+                    : 'En circulació');
+
+              const locationDisplayText = desktopLocationText;
 
               // Reference station for theoretical timetable comparison
               let refStationName = exactStationCode || nextStopRaw || gt.desti || null;
@@ -1008,6 +1015,10 @@ const CercarViewComponent: React.FC<{
                 exactStation: stationFullName,
                 isAtStation,
                 locationDisplayText,
+                mobileLocationText,
+                desktopLocationText,
+                stationFullName,
+                nextStopFullName,
                 comparisonStationName,
                 officialTime,
                 estimatedTime,
@@ -1779,9 +1790,8 @@ const CercarViewComponent: React.FC<{
                             {u.scheduleComparison?.timeStatusLabel || (u.isPunctual ? 'Puntual' : `Retard +${delayMin} min`)}
                           </span>
                           <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{gt.lin} · {gt.dir === 'A' ? 'Ascendent' : 'Descendent'}</span>
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-bold uppercase bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 border border-gray-200/50 dark:border-white/10 shadow-sm">
-                            <RefreshCcw size={10} className={isAutoRefreshing ? "animate-spin text-fgc-green" : "text-gray-400"} />
-                            <span>{isAutoRefreshing ? 'Actualitzant...' : '15s Live'}</span>
+                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/5 border border-gray-200/50 dark:border-white/10 shadow-sm shrink-0" title="Actualització en viu cada 10s">
+                            <RefreshCcw size={11} className={isAutoRefreshing ? "animate-spin text-fgc-green" : "text-gray-400"} />
                           </span>
                         </div>
                       </div>
@@ -1826,9 +1836,17 @@ const CercarViewComponent: React.FC<{
                           <div className={`p-1.5 rounded-xl shrink-0 ${u.scheduleComparison?.isAtStation ? "bg-fgc-green/20 text-fgc-green" : "bg-blue-500/20 text-blue-400"}`}>
                             <MapPin size={16} />
                           </div>
-                          <span className="text-xs sm:text-sm font-black text-[#4D5358] dark:text-white uppercase tracking-tight truncate flex-1">
-                            {u.scheduleComparison?.locationDisplayText || 'En circulació'}
-                          </span>
+                          <div className="flex items-center min-w-0 flex-1">
+                            {/* Versió Mòbil: "En [Sigla]" o "Cap a [Sigla]" */}
+                            <span className="sm:hidden text-xs sm:text-sm font-black text-[#4D5358] dark:text-white uppercase tracking-tight font-mono">
+                              {u.scheduleComparison?.mobileLocationText || u.scheduleComparison?.locationDisplayText || 'En circulació'}
+                            </span>
+
+                            {/* Versió Pantalles Grans: "Estacionat a [Nom]" o "En trajecte cap a [Nom]" */}
+                            <span className="hidden sm:inline text-xs sm:text-sm font-black text-[#4D5358] dark:text-white uppercase tracking-tight truncate">
+                              {u.scheduleComparison?.desktopLocationText || u.scheduleComparison?.locationDisplayText || 'En circulació'}
+                            </span>
+                          </div>
                           {u.scheduleComparison?.isAtStation ? (
                             <span className="px-2.5 py-1 rounded-md text-[9px] font-black uppercase bg-fgc-green/20 text-fgc-green border border-fgc-green/30 shrink-0">
                               Estacionat
@@ -2060,7 +2078,7 @@ const CercarViewComponent: React.FC<{
                     </div>
                     <div className="flex items-center gap-1.5 text-fgc-green">
                       <RefreshCcw size={10} className={isAutoRefreshing ? "animate-spin" : ""} />
-                      <span>Actualització automàtica cada 15s</span>
+                      <span>Actualització automàtica cada 10s</span>
                     </div>
                     {gt.ut && (
                       <div className="opacity-40">
