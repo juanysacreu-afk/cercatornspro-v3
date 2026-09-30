@@ -1030,9 +1030,12 @@ const CercarViewComponent: React.FC<{
               let timeStatus: 'retard' | 'avanc' | 'puntual' = 'puntual';
               let timeStatusLabel = 'En hora (Puntual)';
 
-              if (diffMinutes > 0) {
+              if (diffMinutes >= 4) {
                 timeStatus = 'retard';
                 timeStatusLabel = `+${diffMinutes} min retard`;
+              } else if (diffMinutes > 0) {
+                timeStatus = 'puntual';
+                timeStatusLabel = 'En hora';
               } else if (diffMinutes < 0) {
                 timeStatus = 'avanc';
                 timeStatusLabel = `${Math.abs(diffMinutes)} min avanç`;
@@ -1798,6 +1801,7 @@ const CercarViewComponent: React.FC<{
               let departureCountdown: string | null = null;
               let isCountdownInAdvance = false;
               let liveDelayBadge: string | null = null;
+              let liveDelaySec = 0;
 
               const isAtStation = Boolean(u.scheduleComparison?.isAtStation);
               const depTimeStr = isAtStation
@@ -1829,13 +1833,13 @@ const CercarViewComponent: React.FC<{
                       departureCountdown = `-${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
                     }
                   } else if (diffSec < 0 && Math.abs(diffSec) < 24 * 3600) {
-                    // L'hora prevista/teòrica ja ha passat (sigui estacionat o en trajecte): retard acumulat en vermell (+)
-                    const delaySec = Math.abs(diffSec);
-                    const m = Math.floor(delaySec / 60);
-                    const s = delaySec % 60;
-                    if (delaySec >= 3600) {
-                      const h = Math.floor(delaySec / 3600);
-                      const remM = Math.floor((delaySec % 3600) / 60);
+                    // L'hora prevista/teòrica ja ha passat (sigui estacionat o en trajecte): retard acumulat (+)
+                    liveDelaySec = Math.abs(diffSec);
+                    const m = Math.floor(liveDelaySec / 60);
+                    const s = liveDelaySec % 60;
+                    if (liveDelaySec >= 3600) {
+                      const h = Math.floor(liveDelaySec / 3600);
+                      const remM = Math.floor((liveDelaySec % 3600) / 60);
                       liveDelayBadge = `+${h}:${remM.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
                     } else {
                       liveDelayBadge = `+${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
@@ -1844,10 +1848,18 @@ const CercarViewComponent: React.FC<{
                 }
               }
 
+              // Llindar oficial de tolerància FGC:
+              // - Fins a 3 min i 59 segons (<= 239s): Retard lleu -> Groc, text "En hora"
+              // - Superior a 3 min i 59 segons (> 239s): Retard greu -> Vermell, text "Retard" (+X min retard)
               const hasLiveDelay = Boolean(liveDelayBadge);
-              const effectiveTimeStatus: 'retard' | 'avanc' | 'puntual' = hasLiveDelay
-                ? 'retard'
-                : (u.scheduleComparison?.timeStatus || (u.isPunctual ? 'puntual' : 'retard'));
+              const totalDelaySeconds = liveDelaySec > 0
+                ? liveDelaySec
+                : (typeof u.delaySeconds === 'number' && u.delaySeconds > 0
+                    ? u.delaySeconds
+                    : ((u.scheduleComparison?.diffMinutes || 0) > 0 ? (u.scheduleComparison.diffMinutes * 60) : 0));
+
+              const isSevereDelay = totalDelaySeconds > 239;
+              const isMildDelay = totalDelaySeconds > 0 && !isSevereDelay;
 
               let effectiveDelayMin = delayMin;
               if (hasLiveDelay && depTimeStr && typeof nowMin === 'number') {
@@ -1859,9 +1871,13 @@ const CercarViewComponent: React.FC<{
                 effectiveDelayMin = Math.max(1, Math.abs(u.scheduleComparison.diffMinutes));
               }
 
-              const effectiveTimeStatusLabel = hasLiveDelay
+              const headerStatusText = isSevereDelay
                 ? `+${effectiveDelayMin} min retard`
-                : (u.scheduleComparison?.timeStatusLabel || (u.isPunctual ? 'En hora (Puntual)' : `Retard +${effectiveDelayMin} min`));
+                : (isMildDelay ? 'En hora' : (u.scheduleComparison?.timeStatusLabel || (u.isPunctual ? 'En hora (Puntual)' : `Retard +${effectiveDelayMin} min`)));
+
+              const horarisStatusText = isSevereDelay
+                ? 'Retard'
+                : 'En hora';
 
               return (
                 <GlassPanel key={idx} className="p-6 sm:p-10 !rounded-[40px] sm:!rounded-[56px] animate-in fade-in slide-in-from-bottom-12 duration-700 relative overflow-hidden group">
@@ -1878,16 +1894,18 @@ const CercarViewComponent: React.FC<{
                         <h2 className="text-2xl sm:text-3xl font-bold text-[#4D5358] dark:text-white tracking-tighter uppercase">Unitat {u.decodedUt}</h2>
                         <div className="flex items-center gap-3 mt-1 flex-wrap">
                           <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase ${
-                            effectiveTimeStatus === 'retard' ? 'bg-red-500/20 text-red-500' :
-                            effectiveTimeStatus === 'avanc' ? 'bg-blue-500/20 text-blue-400' :
+                            isSevereDelay ? 'bg-red-500/20 text-red-500' :
+                            isMildDelay ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400' :
+                            u.scheduleComparison?.timeStatus === 'avanc' ? 'bg-blue-500/20 text-blue-400' :
                             'bg-fgc-green/20 text-fgc-green'
                           }`}>
                             <span className={`w-2 h-2 rounded-full ${
-                              effectiveTimeStatus === 'retard' ? 'bg-red-500' :
-                              effectiveTimeStatus === 'avanc' ? 'bg-blue-400' :
+                              isSevereDelay ? 'bg-red-500' :
+                              isMildDelay ? 'bg-yellow-500 dark:bg-yellow-400' :
+                              u.scheduleComparison?.timeStatus === 'avanc' ? 'bg-blue-400' :
                               'bg-fgc-green'
                             } animate-pulse`} />
-                            {effectiveTimeStatusLabel}
+                            {headerStatusText}
                           </span>
                           <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{gt.lin} · {gt.dir === 'A' ? 'Ascendent' : 'Descendent'}</span>
                           <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/5 border border-gray-200/50 dark:border-white/10 shadow-sm shrink-0" title="Actualització en viu cada 10s">
@@ -1966,13 +1984,12 @@ const CercarViewComponent: React.FC<{
                               Horaris
                             </span>
                             <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wide shrink-0 ${
-                              effectiveTimeStatus === 'retard' ? 'bg-red-500 text-white shadow-sm' :
-                              effectiveTimeStatus === 'avanc' ? 'bg-blue-600 text-white shadow-sm' :
+                              isSevereDelay ? 'bg-red-500 text-white shadow-sm' :
+                              isMildDelay ? 'bg-yellow-400 text-[#4D5358] shadow-sm' :
+                              u.scheduleComparison?.timeStatus === 'avanc' ? 'bg-blue-600 text-white shadow-sm' :
                               'bg-fgc-green text-[#4D5358] shadow-sm'
                             }`}>
-                              {hasLiveDelay
-                                ? 'Retard'
-                                : (u.scheduleComparison?.timeStatusLabel || (u.isPunctual ? 'En hora' : `+${effectiveDelayMin} min retard`))}
+                              {horarisStatusText}
                             </span>
                           </div>
 
@@ -1991,8 +2008,8 @@ const CercarViewComponent: React.FC<{
                               </span>
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <span className={`text-base sm:text-lg font-black font-mono ${
-                                  effectiveTimeStatus === 'avanc' ? 'text-blue-400' :
-                                  effectiveTimeStatus === 'retard' ? 'text-[#4D5358] dark:text-gray-200' :
+                                  u.scheduleComparison?.timeStatus === 'avanc' ? 'text-blue-400' :
+                                  (isSevereDelay || isMildDelay) ? 'text-[#4D5358] dark:text-gray-200' :
                                   'text-fgc-green'
                                 }`}>
                                   {formatTimeToHHMMSS(u.scheduleComparison?.estimatedTime) || '---'}
@@ -2008,8 +2025,14 @@ const CercarViewComponent: React.FC<{
                                   </span>
                                 )}
                                 {liveDelayBadge && (
-                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] sm:text-xs font-black font-mono bg-red-500/20 text-red-500 border border-red-500/30 shrink-0 shadow-sm" title="Retard acumulat">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                                  <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] sm:text-xs font-black font-mono shrink-0 shadow-sm ${
+                                    isSevereDelay
+                                      ? 'bg-red-500/20 text-red-500 border border-red-500/30'
+                                      : 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 border border-yellow-500/30'
+                                  }`} title={isSevereDelay ? "Retard acumulat" : "Retard lleu (En hora)"}>
+                                    <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${
+                                      isSevereDelay ? 'bg-red-500' : 'bg-yellow-500 dark:bg-yellow-400'
+                                    }`} />
                                     {liveDelayBadge}
                                   </span>
                                 )}
