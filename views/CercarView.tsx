@@ -31,12 +31,22 @@ import { Skeleton, CardSkeleton, ListSkeleton } from '../components/common/Skele
 import { PK_SEGMENTS, PkSegment, findPkLocation, findStationPk, PkLocationResult } from '../utils/pkUtils';
 import { getMapPositionForPk } from './incidencia/mapUtils.ts';
 import { PkSegmentMap } from '../components/PkSegmentMap';
+import { STATION_GEO_DATA, STATION_GEO_MAP, haversineKm, StationGeoData } from '../utils/stationGeoData';
 
 
 
 const GEOTREN_API = 'https://dadesobertes.fgc.cat/api/v2/catalog/datasets/posicionament-dels-trens/exports/json';
 const BV_LINES = new Set(['S1', 'S2', 'L6', 'L66', 'L7', 'L12', 'MS1', 'MS2', 'ML6', 'ML7', 'ES2']);
 const VALID_UNIT_RE = /^\d{3}\.\d{2}$/;
+
+const resolveStationName = (codeOrName: string, linia: string = ''): string => {
+  if (!codeOrName) return '';
+  const trimmed = codeOrName.trim();
+  const code = resolveStationId(trimmed, linia);
+  const geo = STATION_GEO_MAP.get(code);
+  if (geo?.name) return geo.name;
+  return trimmed;
+};
 
 const normalizeStr = (str: string) =>
   (str || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -910,11 +920,48 @@ const CercarViewComponent: React.FC<{
                 }
               }
 
-              // Exact station from GeoTren
-              const exactStation = gt.estacionat_a && gt.estacionat_a.trim() !== '' ? gt.estacionat_a.trim() : null;
-              const isAtStation = Boolean(exactStation);
+              // ── Location Resolution (Estacionat vs En Trajecte) ──
+              // 1. Direct check from SIRTRAN estacionat_a
+              let exactStationCode = gt.estacionat_a && gt.estacionat_a.trim() !== '' ? resolveStationId(gt.estacionat_a.trim(), gt.lin) : null;
+              let isAtStation = Boolean(exactStationCode);
 
-              let refStationName = exactStation || (train.nextStops && train.nextStops.length > 0 ? train.nextStops[0].parada : gt.desti || null);
+              // 2. High-precision GPS check: if train is <= 120m from a station platform, it is stopped/at station
+              const trainLat: number | undefined = gt.geo_point_2d?.lat;
+              const trainLon: number | undefined = gt.geo_point_2d?.lon;
+
+              if (!isAtStation && trainLat && trainLon) {
+                let nearestStation: StationGeoData | null = null;
+                let minDistanceMeters = Infinity;
+
+                for (const st of STATION_GEO_DATA) {
+                  const dMeters = haversineKm(trainLat, trainLon, st.lat, st.lon) * 1000;
+                  if (dMeters < minDistanceMeters) {
+                    minDistanceMeters = dMeters;
+                    nearestStation = st;
+                  }
+                }
+
+                if (nearestStation && minDistanceMeters <= 120) {
+                  exactStationCode = nearestStation.id;
+                  isAtStation = true;
+                }
+              }
+
+              const stationFullName = exactStationCode ? resolveStationName(exactStationCode, gt.lin) : null;
+              const nextStopRaw = (train.nextStops && train.nextStops.length > 0) ? train.nextStops[0].parada : null;
+              const nextStopFullName = nextStopRaw ? resolveStationName(nextStopRaw, gt.lin) : (gt.desti ? resolveStationName(gt.desti, gt.lin) : '');
+
+              let locationDisplayText = '';
+              if (isAtStation && stationFullName) {
+                locationDisplayText = `Estacionat a ${stationFullName}`;
+              } else if (nextStopFullName) {
+                locationDisplayText = `En trajecte cap a ${nextStopFullName}`;
+              } else {
+                locationDisplayText = 'En circulació';
+              }
+
+              // Reference station for theoretical timetable comparison
+              let refStationName = exactStationCode || nextStopRaw || gt.desti || null;
               let refStationCode = refStationName ? resolveStationId(refStationName, gt.lin) : null;
               let estimatedTime: string | null = (!isAtStation && train.nextStops && train.nextStops.length > 0 && train.nextStops[0].hora_prevista)
                 ? train.nextStops[0].hora_prevista.substring(0, 5)
@@ -930,7 +977,7 @@ const CercarViewComponent: React.FC<{
               }
 
               const officialTime: string | null = matchedStop ? matchedStop.hora : null;
-              const comparisonStationName: string = matchedStop ? matchedStop.nom : (refStationName || 'Trajecte');
+              const comparisonStationName: string = matchedStop ? matchedStop.nom : (refStationName ? resolveStationName(refStationName, gt.lin) : 'Trajecte');
 
               // Compute diff in minutes
               let diffMinutes = 0;
@@ -958,8 +1005,9 @@ const CercarViewComponent: React.FC<{
               }
 
               const scheduleComparison = {
-                exactStation,
+                exactStation: stationFullName,
                 isAtStation,
+                locationDisplayText,
                 comparisonStationName,
                 officialTime,
                 estimatedTime,
@@ -1171,7 +1219,7 @@ const CercarViewComponent: React.FC<{
     executeSearchRef.current = executeSearch;
   });
 
-  // ── Auto-refresh per a Cerca per Unitat cada 15 segons ─────────────
+  // ── Auto-refresh per a Cerca per Unitat cada 10 segons ─────────────
   useEffect(() => {
     if (searchType !== SearchType.Unitat || results.length === 0) {
       return;
@@ -1183,7 +1231,7 @@ const CercarViewComponent: React.FC<{
       if (targetQuery && targetQuery.trim()) {
         executeSearchRef.current(targetQuery, SearchType.Unitat, true);
       }
-    }, 15000);
+    }, 10000);
 
     return () => clearInterval(interval);
   }, [searchType, results.length > 0, query]);
@@ -1768,25 +1816,25 @@ const CercarViewComponent: React.FC<{
                           )}
                         </div>
                         <div className="flex items-center gap-2 text-sm font-bold text-gray-500 dark:text-gray-400">
-                          <span className="uppercase">{gt.origen || '---'}</span>
-                          <ArrowRight size={14} className="opacity-50" />
-                          <span className="uppercase">{gt.desti || '---'}</span>
+                          <span className="uppercase">{resolveStationName(gt.origen) || gt.origen || '---'}</span>
+                          <ArrowRight size={14} className="opacity-50 shrink-0" />
+                          <span className="uppercase">{resolveStationName(gt.desti) || gt.desti || '---'}</span>
                         </div>
 
-                        {/* Estació en la que està (sense títol redundant) */}
+                        {/* Estació en la que està o en trajecte */}
                         <div className="flex items-center gap-2.5 p-3 rounded-2xl bg-white dark:bg-black/30 border border-gray-200/60 dark:border-white/10">
                           <div className={`p-1.5 rounded-xl shrink-0 ${u.scheduleComparison?.isAtStation ? "bg-fgc-green/20 text-fgc-green" : "bg-blue-500/20 text-blue-400"}`}>
                             <MapPin size={16} />
                           </div>
                           <span className="text-xs sm:text-sm font-black text-[#4D5358] dark:text-white uppercase tracking-tight truncate flex-1">
-                            {u.scheduleComparison?.exactStation || (u.nextStops?.[0]?.parada ? `En trajecte cap a ${u.nextStops[0].parada}` : 'En circulació')}
+                            {u.scheduleComparison?.locationDisplayText || 'En circulació'}
                           </span>
                           {u.scheduleComparison?.isAtStation ? (
-                            <span className="px-2 py-0.5 rounded-md text-[8px] font-black uppercase bg-fgc-green/20 text-fgc-green border border-fgc-green/30 shrink-0">
-                              Aturat
+                            <span className="px-2.5 py-1 rounded-md text-[9px] font-black uppercase bg-fgc-green/20 text-fgc-green border border-fgc-green/30 shrink-0">
+                              Estacionat
                             </span>
                           ) : (
-                            <span className="px-2 py-0.5 rounded-md text-[8px] font-black uppercase bg-blue-500/20 text-blue-400 border border-blue-500/30 shrink-0">
+                            <span className="px-2.5 py-1 rounded-md text-[9px] font-black uppercase bg-blue-500/20 text-blue-400 border border-blue-500/30 shrink-0">
                               En trajecte
                             </span>
                           )}
@@ -1845,7 +1893,7 @@ const CercarViewComponent: React.FC<{
                               <span className="text-2xl font-black text-[#4D5358] dark:text-white tracking-tighter font-mono">{u.nextCirculation.codi}</span>
                             </div>
                             <div className="flex flex-wrap items-center gap-3 text-xs font-bold text-gray-500">
-                              <span className="flex items-center gap-1.5 uppercase">{u.nextCirculation.inici || '---'} <ArrowRight size={12} className="opacity-50" /> {u.nextCirculation.final || '---'}</span>
+                              <span className="flex items-center gap-1.5 uppercase">{resolveStationName(u.nextCirculation.inici, u.linia) || u.nextCirculation.inici || '---'} <ArrowRight size={12} className="opacity-50" /> {resolveStationName(u.nextCirculation.final, u.linia) || u.nextCirculation.final || '---'}</span>
                               <span className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400"><Clock size={12} />{u.nextCirculation.sortida} — {u.nextCirculation.arribada}</span>
                             </div>
                           </>
@@ -1962,7 +2010,7 @@ const CercarViewComponent: React.FC<{
                             <div key={i} className="flex items-center justify-between py-1 px-2">
                               <div className="flex items-center gap-2">
                                 <div className={`w-2 h-2 rounded-full ${i === 0 ? 'bg-fgc-green animate-pulse' : 'bg-gray-300 dark:bg-gray-600'}`} />
-                                <span className="text-sm font-bold text-[#4D5358] dark:text-white uppercase">{s.parada}</span>
+                                <span className="text-sm font-bold text-[#4D5358] dark:text-white uppercase">{resolveStationName(s.parada, u.linia) || s.parada}</span>
                               </div>
                               {s.hora_prevista && <span className="text-xs font-bold text-gray-400 font-mono">{s.hora_prevista}</span>}
                             </div>
