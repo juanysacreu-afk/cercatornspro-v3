@@ -77,8 +77,24 @@ export enum AppTab {
   Cercar = 'cercar',
   Organitza = 'organitza',
   Incidencia = 'incidencia',
+  Gip = 'gip',
   Cicles = 'cicles',
   Mensajeria = 'mensajeria'
+}
+
+export interface GipRegistrePas {
+  id?: number;
+  data_servei: string;
+  circulacio_id: string;
+  linia?: string;
+  ut?: string;
+  estacio_codi: string;
+  estacio_nom?: string;
+  hora_teorica?: string;
+  hora_real: string;
+  diferencia_segons: number;
+  estat: 'en_hora' | 'retard' | 'avanc';
+  creat_el?: string;
 }
 
 export enum SearchType {
