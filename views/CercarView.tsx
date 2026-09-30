@@ -876,24 +876,26 @@ const CercarViewComponent: React.FC<{
 
               // ── Schedule Comparison (Oficial Supabase vs Dades Obertes GeoTren) ──
               const gt = train.raw;
-              const officialStops: Array<{ nom: string; code: string; hora: string }> = [];
+              const officialStops: Array<{ nom: string; code: string; hora: string; rawHora?: string }> = [];
 
               if (currentCircDetail) {
                 if (currentCircDetail.inici && currentCircDetail.sortida) {
                   officialStops.push({
                     nom: currentCircDetail.inici,
                     code: resolveStationId(currentCircDetail.inici, gt.lin),
-                    hora: currentCircDetail.sortida.substring(0, 5)
+                    hora: currentCircDetail.sortida.substring(0, 5),
+                    rawHora: currentCircDetail.sortida
                   });
                 }
                 if (Array.isArray(currentCircDetail.estacions)) {
                   currentCircDetail.estacions.forEach((st: any) => {
-                    const h = st.hora || st.sortida || st.arribada;
+                    const h = st.sortida || st.hora || st.arribada;
                     if (st.nom && h) {
                       officialStops.push({
                         nom: st.nom,
                         code: resolveStationId(st.nom, gt.lin),
-                        hora: h.substring(0, 5)
+                        hora: h.substring(0, 5),
+                        rawHora: h
                       });
                     }
                   });
@@ -902,7 +904,8 @@ const CercarViewComponent: React.FC<{
                   officialStops.push({
                     nom: currentCircDetail.final,
                     code: resolveStationId(currentCircDetail.final, gt.lin),
-                    hora: currentCircDetail.arribada.substring(0, 5)
+                    hora: currentCircDetail.arribada.substring(0, 5),
+                    rawHora: currentCircDetail.arribada
                   });
                 }
               }
@@ -1022,6 +1025,7 @@ const CercarViewComponent: React.FC<{
                 comparisonStationName,
                 officialTime,
                 estimatedTime,
+                departureExactTime: matchedStop?.rawHora || officialTime,
                 diffMinutes,
                 timeStatus,
                 timeStatusLabel,
@@ -1763,6 +1767,33 @@ const CercarViewComponent: React.FC<{
               const delayMin = Math.round(u.delaySeconds / 60);
               const trainPhone = getTrainPhone(u.decodedUt);
 
+              // Compte enrere per a la sortida si està estacionat i encara no és la seva hora
+              let departureCountdown: string | null = null;
+              if (u.scheduleComparison?.isAtStation) {
+                const depTimeStr = u.scheduleComparison.departureExactTime || u.scheduleComparison.estimatedTime || u.scheduleComparison.officialTime;
+                if (depTimeStr) {
+                  const targetMins = getFgcMinutes(depTimeStr);
+                  if (targetMins !== null && typeof nowMin === 'number') {
+                    const isAlreadyEstimated = depTimeStr === u.scheduleComparison.estimatedTime;
+                    const delayToAdd = (!isAlreadyEstimated && u.scheduleComparison.diffMinutes > 0) ? u.scheduleComparison.diffMinutes : 0;
+                    const totalTargetMins = targetMins + delayToAdd;
+                    const diffSec = Math.round((totalTargetMins - nowMin) * 60);
+                    // Només si encara no és la seva hora de sortida
+                    if (diffSec > 0 && diffSec < 24 * 3600) {
+                      const m = Math.floor(diffSec / 60);
+                      const s = diffSec % 60;
+                      if (diffSec >= 3600) {
+                        const h = Math.floor(diffSec / 3600);
+                        const remM = Math.floor((diffSec % 3600) / 60);
+                        departureCountdown = `-${h}:${remM.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+                      } else {
+                        departureCountdown = `-${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+                      }
+                    }
+                  }
+                }
+              }
+
               return (
                 <GlassPanel key={idx} className="p-6 sm:p-10 !rounded-[40px] sm:!rounded-[56px] animate-in fade-in slide-in-from-bottom-12 duration-700 relative overflow-hidden group">
                   <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-fgc-green/5 to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
@@ -1887,13 +1918,21 @@ const CercarViewComponent: React.FC<{
                               <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider block">
                                 Real / Previst
                               </span>
-                              <span className={`text-base sm:text-lg font-black font-mono ${
-                                u.scheduleComparison?.timeStatus === 'retard' ? 'text-red-500' :
-                                u.scheduleComparison?.timeStatus === 'avanc' ? 'text-blue-400' :
-                                'text-fgc-green'
-                              }`}>
-                                {u.scheduleComparison?.estimatedTime || '---'}
-                              </span>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className={`text-base sm:text-lg font-black font-mono ${
+                                  u.scheduleComparison?.timeStatus === 'retard' ? 'text-red-500' :
+                                  u.scheduleComparison?.timeStatus === 'avanc' ? 'text-blue-400' :
+                                  'text-fgc-green'
+                                }`}>
+                                  {u.scheduleComparison?.estimatedTime || '---'}
+                                </span>
+                                {departureCountdown && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] sm:text-xs font-black font-mono bg-fgc-green/20 text-fgc-green border border-fgc-green/30 shrink-0" title="Compte enrere per a la sortida">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-fgc-green animate-pulse" />
+                                    {departureCountdown}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
