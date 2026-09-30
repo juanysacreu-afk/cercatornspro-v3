@@ -59,6 +59,19 @@ const formatMinsToHHMM = (mins: number) => {
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
 };
 
+const formatTimeToHHMMSS = (timeStr: string | null | undefined): string => {
+  if (!timeStr) return '---';
+  const clean = timeStr.trim();
+  const parts = clean.split(':');
+  if (parts.length >= 2) {
+    const h = parts[0].padStart(2, '0');
+    const m = parts[1].padStart(2, '0');
+    const s = parts[2] && parts[2].trim() !== '' ? parts[2].trim().padStart(2, '0') : '00';
+    return `${h}:${m}:${s}`;
+  }
+  return clean;
+};
+
 const fetchNextCircsForPk = async (loc: PkLocationResult, nowMins: number) => {
   if (!loc.prevStation || !loc.nextStation) return { nextAsc: null, nextDesc: null };
   const prevName = (STATION_CODE_MAP[loc.prevStation.name] || loc.prevStation.name).trim().toUpperCase();
@@ -883,7 +896,7 @@ const CercarViewComponent: React.FC<{
                   officialStops.push({
                     nom: currentCircDetail.inici,
                     code: resolveStationId(currentCircDetail.inici, gt.lin),
-                    hora: currentCircDetail.sortida.substring(0, 5),
+                    hora: formatTimeToHHMMSS(currentCircDetail.sortida),
                     rawHora: currentCircDetail.sortida
                   });
                 }
@@ -894,7 +907,7 @@ const CercarViewComponent: React.FC<{
                       officialStops.push({
                         nom: st.nom,
                         code: resolveStationId(st.nom, gt.lin),
-                        hora: h.substring(0, 5),
+                        hora: formatTimeToHHMMSS(h),
                         rawHora: h
                       });
                     }
@@ -904,7 +917,7 @@ const CercarViewComponent: React.FC<{
                   officialStops.push({
                     nom: currentCircDetail.final,
                     code: resolveStationId(currentCircDetail.final, gt.lin),
-                    hora: currentCircDetail.arribada.substring(0, 5),
+                    hora: formatTimeToHHMMSS(currentCircDetail.arribada),
                     rawHora: currentCircDetail.arribada
                   });
                 }
@@ -915,10 +928,10 @@ const CercarViewComponent: React.FC<{
                 const sc = (shiftData.circulations as any[])?.find((c: any) => (typeof c === 'string' ? c : c.codi)?.toUpperCase() === circCode);
                 if (sc && typeof sc === 'object') {
                   if (sc.inici && sc.sortida) {
-                    officialStops.push({ nom: sc.inici, code: resolveStationId(sc.inici, gt.lin), hora: sc.sortida.substring(0, 5) });
+                    officialStops.push({ nom: sc.inici, code: resolveStationId(sc.inici, gt.lin), hora: formatTimeToHHMMSS(sc.sortida), rawHora: sc.sortida });
                   }
                   if (sc.final && sc.arribada) {
-                    officialStops.push({ nom: sc.final, code: resolveStationId(sc.final, gt.lin), hora: sc.arribada.substring(0, 5) });
+                    officialStops.push({ nom: sc.final, code: resolveStationId(sc.final, gt.lin), hora: formatTimeToHHMMSS(sc.arribada), rawHora: sc.arribada });
                   }
                 }
               }
@@ -986,18 +999,32 @@ const CercarViewComponent: React.FC<{
                 });
               }
 
-              const officialTime: string | null = matchedStop ? matchedStop.hora : null;
+              const officialTime: string | null = matchedStop ? formatTimeToHHMMSS(matchedStop.hora) : null;
               const comparisonStationName: string = matchedStop ? matchedStop.nom : (refStationName ? resolveStationName(refStationName, gt.lin) : 'Trajecte');
 
               // Compute diff in minutes
               let diffMinutes = 0;
               if (officialTime && estimatedTime) {
                 diffMinutes = getFgcMinutes(estimatedTime) - getFgcMinutes(officialTime);
-              } else if (typeof train.delaySeconds === 'number') {
+              } else if (typeof train.delaySeconds === 'number' && train.delaySeconds > 0) {
                 diffMinutes = Math.round(train.delaySeconds / 60);
-                if (officialTime && !estimatedTime) {
-                  estimatedTime = formatMinsToHHMM(getFgcMinutes(officialTime) + diffMinutes);
+              }
+
+              // Comparació en viu amb el rellotge de l'ordinador (retard si l'hora teòrica ja ha passat)
+              const officialMins = officialTime ? getFgcMinutes(officialTime) : null;
+              const currentClockMins = typeof nowMin === 'number' && nowMin > 0 ? nowMin : (getFgcMinutes(getCurrentTimeStr()) || 0);
+
+              if (officialMins !== null && currentClockMins > officialMins) {
+                const liveClockDelayMin = Math.max(0, Math.floor(currentClockMins - officialMins));
+                if (liveClockDelayMin > diffMinutes) {
+                  diffMinutes = liveClockDelayMin;
                 }
+              }
+
+              if (officialTime && !estimatedTime) {
+                estimatedTime = diffMinutes === 0
+                  ? officialTime
+                  : formatTimeToHHMMSS(formatMinsToHHMM(getFgcMinutes(officialTime) + diffMinutes));
               }
 
               let timeStatus: 'retard' | 'avanc' | 'puntual' = 'puntual';
@@ -1767,32 +1794,74 @@ const CercarViewComponent: React.FC<{
               const delayMin = Math.round(u.delaySeconds / 60);
               const trainPhone = getTrainPhone(u.decodedUt);
 
-              // Compte enrere per a la sortida si està estacionat i encara no és la seva hora
+              // Gestió de temps: compte enrere (si està estacionat) o retard acumulat (si és tard, tant estacionat com en trajecte)
               let departureCountdown: string | null = null;
-              if (u.scheduleComparison?.isAtStation) {
-                const depTimeStr = u.scheduleComparison.departureExactTime || u.scheduleComparison.estimatedTime || u.scheduleComparison.officialTime;
-                if (depTimeStr) {
-                  const targetMins = getFgcMinutes(depTimeStr);
-                  if (targetMins !== null && typeof nowMin === 'number') {
-                    const isAlreadyEstimated = depTimeStr === u.scheduleComparison.estimatedTime;
-                    const delayToAdd = (!isAlreadyEstimated && u.scheduleComparison.diffMinutes > 0) ? u.scheduleComparison.diffMinutes : 0;
-                    const totalTargetMins = targetMins + delayToAdd;
-                    const diffSec = Math.round((totalTargetMins - nowMin) * 60);
-                    // Només si encara no és la seva hora de sortida
-                    if (diffSec > 0 && diffSec < 24 * 3600) {
-                      const m = Math.floor(diffSec / 60);
-                      const s = diffSec % 60;
-                      if (diffSec >= 3600) {
-                        const h = Math.floor(diffSec / 3600);
-                        const remM = Math.floor((diffSec % 3600) / 60);
-                        departureCountdown = `-${h}:${remM.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-                      } else {
-                        departureCountdown = `-${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-                      }
+              let isCountdownInAdvance = false;
+              let liveDelayBadge: string | null = null;
+
+              const isAtStation = Boolean(u.scheduleComparison?.isAtStation);
+              const depTimeStr = isAtStation
+                ? (u.scheduleComparison?.departureExactTime || u.scheduleComparison?.estimatedTime || u.scheduleComparison?.officialTime)
+                : (u.scheduleComparison?.estimatedTime || u.scheduleComparison?.officialTime || u.scheduleComparison?.departureExactTime);
+              const theoreticalTimeStr = u.scheduleComparison?.officialTime;
+
+              if (depTimeStr) {
+                const targetMins = getFgcMinutes(depTimeStr);
+                const theoreticalMins = theoreticalTimeStr ? getFgcMinutes(theoreticalTimeStr) : targetMins;
+                if (targetMins !== null && typeof nowMin === 'number') {
+                  const isAlreadyEstimated = depTimeStr === u.scheduleComparison?.estimatedTime;
+                  const delayToAdd = (!isAlreadyEstimated && (u.scheduleComparison?.diffMinutes || 0) > 0) ? u.scheduleComparison.diffMinutes : 0;
+                  const totalTargetMins = targetMins + delayToAdd;
+                  const diffSec = Math.round((totalTargetMins - nowMin) * 60);
+
+                  if (isAtStation && diffSec > 0 && diffSec < 24 * 3600) {
+                    // Estacionat i encara no és l'hora de sortida: compte enrere
+                    // Si l'hora actual d'estacionament és anterior a la teòrica (o està en avanç), es mostra en blau
+                    isCountdownInAdvance = (theoreticalMins !== null && nowMin < theoreticalMins) || u.scheduleComparison?.timeStatus === 'avanc';
+
+                    const m = Math.floor(diffSec / 60);
+                    const s = diffSec % 60;
+                    if (diffSec >= 3600) {
+                      const h = Math.floor(diffSec / 3600);
+                      const remM = Math.floor((diffSec % 3600) / 60);
+                      departureCountdown = `-${h}:${remM.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+                    } else {
+                      departureCountdown = `-${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+                    }
+                  } else if (diffSec < 0 && Math.abs(diffSec) < 24 * 3600) {
+                    // L'hora prevista/teòrica ja ha passat (sigui estacionat o en trajecte): retard acumulat en vermell (+)
+                    const delaySec = Math.abs(diffSec);
+                    const m = Math.floor(delaySec / 60);
+                    const s = delaySec % 60;
+                    if (delaySec >= 3600) {
+                      const h = Math.floor(delaySec / 3600);
+                      const remM = Math.floor((delaySec % 3600) / 60);
+                      liveDelayBadge = `+${h}:${remM.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+                    } else {
+                      liveDelayBadge = `+${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
                     }
                   }
                 }
               }
+
+              const hasLiveDelay = Boolean(liveDelayBadge);
+              const effectiveTimeStatus: 'retard' | 'avanc' | 'puntual' = hasLiveDelay
+                ? 'retard'
+                : (u.scheduleComparison?.timeStatus || (u.isPunctual ? 'puntual' : 'retard'));
+
+              let effectiveDelayMin = delayMin;
+              if (hasLiveDelay && depTimeStr && typeof nowMin === 'number') {
+                const targetM = getFgcMinutes(depTimeStr);
+                if (targetM !== null && nowMin > targetM) {
+                  effectiveDelayMin = Math.max(1, Math.round(nowMin - targetM));
+                }
+              } else if (u.scheduleComparison?.diffMinutes) {
+                effectiveDelayMin = Math.max(1, Math.abs(u.scheduleComparison.diffMinutes));
+              }
+
+              const effectiveTimeStatusLabel = hasLiveDelay
+                ? `+${effectiveDelayMin} min retard`
+                : (u.scheduleComparison?.timeStatusLabel || (u.isPunctual ? 'En hora (Puntual)' : `Retard +${effectiveDelayMin} min`));
 
               return (
                 <GlassPanel key={idx} className="p-6 sm:p-10 !rounded-[40px] sm:!rounded-[56px] animate-in fade-in slide-in-from-bottom-12 duration-700 relative overflow-hidden group">
@@ -1809,16 +1878,16 @@ const CercarViewComponent: React.FC<{
                         <h2 className="text-2xl sm:text-3xl font-bold text-[#4D5358] dark:text-white tracking-tighter uppercase">Unitat {u.decodedUt}</h2>
                         <div className="flex items-center gap-3 mt-1 flex-wrap">
                           <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase ${
-                            u.scheduleComparison?.timeStatus === 'retard' ? 'bg-red-500/20 text-red-500' :
-                            u.scheduleComparison?.timeStatus === 'avanc' ? 'bg-blue-500/20 text-blue-400' :
+                            effectiveTimeStatus === 'retard' ? 'bg-red-500/20 text-red-500' :
+                            effectiveTimeStatus === 'avanc' ? 'bg-blue-500/20 text-blue-400' :
                             'bg-fgc-green/20 text-fgc-green'
                           }`}>
                             <span className={`w-2 h-2 rounded-full ${
-                              u.scheduleComparison?.timeStatus === 'retard' ? 'bg-red-500' :
-                              u.scheduleComparison?.timeStatus === 'avanc' ? 'bg-blue-400' :
+                              effectiveTimeStatus === 'retard' ? 'bg-red-500' :
+                              effectiveTimeStatus === 'avanc' ? 'bg-blue-400' :
                               'bg-fgc-green'
                             } animate-pulse`} />
-                            {u.scheduleComparison?.timeStatusLabel || (u.isPunctual ? 'Puntual' : `Retard +${delayMin} min`)}
+                            {effectiveTimeStatusLabel}
                           </span>
                           <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{gt.lin} · {gt.dir === 'A' ? 'Ascendent' : 'Descendent'}</span>
                           <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-white/5 border border-gray-200/50 dark:border-white/10 shadow-sm shrink-0" title="Actualització en viu cada 10s">
@@ -1897,11 +1966,13 @@ const CercarViewComponent: React.FC<{
                               Horaris
                             </span>
                             <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wide shrink-0 ${
-                              u.scheduleComparison?.timeStatus === 'retard' ? 'bg-red-500 text-white shadow-sm' :
-                              u.scheduleComparison?.timeStatus === 'avanc' ? 'bg-blue-600 text-white shadow-sm' :
+                              effectiveTimeStatus === 'retard' ? 'bg-red-500 text-white shadow-sm' :
+                              effectiveTimeStatus === 'avanc' ? 'bg-blue-600 text-white shadow-sm' :
                               'bg-fgc-green text-[#4D5358] shadow-sm'
                             }`}>
-                              {u.scheduleComparison?.timeStatusLabel || (u.isPunctual ? 'En hora' : `+${delayMin} min retard`)}
+                              {hasLiveDelay
+                                ? 'Retard'
+                                : (u.scheduleComparison?.timeStatusLabel || (u.isPunctual ? 'En hora' : `+${effectiveDelayMin} min retard`))}
                             </span>
                           </div>
 
@@ -1911,7 +1982,7 @@ const CercarViewComponent: React.FC<{
                                 Teòric
                               </span>
                               <span className="text-base sm:text-lg font-black font-mono text-[#4D5358] dark:text-gray-200">
-                                {u.scheduleComparison?.officialTime || '---'}
+                                {formatTimeToHHMMSS(u.scheduleComparison?.officialTime) || '---'}
                               </span>
                             </div>
                             <div>
@@ -1920,16 +1991,26 @@ const CercarViewComponent: React.FC<{
                               </span>
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <span className={`text-base sm:text-lg font-black font-mono ${
-                                  u.scheduleComparison?.timeStatus === 'retard' ? 'text-red-500' :
-                                  u.scheduleComparison?.timeStatus === 'avanc' ? 'text-blue-400' :
+                                  effectiveTimeStatus === 'avanc' ? 'text-blue-400' :
+                                  effectiveTimeStatus === 'retard' ? 'text-[#4D5358] dark:text-gray-200' :
                                   'text-fgc-green'
                                 }`}>
-                                  {u.scheduleComparison?.estimatedTime || '---'}
+                                  {formatTimeToHHMMSS(u.scheduleComparison?.estimatedTime) || '---'}
                                 </span>
                                 {departureCountdown && (
-                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] sm:text-xs font-black font-mono bg-fgc-green/20 text-fgc-green border border-fgc-green/30 shrink-0" title="Compte enrere per a la sortida">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-fgc-green animate-pulse" />
+                                  <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] sm:text-xs font-black font-mono shrink-0 ${
+                                    isCountdownInAdvance
+                                      ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                                      : 'bg-fgc-green/20 text-fgc-green border border-fgc-green/30'
+                                  }`} title="Compte enrere per a la sortida">
+                                    <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${isCountdownInAdvance ? 'bg-blue-400' : 'bg-fgc-green'}`} />
                                     {departureCountdown}
+                                  </span>
+                                )}
+                                {liveDelayBadge && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] sm:text-xs font-black font-mono bg-red-500/20 text-red-500 border border-red-500/30 shrink-0 shadow-sm" title="Retard acumulat">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                                    {liveDelayBadge}
                                   </span>
                                 )}
                               </div>
