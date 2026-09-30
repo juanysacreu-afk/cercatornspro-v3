@@ -1773,36 +1773,33 @@ const CercarViewComponent: React.FC<{
                           <span className="uppercase">{gt.desti || '---'}</span>
                         </div>
 
-                        {/* Estació exacta segons Dades Obertes */}
-                        <div className="p-3.5 rounded-2xl bg-white dark:bg-black/30 border border-gray-200/60 dark:border-white/10 space-y-1">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest flex items-center gap-1.5">
-                              <MapPin size={12} className={u.scheduleComparison?.isAtStation ? "text-fgc-green" : "text-blue-500"} />
-                              {u.scheduleComparison?.isAtStation ? "Estació exacta (Dades Obertes)" : "Ubicació en temps real (Dades Obertes)"}
-                            </span>
-                            {u.scheduleComparison?.isAtStation ? (
-                              <span className="px-2 py-0.5 rounded-md text-[8px] font-black uppercase bg-fgc-green/20 text-fgc-green border border-fgc-green/30">
-                                Aturat a l'estació
-                              </span>
-                            ) : (
-                              <span className="px-2 py-0.5 rounded-md text-[8px] font-black uppercase bg-blue-500/20 text-blue-400 border border-blue-500/30">
-                                En trajecte
-                              </span>
-                            )}
+                        {/* Estació en la que està (sense títol redundant) */}
+                        <div className="flex items-center gap-2.5 p-3 rounded-2xl bg-white dark:bg-black/30 border border-gray-200/60 dark:border-white/10">
+                          <div className={`p-1.5 rounded-xl shrink-0 ${u.scheduleComparison?.isAtStation ? "bg-fgc-green/20 text-fgc-green" : "bg-blue-500/20 text-blue-400"}`}>
+                            <MapPin size={16} />
                           </div>
-                          <p className="text-sm font-black text-[#4D5358] dark:text-white uppercase tracking-tight">
+                          <span className="text-xs sm:text-sm font-black text-[#4D5358] dark:text-white uppercase tracking-tight truncate flex-1">
                             {u.scheduleComparison?.exactStation || (u.nextStops?.[0]?.parada ? `En trajecte cap a ${u.nextStops[0].parada}` : 'En circulació')}
-                          </p>
+                          </span>
+                          {u.scheduleComparison?.isAtStation ? (
+                            <span className="px-2 py-0.5 rounded-md text-[8px] font-black uppercase bg-fgc-green/20 text-fgc-green border border-fgc-green/30 shrink-0">
+                              Aturat
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-md text-[8px] font-black uppercase bg-blue-500/20 text-blue-400 border border-blue-500/30 shrink-0">
+                              En trajecte
+                            </span>
+                          )}
                         </div>
 
-                        {/* Comparació amb el temps oficial de Supabase */}
-                        <div className="p-3.5 rounded-2xl bg-white dark:bg-black/30 border border-gray-200/60 dark:border-white/10 space-y-2.5">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest flex items-center gap-1.5">
-                              <Timer size={12} />
-                              Comparativa Horari Oficial Supabase
+                        {/* Horaris Teòric i Real (sense títol redundant) */}
+                        <div className="p-3 rounded-2xl bg-white dark:bg-black/30 border border-gray-200/60 dark:border-white/10 space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                              <Clock size={12} />
+                              Horaris
                             </span>
-                            <span className={`px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wide ${
+                            <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wide shrink-0 ${
                               u.scheduleComparison?.timeStatus === 'retard' ? 'bg-red-500 text-white shadow-sm' :
                               u.scheduleComparison?.timeStatus === 'avanc' ? 'bg-blue-600 text-white shadow-sm' :
                               'bg-fgc-green text-[#4D5358] shadow-sm'
@@ -1811,20 +1808,20 @@ const CercarViewComponent: React.FC<{
                             </span>
                           </div>
 
-                          <div className="grid grid-cols-2 gap-3 pt-1 border-t border-gray-100 dark:border-white/5">
+                          <div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-100 dark:border-white/5">
                             <div>
-                              <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider block truncate">
-                                Teòric {u.scheduleComparison?.comparisonStationName ? `(${u.scheduleComparison.comparisonStationName})` : ''}
+                              <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider block">
+                                Teòric
                               </span>
-                              <span className="text-base font-black font-mono text-[#4D5358] dark:text-gray-200">
+                              <span className="text-base sm:text-lg font-black font-mono text-[#4D5358] dark:text-gray-200">
                                 {u.scheduleComparison?.officialTime || '---'}
                               </span>
                             </div>
                             <div>
                               <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider block">
-                                Real / Previst GeoTren
+                                Real / Previst
                               </span>
-                              <span className={`text-base font-black font-mono ${
+                              <span className={`text-base sm:text-lg font-black font-mono ${
                                 u.scheduleComparison?.timeStatus === 'retard' ? 'text-red-500' :
                                 u.scheduleComparison?.timeStatus === 'avanc' ? 'text-blue-400' :
                                 'text-fgc-green'
