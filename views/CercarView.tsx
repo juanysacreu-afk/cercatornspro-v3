@@ -12,6 +12,7 @@ import { supabase } from '../supabaseClient.ts';
 import { getFgcMinutes, checkIfActive, calculateGap } from '../utils/time';
 import { fetchAllFromSupabase } from '../utils/supabase';
 import { getStatusColor, getLiniaColor, getShortTornId, getTrainPhone, ALL_STATIONS, STATION_CODE_MAP } from '../utils/fgc';
+import { resolveStationId } from '../utils/stations';
 import { fetchFullTurns, fetchPassengerInfo } from '../utils/queries';
 import { syncOfflineData } from '../utils/offlineSync';
 import { offlineFetchFullTurns, offlineSearchTurnIds, offlineSearchMaquinistaTurnIds, offlineSearchCirculationTurnIds } from '../utils/offlineQueries';
@@ -151,8 +152,9 @@ const CercarViewComponent: React.FC<{
   const [selectedPkSegment, setSelectedPkSegment] = useState<PkSegment>('PC/RE');
   const [pkMapTarget, setPkMapTarget] = useState<PkLocationResult | null>(null);
 
-
-
+  // Unit auto-refresh states (15s polling)
+  const [isAutoRefreshing, setIsAutoRefreshing] = useState(false);
+  const activeSearchedUnitRef = useRef<string>('');
 
   useEffect(() => {
     const handleOnline = () => setIsOfflineMode(false);
@@ -531,13 +533,21 @@ const CercarViewComponent: React.FC<{
     }
   };
 
-  const executeSearch = async (overrideQuery?: string, overrideType?: SearchType) => {
+  const executeSearch = async (overrideQuery?: string, overrideType?: SearchType, isSilent?: boolean) => {
     let searchVal = overrideQuery || query;
     const currentType = overrideType || searchType;
     if (!searchVal && currentType !== SearchType.Cicle && currentType !== SearchType.Estacio && currentType !== SearchType.PK) { setResults([]); return; }
 
-    setLoading(true); setResults([]); setShowSuggestions(false); setPassengerInfoMap({});
-    feedback.click();
+    if (currentType === SearchType.Unitat && searchVal) {
+      activeSearchedUnitRef.current = searchVal;
+    }
+
+    if (!isSilent) {
+      setLoading(true); setResults([]); setShowSuggestions(false); setPassengerInfoMap({});
+      feedback.click();
+    } else {
+      setIsAutoRefreshing(true);
+    }
     try {
       let newResults: any[] = [];
       if (currentType === SearchType.Cicle) {
@@ -675,7 +685,7 @@ const CercarViewComponent: React.FC<{
         }
       } else if (currentType === SearchType.Unitat) {
         const unitQuery = (overrideQuery || query).trim();
-        if (!unitQuery) { setLoading(false); return; }
+        if (!unitQuery) { setLoading(false); setIsAutoRefreshing(false); return; }
 
         try {
           // 1. Fetch real-time GeoTren data
@@ -794,10 +804,12 @@ const CercarViewComponent: React.FC<{
 
                 // Enrich with real circulation details (inici/final often missing from shift refs)
                 const cycleCircIds = cycleCirculations.map((c: any) => c.codi).filter(Boolean);
+                let circDetails: any[] = [];
                 if (cycleCircIds.length > 0) {
-                  const { data: circDetails } = await supabase.from('circulations')
-                    .select('id, inici, final, linia, sortida, arribada').in('id', cycleCircIds);
-                  if (circDetails) {
+                  const { data } = await supabase.from('circulations')
+                    .select('id, inici, final, linia, sortida, arribada, estacions').in('id', cycleCircIds);
+                  if (data) {
+                    circDetails = data;
                     const detailMap = new Map(circDetails.map((d: any) => [d.id, d]));
                     cycleCirculations = cycleCirculations.map((cc: any) => {
                       const detail = detailMap.get(cc.codi);
@@ -809,6 +821,7 @@ const CercarViewComponent: React.FC<{
                           linia: cc.linia || detail.linia,
                           sortida: cc.sortida || detail.sortida,
                           arribada: cc.arribada || detail.arribada,
+                          estacions: detail.estacions || cc.estacions,
                         };
                       }
                       return cc;
@@ -841,10 +854,126 @@ const CercarViewComponent: React.FC<{
                 }
               }
 
+              // Fetch current circulation detail (with full estacions) for exact timetable comparison
+              let currentCircDetail: any = null;
+              if (circCode) {
+                const { data: directDetail } = await supabase.from('circulations')
+                  .select('id, inici, final, linia, sortida, arribada, estacions')
+                  .eq('id', circCode)
+                  .maybeSingle();
+                currentCircDetail = directDetail;
+              }
+
+              // ── Schedule Comparison (Oficial Supabase vs Dades Obertes GeoTren) ──
+              const gt = train.raw;
+              const officialStops: Array<{ nom: string; code: string; hora: string }> = [];
+
+              if (currentCircDetail) {
+                if (currentCircDetail.inici && currentCircDetail.sortida) {
+                  officialStops.push({
+                    nom: currentCircDetail.inici,
+                    code: resolveStationId(currentCircDetail.inici, gt.lin),
+                    hora: currentCircDetail.sortida.substring(0, 5)
+                  });
+                }
+                if (Array.isArray(currentCircDetail.estacions)) {
+                  currentCircDetail.estacions.forEach((st: any) => {
+                    const h = st.hora || st.sortida || st.arribada;
+                    if (st.nom && h) {
+                      officialStops.push({
+                        nom: st.nom,
+                        code: resolveStationId(st.nom, gt.lin),
+                        hora: h.substring(0, 5)
+                      });
+                    }
+                  });
+                }
+                if (currentCircDetail.final && currentCircDetail.arribada) {
+                  officialStops.push({
+                    nom: currentCircDetail.final,
+                    code: resolveStationId(currentCircDetail.final, gt.lin),
+                    hora: currentCircDetail.arribada.substring(0, 5)
+                  });
+                }
+              }
+
+              // Fallback to shift circulation if circulations table had no stops
+              if (officialStops.length === 0 && shiftData) {
+                const sc = (shiftData.circulations as any[])?.find((c: any) => (typeof c === 'string' ? c : c.codi)?.toUpperCase() === circCode);
+                if (sc && typeof sc === 'object') {
+                  if (sc.inici && sc.sortida) {
+                    officialStops.push({ nom: sc.inici, code: resolveStationId(sc.inici, gt.lin), hora: sc.sortida.substring(0, 5) });
+                  }
+                  if (sc.final && sc.arribada) {
+                    officialStops.push({ nom: sc.final, code: resolveStationId(sc.final, gt.lin), hora: sc.arribada.substring(0, 5) });
+                  }
+                }
+              }
+
+              // Exact station from GeoTren
+              const exactStation = gt.estacionat_a && gt.estacionat_a.trim() !== '' ? gt.estacionat_a.trim() : null;
+              const isAtStation = Boolean(exactStation);
+
+              let refStationName = exactStation || (train.nextStops && train.nextStops.length > 0 ? train.nextStops[0].parada : gt.desti || null);
+              let refStationCode = refStationName ? resolveStationId(refStationName, gt.lin) : null;
+              let estimatedTime: string | null = (!isAtStation && train.nextStops && train.nextStops.length > 0 && train.nextStops[0].hora_prevista)
+                ? train.nextStops[0].hora_prevista.substring(0, 5)
+                : null;
+
+              let matchedStop = refStationCode ? officialStops.find(s => s.code === refStationCode) : null;
+              if (!matchedStop && refStationName) {
+                const normRef = normalizeStr(refStationName);
+                matchedStop = officialStops.find(s => {
+                  const normNom = normalizeStr(s.nom);
+                  return normNom.includes(normRef) || normRef.includes(normNom);
+                });
+              }
+
+              const officialTime: string | null = matchedStop ? matchedStop.hora : null;
+              const comparisonStationName: string = matchedStop ? matchedStop.nom : (refStationName || 'Trajecte');
+
+              // Compute diff in minutes
+              let diffMinutes = 0;
+              if (officialTime && estimatedTime) {
+                diffMinutes = getFgcMinutes(estimatedTime) - getFgcMinutes(officialTime);
+              } else if (typeof train.delaySeconds === 'number') {
+                diffMinutes = Math.round(train.delaySeconds / 60);
+                if (officialTime && !estimatedTime) {
+                  estimatedTime = formatMinsToHHMM(getFgcMinutes(officialTime) + diffMinutes);
+                }
+              }
+
+              let timeStatus: 'retard' | 'avanc' | 'puntual' = 'puntual';
+              let timeStatusLabel = 'En hora (Puntual)';
+
+              if (diffMinutes > 0) {
+                timeStatus = 'retard';
+                timeStatusLabel = `+${diffMinutes} min retard`;
+              } else if (diffMinutes < 0) {
+                timeStatus = 'avanc';
+                timeStatusLabel = `${Math.abs(diffMinutes)} min avanç`;
+              } else {
+                timeStatus = 'puntual';
+                timeStatusLabel = 'En hora (Puntual)';
+              }
+
+              const scheduleComparison = {
+                exactStation,
+                isAtStation,
+                comparisonStationName,
+                officialTime,
+                estimatedTime,
+                diffMinutes,
+                timeStatus,
+                timeStatusLabel,
+              };
+
               return {
                 type: 'unit_result',
                 ...train,
                 circCode,
+                currentCircDetail,
+                scheduleComparison,
                 matchedCycleId,
                 matchedShiftId,
                 cycleCirculations,
@@ -859,7 +988,8 @@ const CercarViewComponent: React.FC<{
           }
         } catch (err) {
           console.error('[Unitat] Error fetching GeoTren:', err);
-          newResults = [];
+          if (!isSilent) newResults = [];
+          else return;
         }
       } else {
 
@@ -1028,8 +1158,35 @@ const CercarViewComponent: React.FC<{
         }
       }
 
-    } catch (error) { console.error("Error cercant dades:", error); } finally { setLoading(false); }
+    } catch (error) {
+      console.error("Error cercant dades:", error);
+    } finally {
+      setLoading(false);
+      setIsAutoRefreshing(false);
+    }
   };
+
+  const executeSearchRef = useRef(executeSearch);
+  useEffect(() => {
+    executeSearchRef.current = executeSearch;
+  });
+
+  // ── Auto-refresh per a Cerca per Unitat cada 15 segons ─────────────
+  useEffect(() => {
+    if (searchType !== SearchType.Unitat || results.length === 0) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      const targetQuery = activeSearchedUnitRef.current || query;
+      if (targetQuery && targetQuery.trim()) {
+        executeSearchRef.current(targetQuery, SearchType.Unitat, true);
+      }
+    }, 15000);
+
+    return () => clearInterval(interval);
+  }, [searchType, results.length > 0, query]);
 
   return (
     <div className="space-y-6 sm:space-y-8 p-4 sm:p-8 animate-in fade-in duration-700 max-w-7xl mx-auto w-full">
@@ -1561,11 +1718,23 @@ const CercarViewComponent: React.FC<{
                       <div>
                         <h2 className="text-2xl sm:text-3xl font-bold text-[#4D5358] dark:text-white tracking-tighter uppercase">Unitat {u.decodedUt}</h2>
                         <div className="flex items-center gap-3 mt-1 flex-wrap">
-                          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase ${u.isPunctual ? 'bg-fgc-green/20 text-fgc-green' : 'bg-red-500/20 text-red-500'}`}>
-                            <span className={`w-2 h-2 rounded-full ${u.isPunctual ? 'bg-fgc-green' : 'bg-red-500'} animate-pulse`} />
-                            {u.isPunctual ? 'Puntual' : `Retard +${delayMin} min`}
+                          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase ${
+                            u.scheduleComparison?.timeStatus === 'retard' ? 'bg-red-500/20 text-red-500' :
+                            u.scheduleComparison?.timeStatus === 'avanc' ? 'bg-blue-500/20 text-blue-400' :
+                            'bg-fgc-green/20 text-fgc-green'
+                          }`}>
+                            <span className={`w-2 h-2 rounded-full ${
+                              u.scheduleComparison?.timeStatus === 'retard' ? 'bg-red-500' :
+                              u.scheduleComparison?.timeStatus === 'avanc' ? 'bg-blue-400' :
+                              'bg-fgc-green'
+                            } animate-pulse`} />
+                            {u.scheduleComparison?.timeStatusLabel || (u.isPunctual ? 'Puntual' : `Retard +${delayMin} min`)}
                           </span>
                           <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{gt.lin} · {gt.dir === 'A' ? 'Ascendent' : 'Descendent'}</span>
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-bold uppercase bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 border border-gray-200/50 dark:border-white/10 shadow-sm">
+                            <RefreshCcw size={10} className={isAutoRefreshing ? "animate-spin text-fgc-green" : "text-gray-400"} />
+                            <span>{isAutoRefreshing ? 'Actualitzant...' : '15s Live'}</span>
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -1582,7 +1751,7 @@ const CercarViewComponent: React.FC<{
                     {/* Columna izquierda: Circulació actual + Pròxima */}
                     <div className="space-y-4">
                       {/* Circulació actual */}
-                      <div className="bg-gray-50 dark:bg-white/5 p-5 rounded-[24px] border border-gray-100 dark:border-white/5 space-y-3">
+                      <div className="bg-gray-50 dark:bg-white/5 p-5 rounded-[24px] border border-gray-100 dark:border-white/5 space-y-4">
                         <div className="flex items-center justify-between">
                           <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em] flex items-center gap-2">
                             <Activity size={12} className="text-red-500" />
@@ -1603,12 +1772,68 @@ const CercarViewComponent: React.FC<{
                           <ArrowRight size={14} className="opacity-50" />
                           <span className="uppercase">{gt.desti || '---'}</span>
                         </div>
-                        {gt.estacionat_a && (
-                          <div className="flex items-center gap-2 text-xs font-bold text-fgc-green">
-                            <MapPin size={14} />
-                            Estacionat a: <span className="uppercase">{gt.estacionat_a}</span>
+
+                        {/* Estació exacta segons Dades Obertes */}
+                        <div className="p-3.5 rounded-2xl bg-white dark:bg-black/30 border border-gray-200/60 dark:border-white/10 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest flex items-center gap-1.5">
+                              <MapPin size={12} className={u.scheduleComparison?.isAtStation ? "text-fgc-green" : "text-blue-500"} />
+                              {u.scheduleComparison?.isAtStation ? "Estació exacta (Dades Obertes)" : "Ubicació en temps real (Dades Obertes)"}
+                            </span>
+                            {u.scheduleComparison?.isAtStation ? (
+                              <span className="px-2 py-0.5 rounded-md text-[8px] font-black uppercase bg-fgc-green/20 text-fgc-green border border-fgc-green/30">
+                                Aturat a l'estació
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-md text-[8px] font-black uppercase bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                                En trajecte
+                              </span>
+                            )}
                           </div>
-                        )}
+                          <p className="text-sm font-black text-[#4D5358] dark:text-white uppercase tracking-tight">
+                            {u.scheduleComparison?.exactStation || (u.nextStops?.[0]?.parada ? `En trajecte cap a ${u.nextStops[0].parada}` : 'En circulació')}
+                          </p>
+                        </div>
+
+                        {/* Comparació amb el temps oficial de Supabase */}
+                        <div className="p-3.5 rounded-2xl bg-white dark:bg-black/30 border border-gray-200/60 dark:border-white/10 space-y-2.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest flex items-center gap-1.5">
+                              <Timer size={12} />
+                              Comparativa Horari Oficial Supabase
+                            </span>
+                            <span className={`px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wide ${
+                              u.scheduleComparison?.timeStatus === 'retard' ? 'bg-red-500 text-white shadow-sm' :
+                              u.scheduleComparison?.timeStatus === 'avanc' ? 'bg-blue-600 text-white shadow-sm' :
+                              'bg-fgc-green text-[#4D5358] shadow-sm'
+                            }`}>
+                              {u.scheduleComparison?.timeStatusLabel || (u.isPunctual ? 'En hora' : `+${delayMin} min retard`)}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3 pt-1 border-t border-gray-100 dark:border-white/5">
+                            <div>
+                              <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider block truncate">
+                                Teòric {u.scheduleComparison?.comparisonStationName ? `(${u.scheduleComparison.comparisonStationName})` : ''}
+                              </span>
+                              <span className="text-base font-black font-mono text-[#4D5358] dark:text-gray-200">
+                                {u.scheduleComparison?.officialTime || '---'}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider block">
+                                Real / Previst GeoTren
+                              </span>
+                              <span className={`text-base font-black font-mono ${
+                                u.scheduleComparison?.timeStatus === 'retard' ? 'text-red-500' :
+                                u.scheduleComparison?.timeStatus === 'avanc' ? 'text-blue-400' :
+                                'text-fgc-green'
+                              }`}>
+                                {u.scheduleComparison?.estimatedTime || '---'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
 
                       {/* Pròxima circulació */}
@@ -1783,17 +2008,21 @@ const CercarViewComponent: React.FC<{
                   )}
 
                   {/* Footer técnico */}
-                  <div className="mt-6 pt-4 border-t border-gray-100 dark:border-white/5 flex flex-wrap items-center gap-4 opacity-40">
-                    <div className="flex items-center gap-1.5 text-[9px] font-bold text-gray-400 uppercase tracking-widest">
+                  <div className="mt-6 pt-4 border-t border-gray-100 dark:border-white/5 flex flex-wrap items-center gap-4 text-[9px] font-bold text-gray-400 uppercase tracking-widest">
+                    <div className="flex items-center gap-1.5 opacity-60">
                       <Info size={10} />
                       Font: GeoTren Dades Obertes FGC
                     </div>
+                    <div className="flex items-center gap-1.5 text-fgc-green">
+                      <RefreshCcw size={10} className={isAutoRefreshing ? "animate-spin" : ""} />
+                      <span>Actualització automàtica cada 15s</span>
+                    </div>
                     {gt.ut && (
-                      <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">
+                      <div className="opacity-40">
                         UT HEX: {gt.ut}
                       </div>
                     )}
-                    <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">
+                    <div className="opacity-40">
                       ID SIRTRAN: {gt.id?.split('|')[0]}
                     </div>
                   </div>
