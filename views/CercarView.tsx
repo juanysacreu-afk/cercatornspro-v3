@@ -1452,50 +1452,6 @@ const CercarViewComponent: React.FC<{
                 </div>
               </div>
 
-              {/* Selector de Sentit (Ascendents / Descendents) */}
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-4">
-                  Sentit de la circulació
-                </label>
-                <div className="grid grid-cols-3 gap-2 bg-gray-50 dark:bg-black/20 p-1.5 rounded-[20px] sm:rounded-[28px]">
-                  <button
-                    type="button"
-                    onClick={() => { feedback.click(); setStationDirectionFilter('all'); }}
-                    className={`py-3 px-2 rounded-[14px] sm:rounded-[22px] text-xs sm:text-sm font-bold transition-all text-center ${
-                      stationDirectionFilter === 'all'
-                        ? 'bg-white dark:bg-fgc-grey text-[#4D5358] dark:text-white shadow-md'
-                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
-                    }`}
-                  >
-                    Tots els sentits
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { feedback.click(); setStationDirectionFilter('asc'); }}
-                    className={`py-3 px-2 rounded-[14px] sm:rounded-[22px] text-xs sm:text-sm font-bold transition-all text-center flex items-center justify-center gap-1.5 ${
-                      stationDirectionFilter === 'asc'
-                        ? 'bg-blue-600 text-white shadow-md'
-                        : 'text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400'
-                    }`}
-                  >
-                    <ArrowUp size={14} className="stroke-[3]" />
-                    <span>Ascendents <span className="opacity-70 text-[10px] hidden sm:inline">(Impars)</span></span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { feedback.click(); setStationDirectionFilter('desc'); }}
-                    className={`py-3 px-2 rounded-[14px] sm:rounded-[22px] text-xs sm:text-sm font-bold transition-all text-center flex items-center justify-center gap-1.5 ${
-                      stationDirectionFilter === 'desc'
-                        ? 'bg-amber-600 text-white shadow-md'
-                        : 'text-gray-500 dark:text-gray-400 hover:text-amber-600 dark:hover:text-amber-400'
-                    }`}
-                  >
-                    <ArrowDown size={14} className="stroke-[3]" />
-                    <span>Descendents <span className="opacity-70 text-[10px] hidden sm:inline">(Pars)</span></span>
-                  </button>
-                </div>
-              </div>
-
               <button
                 onClick={() => executeSearch()}
                 className="bg-fgc-green text-[#4D5358] h-[60px] sm:h-[76px] w-full rounded-[20px] sm:rounded-[32px] text-lg sm:text-xl font-bold shadow-xl shadow-fgc-green/20 hover:scale-[1.01] active:scale-95 flex items-center justify-center gap-3 transition-all mt-2"
