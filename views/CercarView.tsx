@@ -11,7 +11,7 @@ import { supabase } from '../supabaseClient.ts';
 // Importación de utilidades y componentes extraídos
 import { getFgcMinutes, checkIfActive, calculateGap } from '../utils/time';
 import { fetchAllFromSupabase } from '../utils/supabase';
-import { getStatusColor, getLiniaColor, getShortTornId, getTrainPhone, ALL_STATIONS, STATION_CODE_MAP, getCirculationParity, ALL_FLEET_UNITS } from '../utils/fgc';
+import { getStatusColor, getLiniaColor, getShortTornId, getCandidateShiftIds, getTrainPhone, ALL_STATIONS, STATION_CODE_MAP, getCirculationParity, ALL_FLEET_UNITS } from '../utils/fgc';
 import { resolveStationId } from '../utils/stations';
 import { fetchFullTurns, fetchPassengerInfo } from '../utils/queries';
 import { syncOfflineData } from '../utils/offlineSync';
@@ -532,10 +532,19 @@ const CercarViewComponent: React.FC<{
     }
 
     if (st === SearchType.Torn || (st as any) === 'general') {
-      let q = supabase.from('shifts').select('id').ilike('id', `%${val}%`);
+      let q = supabase.from('shifts').select('id');
       if (selectedServei !== 'Tots') q = q.eq('servei', selectedServei);
+      const candidates = getCandidateShiftIds(val, selectedServei);
+      const orFilters = [
+        ...candidates.map(c => `id.eq.${c}`),
+        `id.ilike.%${val}%`
+      ];
+      q = q.or(orFilters.join(','));
       const { data } = await q.limit(8);
-      if (data && data.length > 0) { setSuggestions((data as any[]).map(item => item.id as string)); setShowSuggestions(true); }
+      if (data && data.length > 0) { 
+        setSuggestions(Array.from(new Set((data as any[]).map(item => item.id as string)))); 
+        setShowSuggestions(true); 
+      }
 
       // PK or Station suggestions in general
       const isPk = /^\d+([.,]\d*)?$/.test(val.replace(',', '.'));
@@ -552,8 +561,17 @@ const CercarViewComponent: React.FC<{
       const { data } = await supabase.from('daily_assignments').select('nom, cognoms, empleat_id').or(`nom.ilike.%${val}%,cognoms.ilike.%${val}%,empleat_id.ilike.%${val}%`).limit(8);
       if (data) { const unique = Array.from(new Set((data as any[]).map(d => `${d.cognoms || ''}, ${d.nom || ''} (${d.empleat_id})`))) as string[]; setSuggestions(unique); setShowSuggestions(true); }
     } else if (st === SearchType.Circulacio) {
-      const { data } = await supabase.from('circulations').select('id').ilike('id', `%${val}%`).limit(8);
-      if (data) { setSuggestions((data as any[]).map(item => item.id as string)); setShowSuggestions(true); }
+      const sCode = (selectedServei && selectedServei !== 'Tots') ? (selectedServei === '0' ? '000' : selectedServei) : undefined;
+      let qCirc = supabase.from('circulationsv2').select('id').ilike('id', `%${val}%`);
+      if (sCode) qCirc = qCirc.eq('servei', sCode);
+      const { data } = await qCirc.limit(8);
+      if (data && data.length > 0) { 
+        setSuggestions(Array.from(new Set((data as any[]).map(item => item.id as string)))); 
+        setShowSuggestions(true); 
+      } else {
+        const { data: legacyData } = await supabase.from('circulations').select('id').ilike('id', `%${val}%`).limit(8);
+        if (legacyData) { setSuggestions(Array.from(new Set((legacyData as any[]).map(item => item.id as string)))); setShowSuggestions(true); }
+      }
     } else if (st === SearchType.Cicle) {
       const filtered = availableCycles.filter(c => normalizeStr(c).includes(normalizeStr(val))).slice(0, 12);
       setSuggestions(filtered); setShowSuggestions(true);
@@ -624,7 +642,13 @@ const CercarViewComponent: React.FC<{
               }
             });
           });
-          const details = await fetchAllFromSupabase('circulations', supabase.from('circulations').select('*').in('id', Array.from(allCodiSet)));
+          const sCode = (selectedServei && selectedServei !== 'Tots') ? (selectedServei === '0' ? '000' : selectedServei) : undefined;
+          let qDetails = supabase.from('circulationsv2').select('*').in('id', Array.from(allCodiSet));
+          if (sCode) qDetails = qDetails.eq('servei', sCode);
+          let details = await fetchAllFromSupabase('circulationsv2', qDetails);
+          if (!details || details.length === 0) {
+            details = await fetchAllFromSupabase('circulations', supabase.from('circulations').select('*').in('id', Array.from(allCodiSet)));
+          }
           const enrichedCircs = flattenedCircs.map(fc => { const detail = details?.find(d => d.id === fc.codi); return { ...detail, ...fc }; });
           enrichedCircs.sort((a, b) => getFgcMinutes(a.sortida || '00:00') - getFgcMinutes(b.sortida || '00:00'));
           newResults = [{ type: 'cycle_summary', cycle_id: searchVal, train: cycleAssigRes.data?.train_number || 'S/A', circulations: enrichedCircs }];
@@ -637,11 +661,35 @@ const CercarViewComponent: React.FC<{
 
         // Optimizació: Filtrar circulacions per estació directament en la base de dades
         // Cerca pel codi (ex: 'PC') o pel nom en JSON
-        const { data: matchedCircs } = await supabase.from('circulations')
-          .select('*')
-          .or(`inici.ilike.${targetStation},final.ilike.${targetStation},estacions.cs.[{"nom":"${targetStation}"}]`);
+        const sCode = (selectedServei && selectedServei !== 'Tots') ? (selectedServei === '0' ? '000' : selectedServei) : undefined;
+        let qCircs = supabase.from('circulationsv2').select('*');
+        if (sCode) qCircs = qCircs.eq('servei', sCode);
+        qCircs = qCircs.or(`inici.ilike.${targetStation},final.ilike.${targetStation},estacions.cs.[{"codi":"${targetStation}"}]`);
+
+        let { data: matchedCircsRaw } = await qCircs;
+        let matchedCircs = matchedCircsRaw;
+
+        if ((!matchedCircs || matchedCircs.length === 0) && (!sCode || sCode === '000')) {
+          const { data: legacyCircs } = await supabase.from('circulations')
+            .select('*')
+            .or(`inici.ilike.${targetStation},final.ilike.${targetStation},estacions.cs.[{"nom":"${targetStation}"}]`);
+          matchedCircs = legacyCircs;
+        }
 
         if (!matchedCircs || matchedCircs.length === 0) { setResults([]); return; }
+
+        matchedCircs = matchedCircs.map((c: any) => ({
+          ...c,
+          estacions: Array.isArray(c.estacions) ? c.estacions.map((st: any) => ({
+            ...st,
+            nom: st.nom || st.codi,
+            codi: st.codi || st.nom,
+            hora: st.hora || st.sortida || st.arribada,
+            sortida: st.sortida || st.hora,
+            arribada: st.arribada || st.hora,
+            via: st.via || st.via_sortida || st.via_arribada || ''
+          })) : []
+        }));
 
         const startMinRange = getFgcMinutes(startTime);
         const endMinRange = getFgcMinutes(endTime);
@@ -1192,17 +1240,13 @@ const CercarViewComponent: React.FC<{
           } else {
             // 1. Torn
             let qt = supabase.from('shifts').select('id');
-            const isNumeric = /^\d+$/.test(searchVal);
-            if (isNumeric && selectedServei !== 'Tots') {
-              const prefix = selectedServei === '0' ? '0' : selectedServei.charAt(0);
-              const numPart = searchVal.padStart(3, '0');
-              const constructedId = `Q${prefix}${numPart}`;
-              if (selectedServei !== 'Tots') qt = qt.eq('servei', selectedServei);
-              qt = qt.ilike('id', constructedId);
-            } else {
-              if (selectedServei !== 'Tots') qt = qt.eq('servei', selectedServei);
-              qt = qt.ilike('id', `%${searchVal}%`);
-            }
+            if (selectedServei !== 'Tots') qt = qt.eq('servei', selectedServei);
+            const candidates = getCandidateShiftIds(searchVal, selectedServei);
+            const orFilters = [
+              ...candidates.map(c => `id.eq.${c}`),
+              `id.ilike.%${searchVal}%`
+            ];
+            qt = qt.or(orFilters.join(','));
 
             // 2. Maq
             const nominaMatch = searchVal.match(/\((\d+)\)/);
@@ -1267,24 +1311,19 @@ const CercarViewComponent: React.FC<{
             if (turnIds.length > 0) newResults = await offlineFetchFullTurns(turnIds.slice(0, 50), selectedServei === 'Tots' ? undefined : selectedServei); else newResults = [];
           } else {
             switch (st) {
-              case SearchType.Torn:
+              case SearchType.Torn: {
                 let qt = supabase.from('shifts').select('id');
-                const isNumeric = /^\d+$/.test(searchVal);
-
-                if (isNumeric && selectedServei !== 'Tots') {
-                  const prefix = selectedServei === '0' ? '0' : selectedServei.charAt(0);
-                  const numPart = searchVal.padStart(3, '0');
-                  const constructedId = `Q${prefix}${numPart}`;
-                  if (selectedServei !== 'Tots') qt = qt.eq('servei', selectedServei);
-                  qt = qt.ilike('id', constructedId);
-                } else {
-                  if (selectedServei !== 'Tots') qt = qt.eq('servei', selectedServei);
-                  qt = qt.ilike('id', `%${searchVal}%`);
-                }
-
+                if (selectedServei !== 'Tots') qt = qt.eq('servei', selectedServei);
+                const candidates = getCandidateShiftIds(searchVal, selectedServei);
+                const orFilters = [
+                  ...candidates.map(c => `id.eq.${c}`),
+                  `id.ilike.%${searchVal}%`
+                ];
+                qt = qt.or(orFilters.join(','));
                 const { data: s } = await qt;
                 turnIds = s?.map(x => x.id as string) || [];
                 break;
+              }
               case SearchType.Maquinista:
                 const nominaMatch = searchVal.match(/\((\d+)\)/); // More flexible regex
                 const filterVal = nominaMatch ? nominaMatch[1] : searchVal.trim();

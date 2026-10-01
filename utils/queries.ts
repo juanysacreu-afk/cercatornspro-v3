@@ -6,8 +6,13 @@ export async function fetchFullTurns(turnIds: string[], selectedServei?: string)
     if (!turnIds.length) return [];
 
     // 1. Fetch shifts and cycle assignments in parallel
+    let shiftQuery = supabase.from('shifts').select('*').in('id', turnIds);
+    if (selectedServei && selectedServei !== 'Tots') {
+        shiftQuery = shiftQuery.eq('servei', selectedServei);
+    }
+
     const [shiftsRes, cycleAssigRes] = await Promise.all([
-        supabase.from('shifts').select('*').in('id', turnIds),
+        shiftQuery,
         supabase.from('assignments').select('*') // Potentially many, maybe refine later if needed
     ]);
 
@@ -35,10 +40,25 @@ export async function fetchFullTurns(turnIds: string[], selectedServei?: string)
         });
     });
 
-    // 3. Fetch details, daily assignments, and helper shifts for Viatger mapping in parallel
+    // 3. Fetch details from circulationsv2 (with exact service timetables), falling back to legacy circulations
+    const sCode = (selectedServei && selectedServei !== 'Tots')
+        ? (selectedServei === '0' ? '000' : selectedServei)
+        : undefined;
+
+    let circQuery = supabase.from('circulationsv2').select('*').in('id', Array.from(allCircIds));
+    if (sCode) {
+        circQuery = circQuery.eq('servei', sCode);
+    } else {
+        const sCodes = Array.from(new Set(shifts.map(s => s.servei === '0' ? '000' : s.servei).filter(Boolean)));
+        if (sCodes.length > 0) {
+            circQuery = circQuery.in('servei', sCodes);
+        }
+    }
+
     const orCondition = shortIds.map(id => `observacions.ilike.*${id}*`).join(',');
 
     const queries: any[] = [
+        circQuery,
         supabase.from('circulations').select('*').in('id', Array.from(allCircIds)),
         supabase.from('daily_assignments').select('*').in('torn', shortIds)
     ];
@@ -56,8 +76,44 @@ export async function fetchFullTurns(turnIds: string[], selectedServei?: string)
         queries.push(Promise.resolve({ data: [] }));
     }
 
-    const [circDetailsRes, dailyRes, helperShiftsRes, coveringDailyRes] = await Promise.all(queries);
-    const circDetails = circDetailsRes.data || [];
+    const [circv2Res, legacyCircRes, dailyRes, helperShiftsRes, coveringDailyRes] = await Promise.all(queries);
+
+    const normalizeEstacions = (stations: any[]) => {
+        if (!Array.isArray(stations)) return [];
+        return stations.map(st => ({
+            ...st,
+            codi: st.codi || st.nom,
+            nom: st.nom || st.codi,
+            hora: st.hora || st.sortida || st.arribada,
+            sortida: st.sortida || st.hora,
+            arribada: st.arribada || st.hora,
+            via: st.via || st.via_sortida || st.via_arribada || '',
+            via_sortida: st.via_sortida || st.via || '',
+            via_arribada: st.via_arribada || st.via || ''
+        }));
+    };
+
+    const circDetailsMap = new Map<string, any>();
+    // Legacy fallback first
+    (legacyCircRes.data || []).forEach((c: any) => {
+        circDetailsMap.set(c.id, {
+            ...c,
+            estacions: normalizeEstacions(c.estacions)
+        });
+    });
+    // circulationsv2 overrides with exact service data
+    (circv2Res.data || []).forEach((c: any) => {
+        const enriched = {
+            ...c,
+            estacions: normalizeEstacions(c.estacions)
+        };
+        circDetailsMap.set(`${c.servei}_${c.id}`, enriched);
+        if (!circDetailsMap.has(c.id) || sCode === c.servei) {
+            circDetailsMap.set(c.id, enriched);
+        }
+    });
+
+    const circDetails = Array.from(circDetailsMap.values());
     const helperShifts = helperShiftsRes.data || [];
 
     // Combine regular assignments and covering assignments, removing duplicates by ID
@@ -104,7 +160,7 @@ export async function fetchFullTurns(turnIds: string[], selectedServei?: string)
 
     // Use turnIds as the base to ensure even virtual shifts are included
     return turnIds.map(id => {
-        const shift = shifts.find(s => s.id === id);
+        const shift = shifts.find(s => s.id === id && (!selectedServei || selectedServei === 'Tots' || s.servei === selectedServei)) || shifts.find(s => s.id === id);
         const sIdShort = getShortTornId(id);
         const assignments = dailyAssignments.filter((d: any) => {
             if (d.torn === sIdShort) return true;
@@ -161,9 +217,13 @@ export async function fetchFullTurns(turnIds: string[], selectedServei?: string)
             const obsParts = isViatger && cRef.observacions ? cRef.observacions.split('-') : [];
             const realCodiId = isViatger && obsParts.length > 0 ? obsParts[0] : cRef.codi;
 
-            const detail = circDetails.find((cd: any) => cd.id === realCodiId);
-            let machinistInici = cRef.inici || detail?.inici;
-            let machinistFinal = cRef.final || detail?.final;
+            const targetServei = baseShift.servei === '0' ? '000' : baseShift.servei;
+            const detail = circDetailsMap.get(`${targetServei}_${realCodiId}`)
+                || circDetailsMap.get(realCodiId)
+                || circDetails.find((cd: any) => cd.id === realCodiId);
+
+            let machinistInici = (typeof cRef === 'object' && cRef.inici && cRef.inici.trim()) || detail?.inici;
+            let machinistFinal = (typeof cRef === 'object' && cRef.final && cRef.final.trim()) || detail?.final;
             if (isViatger && obsParts.length >= 3) {
                 machinistInici = obsParts[1];
                 machinistFinal = obsParts[2];
@@ -176,6 +236,12 @@ export async function fetchFullTurns(turnIds: string[], selectedServei?: string)
             return {
                 ...detail,
                 ...(typeof cRef === 'object' ? cRef : {}),
+                inici: machinistInici,
+                final: machinistFinal,
+                linia: detail?.linia || (typeof cRef === 'object' ? cRef.linia : undefined),
+                sortida: (typeof cRef === 'object' && cRef.sortida && cRef.sortida.trim()) || detail?.sortida,
+                arribada: (typeof cRef === 'object' && cRef.arribada && cRef.arribada.trim()) || detail?.arribada,
+                estacions: (detail?.estacions && detail.estacions.length > 0) ? detail.estacions : (typeof cRef === 'object' ? cRef.estacions : []),
                 id: cRef.codi,
                 realCodi: isViatger ? realCodiId : null,
                 codi: cRef.codi,
@@ -183,7 +249,6 @@ export async function fetchFullTurns(turnIds: string[], selectedServei?: string)
                 machinistFinal,
                 cicle: cCicle,
                 train: cTrain || cycleInfo?.train_number,
-                linia: detail?.linia || cRef.linia
             };
         }).sort((a: any, b: any) => getFgcMinutes(a.sortida || '00:00') - getFgcMinutes(b.sortida || '00:00'));
 

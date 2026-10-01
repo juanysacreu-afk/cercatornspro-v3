@@ -199,6 +199,61 @@ export const getShortTornId = (id: string): string => {
     return trimmed;
 };
 
+/** Generates candidate shift IDs for database lookup given user search input and active service */
+export const getCandidateShiftIds = (input: string, servei?: string): string[] => {
+    const clean = input.trim().toUpperCase();
+    if (!clean) return [];
+
+    const candidates = new Set<string>();
+    candidates.add(clean);
+    if (!clean.startsWith('Q')) candidates.add(`Q${clean}`);
+
+    const prefixes = (servei && servei !== 'Tots') 
+        ? [servei === '0' ? '0' : servei.charAt(0)] 
+        : ['0', '1', '4', '5'];
+
+    // If purely numeric: e.g. "13", "013", "101"
+    if (/^\d+$/.test(clean)) {
+        const numPart = clean.padStart(3, '0');
+        prefixes.forEach(p => candidates.add(`Q${p}${numPart}`));
+        if (clean.length === 4) {
+            candidates.add(`Q${clean}`);
+        }
+    }
+
+    // If starts with Q followed by digits: e.g. "Q013", "Q13", "Q4013"
+    if (/^Q\d+$/.test(clean)) {
+        const digits = clean.slice(1);
+        if (digits.length <= 3) {
+            const numPart = digits.padStart(3, '0');
+            prefixes.forEach(p => candidates.add(`Q${p}${numPart}`));
+        }
+    }
+
+    // If starts with QP, QS, QR, QN, QF followed by digits: e.g. "QP02", "P02", "QN04", "N04"
+    const letterMatch = clean.match(/^(?:Q)?([A-Z])(\d+)$/);
+    if (letterMatch) {
+        const letter = letterMatch[1];
+        const numPart = letterMatch[2].padStart(2, '0');
+        if (letter === 'R') {
+            candidates.add(`QR${letterMatch[2]}`);
+            candidates.add(`Q${letter}${numPart}`);
+            prefixes.forEach(p => candidates.add(`Q${p}${letter}${numPart}`));
+        } else {
+            candidates.add(`Q${letter}${numPart}`);
+            prefixes.forEach(p => candidates.add(`Q${p}${letter}${numPart}`));
+        }
+    }
+
+    // If starts with QR followed by letter/digit: e.g. "QRP0", "RP0", "QRS1", "RS1"
+    const reserveMatch = clean.match(/^(?:Q)?(R[A-Z0-9]+)$/);
+    if (reserveMatch) {
+        candidates.add(`Q${reserveMatch[1]}`);
+    }
+
+    return Array.from(candidates);
+};
+
 // ──────────────────────────────────────────────
 // String Normalization
 // ──────────────────────────────────────────────

@@ -19,7 +19,7 @@ export const getLiniaColor = (linia: string) => {
 };
 
 // Re-exported from stations.ts — single source of truth
-export { getShortTornId } from './stations';
+export { getShortTornId, getCandidateShiftIds } from './stations';
 
 export const FLEET_CONFIG = [
     { serie: '112', count: 22 },
