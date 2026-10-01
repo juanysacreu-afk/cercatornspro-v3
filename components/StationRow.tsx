@@ -1,8 +1,7 @@
 
 import React from 'react';
-import { Phone, Users, Camera, FileText, Brush, AlertTriangle, BookOpen, Settings, Radio, ArrowUp, ArrowDown } from 'lucide-react';
+import { Phone, Users, Camera, FileText, Brush, AlertTriangle, BookOpen, Settings, Radio } from 'lucide-react';
 import { checkIfActive } from '../utils/time';
-import { getCirculationParity } from '../utils/fgc';
 import { MarqueeText } from './MarqueeText';
 
 interface StationRowProps {
@@ -40,8 +39,6 @@ export const StationRow: React.FC<StationRowProps> = ({
     const needsRecords = status?.needs_records;
     const needsCleaning = status?.needs_cleaning;
     const isViatger = circ.id === 'Viatger';
-    const circCode = (isViatger ? circ.realCodi : circ.id) || circ.realCodi || circ.codi || circ.id;
-    const parity = getCirculationParity(circCode);
 
     return (
         <div id={`station-row-${itemKey}`} className={`p-2.5 sm:p-4 grid grid-cols-[auto_1fr_auto_auto] md:grid-cols-[1fr_1.2fr_1.8fr_1fr_1.2fr] items-center gap-2 sm:gap-4 w-full relative transition-all scroll-mt-24 ${isActive ? 'bg-red-50/40 dark:bg-red-950/20 shadow-inner' : isBroken ? 'bg-red-50/20 dark:bg-red-950/10' : ''}`}>
@@ -62,20 +59,10 @@ export const StationRow: React.FC<StationRowProps> = ({
                     )}
                     {circ.cicle && <div className="absolute -top-1 -right-1 bg-white dark:bg-black rounded-full p-0.5 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"><Settings size={8} className="text-fgc-grey dark:text-gray-400" /></div>}
                 </button>
-                <div className="flex items-center gap-1 flex-wrap justify-center">
+                <div className="flex items-center gap-1">
                     <span className={`px-1.5 py-0.5 ${getLiniaColor(circ.linia)} text-white rounded-md font-black text-[8px] sm:text-[11px] shadow-sm`}>{circ.linia || '??'}</span>
                     {circ.viaAtStation && (
                         <span className="px-1.5 py-0.5 bg-gray-200 dark:bg-gray-800 text-fgc-grey dark:text-gray-300 rounded-md font-black text-[8px] sm:text-[11px] shadow-sm border border-gray-300/50 dark:border-white/10 uppercase">V{circ.viaAtStation}</span>
-                    )}
-                    {parity === 'asc' && (
-                        <span className="px-1.5 py-0.5 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-md font-black text-[7.5px] sm:text-[10px] border border-blue-200 dark:border-blue-800/50 flex items-center gap-0.5 shadow-sm" title="Circulació Ascendent (Impar)">
-                            <ArrowUp size={8} className="stroke-[3]" /> ASC
-                        </span>
-                    )}
-                    {parity === 'desc' && (
-                        <span className="px-1.5 py-0.5 bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 rounded-md font-black text-[7.5px] sm:text-[10px] border border-amber-200 dark:border-amber-800/50 flex items-center gap-0.5 shadow-sm" title="Circulació Descendent (Par)">
-                            <ArrowDown size={8} className="stroke-[3]" /> DESC
-                        </span>
                     )}
                 </div>
 
