@@ -79,3 +79,26 @@ export const STATION_CODE_MAP: Record<string, string> = {
     "Av. Tibidabo": "TB",
     "Reina Elisenda": "RE"
 };
+
+/**
+ * Determina el sentit d'una circulació segons la paritat del seu número:
+ * - Impar (senar): Ascendent (sortida de Barcelona, ex: D001, F003...)
+ * - Par (parell): Descendent (arribada a Barcelona, ex: D002, F004...)
+ */
+export const getCirculationParity = (circId?: string | null): 'asc' | 'desc' | null => {
+    if (!circId) return null;
+    const clean = circId.trim();
+    if (!clean) return null;
+
+    // Retirem prefixos de línia comuns (S1-, S2_, etc.) si n'hi hagués
+    const withoutLinePrefix = clean.replace(/^(S1|S2|L6|L7|L12)[\s\-_]*/i, '');
+
+    // Busquem l'últim grup de dígits a la cadena identificadora
+    const matches = withoutLinePrefix.match(/\d+/g);
+    if (!matches || matches.length === 0) return null;
+
+    const lastDigits = matches[matches.length - 1];
+    const num = parseInt(lastDigits, 10);
+    if (isNaN(num)) return null;
+    return num % 2 !== 0 ? 'asc' : 'desc';
+};

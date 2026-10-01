@@ -11,7 +11,7 @@ import { supabase } from '../supabaseClient.ts';
 // Importación de utilidades y componentes extraídos
 import { getFgcMinutes, checkIfActive, calculateGap } from '../utils/time';
 import { fetchAllFromSupabase } from '../utils/supabase';
-import { getStatusColor, getLiniaColor, getShortTornId, getTrainPhone, ALL_STATIONS, STATION_CODE_MAP } from '../utils/fgc';
+import { getStatusColor, getLiniaColor, getShortTornId, getTrainPhone, ALL_STATIONS, STATION_CODE_MAP, getCirculationParity } from '../utils/fgc';
 import { resolveStationId } from '../utils/stations';
 import { fetchFullTurns, fetchPassengerInfo } from '../utils/queries';
 import { syncOfflineData } from '../utils/offlineSync';
@@ -167,6 +167,7 @@ const CercarViewComponent: React.FC<{
   const [selectedStation, setSelectedStation] = useState<string>('');
   const [trainStatuses, setTrainStatuses] = useState<Record<string, any>>({});
   const [selectedVia, setSelectedVia] = useState<string>('Tot');
+  const [stationDirectionFilter, setStationDirectionFilter] = useState<'all' | 'asc' | 'desc'>('all');
   const [isOfflineMode, setIsOfflineMode] = useState(!navigator.onLine);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState('');
@@ -1451,6 +1452,50 @@ const CercarViewComponent: React.FC<{
                 </div>
               </div>
 
+              {/* Selector de Sentit (Ascendents / Descendents) */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-4">
+                  Sentit de la circulació
+                </label>
+                <div className="grid grid-cols-3 gap-2 bg-gray-50 dark:bg-black/20 p-1.5 rounded-[20px] sm:rounded-[28px]">
+                  <button
+                    type="button"
+                    onClick={() => { feedback.click(); setStationDirectionFilter('all'); }}
+                    className={`py-3 px-2 rounded-[14px] sm:rounded-[22px] text-xs sm:text-sm font-bold transition-all text-center ${
+                      stationDirectionFilter === 'all'
+                        ? 'bg-white dark:bg-fgc-grey text-[#4D5358] dark:text-white shadow-md'
+                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+                    }`}
+                  >
+                    Tots els sentits
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { feedback.click(); setStationDirectionFilter('asc'); }}
+                    className={`py-3 px-2 rounded-[14px] sm:rounded-[22px] text-xs sm:text-sm font-bold transition-all text-center flex items-center justify-center gap-1.5 ${
+                      stationDirectionFilter === 'asc'
+                        ? 'bg-blue-600 text-white shadow-md'
+                        : 'text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400'
+                    }`}
+                  >
+                    <ArrowUp size={14} className="stroke-[3]" />
+                    <span>Ascendents <span className="opacity-70 text-[10px] hidden sm:inline">(Impars)</span></span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { feedback.click(); setStationDirectionFilter('desc'); }}
+                    className={`py-3 px-2 rounded-[14px] sm:rounded-[22px] text-xs sm:text-sm font-bold transition-all text-center flex items-center justify-center gap-1.5 ${
+                      stationDirectionFilter === 'desc'
+                        ? 'bg-amber-600 text-white shadow-md'
+                        : 'text-gray-500 dark:text-gray-400 hover:text-amber-600 dark:hover:text-amber-400'
+                    }`}
+                  >
+                    <ArrowDown size={14} className="stroke-[3]" />
+                    <span>Descendents <span className="opacity-70 text-[10px] hidden sm:inline">(Pars)</span></span>
+                  </button>
+                </div>
+              </div>
+
               <button
                 onClick={() => executeSearch()}
                 className="bg-fgc-green text-[#4D5358] h-[60px] sm:h-[76px] w-full rounded-[20px] sm:rounded-[32px] text-lg sm:text-xl font-bold shadow-xl shadow-fgc-green/20 hover:scale-[1.01] active:scale-95 flex items-center justify-center gap-3 transition-all mt-2"
@@ -1612,31 +1657,120 @@ const CercarViewComponent: React.FC<{
                     </div>
                   )}
                   <div className="border border-gray-100 dark:border-white/5 rounded-[32px] overflow-hidden bg-white dark:bg-black/20 shadow-sm">
-                    {isStationGroup && group.stationCode === 'PC' && (
-                      <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 p-3 sm:p-4 bg-gray-50/50 dark:bg-black/40 border-b border-gray-100 dark:border-white/5">
-                        <span className="hidden sm:inline text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mr-2">Filtrar per via:</span>
-                        {['Tot', 'V1', 'V2', 'V3', 'V4', 'V5'].map(via => (
-                          <button
-                            key={via}
-                            onClick={() => {
-                              feedback.click();
-                              setSelectedVia(via);
-                            }}
-                            className={`px-3 sm:px-4 py-1.5 rounded-full text-[10px] sm:text-xs font-bold transition-all ${selectedVia === via
-                              ? 'bg-fgc-green text-[#4D5358] shadow-md scale-105'
-                              : 'bg-white dark:bg-white/5 text-gray-500 dark:text-gray-400 border border-gray-100 dark:border-white/5 hover:bg-gray-100'
-                              }`}
-                          >
-                            {via}
-                          </button>
-                        ))}
+                    {isStationGroup && (
+                      <div className="flex flex-col sm:flex-row flex-wrap items-center justify-between gap-3 p-3 sm:p-4 bg-gray-50/50 dark:bg-black/40 border-b border-gray-100 dark:border-white/5">
+                        {/* Filtre de Sentit (Ascendent / Descendent) */}
+                        <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto justify-center sm:justify-start">
+                          <span className="hidden sm:inline text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mr-1">Sentit:</span>
+                          <div className="inline-flex p-1 bg-gray-200/50 dark:bg-white/5 rounded-2xl gap-1">
+                            {(() => {
+                              const ascCount = group.circulations.filter((c: any) => {
+                                const circCode = (c.id === 'Viatger' ? c.realCodi : c.id) || c.realCodi || c.codi || c.id;
+                                return getCirculationParity(circCode) === 'asc';
+                              }).length;
+                              const descCount = group.circulations.filter((c: any) => {
+                                const circCode = (c.id === 'Viatger' ? c.realCodi : c.id) || c.realCodi || c.codi || c.id;
+                                return getCirculationParity(circCode) === 'desc';
+                              }).length;
+                              return (
+                                <>
+                                  <button
+                                    onClick={() => { feedback.click(); setStationDirectionFilter('all'); }}
+                                    className={`px-3 py-1.5 rounded-xl text-[10px] sm:text-xs font-bold transition-all ${
+                                      stationDirectionFilter === 'all'
+                                        ? 'bg-white dark:bg-gray-800 text-fgc-grey dark:text-white shadow-sm'
+                                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                                    }`}
+                                  >
+                                    Tots ({group.circulations.length})
+                                  </button>
+                                  <button
+                                    onClick={() => { feedback.click(); setStationDirectionFilter('asc'); }}
+                                    className={`px-3 py-1.5 rounded-xl text-[10px] sm:text-xs font-bold transition-all flex items-center gap-1 ${
+                                      stationDirectionFilter === 'asc'
+                                        ? 'bg-blue-600 text-white shadow-sm'
+                                        : 'text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400'
+                                    }`}
+                                    title="Circulacions ascendents (impars)"
+                                  >
+                                    <ArrowUp size={12} className="stroke-[3]" /> Ascendents ({ascCount})
+                                  </button>
+                                  <button
+                                    onClick={() => { feedback.click(); setStationDirectionFilter('desc'); }}
+                                    className={`px-3 py-1.5 rounded-xl text-[10px] sm:text-xs font-bold transition-all flex items-center gap-1 ${
+                                      stationDirectionFilter === 'desc'
+                                        ? 'bg-amber-600 text-white shadow-sm'
+                                        : 'text-gray-500 dark:text-gray-400 hover:text-amber-600 dark:hover:text-amber-400'
+                                    }`}
+                                    title="Circulacions descendents (pars)"
+                                  >
+                                    <ArrowDown size={12} className="stroke-[3]" /> Descendents ({descCount})
+                                  </button>
+                                </>
+                              );
+                            })()}
+                          </div>
+                        </div>
+
+                        {/* Filtre per Via (només si és PC) */}
+                        {group.stationCode === 'PC' && (
+                          <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto justify-center sm:justify-end">
+                            <span className="hidden sm:inline text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mr-1">Via:</span>
+                            {['Tot', 'V1', 'V2', 'V3', 'V4', 'V5'].map(via => (
+                              <button
+                                key={via}
+                                onClick={() => {
+                                  feedback.click();
+                                  setSelectedVia(via);
+                                }}
+                                className={`px-2.5 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-bold transition-all ${selectedVia === via
+                                  ? 'bg-fgc-green text-[#4D5358] shadow-md scale-105'
+                                  : 'bg-white dark:bg-white/5 text-gray-500 dark:text-gray-400 border border-gray-100 dark:border-white/5 hover:bg-gray-100'
+                                  }`}
+                              >
+                                {via}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
                     <CirculationHeader isStationView={isStationGroup} />
                     <div className="grid grid-cols-1 divide-y divide-gray-100 dark:divide-white/5">
-                      {group.circulations
-                        .filter((c: any) => selectedVia === 'Tot' || (c.viaAtStation?.includes(selectedVia.replace('V', '')) && c.viaAtStation.length > 0))
-                        .map((circ: any, cIdx: number) => {
+                      {(() => {
+                        const filteredCircs = group.circulations.filter((c: any) => {
+                          if (selectedVia !== 'Tot' && (!c.viaAtStation || !c.viaAtStation.includes(selectedVia.replace('V', '')))) {
+                            return false;
+                          }
+                          if (isStationGroup && stationDirectionFilter !== 'all') {
+                            const circCode = (c.id === 'Viatger' ? c.realCodi : c.id) || c.realCodi || c.codi || c.id;
+                            const parity = getCirculationParity(circCode);
+                            if (parity && parity !== stationDirectionFilter) {
+                              return false;
+                            }
+                          }
+                          return true;
+                        });
+
+                        if (filteredCircs.length === 0) {
+                          return (
+                            <div className="py-12 px-4 text-center">
+                              <p className="text-gray-400 dark:text-gray-500 font-bold text-sm sm:text-base">
+                                No s'han trobat circulacions {stationDirectionFilter === 'asc' ? 'ascendents (impars)' : stationDirectionFilter === 'desc' ? 'descendents (pars)' : ''} {selectedVia !== 'Tot' ? `a la via ${selectedVia}` : ''} en aquesta franja horària.
+                              </p>
+                              {stationDirectionFilter !== 'all' && (
+                                <button
+                                  onClick={() => setStationDirectionFilter('all')}
+                                  className="mt-3 px-4 py-2 bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 text-gray-700 dark:text-gray-300 rounded-xl text-xs font-bold transition-all"
+                                >
+                                  Mostra tots els sentits
+                                </button>
+                              )}
+                            </div>
+                          );
+                        }
+
+                        return filteredCircs.map((circ: any, cIdx: number) => {
                           const itemKey = `${idx}-${cIdx}`;
                           // ... resto del mapa ...
                           const isActive = checkIfActive((circ.sortida || circ.stopTimeAtStation) as string, (circ.arribada || circ.stopTimeAtStation) as string, nowMin);
@@ -1659,7 +1793,8 @@ const CercarViewComponent: React.FC<{
                               )}
                             </div>
                           );
-                        })}
+                        });
+                      })()}
                     </div>
                   </div>
                 </GlassPanel>
