@@ -21,6 +21,17 @@ export const getLiniaColor = (linia: string) => {
 // Re-exported from stations.ts — single source of truth
 export { getShortTornId } from './stations';
 
+export const FLEET_CONFIG = [
+    { serie: '112', count: 22 },
+    { serie: '113', count: 19 },
+    { serie: '114', count: 5 },
+    { serie: '115', count: 15 },
+];
+
+export const ALL_FLEET_UNITS: string[] = FLEET_CONFIG.flatMap(c =>
+    Array.from({ length: c.count }, (_, i) => `${c.serie}.${(i + 1).toString().padStart(2, '0')}`)
+);
+
 export const getTrainPhone = (train: string) => {
     if (!train) return null;
     const parts = train.split('.');

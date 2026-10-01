@@ -11,7 +11,7 @@ import { supabase } from '../supabaseClient.ts';
 // Importación de utilidades y componentes extraídos
 import { getFgcMinutes, checkIfActive, calculateGap } from '../utils/time';
 import { fetchAllFromSupabase } from '../utils/supabase';
-import { getStatusColor, getLiniaColor, getShortTornId, getTrainPhone, ALL_STATIONS, STATION_CODE_MAP, getCirculationParity } from '../utils/fgc';
+import { getStatusColor, getLiniaColor, getShortTornId, getTrainPhone, ALL_STATIONS, STATION_CODE_MAP, getCirculationParity, ALL_FLEET_UNITS } from '../utils/fgc';
 import { resolveStationId } from '../utils/stations';
 import { fetchFullTurns, fetchPassengerInfo } from '../utils/queries';
 import { syncOfflineData } from '../utils/offlineSync';
@@ -503,7 +503,16 @@ const CercarViewComponent: React.FC<{
   const handleInputChange = async (val: string) => {
     setQuery(val);
     if (!val || val.length < 1) {
-      if (searchType === SearchType.Cicle) { setSuggestions(availableCycles.slice(0, 12)); setShowSuggestions(true); } else { setSuggestions([]); setShowSuggestions(false); }
+      if (searchType === SearchType.Cicle) { 
+        setSuggestions(availableCycles.slice(0, 12)); 
+        setShowSuggestions(true); 
+      } else if (searchType === SearchType.Unitat) {
+        setSuggestions(ALL_FLEET_UNITS.slice(0, 10));
+        setShowSuggestions(true);
+      } else { 
+        setSuggestions([]); 
+        setShowSuggestions(false); 
+      }
       return;
     }
 
@@ -515,6 +524,8 @@ const CercarViewComponent: React.FC<{
         // checking if it looks like circulation (pure numbers mostly, 3-5 digits typically)
         if (/^\d{3,5}$/.test(val) && !val.includes('(')) st = SearchType.Circulacio;
         else st = SearchType.Maquinista;
+      } else if (/^\d{3}\.\d{1,2}$/.test(val)) {
+        st = SearchType.Unitat;
       } else if (/^\d+$/.test(val) || /^Q/i.test(val)) {
         st = SearchType.Torn;
       }
@@ -554,6 +565,26 @@ const CercarViewComponent: React.FC<{
       } else {
         setSuggestions([]); setShowSuggestions(false);
       }
+    } else if (st === SearchType.Unitat) {
+      const cleanVal = val.trim().toLowerCase();
+      const cleanValNoDot = cleanVal.replace('.', '');
+
+      const filtered = ALL_FLEET_UNITS.filter(unit => {
+        const u = unit.toLowerCase();
+        const uNoDot = u.replace('.', '');
+        const [, num] = u.split('.');
+
+        // Coincidència directa o començant per (ex: "113", "113.04", "113.")
+        if (u.includes(cleanVal) || uNoDot.startsWith(cleanValNoDot)) return true;
+
+        // Coincidència pel número de cua de la unitat (ex: "04" o "4")
+        if (num === cleanVal.padStart(2, '0') || num.endsWith(cleanVal)) return true;
+
+        return false;
+      }).slice(0, 10);
+
+      setSuggestions(filtered);
+      setShowSuggestions(filtered.length > 0);
     }
   };
 
@@ -1479,7 +1510,15 @@ const CercarViewComponent: React.FC<{
                   onKeyDown={(e) => e.key === 'Enter' && executeSearch()}
                   onFocus={(e) => {
                     e.target.select();
-                    if (query.length >= 1) setShowSuggestions(true);
+                    if (query.length >= 1) {
+                      setShowSuggestions(true);
+                    } else if (searchType === SearchType.Cicle) {
+                      setSuggestions(availableCycles.slice(0, 12));
+                      setShowSuggestions(true);
+                    } else if (searchType === SearchType.Unitat) {
+                      setSuggestions(ALL_FLEET_UNITS.slice(0, 10));
+                      setShowSuggestions(true);
+                    }
                   }}
                 />
                 {query && (
