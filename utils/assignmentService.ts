@@ -1,7 +1,7 @@
 import { supabase } from '../supabaseClient';
 import { decodeGeotrenUt } from '../views/incidencia/utils/decodeUt';
 import { decodeGeotrenCirculation } from '../views/incidencia/utils/decodeCirculation';
-import { calendarCodeToFilterCode } from './serviceCalendar';
+import { calendarCodeToFilterCode, getServiceToday } from './serviceCalendar';
 
 const GEOTREN_API = 'https://dadesobertes.fgc.cat/api/v2/catalog/datasets/posicionament-dels-trens/exports/json';
 
@@ -24,10 +24,6 @@ export async function resetAssignmentsFromGeoTren(selectedServei: string, allShi
 
         // 2. Filter to BV lines only — Llobregat-Anoia and other lines must not appear here
         const geoTrenData = rawData.filter(gt => BV_LINES.has((gt.lin || '').toUpperCase()));
-
-        // 3. Clear current assignments
-        const { error: deleteError } = await supabase.from('assignments').delete().neq('cycle_id', '');
-        if (deleteError) throw deleteError;
 
         // 4. Get Shifts (to map circulation -> cycle)
         let shifts = allShifts;
@@ -73,13 +69,17 @@ export async function resetAssignmentsFromGeoTren(selectedServei: string, allShi
             }
         });
 
-        // 6. Bulk Insert/Upsert
+        // 6. Bulk Insert/Upsert (només si hem obtingut assignacions vàlides de GeoTren)
         const upsertPayload = Array.from(uniqueAssignments.entries()).map(([cycle_id, train_number]) => ({
             cycle_id,
             train_number
         }));
 
         if (upsertPayload.length > 0) {
+            // Netegem les assignacions anteriors abans d'inserir les actualitzades
+            const { error: deleteError } = await supabase.from('assignments').delete().neq('cycle_id', '');
+            if (deleteError) throw deleteError;
+
             const { error: insertError } = await supabase.from('assignments').upsert(upsertPayload, { onConflict: 'cycle_id' });
             if (insertError) throw insertError;
         }
@@ -95,3 +95,56 @@ export async function resetAssignmentsFromGeoTren(selectedServei: string, allShi
         throw error;
     }
 }
+
+/**
+ * Inicia la sincronització automàtica periòdica de les unitats de GeoTren cada 10 minuts
+ * mentre l'aplicació està oberta.
+ * 
+ * @param intervalMs Interval de sincronització (per defecte 10 minuts = 600.000 ms)
+ * @param onSync Callback opcional quan la sincronització finalitza amb èxit
+ * @returns Funció de neteja per aturar el temporitzador
+ */
+export function startGeoTrenAutoSync(
+    intervalMs: number = 10 * 60 * 1000,
+    onSync?: (result: { success: boolean; count: number }) => void
+): () => void {
+    let timer: any = null;
+    let initialTimer: any = null;
+    let isRunning = false;
+
+    const runSync = async () => {
+        if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+        if (isRunning) return;
+        isRunning = true;
+        try {
+            const serviceKey = getServiceToday();
+            const result = await resetAssignmentsFromGeoTren(serviceKey);
+            if (result && result.success && result.count > 0) {
+                console.log(`[GeoTren Auto-Sync] S'han sincronitzat automàticament ${result.count} unitats amb GeoTren.`);
+                if (onSync) {
+                    onSync({ success: true, count: result.count });
+                }
+            }
+        } catch (err) {
+            console.warn('[GeoTren Auto-Sync] Error en la sincronització automàtica:', err);
+        } finally {
+            isRunning = false;
+        }
+    };
+
+    // Sincronització inicial 15 segons després d'arrencar
+    initialTimer = setTimeout(() => {
+        runSync();
+    }, 15000);
+
+    // Interval periòdic cada 10 minuts
+    timer = setInterval(() => {
+        runSync();
+    }, intervalMs);
+
+    return () => {
+        if (initialTimer) clearTimeout(initialTimer);
+        if (timer) clearInterval(timer);
+    };
+}
+

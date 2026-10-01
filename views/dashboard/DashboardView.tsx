@@ -205,10 +205,15 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                         Servei {serviceToday.padStart(3, '0')} · {formattedDate}
                     </p>
                     {/* V4 – "Actualitzat fa Xs" */}
-                    <p className="text-[11px] text-gray-400 dark:text-gray-500 font-bold uppercase tracking-wider mt-0.5 flex items-center gap-1.5">
-                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-fgc-green animate-pulse" />
-                        Actualitzat {lastRefreshLabel}
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                        <p className="text-[11px] text-gray-400 dark:text-gray-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-fgc-green animate-pulse" />
+                            Actualitzat {lastRefreshLabel}
+                        </p>
+                        <span className="hidden sm:inline-block text-[10px] text-gray-400 dark:text-gray-500 font-medium">
+                            · Auto-sync GeoTren cada 10 min
+                        </span>
+                    </div>
                 </div>
 
                 {/* V1 – Live clock + actions */}
@@ -244,6 +249,7 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                         <button
                             onClick={handleRefresh}
                             className="flex-none flex items-center gap-2 px-3 py-2 rounded-2xl bg-white/60 dark:bg-white/[0.04] border border-gray-100 dark:border-white/5 text-xs font-semibold text-[#4D5358] dark:text-gray-300 hover:bg-fgc-green/10 transition-all active:scale-95"
+                            title="Sincronització manual de flota (s'actualitza també automàticament cada 10 min)"
                         >
                             <RefreshCcw size={14} className={`${isRefreshing ? 'animate-spin' : ''}`} />
                             <span>Actualitzar</span>

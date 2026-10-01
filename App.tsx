@@ -9,6 +9,7 @@ import GipView from './views/GipView.tsx';
 import DashboardView from './views/dashboard/DashboardView.tsx';
 import MensajeriaView from './views/mensajeria/MensajeriaView.tsx';
 import { startGipRecorder } from './utils/gipRecorder.ts';
+import { startGeoTrenAutoSync } from './utils/assignmentService.ts';
 import FileUploadModal from './components/FileUploadModal.tsx';
 import CommandPalette from './components/CommandPalette.tsx';
 import Sidebar from './components/common/Sidebar.tsx';
@@ -85,6 +86,16 @@ const App: React.FC = () => {
       stopRecorder();
     };
   }, []);
+
+  // Sincronització automàtica de les unitats de GeoTren cada 10 minuts amb l'app oberta
+  useEffect(() => {
+    const stopGeoTrenSync = startGeoTrenAutoSync(10 * 60 * 1000, ({ count }) => {
+      showToast(`S'han sincronitzat ${count} unitats amb GeoTren (automàtic)`, 'info');
+    });
+    return () => {
+      stopGeoTrenSync();
+    };
+  }, [showToast]);
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
