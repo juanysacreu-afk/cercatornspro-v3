@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "gip:daemon": "tsx scripts/gip-daemon.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.97.0",
@@ -31,6 +32,7 @@
     "caniuse-lite": "^1.0.30001770",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.19",
+    "tsx": "^4.23.15",
     "typescript": "^5.7.3",
     "vite": "^6.0.11"
   }

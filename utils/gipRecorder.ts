@@ -122,6 +122,44 @@ export const getCirculationStops = async (circCode: string, linia: string = ''):
 /**
  * Processa un cicle de GeoTren i grava a Supabase el pas per estació de totes les circulacions actives
  */
+const VALID_BV_LINES = new Set(['S1', 'S2', 'L6', 'L7', 'L12']);
+
+/**
+ * Converteix una cadena "HH:MM:SS" a segons des de les 00:00:00
+ */
+const timeStringToSeconds = (tStr?: string | null): number | null => {
+  if (!tStr) return null;
+  const parts = tStr.trim().split(':');
+  if (parts.length < 2) return null;
+  const h = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10);
+  const s = parts[2] ? parseInt(parts[2], 10) : 0;
+  if (isNaN(h) || isNaN(m)) return null;
+  return h * 3600 + m * 60 + (isNaN(s) ? 0 : s);
+};
+
+const secondsToTimeString = (totalSec: number): string => {
+  let sec = Math.round(totalSec);
+  while (sec < 0) sec += 86400;
+  sec = sec % 86400;
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+};
+
+/**
+ * Parseja el camp properes_parades de GeoTren a un array de codis d'estació ordenat
+ */
+export const parseProperesParades = (raw?: string | null): string[] => {
+  if (!raw) return [];
+  const matches = [...raw.matchAll(/"parada":\s*"([^"]+)"/g)];
+  return matches.map(m => resolveStationId(m[1].trim(), ''));
+};
+
+/**
+ * Processa un cicle de GeoTren i grava a Supabase el pas per estació de totes les circulacions actives
+ */
 export const pollAndRecordGipPassages = async (): Promise<number> => {
   const serviceDate = getFgcServiceDate();
 
@@ -140,81 +178,135 @@ export const pollAndRecordGipPassages = async (): Promise<number> => {
     const now = new Date();
     const currentClockStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
     const nowMins = getFgcMinutes(currentClockStr) || 0;
+    const nowSecs = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
 
     const newRecordsToInsert: GipRegistrePas[] = [];
 
     for (const gt of trains) {
+      // 1. Filtrar estrictament línies de Barcelona-Vallès
+      const linia = gt.lin || '';
+      if (!VALID_BV_LINES.has(linia)) continue;
+
+      // 2. Decodificar circulació oficial
       const decodedCirc = decodeGeotrenCirculation(gt.id);
-      const circCode = decodedCirc?.fullName?.toUpperCase() || (gt.id ? gt.id.split('|')[0]?.trim().toUpperCase() : null);
+      const circCode = decodedCirc?.fullName?.toUpperCase();
       if (!circCode) continue;
 
       const decodedUt = decodeGeotrenUt(gt.ut, gt.tipus_unitat) || gt.ut || '';
-      const linia = decodedCirc?.line || gt.lin || '';
 
-      // 1. Detectar estació exacta (per SIRTRAN estacionat_a o per GPS)
-      let exactStationCode: string | null = gt.estacionat_a && gt.estacionat_a.trim() !== ''
-        ? resolveStationId(gt.estacionat_a.trim(), linia)
-        : null;
-
-      // Comprovació GPS si no té estacionat_a explícit
-      if (!exactStationCode && gt.geo_point_2d?.lat && gt.geo_point_2d?.lon) {
-        let minDistanceMeters = Infinity;
-        let nearestId: string | null = null;
-        for (const st of STATION_GEO_DATA) {
-          const dMeters = haversineKm(gt.geo_point_2d.lat, gt.geo_point_2d.lon, st.lat, st.lon) * 1000;
-          if (dMeters < minDistanceMeters) {
-            minDistanceMeters = dMeters;
-            nearestId = st.id;
-          }
-        }
-        if (nearestId && minDistanceMeters <= 120) {
-          exactStationCode = nearestId;
-        }
-      }
-
-      if (!exactStationCode) continue;
-
-      const key = `${serviceDate}:${circCode}:${exactStationCode}`;
-      if (recordedKeys.has(key)) continue;
-
-      // 2. Cercar hora teòrica d'aquesta circulació a aquesta estació
+      // 3. Obtenir el recorregut teòric complet d'aquesta circulació
       const stops = await getCirculationStops(circCode, linia);
-      const matchedStop = stops.find(s => s.code === exactStationCode);
-      const horaTeorica = matchedStop ? matchedStop.hora : null;
+      if (!stops || stops.length === 0) continue;
 
-      // 3. Calcular diferència en segons
-      let diffSec = 0;
-      let estat: 'en_hora' | 'retard' | 'avanc' = 'en_hora';
+      // 4. Determinar la posició actual o la darrera estació superada
+      let currentStationIndex = -1;
 
-      if (horaTeorica) {
-        const theoMins = getFgcMinutes(horaTeorica);
-        if (theoMins !== null) {
-          diffSec = Math.round((nowMins - theoMins) * 60);
-          if (diffSec > 239) {
-            estat = 'retard';
-          } else if (diffSec < 0) {
-            estat = 'avanc';
-          } else {
-            estat = 'en_hora';
+      // A) Si està expressament estacionat segons SIRTRAN
+      if (gt.estacionat_a && gt.estacionat_a.trim() !== '') {
+        const estCode = resolveStationId(gt.estacionat_a.trim(), linia);
+        const idx = stops.findIndex(s => s.code === estCode);
+        if (idx !== -1) {
+          currentStationIndex = idx;
+        }
+      }
+
+      // B) Si no té estacionat_a, comprovar properes_parades
+      const properes = parseProperesParades(gt.properes_parades);
+      if (currentStationIndex === -1 && properes.length > 0) {
+        const nextTargetCode = properes[0];
+        const nextIdx = stops.findIndex(s => s.code === nextTargetCode);
+        if (nextIdx > 0) {
+          // El tren ja ha superat l'estació immediatament anterior
+          currentStationIndex = nextIdx - 1;
+        } else if (nextIdx === 0) {
+          // El tren encara és a l'estació d'origen o acostant-se a la primera
+          currentStationIndex = 0;
+        }
+      }
+
+      // C) Si properes_parades és buit (tren arribant o ja a l'estació final)
+      if (currentStationIndex === -1 && properes.length === 0) {
+        currentStationIndex = stops.length - 1;
+      }
+
+      // D) Comprovació GPS de proximitat (ràdio 200m) com a suport addicional
+      if (gt.geo_point_2d?.lat && gt.geo_point_2d?.lon) {
+        let minD = Infinity;
+        let nearCode: string | null = null;
+        for (const st of STATION_GEO_DATA) {
+          const dM = haversineKm(gt.geo_point_2d.lat, gt.geo_point_2d.lon, st.lat, st.lon) * 1000;
+          if (dM < minD) {
+            minD = dM;
+            nearCode = st.id;
+          }
+        }
+        if (nearCode && minD <= 200) {
+          const gpsIdx = stops.findIndex(s => s.code === nearCode);
+          if (gpsIdx !== -1 && gpsIdx >= currentStationIndex) {
+            currentStationIndex = gpsIdx;
           }
         }
       }
 
-      const record: GipRegistrePas = {
-        data_servei: serviceDate,
-        circulacio_id: circCode,
-        linia,
-        ut: decodedUt,
-        estacio_codi: exactStationCode,
-        estacio_nom: matchedStop?.nom || exactStationCode,
-        hora_teorica: horaTeorica || undefined,
-        hora_real: currentClockStr,
-        diferencia_segons: diffSec,
-        estat
-      };
+      if (currentStationIndex === -1) continue;
 
-      newRecordsToInsert.push(record);
-      recordedKeys.add(key);
+      // 5. Calcular el retard / avanç observat a la posició actual
+      const currentStop = stops[currentStationIndex];
+      let currentDiffSec = 0;
+      if (currentStop?.hora) {
+        const theoSecs = timeStringToSeconds(currentStop.hora);
+        if (theoSecs !== null) {
+          currentDiffSec = nowSecs - theoSecs;
+        }
+      }
+
+      // 6. Enregistrar totes les parades fins a currentStationIndex que no estiguin enregistrades
+      for (let i = 0; i <= currentStationIndex; i++) {
+        const stop = stops[i];
+        const key = `${serviceDate}:${circCode}:${stop.code}`;
+        if (recordedKeys.has(key)) continue;
+
+        let diffSec = currentDiffSec;
+        let horaReal = currentClockStr;
+
+        if (i === currentStationIndex) {
+          // Parada actual observada en temps real
+          horaReal = currentClockStr;
+          diffSec = currentDiffSec;
+        } else {
+          // Parada anterior ja superada: hora teòrica + retard observat
+          const theoSecs = timeStringToSeconds(stop.hora);
+          if (theoSecs !== null) {
+            horaReal = secondsToTimeString(theoSecs + currentDiffSec);
+            diffSec = currentDiffSec;
+          }
+        }
+
+        let estat: 'en_hora' | 'retard' | 'avanc' = 'en_hora';
+        if (diffSec > 239) {
+          estat = 'retard';
+        } else if (diffSec < 0) {
+          estat = 'avanc';
+        } else {
+          estat = 'en_hora';
+        }
+
+        const record: GipRegistrePas = {
+          data_servei: serviceDate,
+          circulacio_id: circCode,
+          linia,
+          ut: decodedUt,
+          estacio_codi: stop.code,
+          estacio_nom: stop.nom || stop.code,
+          hora_teorica: stop.hora || undefined,
+          hora_real: horaReal,
+          diferencia_segons: diffSec,
+          estat
+        };
+
+        newRecordsToInsert.push(record);
+        recordedKeys.add(key);
+      }
     }
 
     if (newRecordsToInsert.length > 0) {
@@ -228,7 +320,7 @@ export const pollAndRecordGipPassages = async (): Promise<number> => {
       if (!error) {
         insertedCount = newRecordsToInsert.length;
       } else {
-        console.warn('[GIP Recorder] Error inserint passos:', error);
+        console.warn('[GIP Recorder] Error inserint passos a Supabase:', error);
       }
     }
   } catch (err) {
