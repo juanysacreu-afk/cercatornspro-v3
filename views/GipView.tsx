@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Search, MapPin, Clock, ArrowRight, RefreshCcw, Activity, Train, TrainFront, CheckCircle2, AlertCircle, AlertTriangle, ChevronRight, X, Calendar, Layers } from 'lucide-react';
+import { Search, MapPin, Clock, ArrowRight, RefreshCcw, Activity, Train, TrainFront, CheckCircle2, AlertCircle, AlertTriangle, ChevronRight, X, Calendar, Layers, Bell, BellRing, Sparkles } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import GlassPanel from '../components/common/GlassPanel';
 import { resolveStationId, formatDelayMinSec } from '../utils/stations';
@@ -10,6 +10,8 @@ import { getFgcServiceDate, pollAndRecordGipPassages } from '../utils/gipRecorde
 import { decodeGeotrenCirculation } from './incidencia/utils/decodeCirculation';
 import { decodeGeotrenUt } from './incidencia/utils/decodeUt';
 import { GipRegistrePas } from '../types';
+import { useToast } from '../components/ToastProvider';
+import { isDelayNotifsEnabled, setDelayNotifsEnabled, requestDelayNotifsPermission, sendTestNotification, checkAndNotifyDelay } from '../utils/delayNotifications';
 
 const resolveStationName = (codeOrName: string, linia: string = ''): string => {
   if (!codeOrName) return '';
@@ -78,6 +80,35 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [filterLine, setFilterLine] = useState<string>('Tots');
   const [delayedActiveCircs, setDelayedActiveCircs] = useState<ActiveDelayedCirc[]>([]);
+  const [delayNotifsActive, setDelayNotifsActive] = useState<boolean>(() => isDelayNotifsEnabled());
+  const { showToast } = useToast();
+
+  const handleToggleDelayNotifs = async () => {
+    if (delayNotifsActive) {
+      setDelayNotifsEnabled(false);
+      setDelayNotifsActive(false);
+      showToast('Avisos de retard al mòbil desactivats', 'info');
+    } else {
+      const res = await requestDelayNotifsPermission();
+      if (res.granted) {
+        setDelayNotifsActive(true);
+        showToast('Avisos al mòbil activats (> 4 min)', 'success');
+      } else if (res.permission === 'denied') {
+        showToast('El permís de notificació està bloquejat al navegador/mòbil', 'error');
+      } else {
+        showToast('No s\'ha pogut activar les notificacions', 'info');
+      }
+    }
+  };
+
+  const handleSendTestNotif = async () => {
+    const sent = await sendTestNotification();
+    if (sent) {
+      showToast('Notificació de prova enviada al mòbil!', 'success');
+    } else {
+      showToast('Cal activar el permís de notificació primer', 'info');
+    }
+  };
 
   const serviceDate = useMemo(() => getFgcServiceDate(), []);
 
@@ -185,6 +216,18 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
                 delaySec: p.diferencia_segons,
                 estat: p.estat
               });
+            }
+
+            // Si el retard supera els 4 minuts (>= 240s), activar alerta mòbil si està activat
+            if (p.diferencia_segons >= 240) {
+              checkAndNotifyDelay({
+                circId: a.id,
+                linia: a.linia || p.linia || '',
+                ut: a.ut || p.ut || '',
+                delaySec: p.diferencia_segons,
+                stationName: resolveStationName(p.estacio_nom || p.estacio_codi, a.linia || p.linia),
+                desti: a.desti || ''
+              }).catch(() => {});
             }
           });
 
@@ -605,8 +648,45 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 text-xs font-bold text-gray-400 dark:text-gray-500">
-            <span className="flex items-center gap-1.5 px-3 py-1 bg-gray-100 dark:bg-white/5 rounded-xl border border-gray-200/50 dark:border-white/5 font-mono text-[11px]">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Botó de control d'avisos al mòbil (> 4 min) */}
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={handleToggleDelayNotifs}
+                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl font-bold text-xs transition-all border shadow-sm ${
+                  delayNotifsActive
+                    ? 'bg-fgc-green/15 text-fgc-green border-fgc-green/30 hover:bg-fgc-green/25'
+                    : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300 border-gray-200/50 dark:border-white/10 hover:border-fgc-green/40'
+                }`}
+                title={delayNotifsActive ? 'Avisos al mòbil activats (> 4 min). Clic per desactivar.' : 'Activar avisos al mòbil quan un tren superi els 4 minuts de retard.'}
+              >
+                {delayNotifsActive ? (
+                  <>
+                    <BellRing size={14} className="animate-pulse text-fgc-green" />
+                    <span>Avisos Mòbil (&gt; 4m): <strong>ON</strong></span>
+                  </>
+                ) : (
+                  <>
+                    <Bell size={14} className="text-gray-400" />
+                    <span>Activar avisos mòbil (&gt; 4m)</span>
+                  </>
+                )}
+              </button>
+
+              {delayNotifsActive && (
+                <button
+                  type="button"
+                  onClick={handleSendTestNotif}
+                  className="p-1.5 rounded-xl bg-gray-100 dark:bg-white/5 text-gray-500 hover:text-fgc-green hover:bg-fgc-green/10 border border-gray-200/50 dark:border-white/10 transition-colors"
+                  title="Enviar notificació de prova al mòbil"
+                >
+                  <Sparkles size={14} />
+                </button>
+              )}
+            </div>
+
+            <span className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-white/5 rounded-xl border border-gray-200/50 dark:border-white/5 font-mono text-[11px] text-gray-500">
               <span className={`w-2 h-2 rounded-full ${filteredDelayedCircs.length > 0 ? 'bg-amber-500 animate-ping' : 'bg-fgc-green'}`} />
               {filteredDelayedCircs.length > 0 ? 'Monitoritzant retards' : 'Sense retards > 3m 30s'}
             </span>

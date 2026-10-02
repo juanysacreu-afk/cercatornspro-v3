@@ -5,6 +5,7 @@ import { decodeGeotrenUt } from '../views/incidencia/utils/decodeUt';
 import { decodeGeotrenCirculation } from '../views/incidencia/utils/decodeCirculation';
 import { getFgcMinutes } from './time';
 import { GipRegistrePas } from '../types';
+import { checkAndNotifyDelay } from './delayNotifications';
 
 const GEOTREN_API = 'https://dadesobertes.fgc.cat/api/v2/catalog/datasets/posicionament-dels-trens/exports/json';
 
@@ -285,6 +286,16 @@ export const pollAndRecordGipPassages = async (): Promise<number> => {
         let estat: 'en_hora' | 'retard' | 'avanc' = 'en_hora';
         if (diffSec > 239) {
           estat = 'retard';
+          // Si és la posició en temps real i supera 4 minuts (240s), avisar al mòbil
+          if (i === currentStationIndex) {
+            checkAndNotifyDelay({
+              circId: circCode,
+              linia,
+              ut: decodedUt,
+              delaySec: diffSec,
+              stationName: stop.nom || stop.code
+            }).catch(() => {});
+          }
         } else if (diffSec < 0) {
           estat = 'avanc';
         } else {

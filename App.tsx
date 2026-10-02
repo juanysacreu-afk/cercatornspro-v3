@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, RefreshCcw, Train, Menu, X, Download, BookOpen, Settings, Moon, Sun, ShieldAlert, Eye, Layers, Volume2, VolumeX, MessageCircle, HelpCircle, Calendar, Activity, Users } from 'lucide-react';
+import { Search, RefreshCcw, Train, Menu, X, Download, BookOpen, Settings, Moon, Sun, ShieldAlert, Eye, Layers, Volume2, VolumeX, MessageCircle, HelpCircle, Calendar, Activity, Users, Bell, BellRing } from 'lucide-react';
 import { AppTab } from './types.ts';
 import { CercarView } from './views/CercarView.tsx';
 import OrganitzaView from './views/OrganitzaView.tsx';
@@ -17,6 +17,7 @@ import Sidebar from './components/common/Sidebar.tsx';
 import { supabase } from './supabaseClient.ts';
 import { feedback } from './utils/feedback';
 import { getMapPositionForPk } from './views/incidencia/mapUtils';
+import { isDelayNotifsEnabled, setDelayNotifsEnabled, requestDelayNotifsPermission } from './utils/delayNotifications';
 
 import { OnboardingTour } from './components/common/OnboardingTour.tsx';
 import { useToast } from './components/ToastProvider';
@@ -244,6 +245,29 @@ const App: React.FC = () => {
     setIsSoundEnabled(newState);
     feedback.setSoundsEnabled(newState);
     if (newState) feedback.click();
+  };
+
+  const [isDelayNotifsActive, setIsDelayNotifsActive] = useState<boolean>(() => {
+    return isDelayNotifsEnabled();
+  });
+
+  const handleToggleDelayNotifs = async () => {
+    if (isDelayNotifsActive) {
+      setDelayNotifsEnabled(false);
+      setIsDelayNotifsActive(false);
+      showToast('Avisos de retard al mòbil desactivats', 'info');
+      feedback.click();
+    } else {
+      const res = await requestDelayNotifsPermission();
+      if (res.granted) {
+        setIsDelayNotifsActive(true);
+        showToast('Avisos al mòbil activats (> 4 min)', 'success');
+      } else if (res.permission === 'denied') {
+        showToast('El permís de notificacions està bloquejat al navegador/mòbil', 'error');
+      } else {
+        showToast('No s\'ha pogut activar les notificacions', 'info');
+      }
+    }
   };
 
   useEffect(() => {
@@ -644,6 +668,31 @@ const App: React.FC = () => {
                   </div>
                   <div className={`w-12 h-6 rounded-full relative transition-colors duration-300 border ${isSoundEnabled ? 'bg-fgc-green border-fgc-green' : 'bg-gray-200 border-gray-300'}`}>
                     <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-300 ${isSoundEnabled ? 'left-7' : 'left-1'}`} />
+                  </div>
+                </button>
+
+                <button
+                  onClick={handleToggleDelayNotifs}
+                  role="switch"
+                  aria-checked={isDelayNotifsActive}
+                  aria-label="Avisos de Retard al Mòbil (> 4 min)"
+                  className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-xl transition-transform ${isDelayNotifsActive ? 'bg-fgc-green/15 text-fgc-green' : 'bg-gray-100 dark:bg-white/10 text-fgc-grey dark:text-gray-300'} group-hover:scale-110`}>
+                      {isDelayNotifsActive ? <BellRing size={18} className="animate-pulse" /> : <Bell size={18} />}
+                    </div>
+                    <div className="text-left">
+                      <span className="text-sm font-bold text-fgc-grey dark:text-gray-200 block">
+                        Avisos Mòbil (&gt; 4 min)
+                      </span>
+                      <span className="text-[10px] text-gray-400 dark:text-gray-500">
+                        Alerta de trens amb retard
+                      </span>
+                    </div>
+                  </div>
+                  <div className={`w-12 h-6 rounded-full relative transition-colors duration-300 border ${isDelayNotifsActive ? 'bg-fgc-green border-fgc-green' : 'bg-gray-200 border-gray-300'}`}>
+                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-300 ${isDelayNotifsActive ? 'left-7' : 'left-1'}`} />
                   </div>
                 </button>
 
