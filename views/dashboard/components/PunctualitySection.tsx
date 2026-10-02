@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { 
   Clock, RefreshCw, AlertTriangle, CheckCircle2, TrendingUp, 
-  Train, ChevronRight, Filter, Activity, Timer, Search, ArrowUpRight, BarChart3
+  Train, ChevronRight, ChevronDown, ChevronUp, Filter, Activity, Timer, Search, ArrowUpRight, BarChart3
 } from 'lucide-react';
 import GlassPanel from '../../../components/common/GlassPanel';
 import { usePunctualityData, DelayedCirculation } from '../hooks/usePunctualityData';
@@ -33,6 +33,7 @@ interface PunctualitySectionProps {
 
 export const PunctualitySection: React.FC<PunctualitySectionProps> = ({ onNavigateToSearch }) => {
   const { stats, loading, isRefreshing, lastRefreshLabel, refresh } = usePunctualityData();
+  const [isExpanded, setIsExpanded] = useState<boolean>(false);
   const [selectedLineFilter, setSelectedLineFilter] = useState<string>('Tots');
   const [searchFilter, setSearchFilter] = useState<string>('');
 
@@ -104,7 +105,7 @@ export const PunctualitySection: React.FC<PunctualitySectionProps> = ({ onNaviga
           </div>
         </div>
 
-        <div className="flex items-center gap-3 self-end sm:self-center">
+        <div className="flex items-center gap-2 sm:gap-3 self-end sm:self-center">
           <span className="text-[11px] text-gray-400 dark:text-gray-500 font-medium">
             Actualitzat {lastRefreshLabel}
           </span>
@@ -116,6 +117,17 @@ export const PunctualitySection: React.FC<PunctualitySectionProps> = ({ onNaviga
           >
             <RefreshCw size={13} className={isRefreshing ? 'animate-spin text-fgc-green' : ''} />
             <span>Actualitzar</span>
+          </button>
+          <button
+            onClick={() => {
+              feedback.click();
+              setIsExpanded(prev => !prev);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/60 dark:bg-white/[0.04] border border-gray-200/60 dark:border-white/10 text-xs font-semibold text-[#4D5358] dark:text-gray-300 hover:bg-fgc-green/10 hover:text-fgc-green transition-all active:scale-95"
+            title={isExpanded ? 'Plegar detalls de puntualitat' : 'Expandir detalls de puntualitat'}
+          >
+            {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+            <span>{isExpanded ? 'Contraure' : 'Expandir'}</span>
           </button>
         </div>
       </div>
@@ -218,15 +230,39 @@ export const PunctualitySection: React.FC<PunctualitySectionProps> = ({ onNaviga
         </div>
       </div>
 
-      {/* ── Desglossament per Línia Oficial ─────────────────────── */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <BarChart3 size={16} className="text-fgc-green" />
-            <h3 className="text-xs sm:text-sm font-bold text-[#4D5358] dark:text-white uppercase tracking-wider">
-              Puntualitat per Línia
-            </h3>
-          </div>
+      {/* ── Botó per expandir/plegar informació detallada ────────────────── */}
+      <button
+        onClick={() => {
+          feedback.click();
+          setIsExpanded(prev => !prev);
+        }}
+        className="w-full py-2 flex items-center justify-center gap-2 text-xs font-bold text-gray-500 hover:text-fgc-green dark:text-gray-400 dark:hover:text-fgc-green transition-colors border-t border-gray-100 dark:border-white/5 pt-3 group cursor-pointer"
+      >
+        <span>
+          {isExpanded
+            ? 'Plegar informació detallada'
+            : 'Expandir informació detallada (línies, evolució horària i retards)'}
+        </span>
+        <ChevronDown
+          size={15}
+          className={`transition-transform duration-300 group-hover:text-fgc-green ${
+            isExpanded ? 'rotate-180' : ''
+          }`}
+        />
+      </button>
+
+      {/* ── Seccions expandibles ─────────────────────────────── */}
+      {isExpanded && (
+        <div className="flex flex-col gap-6 pt-1 animate-in fade-in slide-in-from-top-2 duration-300">
+          {/* ── Desglossament per Línia Oficial ─────────────────────── */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <BarChart3 size={16} className="text-fgc-green" />
+                <h3 className="text-xs sm:text-sm font-bold text-[#4D5358] dark:text-white uppercase tracking-wider">
+                  Puntualitat per Línia
+                </h3>
+              </div>
           <span className="text-[11px] text-gray-400 dark:text-gray-500">
             Clica sobre una línia per filtrar els retards
           </span>
@@ -460,6 +496,8 @@ export const PunctualitySection: React.FC<PunctualitySectionProps> = ({ onNaviga
           </div>
         )}
       </div>
+        </div>
+      )}
     </GlassPanel>
   );
 };
