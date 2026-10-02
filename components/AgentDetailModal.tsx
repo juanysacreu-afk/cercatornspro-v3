@@ -553,26 +553,40 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
     loadAgentHistory(false);
   }, [loadAgentHistory]);
 
+  // Garanteix que cada jornada (data_servei) té com a màxim un únic registre representat
+  const uniqueHistoryRecords = useMemo(() => {
+    if (!historyRecords || historyRecords.length === 0) return [];
+    const seen = new Set<string>();
+    const list: AgentPerformanceHistory[] = [];
+    for (const r of historyRecords) {
+      if (!seen.has(r.data_servei)) {
+        seen.add(r.data_servei);
+        list.push(r);
+      }
+    }
+    return list;
+  }, [historyRecords]);
+
   // 4b. Puntualitat històrica global acumulada de l'agent a Supabase
   const globalHistoricalPunctuality = useMemo(() => {
-    if (!historyRecords || historyRecords.length === 0) return null;
-    const totalPassages = historyRecords.reduce((acc, r) => acc + (r.passos_totals || 0), 0);
-    const onTimePassages = historyRecords.reduce((acc, r) => acc + (r.passos_en_hora || 0), 0);
+    if (!uniqueHistoryRecords || uniqueHistoryRecords.length === 0) return null;
+    const totalPassages = uniqueHistoryRecords.reduce((acc, r) => acc + (r.passos_totals || 0), 0);
+    const onTimePassages = uniqueHistoryRecords.reduce((acc, r) => acc + (r.passos_en_hora || 0), 0);
     if (totalPassages > 0) {
       return Number(((onTimePassages / totalPassages) * 100).toFixed(1));
     }
-    const validRates = historyRecords
+    const validRates = uniqueHistoryRecords
       .map(r => r.puntualitat_percentatge !== null ? Number(r.puntualitat_percentatge) : null)
       .filter((r): r is number => r !== null);
     if (validRates.length === 0) return null;
     return Number((validRates.reduce((a, b) => a + b, 0) / validRates.length).toFixed(1));
-  }, [historyRecords]);
+  }, [uniqueHistoryRecords]);
 
   // Registres històrics filtrats per la data seleccionada al calendari
   const displayedHistoryRecords = useMemo(() => {
-    if (!selectedHistoryDate) return historyRecords;
-    return historyRecords.filter(r => r.data_servei === selectedHistoryDate);
-  }, [historyRecords, selectedHistoryDate]);
+    if (!selectedHistoryDate) return uniqueHistoryRecords;
+    return uniqueHistoryRecords.filter(r => r.data_servei === selectedHistoryDate);
+  }, [uniqueHistoryRecords, selectedHistoryDate]);
 
   const formatDateDisplay = (dateStr: string) => {
     if (!dateStr) return '';
@@ -1043,7 +1057,7 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
                         </span>
                       )}
                       <span className="px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 text-xs font-bold border border-blue-200 dark:border-blue-500/20">
-                        {historyRecords.length} {historyRecords.length === 1 ? 'jornada' : 'jornades'} a Supabase
+                        {uniqueHistoryRecords.length} {uniqueHistoryRecords.length === 1 ? 'jornada' : 'jornades'} a Supabase
                       </span>
                     </div>
                     <p className="text-xs text-gray-400 dark:text-gray-500 font-medium">
@@ -1059,12 +1073,12 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
 
               {showHistorySection && (
                 <div className="p-4 sm:p-6 border-t border-gray-100 dark:border-white/5 space-y-4 bg-gray-50/30 dark:bg-black/10 animate-in slide-in-from-top-2 duration-300">
-                  {loadingHistory && historyRecords.length === 0 ? (
+                  {loadingHistory && uniqueHistoryRecords.length === 0 ? (
                     <div className="py-8 text-center text-gray-400 flex flex-col items-center gap-2">
                       <RefreshCw size={20} className="animate-spin text-fgc-green" />
                       <span className="text-xs font-bold">Carregant històric de Supabase...</span>
                     </div>
-                  ) : historyRecords.length === 0 ? (
+                  ) : uniqueHistoryRecords.length === 0 ? (
                     <div className="py-6 text-center text-gray-400">
                       <p className="text-xs font-medium">Encara no hi ha registres d'altres jornades guardats per aquest agent a la base de dades.</p>
                       <p className="text-[11px] text-gray-500 mt-1">El registre d'avui s'està guardant automàticament.</p>
@@ -1097,7 +1111,7 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
                                 {globalHistoricalPunctuality !== null ? `${globalHistoricalPunctuality}%` : '--%'}
                               </span>
                               <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">
-                                sobre el conjunt de {historyRecords.length} {historyRecords.length === 1 ? 'jornada' : 'jornades'}
+                                sobre el conjunt de {uniqueHistoryRecords.length} {uniqueHistoryRecords.length === 1 ? 'jornada' : 'jornades'}
                               </span>
                             </div>
                           </div>
@@ -1169,7 +1183,7 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
                             onClick={() => setSelectedHistoryDate('')}
                             className="mt-3 px-3 py-1.5 rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400 text-xs font-bold hover:bg-blue-100 transition-colors"
                           >
-                            Mostrar totes les {historyRecords.length} jornades
+                            Mostrar totes les {uniqueHistoryRecords.length} jornades
                           </button>
                         </div>
                       ) : (

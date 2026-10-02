@@ -1,11 +1,12 @@
 import { supabase } from '../supabaseClient';
 import { getFgcServiceDate } from './gipRecorder';
 import { getFgcMinutes } from './stations';
+import { getServiceToday } from './serviceCalendar';
 import type { AgentPerformanceHistory, GipRegistrePas } from '../types';
 
 /**
  * Desa o actualitza el registre de rendiment i puntualitat d'un agent a Supabase.
- * Utilitza la clau única (data_servei, empleat_id, torn).
+ * Utilitza la clau única per jornada (data_servei, empleat_id) per evitar torns duplicats en un mateix dia.
  */
 export const saveAgentPerformanceRecord = async (
   record: AgentPerformanceHistory
@@ -21,7 +22,7 @@ export const saveAgentPerformanceRecord = async (
         ...record,
         actualitzat_el: new Date().toISOString()
       }, {
-        onConflict: 'data_servei,empleat_id,torn'
+        onConflict: 'data_servei,empleat_id'
       });
 
     if (error) {
@@ -36,7 +37,8 @@ export const saveAgentPerformanceRecord = async (
 };
 
 /**
- * Obté l'històric complet de rendiment d'un agent ordenat per data descendent.
+ * Obté l'històric complet de rendiment d'un agent ordenat per data descendent,
+ * garantint estrictament un únic registre per jornada (data_servei).
  */
 export const getAgentPerformanceHistory = async (
   empleatId: string,
@@ -58,7 +60,18 @@ export const getAgentPerformanceHistory = async (
       console.error('[AgentPerformanceService] Error obtenint historial:', error);
       return [];
     }
-    return (data || []) as AgentPerformanceHistory[];
+
+    const rows = (data || []) as AgentPerformanceHistory[];
+    const seenDates = new Set<string>();
+    const deduplicated: AgentPerformanceHistory[] = [];
+    for (const r of rows) {
+      if (!seenDates.has(r.data_servei)) {
+        seenDates.add(r.data_servei);
+        deduplicated.push(r);
+      }
+    }
+
+    return deduplicated;
   } catch (e) {
     console.error('[AgentPerformanceService] Excepció carregant historial:', e);
     return [];
@@ -146,11 +159,15 @@ export const syncAllAgentsPerformance = async (
     const allCircCodes = new Set<string>();
     const agentShiftPairs: { agent: any; shift: any }[] = [];
 
+    const realService = (todayService && todayService !== 'Tots' && ['0', '100', '400', '500'].includes(todayService))
+      ? todayService
+      : getServiceToday();
+
     activeAssignments.forEach(a => {
       const cleanTorn = (a.torn || '').trim().toUpperCase();
-      const candidates = getCandidateShiftIdsForAgent(cleanTorn, todayService);
+      const candidates = getCandidateShiftIdsForAgent(cleanTorn, realService);
       const matches = shiftsList.filter(s => candidates.includes(s.id.toUpperCase()));
-      const best = matches.find(s => s.servei === todayService && s.circulations?.length > 0)
+      const best = matches.find(s => s.servei === realService && s.circulations?.length > 0)
         || matches.find(s => s.circulations?.length > 0)
         || matches[0]
         || shiftsMap.get(cleanTorn);
@@ -316,7 +333,7 @@ export const syncAllAgentsPerformance = async (
         await supabase
           .from('agent_performance_history')
           .upsert(chunk.map(r => ({ ...r, actualitzat_el: new Date().toISOString() })), {
-            onConflict: 'data_servei,empleat_id,torn'
+            onConflict: 'data_servei,empleat_id'
           });
       }
     })().catch(err => console.error('[AgentPerformanceService] Error en chunk upsert:', err));
