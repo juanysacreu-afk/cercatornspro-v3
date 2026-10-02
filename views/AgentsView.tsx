@@ -177,7 +177,7 @@ const AgentsViewComponent: React.FC<AgentsViewProps> = ({ isPrivacyMode, onNavig
   const [allAssignments, setAllAssignments] = useState<DailyAssignment[]>([]);
   const [allAgents, setAllAgents] = useState<any[]>([]);
   const [contacts, setContacts] = useState<Record<string, { phones: string[], email: string | null }>>({});
-  const [disDesFilter, setDisDesFilter] = useState<DisDesFilterType>('DIS_DES');
+  const [disDesFilter, setDisDesFilter] = useState<DisDesFilterType>('ALL');
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
   const [loadingMaquinistes, setLoadingMaquinistes] = useState(false);
 
