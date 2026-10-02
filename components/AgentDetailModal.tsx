@@ -93,32 +93,86 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
     }
 
     try {
-      const tornCode = (agent?.torn || '').trim();
-      const isSpecialNonShift = ['VAC', 'DES', 'DIS', 'DAG', 'AJN', 'S/A'].some(p => tornCode.startsWith(p));
+      const rawTorn = (agent?.torn || '').trim();
+      const obsMatch = (agent.observacions || '').match(/(?:COBREIX\s+|TORN\s+)(Q?\d+[A-Z]?)/i)
+        || (agent.observacions || '').match(/\b(Q[A-Z0-9]+)\b/i);
+      const obsTorn = obsMatch ? obsMatch[1].toUpperCase() : null;
+
+      const isSpecialNonShift = ['VAC', 'DES', 'DIS', 'DAG', 'AJN', 'S/A'].some(p => rawTorn.toUpperCase().startsWith(p));
+      const targetTorn = (!isSpecialNonShift ? rawTorn : (obsTorn || rawTorn));
 
       let resolvedShift: any = null;
 
-      if (tornCode && !isSpecialNonShift) {
-        const candidates = getCandidateShiftIds(tornCode, todayService);
-        const shortId = getShortTornId(tornCode);
-        const searchPool = Array.from(new Set([tornCode, shortId, `Q${tornCode}`, ...candidates]));
+      if (targetTorn && (!isSpecialNonShift || obsTorn)) {
+        const cleanTorn = targetTorn.toUpperCase();
+        const numMatch = cleanTorn.match(/\d+/);
+        const num = numMatch ? numMatch[0] : '';
+        const numPadded = num.padStart(3, '0');
 
-        // 1. Try with active service
-        let shifts = await fetchFullTurns(searchPool, todayService === 'Tots' ? undefined : todayService);
-        if (shifts.length === 0) {
-          // 2. Try without service constraint
-          shifts = await fetchFullTurns(searchPool);
+        const prefixes = ['1', '0', '4', '5'];
+        const candidatePool = Array.from(new Set([
+          cleanTorn,
+          `Q${cleanTorn}`,
+          ...(obsTorn ? [obsTorn, `Q${obsTorn}`] : []),
+          ...prefixes.map(p => `Q${p}${numPadded}`),
+          ...prefixes.map(p => `Q${p}${num}`),
+          `Q${numPadded}`,
+          num,
+          ...getCandidateShiftIds(cleanTorn, todayService)
+        ])).filter(Boolean);
+
+        // 1. Query Supabase shifts table directly with all candidate IDs
+        let { data: foundShifts } = await supabase
+          .from('shifts')
+          .select('*')
+          .in('id', candidatePool);
+
+        // Fallback: search by substring if not found directly
+        if (!foundShifts || foundShifts.length === 0) {
+          if (num) {
+            let fallbackQ = supabase.from('shifts').select('*');
+            if (todayService && todayService !== 'Tots') {
+              fallbackQ = fallbackQ.eq('servei', todayService);
+            }
+            fallbackQ = fallbackQ.ilike('id', `%${num}%`);
+            const { data: ilikeShifts } = await fallbackQ;
+            foundShifts = ilikeShifts;
+          }
         }
 
-        if (shifts.length > 0) {
-          resolvedShift = shifts[0];
+        // Pick best shift from DB (prioritize matching service with circulations)
+        const bestDbShift = foundShifts?.find(s => s.servei === todayService && s.circulations?.length > 0)
+          || foundShifts?.find(s => s.circulations?.length > 0)
+          || foundShifts?.[0];
+
+        if (bestDbShift) {
+          // Enrich with fetchFullTurns using ONLY this exact single ID!
+          const enrichedList = await fetchFullTurns([bestDbShift.id], bestDbShift.servei || todayService);
+          const fullEnriched = enrichedList.find(s => s.id === bestDbShift.id && s.fullCirculations?.length > 0)
+            || enrichedList.find(s => s.fullCirculations?.length > 0)
+            || enrichedList[0];
+
+          if (fullEnriched) {
+            resolvedShift = {
+              ...bestDbShift,
+              ...fullEnriched,
+              fullCirculations: (fullEnriched.fullCirculations && fullEnriched.fullCirculations.length > 0)
+                ? fullEnriched.fullCirculations
+                : (bestDbShift.circulations || [])
+            };
+          } else {
+            resolvedShift = {
+              ...bestDbShift,
+              fullCirculations: bestDbShift.circulations || []
+            };
+          }
         }
       }
 
       // Fallback: virtual shift representation if not in DB shifts
       if (!resolvedShift) {
         resolvedShift = {
-          id: tornCode || 'S/A',
+          id: targetTorn || 'S/A',
           servei: todayService,
           inici_torn: agent.hora_inici || '--:--',
           final_torn: agent.hora_fi || '--:--',
@@ -131,17 +185,35 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
       setShiftData(resolvedShift);
 
       // Load GIP passages for all circulations in this shift
-      const circCodes: string[] = (resolvedShift.fullCirculations || [])
-        .map((c: any) => c.codi || c.realCodi || (typeof c === 'string' ? c : c.id))
-        .filter(Boolean);
+      const circCodes: string[] = Array.from(new Set(
+        (resolvedShift.fullCirculations || [])
+          .map((c: any) => typeof c === 'string' ? c : (c.codi || c.realCodi || c.id))
+          .filter((c: string) => c && c !== 'Viatger')
+      ));
 
       if (circCodes.length > 0) {
         const serviceDate = getFgcServiceDate();
-        const { data: passages, error: gipErr } = await supabase
+
+        // 1. Query for today's service date
+        let { data: passages, error: gipErr } = await supabase
           .from('gip_registre_pas')
           .select('*')
           .eq('data_servei', serviceDate)
           .in('circulacio_id', circCodes);
+
+        // 2. If no passages for today's exact date, fetch recent passages available for these circs
+        if (!passages || passages.length === 0) {
+          const { data: anyDatePassages } = await supabase
+            .from('gip_registre_pas')
+            .select('*')
+            .in('circulacio_id', circCodes)
+            .order('id', { ascending: false })
+            .limit(500);
+
+          if (anyDatePassages && anyDatePassages.length > 0) {
+            passages = anyDatePassages;
+          }
+        }
 
         if (!gipErr && passages) {
           setGipPassages(passages as GipRegistrePas[]);
@@ -361,8 +433,8 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
     if (!shiftData?.fullCirculations) return [];
 
     return shiftData.fullCirculations.map((c: any) => {
-      const codi = c.codi || c.realCodi;
-      const cPassages = gipPassages.filter(p => p.circulacio_id === codi || (c.realCodi && p.circulacio_id === c.realCodi));
+      const codi = (c.codi === 'Viatger' && c.realCodi) ? c.realCodi : (c.codi || c.realCodi);
+      const cPassages = gipPassages.filter(p => p.circulacio_id === codi || (c.realCodi && p.circulacio_id === c.realCodi) || (c.codi && p.circulacio_id === c.codi));
 
       const totalStops = cPassages.length;
       const onTimeStops = cPassages.filter(p => p.estat === 'en_hora' || p.estat === 'avanc').length;
@@ -377,7 +449,10 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
       if (sMin !== null && eMin !== null) {
         if (nowMin >= eMin) status = 'COMPLETED';
         else if (nowMin >= sMin && nowMin < eMin) status = 'IN_PROGRESS';
+        else if (totalStops > 0) status = 'COMPLETED';
         else status = 'PENDING';
+      } else if (totalStops > 0) {
+        status = 'COMPLETED';
       }
 
       const maxDelaySec = delayedStops.length > 0 
@@ -407,10 +482,17 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
 
   // 3. Shift Global Punctuality Summary
   const overallPunctuality = useMemo(() => {
-    const performedCircs = circPunctualityList.filter(cp => cp.status !== 'PENDING');
-    const performedCircCodes = new Set(performedCircs.map(cp => cp.codi));
+    const circsWithGip = new Set(circPunctualityList.filter(cp => cp.totalStops > 0).map(cp => cp.codi));
+    const performedCircCodes = new Set(circPunctualityList.filter(cp => cp.status !== 'PENDING').map(cp => cp.codi));
+    const activeOrRegisteredCircCodes = new Set([...Array.from(performedCircCodes), ...Array.from(circsWithGip)]);
 
-    const relevantPassages = gipPassages.filter(p => performedCircCodes.has(p.circulacio_id));
+    let relevantPassages = gipPassages.filter(p => activeOrRegisteredCircCodes.has(p.circulacio_id));
+
+    // Fallback: If no circs matched by code, but we have passages for shift circulations, use all
+    if (relevantPassages.length === 0 && gipPassages.length > 0) {
+      const allCircCodes = new Set(circPunctualityList.map(cp => cp.codi).filter(Boolean));
+      relevantPassages = gipPassages.filter(p => allCircCodes.has(p.circulacio_id));
+    }
 
     const totalPassages = relevantPassages.length;
     const onTimePassages = relevantPassages.filter(p => p.estat === 'en_hora' || p.estat === 'avanc').length;
@@ -426,6 +508,10 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
       ? Math.round(delayedPassages.reduce((acc, p) => acc + (p.diferencia_segons || 0), 0) / delayedPassages.length)
       : 0;
 
+    const completedCircs = circPunctualityList.filter(cp => cp.status === 'COMPLETED').length;
+    const inProgressCircs = circPunctualityList.filter(cp => cp.status === 'IN_PROGRESS').length;
+    const pendingCircs = circPunctualityList.filter(cp => cp.status === 'PENDING').length;
+
     return {
       rate,
       totalPassages,
@@ -434,9 +520,9 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
       maxDelaySec,
       avgDelaySec,
       totalCircs: circPunctualityList.length,
-      completedCircs: circPunctualityList.filter(cp => cp.status === 'COMPLETED').length,
-      inProgressCircs: circPunctualityList.filter(cp => cp.status === 'IN_PROGRESS').length,
-      pendingCircs: circPunctualityList.filter(cp => cp.status === 'PENDING').length
+      completedCircs,
+      inProgressCircs,
+      pendingCircs
     };
   }, [circPunctualityList, gipPassages]);
 
@@ -831,9 +917,17 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
 
                             {/* Itinerary */}
                             <div className="flex items-center gap-2 text-xs font-bold text-gray-500 dark:text-gray-400 mt-0.5">
-                              <span className="truncate">{resolveStationName(item.inici)}</span>
-                              <ArrowRight size={12} className="text-fgc-green shrink-0" />
-                              <span className="truncate">{resolveStationName(item.final)}</span>
+                              {item.inici || item.final ? (
+                                <>
+                                  <span className="truncate">{resolveStationName(item.inici) || item.inici || 'Origen'}</span>
+                                  <ArrowRight size={12} className="text-fgc-green shrink-0" />
+                                  <span className="truncate">{resolveStationName(item.final) || item.final || 'Destinació'}</span>
+                                </>
+                              ) : item.codi === 'Viatger' ? (
+                                <span className="italic text-gray-400">Trasllat com a viatger</span>
+                              ) : (
+                                <span className="italic text-gray-400">Maniobra o moviment intern</span>
+                              )}
                             </div>
                           </div>
                         </div>
