@@ -62,6 +62,8 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
   const [isHistorySaved, setIsHistorySaved] = useState(false);
   const [showHistorySection, setShowHistorySection] = useState(false);
   const [expandedHistoryId, setExpandedHistoryId] = useState<number | null>(null);
+  const [selectedHistoryDate, setSelectedHistoryDate] = useState<string>('');
+  const dateInputRef = useRef<HTMLInputElement>(null);
   const lastSavedKeyRef = useRef<string>('');
 
   const todayService = useServiceToday();
@@ -551,6 +553,36 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
     loadAgentHistory(false);
   }, [loadAgentHistory]);
 
+  // 4b. Puntualitat històrica global acumulada de l'agent a Supabase
+  const globalHistoricalPunctuality = useMemo(() => {
+    if (!historyRecords || historyRecords.length === 0) return null;
+    const totalPassages = historyRecords.reduce((acc, r) => acc + (r.passos_totals || 0), 0);
+    const onTimePassages = historyRecords.reduce((acc, r) => acc + (r.passos_en_hora || 0), 0);
+    if (totalPassages > 0) {
+      return Number(((onTimePassages / totalPassages) * 100).toFixed(1));
+    }
+    const validRates = historyRecords
+      .map(r => r.puntualitat_percentatge !== null ? Number(r.puntualitat_percentatge) : null)
+      .filter((r): r is number => r !== null);
+    if (validRates.length === 0) return null;
+    return Number((validRates.reduce((a, b) => a + b, 0) / validRates.length).toFixed(1));
+  }, [historyRecords]);
+
+  // Registres històrics filtrats per la data seleccionada al calendari
+  const displayedHistoryRecords = useMemo(() => {
+    if (!selectedHistoryDate) return historyRecords;
+    return historyRecords.filter(r => r.data_servei === selectedHistoryDate);
+  }, [historyRecords, selectedHistoryDate]);
+
+  const formatDateDisplay = (dateStr: string) => {
+    if (!dateStr) return '';
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return dateStr;
+  };
+
   // 5. Desa automàticament el rendiment i puntualitat a la taula 'agent_performance_history' de Supabase només quan canvia
   useEffect(() => {
     if (loadingShift || loadingGip || !agent?.empleat_id) return;
@@ -602,6 +634,13 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
           totalStops: c.totalStops,
           onTimeStops: c.onTimeStops,
           delayedStopsCount: c.delayedStopsCount,
+          delayedStops: (c.delayedStopsList || []).map((p: any) => ({
+            estacio_codi: p.estacio_codi || '',
+            estacio_nom: resolveStationName(p.estacio_nom || p.estacio_codi, c.linia) || p.estacio_nom || p.estacio_codi || '',
+            hora_teorica: p.hora_teorica || '',
+            hora_real: p.hora_real || '',
+            diferencia_segons: p.diferencia_segons || 0
+          })),
           rate: c.rate,
           maxDelaySec: c.maxDelaySec
         })),
@@ -990,16 +1029,25 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
                     <Calendar size={18} />
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <h4 className="text-sm sm:text-base font-black text-[#4D5358] dark:text-white uppercase tracking-tight">
                         Històric de Rendiment de l'Agent
                       </h4>
+                      {globalHistoricalPunctuality !== null && (
+                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-mono font-black border ${
+                          globalHistoricalPunctuality >= 95 ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800' :
+                          globalHistoricalPunctuality >= 85 ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800' :
+                          'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800'
+                        }`}>
+                          {globalHistoricalPunctuality}% Global Històric
+                        </span>
+                      )}
                       <span className="px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 text-xs font-bold border border-blue-200 dark:border-blue-500/20">
                         {historyRecords.length} {historyRecords.length === 1 ? 'jornada' : 'jornades'} a Supabase
                       </span>
                     </div>
                     <p className="text-xs text-gray-400 dark:text-gray-500 font-medium">
-                      Consulta el registre històric de puntualitat, retards i circulacions guardat a Supabase
+                      Consulta el registre històric de puntualitat, retards i estacions afectades guardat a Supabase
                     </p>
                   </div>
                 </div>
@@ -1010,7 +1058,7 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
               </button>
 
               {showHistorySection && (
-                <div className="p-4 sm:p-6 border-t border-gray-100 dark:border-white/5 space-y-3 bg-gray-50/30 dark:bg-black/10 animate-in slide-in-from-top-2 duration-300">
+                <div className="p-4 sm:p-6 border-t border-gray-100 dark:border-white/5 space-y-4 bg-gray-50/30 dark:bg-black/10 animate-in slide-in-from-top-2 duration-300">
                   {loadingHistory && historyRecords.length === 0 ? (
                     <div className="py-8 text-center text-gray-400 flex flex-col items-center gap-2">
                       <RefreshCw size={20} className="animate-spin text-fgc-green" />
@@ -1022,121 +1070,284 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
                       <p className="text-[11px] text-gray-500 mt-1">El registre d'avui s'està guardant automàticament.</p>
                     </div>
                   ) : (
-                    <div className="space-y-2.5">
-                      {historyRecords.map((rec) => {
-                        const isExpanded = expandedHistoryId === rec.id;
-                        const rate = rec.puntualitat_percentatge !== null ? Number(rec.puntualitat_percentatge) : null;
-                        return (
-                          <div 
-                            key={rec.id}
-                            className="bg-white dark:bg-[#25282c] border border-gray-100 dark:border-white/5 rounded-2xl p-4 transition-all hover:border-gray-200 dark:hover:border-white/10"
-                          >
-                            <div 
-                              className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer"
-                              onClick={() => setExpandedHistoryId(isExpanded ? null : (rec.id || null))}
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className="p-2 rounded-xl bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300 font-mono text-xs font-bold">
-                                  {rec.data_servei}
-                                </div>
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-black text-sm text-[#4D5358] dark:text-white">
-                                      Torn {rec.torn}
-                                    </span>
-                                    {rec.servei && (
-                                      <span className="text-[10px] uppercase font-bold text-gray-400 px-1.5 py-0.5 rounded bg-gray-100 dark:bg-white/5">
-                                        {rec.servei}
-                                      </span>
-                                    )}
-                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
-                                      rec.estat_torn === 'COMPLETAT' ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800' :
-                                      rec.estat_torn === 'EN_CURS' ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800' :
-                                      'bg-gray-100 text-gray-600 border-gray-200 dark:bg-white/5 dark:text-gray-400 dark:border-white/10'
-                                    }`}>
-                                      {rec.estat_torn}
-                                    </span>
-                                  </div>
-                                  <p className="text-[11px] text-gray-400 mt-0.5">
-                                    {rec.hora_inici} - {rec.hora_fi} · {rec.dependencia || 'FGC'}
-                                  </p>
-                                </div>
-                              </div>
-
-                              {/* Metrics summary */}
-                              <div className="flex items-center gap-2.5 flex-wrap sm:justify-end">
-                                {/* Rate pill */}
-                                <span className={`px-3 py-1 rounded-xl text-xs font-mono font-black border ${
-                                  rate === null ? 'bg-gray-100 text-gray-500 border-gray-200 dark:bg-white/5 dark:text-gray-400 dark:border-white/10' :
-                                  rate >= 95 ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800' :
-                                  rate >= 85 ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800' :
-                                  'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800'
-                                }`}>
-                                  {rate !== null ? `${rate}%` : '--%'}
-                                </span>
-
-                                {/* Circulations completed */}
-                                <span className="text-xs font-mono text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-white/5 px-2.5 py-1 rounded-xl border border-gray-100 dark:border-white/5 font-bold">
-                                  {rec.circulacions_completades}/{rec.circulacions_totals} circ.
-                                </span>
-
-                                {/* Delay */}
-                                {rec.passos_retard > 0 && (
-                                  <span className="text-xs font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 px-2 py-1 rounded-xl border border-red-100 dark:border-red-900/40">
-                                    {rec.passos_retard} retards (màx: +{formatDelayMinSec(rec.retard_maxim_segons)})
-                                  </span>
-                                )}
-
-                                <div className="text-gray-400 ml-1">
-                                  {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                                </div>
-                              </div>
+                    <>
+                      {/* Barra d'eines: Puntualitat global i selector de data amb icona de calendari */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-white dark:bg-[#25282c] rounded-2xl border border-gray-100 dark:border-white/5 shadow-xs">
+                        {/* KPI Puntualitat Global */}
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2.5 rounded-xl ${
+                            globalHistoricalPunctuality === null ? 'bg-gray-100 text-gray-500 dark:bg-white/5 dark:text-gray-400' :
+                            globalHistoricalPunctuality >= 95 ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400' :
+                            globalHistoricalPunctuality >= 85 ? 'bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400' :
+                            'bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400'
+                          }`}>
+                            <Activity size={20} />
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 dark:text-gray-500 block">
+                              Puntualitat Global Memoritzada
+                            </span>
+                            <div className="flex items-baseline gap-2">
+                              <span className={`text-2xl font-black font-mono tracking-tight ${
+                                globalHistoricalPunctuality === null ? 'text-gray-400' :
+                                globalHistoricalPunctuality >= 95 ? 'text-emerald-600 dark:text-emerald-400' :
+                                globalHistoricalPunctuality >= 85 ? 'text-amber-600 dark:text-amber-400' :
+                                'text-red-600 dark:text-red-400'
+                              }`}>
+                                {globalHistoricalPunctuality !== null ? `${globalHistoricalPunctuality}%` : '--%'}
+                              </span>
+                              <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+                                sobre el conjunt de {historyRecords.length} {historyRecords.length === 1 ? 'jornada' : 'jornades'}
+                              </span>
                             </div>
+                          </div>
+                        </div>
 
-                            {/* Expanded Details of the historical day */}
-                            {isExpanded && rec.detall_circulacions && rec.detall_circulacions.length > 0 && (
-                              <div className="mt-3 pt-3 border-t border-gray-100 dark:border-white/5 space-y-1.5 animate-in fade-in duration-200">
-                                <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-2">
-                                  Circulacions realitzades el {rec.data_servei}:
-                                </p>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                  {rec.detall_circulacions.map((c: any, cIdx: number) => (
-                                    <div key={cIdx} className="p-2.5 rounded-xl bg-gray-50 dark:bg-white/[0.02] border border-gray-100 dark:border-white/5 flex items-center justify-between text-xs">
-                                      <div>
-                                        <span className="font-mono font-bold text-[#4D5358] dark:text-white mr-2">
-                                          {c.codi}
-                                        </span>
-                                        <span className="text-gray-400">
-                                          {c.sortida} → {c.arribada}
-                                        </span>
-                                      </div>
-                                      <div className="flex items-center gap-1.5">
-                                        {c.rate !== null ? (
-                                          <span className={`font-mono font-bold text-[11px] ${
-                                            c.rate >= 95 ? 'text-emerald-600 dark:text-emerald-400' :
-                                            c.rate >= 85 ? 'text-amber-600 dark:text-amber-400' :
-                                            'text-red-600 dark:text-red-400'
-                                          }`}>
-                                            {c.rate}%
-                                          </span>
-                                        ) : (
-                                          <span className="text-gray-400 text-[10px]">--</span>
-                                        )}
-                                        {c.delayedStopsCount > 0 && (
-                                          <span className="text-red-500 font-bold text-[10px]">
-                                            (+{formatDelayMinSec(c.maxDelaySec)})
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
+                        {/* Selector de data amb icona de calendari */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-black/20 p-1.5 rounded-2xl border border-gray-200 dark:border-white/10">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (dateInputRef.current && 'showPicker' in dateInputRef.current) {
+                                  try {
+                                    (dateInputRef.current as any).showPicker();
+                                  } catch {
+                                    dateInputRef.current.focus();
+                                  }
+                                } else {
+                                  dateInputRef.current?.focus();
+                                }
+                              }}
+                              className="p-1.5 rounded-xl bg-blue-500 text-white hover:bg-blue-600 transition-colors shadow-xs flex items-center justify-center cursor-pointer"
+                              title="Clica per obrir el calendari i triar el dia"
+                            >
+                              <Calendar size={16} />
+                            </button>
+
+                            <input
+                              ref={dateInputRef}
+                              type="date"
+                              value={selectedHistoryDate}
+                              onChange={(e) => setSelectedHistoryDate(e.target.value)}
+                              className="bg-transparent text-xs font-mono font-bold text-[#4D5358] dark:text-white px-2 py-1 outline-none cursor-pointer"
+                              title="Selecciona una data específica"
+                            />
+
+                            {selectedHistoryDate && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedHistoryDate('')}
+                                className="p-1.5 rounded-xl text-gray-400 hover:text-gray-600 dark:hover:text-white hover:bg-gray-200/50 dark:hover:bg-white/10 transition-colors"
+                                title="Treure filtre per veure tots els torns"
+                              >
+                                <X size={14} />
+                              </button>
                             )}
                           </div>
-                        );
-                      })}
-                    </div>
+
+                          {selectedHistoryDate && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedHistoryDate('')}
+                              className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline px-1"
+                            >
+                              Veure totes
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Resultats segons el filtre de data */}
+                      {selectedHistoryDate && displayedHistoryRecords.length === 0 ? (
+                        <div className="py-8 text-center text-gray-400 bg-white dark:bg-[#25282c] rounded-2xl border border-dashed border-gray-200 dark:border-white/10 p-6">
+                          <Calendar size={28} className="mx-auto text-gray-300 dark:text-gray-600 mb-2" />
+                          <p className="text-xs font-bold text-gray-600 dark:text-gray-300">
+                            No s'ha trobat cap torn memoritzat per al dia {formatDateDisplay(selectedHistoryDate)}.
+                          </p>
+                          <button
+                            onClick={() => setSelectedHistoryDate('')}
+                            className="mt-3 px-3 py-1.5 rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400 text-xs font-bold hover:bg-blue-100 transition-colors"
+                          >
+                            Mostrar totes les {historyRecords.length} jornades
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="space-y-2.5">
+                          {displayedHistoryRecords.map((rec) => {
+                            const isExpanded = expandedHistoryId === rec.id;
+                            const rate = rec.puntualitat_percentatge !== null ? Number(rec.puntualitat_percentatge) : null;
+                            return (
+                              <div 
+                                key={rec.id}
+                                className="bg-white dark:bg-[#25282c] border border-gray-100 dark:border-white/5 rounded-2xl p-4 transition-all hover:border-gray-200 dark:hover:border-white/10"
+                              >
+                                <div 
+                                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer"
+                                  onClick={() => setExpandedHistoryId(isExpanded ? null : (rec.id || null))}
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <div className="p-2 rounded-xl bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300 font-mono text-xs font-bold">
+                                      {rec.data_servei}
+                                    </div>
+                                    <div>
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-black text-sm text-[#4D5358] dark:text-white">
+                                          Torn {rec.torn}
+                                        </span>
+                                        {rec.servei && (
+                                          <span className="text-[10px] uppercase font-bold text-gray-400 px-1.5 py-0.5 rounded bg-gray-100 dark:bg-white/5">
+                                            {rec.servei}
+                                          </span>
+                                        )}
+                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
+                                          rec.estat_torn === 'COMPLETAT' ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800' :
+                                          rec.estat_torn === 'EN_CURS' ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800' :
+                                          'bg-gray-100 text-gray-600 border-gray-200 dark:bg-white/5 dark:text-gray-400 dark:border-white/10'
+                                        }`}>
+                                          {rec.estat_torn}
+                                        </span>
+                                      </div>
+                                      <p className="text-[11px] text-gray-400 mt-0.5">
+                                        {rec.hora_inici} - {rec.hora_fi} · {rec.dependencia || 'FGC'}
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  {/* Metrics summary */}
+                                  <div className="flex items-center gap-2.5 flex-wrap sm:justify-end">
+                                    {/* Rate pill */}
+                                    <span className={`px-3 py-1 rounded-xl text-xs font-mono font-black border ${
+                                      rate === null ? 'bg-gray-100 text-gray-500 border-gray-200 dark:bg-white/5 dark:text-gray-400 dark:border-white/10' :
+                                      rate >= 95 ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800' :
+                                      rate >= 85 ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800' :
+                                      'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800'
+                                    }`}>
+                                      {rate !== null ? `${rate}%` : '--%'}
+                                    </span>
+
+                                    {/* Circulations completed */}
+                                    <span className="text-xs font-mono text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-white/5 px-2.5 py-1 rounded-xl border border-gray-100 dark:border-white/5 font-bold">
+                                      {rec.circulacions_completades}/{rec.circulacions_totals} circ.
+                                    </span>
+
+                                    {/* Delay */}
+                                    {rec.passos_retard > 0 && (
+                                      <span className="text-xs font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 px-2 py-1 rounded-xl border border-red-100 dark:border-red-900/40">
+                                        {rec.passos_retard} retards (màx: +{formatDelayMinSec(rec.retard_maxim_segons)})
+                                      </span>
+                                    )}
+
+                                    <div className="text-gray-400 ml-1">
+                                      {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Expanded Details of the historical day */}
+                                {isExpanded && rec.detall_circulacions && rec.detall_circulacions.length > 0 && (
+                                  <div className="mt-3 pt-3 border-t border-gray-100 dark:border-white/5 space-y-2 animate-in fade-in duration-200">
+                                    <div className="flex items-center justify-between">
+                                      <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">
+                                        Circulacions realitzades el {rec.data_servei}:
+                                      </p>
+                                      <span className="text-[10px] font-semibold text-gray-400">
+                                        {rec.detall_circulacions.length} circulacions
+                                      </span>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                      {rec.detall_circulacions.map((c: any, cIdx: number) => {
+                                        const delayedList = c.delayedStops || c.delayedStopsList || [];
+
+                                        return (
+                                          <div 
+                                            key={cIdx} 
+                                            className="p-3 rounded-xl bg-gray-50 dark:bg-white/[0.02] border border-gray-100 dark:border-white/5 flex flex-col gap-2 text-xs"
+                                          >
+                                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                                              <div className="flex items-center gap-2">
+                                                <span className="font-mono font-black text-sm text-[#4D5358] dark:text-white">
+                                                  {c.codi}
+                                                </span>
+                                                {c.linia && (
+                                                  <span 
+                                                    className="px-1.5 py-0.5 rounded text-[10px] font-black text-white"
+                                                    style={{ backgroundColor: getLiniaColorHex(c.linia) }}
+                                                  >
+                                                    {c.linia}
+                                                  </span>
+                                                )}
+                                                <span className="text-gray-500 dark:text-gray-400 text-[11px] font-medium">
+                                                  {resolveStationName(c.sortida || c.inici, c.linia)} → {resolveStationName(c.arribada || c.final, c.linia)}
+                                                </span>
+                                              </div>
+
+                                              <div className="flex items-center gap-1.5">
+                                                {c.rate !== null ? (
+                                                  <span className={`font-mono font-bold text-xs px-2 py-0.5 rounded-lg border ${getPunctualityColor(c.rate)}`}>
+                                                    {c.rate}%
+                                                  </span>
+                                                ) : (
+                                                  <span className="text-gray-400 text-[10px]">--%</span>
+                                                )}
+                                                {c.delayedStopsCount > 0 && (
+                                                  <span className="text-red-500 font-bold text-xs">
+                                                    (+{formatDelayMinSec(c.maxDelaySec)})
+                                                  </span>
+                                                )}
+                                              </div>
+                                            </div>
+
+                                            {/* Llistat d'estacions que han generat retard */}
+                                            {delayedList.length > 0 ? (
+                                              <div className="mt-1 pt-2 border-t border-dashed border-red-200 dark:border-red-900/40 space-y-1.5">
+                                                <span className="text-[10px] font-black text-red-600 dark:text-red-400 uppercase tracking-wider flex items-center gap-1">
+                                                  <AlertTriangle size={11} />
+                                                  Estacions amb retard ({delayedList.length}):
+                                                </span>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                                  {delayedList.map((stop: any, sIdx: number) => {
+                                                    const stName = resolveStationName(stop.estacio_nom || stop.estacio_codi, c.linia);
+                                                    return (
+                                                      <div 
+                                                        key={sIdx} 
+                                                        className="flex items-center justify-between p-2 rounded-lg bg-red-50/80 dark:bg-red-950/20 border border-red-100 dark:border-red-900/40 text-[11px]"
+                                                      >
+                                                        <span className="font-bold text-[#4D5358] dark:text-gray-200 truncate pr-2">
+                                                          {stName || stop.estacio_codi}
+                                                        </span>
+                                                        <div className="flex items-center gap-2 font-mono text-[10px] shrink-0">
+                                                          <span className="text-gray-400">T: {stop.hora_teorica}</span>
+                                                          {stop.hora_real && (
+                                                            <span className="text-gray-500 dark:text-gray-300">R: {stop.hora_real}</span>
+                                                          )}
+                                                          <span className="font-bold text-red-600 dark:text-red-400">
+                                                            +{formatDelayMinSec(stop.diferencia_segons)}
+                                                          </span>
+                                                        </div>
+                                                      </div>
+                                                    );
+                                                  })}
+                                                </div>
+                                              </div>
+                                            ) : c.delayedStopsCount > 0 ? (
+                                              <div className="text-[10px] font-semibold text-red-500 mt-1">
+                                                {c.delayedStopsCount} passos amb retard registrats (retard màx: +{formatDelayMinSec(c.maxDelaySec)}).
+                                              </div>
+                                            ) : null}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               )}

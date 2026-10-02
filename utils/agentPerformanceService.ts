@@ -250,6 +250,13 @@ export const syncAllAgentsPerformance = async (
           totalStops,
           onTimeStops,
           delayedStopsCount: delayedStops.length,
+          delayedStops: delayedStops.map(p => ({
+            estacio_codi: p.estacio_codi || '',
+            estacio_nom: p.estacio_nom || p.estacio_codi || '',
+            hora_teorica: p.hora_teorica || '',
+            hora_real: p.hora_real || '',
+            diferencia_segons: p.diferencia_segons || 0
+          })),
           rate: totalStops > 0 ? Number(((onTimeStops / totalStops) * 100).toFixed(1)) : null,
           maxDelaySec: delayedStops.length > 0 ? Math.max(...delayedStops.map(p => p.diferencia_segons || 0)) : 0
         });
