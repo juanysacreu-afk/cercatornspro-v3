@@ -1,11 +1,27 @@
 import { formatDelayMinSec } from './stations';
 import { feedback } from './feedback';
+import { supabase } from '../supabaseClient';
 
 const STORAGE_KEY = 'nexus_delay_notifs_enabled';
 export const DELAY_ALERT_THRESHOLD_SEC = 240; // 4 minuts (retard oficial FGC)
 const COOLDOWN_MS = 15 * 60 * 1000; // 15 minuts de refredament per tren per evitar saturació
 
-// Registre intern de notificacions enviades per evitar alertes repetitives cada 10s
+// VAPID Clau Pública oficial generada per a Web Push en segon pla (App Tancada)
+export const VAPID_PUBLIC_KEY = 'BNQstO2w84c7CPzPC_ZULMNDTFxptTB_Bzd84DNPxFnzaIEZISASCy0smt_tKbZsAihU2LGVPAUBOtP6qK0d-6I';
+
+// Converteix la clau VAPID Base64URL a Uint8Array per al PushManager del navegador/mòbil
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+// Registre intern de notificacions enviades en memòria per evitar alertes repetitives cada 10s
 const notifiedDelays = new Map<string, { timestamp: number; delaySec: number }>();
 
 /**
@@ -48,7 +64,75 @@ export const setDelayNotifsEnabled = (enabled: boolean): void => {
 };
 
 /**
+ * Subscriu el dispositiu al servei de Web Push per rebre alertes amb l'app TANCADA
+ */
+export const registerWebPushSubscription = async (): Promise<boolean> => {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+    return false;
+  }
+
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    let subscription = await registration.pushManager.getSubscription();
+
+    if (!subscription) {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as unknown as BufferSource
+      });
+    }
+
+    if (subscription) {
+      const rawKey = subscription.getKey ? subscription.getKey('p256dh') : null;
+      const rawAuth = subscription.getKey ? subscription.getKey('auth') : null;
+
+      const p256dh = rawKey ? btoa(String.fromCharCode.apply(null, Array.from(new Uint8Array(rawKey)))) : '';
+      const auth = rawAuth ? btoa(String.fromCharCode.apply(null, Array.from(new Uint8Array(rawAuth)))) : '';
+
+      const { error } = await supabase.from('push_subscriptions').upsert({
+        endpoint: subscription.endpoint,
+        p256dh,
+        auth,
+        user_agent: navigator.userAgent,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'endpoint' });
+
+      if (error) {
+        console.warn('Error saving push subscription in Supabase:', error);
+      }
+      return true;
+    }
+  } catch (err) {
+    console.warn('Could not register Web Push subscription:', err);
+  }
+  return false;
+};
+
+/**
+ * Cancel·la la subscripció Push del dispositiu
+ */
+export const unregisterWebPushSubscription = async (): Promise<boolean> => {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+    return false;
+  }
+
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+    if (subscription) {
+      await supabase.from('push_subscriptions').delete().eq('endpoint', subscription.endpoint);
+      await subscription.unsubscribe();
+      return true;
+    }
+  } catch (err) {
+    console.warn('Error unregistering Web Push:', err);
+  }
+  return false;
+};
+
+/**
  * Sol·licita el permís natiu al telèfon mòbil / navegador per a notificacions
+ * i registra la subscripció Push per quan l'app estigui tancada.
  */
 export const requestDelayNotifsPermission = async (): Promise<{ granted: boolean; permission: string }> => {
   if (!isDelayNotifsSupported()) {
@@ -59,16 +143,21 @@ export const requestDelayNotifsPermission = async (): Promise<{ granted: boolean
     const permission = await Notification.requestPermission();
     if (permission === 'granted') {
       setDelayNotifsEnabled(true);
+
+      // Registrar subscripció Push per rebre notificacions amb l'app tancada
+      await registerWebPushSubscription();
+
       // Notificació de confirmació al dispositiu
       await sendSystemNotification({
         title: '🔔 Avisos de Retard Activats',
-        body: 'Rebràs una notificació al mòbil quan una circulació superi els 4 minuts de retard.',
+        body: 'Rebràs alertes al mòbil quan una circulació superi els 4 minuts de retard, fins i tot amb l\'app tancada.',
         tag: 'nexus-welcome-notif'
       });
       feedback.success();
       return { granted: true, permission };
     } else {
       setDelayNotifsEnabled(false);
+      await unregisterWebPushSubscription();
       return { granted: false, permission };
     }
   } catch (err) {
@@ -78,7 +167,7 @@ export const requestDelayNotifsPermission = async (): Promise<{ granted: boolean
 };
 
 /**
- * Envia una notificació de prova perquè l'usuari comprovi que funciona al mòbil
+ * Envia una notificació de prova al mòbil (des del servidor Push per provar amb l'app tancada/en fons)
  */
 export const sendTestNotification = async (): Promise<boolean> => {
   if (!isDelayNotifsSupported() || Notification.permission !== 'granted') {
@@ -86,9 +175,33 @@ export const sendTestNotification = async (): Promise<boolean> => {
     if (!res.granted) return false;
   }
 
+  // Assegurar subscripció Push registrada
+  await registerWebPushSubscription();
+
+  try {
+    // Llançar test via Edge Function perquè viatgi a través del servidor Push
+    const res = await fetch('https://hcpjthnhockfbefclycr.supabase.co/functions/v1/check-delays', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'test_push',
+        title: '⚠️ Prova d\'Alerta Push (NEXUS)',
+        body: 'Aquesta notificació funciona fins i tot amb l\'aplicació completament tancada al mòbil!'
+      })
+    });
+
+    if (res.ok) {
+      feedback.playNotification();
+      return true;
+    }
+  } catch (e) {
+    console.warn('Error sending test push via server, fallback to local:', e);
+  }
+
+  // Fallback local si el servidor no respongués
   return sendSystemNotification({
     title: '⚠️ Prova d\'Avís de Retard (NEXUS)',
-    body: 'Circulació S11 (UT 112.04) amb +4m 30s de retard a Sant Cugat. Prova de recepció correcta!',
+    body: 'Circulació S11 (UT 112.04) amb +4m 30s de retard a Sant Cugat. Prova correcta!',
     tag: 'nexus-test-notif'
   });
 };
@@ -119,7 +232,6 @@ const sendSystemNotification = async ({ title, body, tag, url = '/?view=gip' }: 
   };
 
   try {
-    // Si tenim el Service Worker actiu (PWA instal·lada al mòbil), fem servir registration.showNotification
     if ('serviceWorker' in navigator) {
       const registration = await navigator.serviceWorker.ready;
       if (registration && registration.showNotification) {
@@ -129,7 +241,6 @@ const sendSystemNotification = async ({ title, body, tag, url = '/?view=gip' }: 
       }
     }
 
-    // Fallback: API Notification estàndard
     new Notification(title, options);
     feedback.playNotification();
     return true;
@@ -185,10 +296,29 @@ export const checkAndNotifyDelay = async (info: DelayAlertInfo): Promise<boolean
   const title = `⚠️ Retard +${delayFormatted} · ${info.circId}${lineStr}`;
   const body = `La circulació ${info.circId}${utStr} porta +${delayFormatted} de retard${stStr}.${destStr}`;
 
-  return sendSystemNotification({
+  // 1. Enviar notificació local immediata si l'app està en primer pla o en memòria
+  sendSystemNotification({
     title,
     body,
     tag: `delay-${circKey}`,
     url: `/?view=gip&circ=${encodeURIComponent(info.circId)}`
-  });
+  }).catch(() => {});
+
+  // 2. Notificar al servidor Push perquè el servidor ho enviï a tots els telèfons amb l'app TANCADA
+  try {
+    fetch('https://hcpjthnhockfbefclycr.supabase.co/functions/v1/check-delays', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'notify_delay',
+        circId: info.circId,
+        linia: info.linia,
+        ut: info.ut,
+        delaySec: info.delaySec,
+        stationName: info.stationName
+      })
+    }).catch(() => {});
+  } catch (e) {}
+
+  return true;
 };
