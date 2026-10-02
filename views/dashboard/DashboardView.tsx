@@ -21,6 +21,7 @@ import { ReserveCard } from './components/ReserveCard';
 import { CoverageBarChart } from './components/CoverageBarChart';
 import { WeatherWidget } from '../../components/common/WeatherWidget';
 import { MonitorView } from './MonitorView';
+import { PunctualitySection } from './components/PunctualitySection';
 
 // ── V1 – Live clock that ticks every second ────────────
 const LiveClock: React.FC = () => {
@@ -423,6 +424,11 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                         </div>
                     </div>
                 </GlassPanel>
+            </div>
+
+            {/* Punctuality Section (GIP Real-Time Passages) */}
+            <div className="flex-none animate-fade-up-premium stagger-6">
+                <PunctualitySection onNavigateToSearch={onNavigateToSearch} />
             </div>
         </div>
     );
