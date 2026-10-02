@@ -1,15 +1,22 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { DailyAssignment, AgentPerformanceHistory } from '../types.ts';
-import { Search, Phone, User, Loader2, Clock, CheckCircle2, Info, Filter, UserCircle, ChevronDown, Mail, Users, RefreshCw, X, Activity, ArrowRight, Database } from 'lucide-react';
+import { 
+  Search, Phone, User, Loader2, Clock, CheckCircle2, Info, 
+  Filter, UserCircle, ChevronDown, Mail, Users, RefreshCw, 
+  X, Activity, ArrowRight, Database, RotateCcw, Sun, Moon 
+} from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
 import { feedback } from '../utils/feedback';
 import { useServiceToday } from '../utils/useServiceToday';
 import { useToast } from '../components/ToastProvider';
 import { getDailyPerformanceSummary, syncAllAgentsPerformance } from '../utils/agentPerformanceService';
+import { getFgcMinutes } from '../utils/stations';
 import ErrorBoundary from '../components/common/ErrorBoundary';
 import AgentDetailModal from '../components/AgentDetailModal';
 
 type DisDesFilterType = 'ALL' | 'SERVEI' | 'DIS' | 'DES' | 'DIS_DES' | 'FOR' | 'VAC' | 'DAG' | 'AJN';
+type ShiftTimeFilterType = 'ALL' | 'MATI' | 'TARDA' | 'NIT';
+type PunctualityFilterType = 'ALL' | 'EXCELLENT' | 'MEDIUM' | 'LOW' | 'PENDING';
 
 const normalizeId = (id: any) => {
   if (!id) return '';
@@ -26,6 +33,36 @@ const filterLabels: Record<DisDesFilterType, string> = {
   VAC: 'VAC',
   DAG: 'DAG',
   AJN: 'AJN'
+};
+
+const shiftTimeLabels: Record<ShiftTimeFilterType, string> = {
+  ALL: 'Tots els torns',
+  MATI: 'Matí (Impars)',
+  TARDA: 'Tarda (Pares < 20h)',
+  NIT: 'Nit (Pares ≥ 20h)'
+};
+
+const shiftTimeShortLabels: Record<ShiftTimeFilterType, string> = {
+  ALL: 'Tots',
+  MATI: 'Matí',
+  TARDA: 'Tarda',
+  NIT: 'Nit'
+};
+
+const punctualityLabels: Record<PunctualityFilterType, string> = {
+  ALL: 'Tota la puntualitat',
+  EXCELLENT: 'Excel·lent (≥ 95%)',
+  MEDIUM: 'Regular (85% - 94.9%)',
+  LOW: 'Amb retards (< 85%)',
+  PENDING: 'No iniciat / Pendent'
+};
+
+const punctualityShortLabels: Record<PunctualityFilterType, string> = {
+  ALL: 'Tota',
+  EXCELLENT: '≥ 95%',
+  MEDIUM: '85-94%',
+  LOW: '< 85%',
+  PENDING: 'Pendent'
 };
 
 interface AgentsViewProps {
@@ -218,17 +255,33 @@ const AgentsViewComponent: React.FC<AgentsViewProps> = ({ isPrivacyMode, onNavig
   const [isSyncingHistory, setIsSyncingHistory] = useState(false);
   const [disDesFilter, setDisDesFilter] = useState<DisDesFilterType>('ALL');
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
+  const filterRef = useRef<HTMLDivElement>(null);
+
+  const [shiftTimeFilter, setShiftTimeFilter] = useState<ShiftTimeFilterType>('ALL');
+  const [isShiftTimeMenuOpen, setIsShiftTimeMenuOpen] = useState(false);
+  const shiftTimeRef = useRef<HTMLDivElement>(null);
+
+  const [punctualityFilter, setPunctualityFilter] = useState<PunctualityFilterType>('ALL');
+  const [isPunctualityMenuOpen, setIsPunctualityMenuOpen] = useState(false);
+  const punctualityRef = useRef<HTMLDivElement>(null);
+
   const [loadingMaquinistes, setLoadingMaquinistes] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<{ maquinista: any; contact: { phones: string[]; email: string | null } } | null>(null);
 
   const todayService = useServiceToday();
   const { showToast } = useToast();
-  const filterRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (filterRef.current && !filterRef.current.contains(target)) {
         setIsFilterMenuOpen(false);
+      }
+      if (shiftTimeRef.current && !shiftTimeRef.current.contains(target)) {
+        setIsShiftTimeMenuOpen(false);
+      }
+      if (punctualityRef.current && !punctualityRef.current.contains(target)) {
+        setIsPunctualityMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -344,26 +397,76 @@ const AgentsViewComponent: React.FC<AgentsViewProps> = ({ isPrivacyMode, onNavig
         (maquinista.torn || '').toLowerCase().includes(searchStr);
 
       if (!queryMatch) return false;
-      if (disDesFilter === 'ALL') return true;
-      if (disDesFilter === 'DIS') return maquinista.torn.startsWith('DIS');
-      if (disDesFilter === 'DES') return maquinista.torn.startsWith('DES');
-      if (disDesFilter === 'DIS_DES') return maquinista.torn.startsWith('DIS') || maquinista.torn.startsWith('DES');
-      if (disDesFilter === 'FOR') return maquinista.torn.startsWith('FOR');
-      if (disDesFilter === 'VAC') return maquinista.torn.startsWith('VAC');
-      if (disDesFilter === 'DAG') return maquinista.torn.startsWith('DAG');
-      if (disDesFilter === 'AJN') return maquinista.torn.startsWith('AJN');
+      // 1. Filtre Tipus / Estat
+      if (disDesFilter === 'DIS' && !maquinista.torn.startsWith('DIS')) return false;
+      if (disDesFilter === 'DES' && !maquinista.torn.startsWith('DES')) return false;
+      if (disDesFilter === 'DIS_DES' && !maquinista.torn.startsWith('DIS') && !maquinista.torn.startsWith('DES')) return false;
+      if (disDesFilter === 'FOR' && !maquinista.torn.startsWith('FOR')) return false;
+      if (disDesFilter === 'VAC' && !maquinista.torn.startsWith('VAC')) return false;
+      if (disDesFilter === 'DAG' && !maquinista.torn.startsWith('DAG')) return false;
+      if (disDesFilter === 'AJN' && !maquinista.torn.startsWith('AJN')) return false;
 
       if (disDesFilter === 'SERVEI') {
-        return !maquinista.torn.startsWith('FOR') &&
-          !maquinista.torn.startsWith('DIS') &&
-          !maquinista.torn.startsWith('DES') &&
-          !['VAC', 'DAG', 'ABS', 'LLIB'].some(p => maquinista.torn.startsWith(p)) &&
-          maquinista.torn !== 'S/A';
+        const isExcluded = maquinista.torn.startsWith('FOR') ||
+          maquinista.torn.startsWith('DIS') ||
+          maquinista.torn.startsWith('DES') ||
+          ['VAC', 'DAG', 'ABS', 'LLIB'].some((p: string) => maquinista.torn.startsWith(p)) ||
+          maquinista.torn === 'S/A';
+        if (isExcluded) return false;
+      }
+
+      const empId = normalizeId(maquinista.empleat_id);
+      const perf = dailyPerfMap[empId] || dailyPerfMap[String(maquinista.empleat_id || '').trim()];
+
+      // 2. Filtre de Torn (Matí: impares, Tarda: pares < 20h, Nit: pares >= 20:00h)
+      if (shiftTimeFilter !== 'ALL') {
+        const cleanTorn = (maquinista.torn || '').trim().toUpperCase();
+        const isSpecialNonShift = ['VAC', 'DES', 'DIS', 'DAG', 'AJN', 'S/A', 'FOR', 'LLIB', 'ABS'].some(p => cleanTorn.startsWith(p));
+        if (isSpecialNonShift) return false;
+
+        const numMatch = cleanTorn.match(/\d+/);
+        if (!numMatch) return false;
+
+        const num = parseInt(numMatch[0], 10);
+        const isOdd = num % 2 !== 0;
+        const isEven = num % 2 === 0;
+
+        const startMin = getFgcMinutes(maquinista.hora_inici || perf?.hora_inici);
+
+        if (shiftTimeFilter === 'MATI') {
+          if (!isOdd) return false;
+        } else if (shiftTimeFilter === 'TARDA') {
+          if (!isEven) return false;
+          if (startMin === null || startMin >= 20 * 60) return false;
+        } else if (shiftTimeFilter === 'NIT') {
+          if (!isEven) return false;
+          if (startMin === null || startMin < 20 * 60) return false;
+        }
+      }
+
+      // 3. Filtre de Puntualitat (Excel·lent >= 95%, Regular 85-94.9%, Retards < 85%, Pendent)
+      if (punctualityFilter !== 'ALL') {
+        const rate = (perf && perf.puntualitat_percentatge !== null && perf.puntualitat_percentatge !== undefined)
+          ? Number(perf.puntualitat_percentatge)
+          : null;
+
+        if (punctualityFilter === 'EXCELLENT') {
+          if (rate === null || rate < 95) return false;
+        } else if (punctualityFilter === 'MEDIUM') {
+          if (rate === null || rate < 85 || rate >= 95) return false;
+        } else if (punctualityFilter === 'LOW') {
+          if (rate === null || rate >= 85) return false;
+        } else if (punctualityFilter === 'PENDING') {
+          const cleanTorn = (maquinista.torn || '').trim().toUpperCase();
+          const isSpecialNonShift = ['VAC', 'DES', 'DIS', 'DAG', 'AJN', 'S/A', 'FOR', 'LLIB', 'ABS'].some(p => cleanTorn.startsWith(p));
+          if (isSpecialNonShift) return false;
+          if (rate !== null) return false;
+        }
       }
 
       return true;
     }).sort((a, b) => (a.cognoms || '').localeCompare(b.cognoms || ''));
-  }, [allAssignments, allAgents, maquinistaQuery, disDesFilter]);
+  }, [allAssignments, allAgents, maquinistaQuery, disDesFilter, shiftTimeFilter, punctualityFilter, dailyPerfMap]);
 
   return (
     <div className="space-y-6 sm:space-y-8 p-4 sm:p-8 animate-in fade-in duration-700 max-w-7xl mx-auto w-full">
@@ -408,15 +511,15 @@ const AgentsViewComponent: React.FC<AgentsViewProps> = ({ isPrivacyMode, onNavig
 
       <div className="space-y-8 animate-in fade-in slide-in-from-right-8 duration-700 ease-out-expo">
         <div className="bg-white dark:bg-fgc-grey rounded-[40px] p-6 sm:p-10 border border-gray-100 dark:border-white/5 shadow-sm space-y-8 transition-colors">
-          <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4">
-            <div className="relative flex-1">
+          <div className="flex flex-col xl:flex-row items-stretch xl:items-center gap-3">
+            <div className="relative flex-1 min-w-[240px]">
               <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={20} />
               <input
                 type="text"
                 placeholder="Cerca per nom, cognoms o nòmina..."
                 value={maquinistaQuery}
                 onChange={(e) => setMaquinistaQuery(e.target.value)}
-                className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] py-4 pl-14 pr-12 focus:ring-4 focus:ring-fgc-green/20 outline-none font-bold text-lg transition-all dark:text-white dark:placeholder:text-gray-600 shadow-inner"
+                className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] py-4 pl-14 pr-12 focus:ring-4 focus:ring-fgc-green/20 outline-none font-bold text-base sm:text-lg transition-all dark:text-white dark:placeholder:text-gray-600 shadow-inner"
               />
               {maquinistaQuery && (
                 <button
@@ -428,36 +531,171 @@ const AgentsViewComponent: React.FC<AgentsViewProps> = ({ isPrivacyMode, onNavig
               )}
             </div>
 
-            <div className="relative" ref={filterRef}>
-              <button
-                onClick={() => setIsFilterMenuOpen(!isFilterMenuOpen)}
-                className="h-full flex items-center justify-between gap-3 px-6 py-4 bg-gray-50 dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-[24px] font-bold text-sm text-[#4D5358] dark:text-gray-200 transition-all hover:bg-gray-100 dark:hover:bg-white/10 min-w-[180px] shadow-sm"
-              >
-                <div className="flex items-center gap-2">
-                  <Filter size={16} className="text-fgc-green" />
-                  <span>Filtre: {filterLabels[disDesFilter]}</span>
-                </div>
-                <ChevronDown size={18} className={`transition-transform duration-300 ${isFilterMenuOpen ? 'rotate-180' : ''}`} />
-              </button>
+            {/* Tres Selectors de Filtres: Estat, Torn i Puntualitat */}
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+              {/* Selector 1: Tipus/Estat */}
+              <div className="relative flex-1 sm:flex-initial" ref={filterRef}>
+                <button
+                  onClick={() => {
+                    setIsFilterMenuOpen(!isFilterMenuOpen);
+                    setIsShiftTimeMenuOpen(false);
+                    setIsPunctualityMenuOpen(false);
+                  }}
+                  className={`w-full sm:w-auto flex items-center justify-between gap-2.5 px-4 py-3.5 bg-gray-50 dark:bg-black/20 border rounded-[22px] font-bold text-xs sm:text-sm transition-all shadow-sm ${
+                    disDesFilter !== 'ALL'
+                      ? 'border-fgc-green/40 bg-fgc-green/5 text-fgc-green dark:text-fgc-green'
+                      : 'border-gray-100 dark:border-white/5 text-[#4D5358] dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <Filter size={15} className="text-fgc-green shrink-0" />
+                    <span className="truncate">Estat: {filterLabels[disDesFilter]}</span>
+                  </div>
+                  <ChevronDown size={16} className={`shrink-0 transition-transform duration-300 ${isFilterMenuOpen ? 'rotate-180' : ''}`} />
+                </button>
 
-              {isFilterMenuOpen && (
-                <div className="absolute top-full right-0 mt-3 w-64 bg-white dark:bg-gray-800 rounded-[24px] shadow-2xl border border-gray-100 dark:border-white/10 py-3 z-[100] animate-in fade-in slide-in-from-top-4 duration-200">
-                  {(Object.keys(filterLabels) as DisDesFilterType[]).map((option) => (
-                    <button
-                      key={option}
-                      onClick={() => {
-                        setDisDesFilter(option);
-                        setIsFilterMenuOpen(false);
-                      }}
-                      className={`w-full flex items-center justify-between px-6 py-4 text-sm font-bold transition-colors hover:bg-gray-50 dark:hover:bg-white/5 ${
-                        disDesFilter === option ? 'text-fgc-green' : 'text-[#4D5358] dark:text-gray-200'
-                      }`}
-                    >
-                      {filterLabels[option]}
-                      {disDesFilter === option && <CheckCircle2 size={16} />}
-                    </button>
-                  ))}
-                </div>
+                {isFilterMenuOpen && (
+                  <div className="absolute top-full left-0 sm:left-auto sm:right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-[22px] shadow-2xl border border-gray-100 dark:border-white/10 py-2 z-[100] animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="px-4 py-1.5 text-[10px] font-black uppercase tracking-wider text-gray-400 dark:text-gray-500 border-b border-gray-100 dark:border-white/5 mb-1">
+                      Estat / Tipus
+                    </div>
+                    {(Object.keys(filterLabels) as DisDesFilterType[]).map((option) => (
+                      <button
+                        key={option}
+                        onClick={() => {
+                          setDisDesFilter(option);
+                          setIsFilterMenuOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-4 py-2.5 text-xs font-bold transition-colors hover:bg-gray-50 dark:hover:bg-white/5 ${
+                          disDesFilter === option ? 'text-fgc-green font-black' : 'text-[#4D5358] dark:text-gray-200'
+                        }`}
+                      >
+                        <span>{filterLabels[option]}</span>
+                        {disDesFilter === option && <CheckCircle2 size={14} className="text-fgc-green" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Selector 2: Torn (Matí / Tarda / Nit) */}
+              <div className="relative flex-1 sm:flex-initial" ref={shiftTimeRef}>
+                <button
+                  onClick={() => {
+                    setIsShiftTimeMenuOpen(!isShiftTimeMenuOpen);
+                    setIsFilterMenuOpen(false);
+                    setIsPunctualityMenuOpen(false);
+                  }}
+                  className={`w-full sm:w-auto flex items-center justify-between gap-2.5 px-4 py-3.5 bg-gray-50 dark:bg-black/20 border rounded-[22px] font-bold text-xs sm:text-sm transition-all shadow-sm ${
+                    shiftTimeFilter !== 'ALL'
+                      ? 'border-blue-400/40 bg-blue-50/50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400'
+                      : 'border-gray-100 dark:border-white/5 text-[#4D5358] dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <Clock size={15} className="text-blue-500 shrink-0" />
+                    <span className="truncate">Torn: {shiftTimeShortLabels[shiftTimeFilter]}</span>
+                  </div>
+                  <ChevronDown size={16} className={`shrink-0 transition-transform duration-300 ${isShiftTimeMenuOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {isShiftTimeMenuOpen && (
+                  <div className="absolute top-full left-0 sm:left-auto sm:right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-[22px] shadow-2xl border border-gray-100 dark:border-white/10 py-2 z-[100] animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="px-4 py-1.5 text-[10px] font-black uppercase tracking-wider text-gray-400 dark:text-gray-500 border-b border-gray-100 dark:border-white/5 mb-1">
+                      Franja de Torn
+                    </div>
+                    {(Object.keys(shiftTimeLabels) as ShiftTimeFilterType[]).map((option) => (
+                      <button
+                        key={option}
+                        onClick={() => {
+                          setShiftTimeFilter(option);
+                          setIsShiftTimeMenuOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-4 py-2.5 text-xs font-bold transition-colors hover:bg-gray-50 dark:hover:bg-white/5 ${
+                          shiftTimeFilter === option ? 'text-blue-600 dark:text-blue-400 font-black' : 'text-[#4D5358] dark:text-gray-200'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          {option === 'ALL' && <Clock size={13} className="text-gray-400" />}
+                          {option === 'MATI' && <Sun size={13} className="text-amber-500" />}
+                          {option === 'TARDA' && <Clock size={13} className="text-orange-500" />}
+                          {option === 'NIT' && <Moon size={13} className="text-indigo-500" />}
+                          <span>{shiftTimeLabels[option]}</span>
+                        </div>
+                        {shiftTimeFilter === option && <CheckCircle2 size={14} className="text-blue-500" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Selector 3: Puntualitat */}
+              <div className="relative flex-1 sm:flex-initial" ref={punctualityRef}>
+                <button
+                  onClick={() => {
+                    setIsPunctualityMenuOpen(!isPunctualityMenuOpen);
+                    setIsFilterMenuOpen(false);
+                    setIsShiftTimeMenuOpen(false);
+                  }}
+                  className={`w-full sm:w-auto flex items-center justify-between gap-2.5 px-4 py-3.5 bg-gray-50 dark:bg-black/20 border rounded-[22px] font-bold text-xs sm:text-sm transition-all shadow-sm ${
+                    punctualityFilter !== 'ALL'
+                      ? 'border-amber-400/40 bg-amber-50/50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                      : 'border-gray-100 dark:border-white/5 text-[#4D5358] dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <Activity size={15} className="text-amber-500 shrink-0" />
+                    <span className="truncate">Punt.: {punctualityShortLabels[punctualityFilter]}</span>
+                  </div>
+                  <ChevronDown size={16} className={`shrink-0 transition-transform duration-300 ${isPunctualityMenuOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {isPunctualityMenuOpen && (
+                  <div className="absolute top-full right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-[22px] shadow-2xl border border-gray-100 dark:border-white/10 py-2 z-[100] animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="px-4 py-1.5 text-[10px] font-black uppercase tracking-wider text-gray-400 dark:text-gray-500 border-b border-gray-100 dark:border-white/5 mb-1">
+                      Percentatge de Puntualitat
+                    </div>
+                    {(Object.keys(punctualityLabels) as PunctualityFilterType[]).map((option) => (
+                      <button
+                        key={option}
+                        onClick={() => {
+                          setPunctualityFilter(option);
+                          setIsPunctualityMenuOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-4 py-2.5 text-xs font-bold transition-colors hover:bg-gray-50 dark:hover:bg-white/5 ${
+                          punctualityFilter === option ? 'text-amber-600 dark:text-amber-400 font-black' : 'text-[#4D5358] dark:text-gray-200'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          {option === 'ALL' && <span className="h-2 w-2 rounded-full bg-gray-300 dark:bg-gray-600" />}
+                          {option === 'EXCELLENT' && <span className="h-2 w-2 rounded-full bg-emerald-500" />}
+                          {option === 'MEDIUM' && <span className="h-2 w-2 rounded-full bg-amber-500" />}
+                          {option === 'LOW' && <span className="h-2 w-2 rounded-full bg-red-500" />}
+                          {option === 'PENDING' && <span className="h-2 w-2 rounded-full bg-gray-400" />}
+                          <span>{punctualityLabels[option]}</span>
+                        </div>
+                        {punctualityFilter === option && <CheckCircle2 size={14} className="text-amber-500" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Botó de reinici si hi ha algun filtre actiu */}
+              {(disDesFilter !== 'ALL' || shiftTimeFilter !== 'ALL' || punctualityFilter !== 'ALL' || maquinistaQuery) && (
+                <button
+                  onClick={() => {
+                    feedback.click();
+                    setMaquinistaQuery('');
+                    setDisDesFilter('ALL');
+                    setShiftTimeFilter('ALL');
+                    setPunctualityFilter('ALL');
+                  }}
+                  title="Restablir tots els filtres"
+                  className="p-3.5 rounded-[22px] bg-gray-100 hover:bg-gray-200 dark:bg-white/5 dark:hover:bg-white/10 text-gray-400 hover:text-red-500 transition-all shadow-sm"
+                >
+                  <RotateCcw size={15} />
+                </button>
               )}
             </div>
           </div>
