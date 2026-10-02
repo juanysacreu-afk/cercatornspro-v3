@@ -171,7 +171,8 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
             const pMin = getFgcMinutes(p.hora_real);
             if (pMin === null || Math.abs(nowMin - pMin) > 35) return;
 
-            if (p.diferencia_segons > 0) {
+            // Filtre sol·licitat: només circulacions amb més de 3 minuts 30 segons (210 segons)
+            if (p.diferencia_segons > 210) {
               delayedList.push({
                 id: a.id,
                 linia: a.linia || p.linia || '',
@@ -599,7 +600,7 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
                 </span>
               </div>
               <p className="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-                Ordenades de major a menor retard en temps real {filterLine !== 'Tots' && `(Línia ${filterLine})`}
+                Ordenades de major a menor retard (&gt; 3m 30s) en temps real {filterLine !== 'Tots' && `(Línia ${filterLine})`}
               </p>
             </div>
           </div>
@@ -607,7 +608,7 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
           <div className="flex items-center gap-2 text-xs font-bold text-gray-400 dark:text-gray-500">
             <span className="flex items-center gap-1.5 px-3 py-1 bg-gray-100 dark:bg-white/5 rounded-xl border border-gray-200/50 dark:border-white/5 font-mono text-[11px]">
               <span className={`w-2 h-2 rounded-full ${filteredDelayedCircs.length > 0 ? 'bg-amber-500 animate-ping' : 'bg-fgc-green'}`} />
-              {filteredDelayedCircs.length > 0 ? 'Monitoritzant retards' : 'Xarxa en hora'}
+              {filteredDelayedCircs.length > 0 ? 'Monitoritzant retards' : 'Sense retards > 3m 30s'}
             </span>
           </div>
         </div>
@@ -616,7 +617,7 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
           <div className="py-6 px-4 bg-fgc-green/5 dark:bg-fgc-green/10 border border-fgc-green/20 rounded-2xl flex items-center justify-center gap-3 text-center">
             <CheckCircle2 size={20} className="text-fgc-green shrink-0" />
             <span className="text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-200">
-              Cap circulació activa amb retard en aquest moment {filterLine !== 'Tots' ? `a la línia ${filterLine}` : 'a la xarxa'}. Totes circulen en hora.
+              Cap circulació activa amb més de 3 minuts 30 segons de retard en aquest moment {filterLine !== 'Tots' ? `a la línia ${filterLine}` : 'a la xarxa'}.
             </span>
           </div>
         ) : (
