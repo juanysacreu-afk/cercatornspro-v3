@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Search, MapPin, Clock, ArrowRight, RefreshCcw, Activity, Train, TrainFront, CheckCircle2, AlertCircle, AlertTriangle, ChevronRight, X, Calendar, Layers } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import GlassPanel from '../components/common/GlassPanel';
-import { resolveStationId } from '../utils/stations';
+import { resolveStationId, formatDelayMinSec } from '../utils/stations';
 import { getLiniaColor, getTrainPhone } from '../utils/fgc';
 import { STATION_GEO_MAP } from '../utils/stationGeoData';
 import { getFgcMinutes } from '../utils/time';
@@ -55,6 +55,19 @@ interface CircDetail {
   stops: CircStopItem[];
 }
 
+export interface ActiveDelayedCirc {
+  id: string;
+  linia: string;
+  ut?: string;
+  desti?: string;
+  currentStationCode: string;
+  currentStationName: string;
+  horaReal: string;
+  horaTeorica: string;
+  delaySec: number;
+  estat: 'en_hora' | 'retard' | 'avanc';
+}
+
 export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
@@ -64,6 +77,7 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
   const [currentTimeStr, setCurrentTimeStr] = useState<string>('');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [filterLine, setFilterLine] = useState<string>('Tots');
+  const [delayedActiveCircs, setDelayedActiveCircs] = useState<ActiveDelayedCirc[]>([]);
 
   const serviceDate = useMemo(() => getFgcServiceDate(), []);
 
@@ -95,8 +109,8 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
     }
   };
 
-  // Carrega trens actius de GeoTren per a selecció ràpida
-  const fetchActiveTrains = async () => {
+  // Carrega trens actius de GeoTren i calcula els retards en temps real
+  const fetchActiveTrainsAndDelays = async () => {
     try {
       const res = await fetch('https://dadesobertes.fgc.cat/api/v2/catalog/datasets/posicionament-dels-trens/exports/json');
       if (!res.ok) return;
@@ -125,8 +139,65 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
       });
 
       setActiveCircsList(activeList);
+
+      // Obtenir els passos i retards actuals de les circulacions actives
+      if (activeList.length > 0) {
+        const activeCodes = activeList.map(a => a.id);
+        const now = new Date();
+        const currentClock = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+        const nowMin = getFgcMinutes(currentClock) || 0;
+
+        const { data: passages } = await supabase
+          .from('gip_registre_pas')
+          .select('*')
+          .eq('data_servei', serviceDate)
+          .in('circulacio_id', activeCodes)
+          .order('creat_el', { ascending: false });
+
+        if (passages && passages.length > 0) {
+          const latestByCirc = new Map<string, GipRegistrePas>();
+          passages.forEach(p => {
+            if (!latestByCirc.has(p.circulacio_id)) {
+              latestByCirc.set(p.circulacio_id, p);
+            }
+          });
+
+          const delayedList: ActiveDelayedCirc[] = [];
+          activeList.forEach(a => {
+            const p = latestByCirc.get(a.id);
+            if (!p) return;
+
+            // Filtre de temps: considerem que és el retard actiu d'ara si ha passat en els darrers 35 minuts
+            const pMin = getFgcMinutes(p.hora_real);
+            if (pMin === null || Math.abs(nowMin - pMin) > 35) return;
+
+            if (p.diferencia_segons > 0) {
+              delayedList.push({
+                id: a.id,
+                linia: a.linia || p.linia || '',
+                ut: a.ut || p.ut || '',
+                desti: a.desti || '',
+                currentStationCode: p.estacio_codi,
+                currentStationName: resolveStationName(p.estacio_nom || p.estacio_codi, a.linia || p.linia),
+                horaReal: formatTimeToHHMMSS(p.hora_real),
+                horaTeorica: formatTimeToHHMMSS(p.hora_teorica),
+                delaySec: p.diferencia_segons,
+                estat: p.estat
+              });
+            }
+          });
+
+          // Ordenat estrictament de major a menor retard
+          delayedList.sort((a, b) => b.delaySec - a.delaySec);
+          setDelayedActiveCircs(delayedList);
+        } else {
+          setDelayedActiveCircs([]);
+        }
+      } else {
+        setDelayedActiveCircs([]);
+      }
     } catch (err) {
-      console.warn('Error fetching active trains for GIP:', err);
+      console.warn('Error fetching active trains and delays for GIP:', err);
     }
   };
 
@@ -277,17 +348,21 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
   // Cicle d'actualització periòdica cada 10 segons
   useEffect(() => {
     fetchTodayCount();
-    fetchActiveTrains();
+    fetchActiveTrainsAndDelays();
 
-    const interval = setInterval(() => {
+    const interval = setInterval(async () => {
       setIsRefreshing(true);
-      Promise.all([
-        fetchTodayCount(),
-        fetchActiveTrains(),
-        pollAndRecordGipPassages()
-      ]).finally(() => {
+      try {
+        await pollAndRecordGipPassages();
+        await Promise.all([
+          fetchTodayCount(),
+          fetchActiveTrainsAndDelays()
+        ]);
+      } catch (err) {
+        console.warn('Interval refresh error in GIP:', err);
+      } finally {
         setIsRefreshing(false);
-      });
+      }
 
       // Si hi ha una circulació seleccionada, refrescar els seus passos
       if (selectedCirc?.id) {
@@ -314,6 +389,11 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
     if (filterLine === 'Tots') return activeCircsList;
     return activeCircsList.filter(c => c.linia === filterLine);
   }, [activeCircsList, filterLine]);
+
+  const filteredDelayedCircs = useMemo(() => {
+    if (filterLine === 'Tots') return delayedActiveCircs;
+    return delayedActiveCircs.filter(c => c.linia === filterLine);
+  }, [delayedActiveCircs, filterLine]);
 
   // Format de la xapa de diferència (Regla oficial FGC)
   const renderDeviationBadge = (diffSec: number | null, estat: 'en_hora' | 'retard' | 'avanc' | 'pendent') => {
@@ -496,6 +576,124 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
             )}
           </div>
         </div>
+      </GlassPanel>
+
+      {/* Panell de Circulacions Actives amb Retard (Ordenades de Major a Menor) */}
+      <GlassPanel className="p-6 sm:p-7 !rounded-[32px] sm:!rounded-[40px] space-y-4">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/10 dark:bg-amber-400/10 border border-amber-500/20 flex items-center justify-center text-amber-500">
+              <AlertTriangle size={20} className={filteredDelayedCircs.length > 0 ? "animate-pulse" : ""} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base sm:text-lg font-black text-[#4D5358] dark:text-white uppercase tracking-tight">
+                  Circulacions Actives amb Retard
+                </h3>
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-black font-mono ${
+                  filteredDelayedCircs.length > 0
+                    ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+                    : 'bg-green-500/20 text-green-600 dark:text-green-400 border border-green-500/30'
+                }`}>
+                  {filteredDelayedCircs.length}
+                </span>
+              </div>
+              <p className="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                Ordenades de major a menor retard en temps real {filterLine !== 'Tots' && `(Línia ${filterLine})`}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs font-bold text-gray-400 dark:text-gray-500">
+            <span className="flex items-center gap-1.5 px-3 py-1 bg-gray-100 dark:bg-white/5 rounded-xl border border-gray-200/50 dark:border-white/5 font-mono text-[11px]">
+              <span className={`w-2 h-2 rounded-full ${filteredDelayedCircs.length > 0 ? 'bg-amber-500 animate-ping' : 'bg-fgc-green'}`} />
+              {filteredDelayedCircs.length > 0 ? 'Monitoritzant retards' : 'Xarxa en hora'}
+            </span>
+          </div>
+        </div>
+
+        {filteredDelayedCircs.length === 0 ? (
+          <div className="py-6 px-4 bg-fgc-green/5 dark:bg-fgc-green/10 border border-fgc-green/20 rounded-2xl flex items-center justify-center gap-3 text-center">
+            <CheckCircle2 size={20} className="text-fgc-green shrink-0" />
+            <span className="text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-200">
+              Cap circulació activa amb retard en aquest moment {filterLine !== 'Tots' ? `a la línia ${filterLine}` : 'a la xarxa'}. Totes circulen en hora.
+            </span>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 pt-1">
+            {filteredDelayedCircs.map((item, index) => {
+              const isSelected = selectedCirc?.id === item.id;
+              const isHighDelay = item.delaySec >= 240; // >= 4 minuts (retard oficial FGC)
+
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => handleSelectActive(item.id)}
+                  className={`text-left p-3.5 rounded-2xl border transition-all flex flex-col justify-between gap-2.5 relative group ${
+                    isSelected
+                      ? 'bg-fgc-green/10 border-fgc-green shadow-md scale-[1.02]'
+                      : 'bg-white/60 dark:bg-black/20 hover:bg-white dark:hover:bg-black/40 border-gray-200/60 dark:border-white/10 hover:border-fgc-green/50 shadow-sm hover:shadow'
+                  }`}
+                >
+                  {/* Capçalera: Rànquing, Codi, Línia, UT i Retard */}
+                  <div className="flex items-center justify-between gap-2 w-full">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] font-black font-mono text-gray-400 bg-gray-100 dark:bg-white/10 w-5 h-5 rounded-full flex items-center justify-center shrink-0">
+                        {index + 1}
+                      </span>
+                      <span className="font-mono font-black text-sm text-[#4D5358] dark:text-white">
+                        {item.id}
+                      </span>
+                      {item.linia && (
+                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold text-white leading-none ${getLiniaColor(item.linia)}`}>
+                          {item.linia}
+                        </span>
+                      )}
+                      {item.ut && (
+                        <span className="text-[10px] font-mono font-bold text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-white/5 px-1.5 py-0.5 rounded">
+                          UT {item.ut}
+                        </span>
+                      )}
+                    </div>
+
+                    <span
+                      className={`px-2 py-0.5 rounded-lg text-xs font-black font-mono tracking-tight shrink-0 border ${
+                        isHighDelay
+                          ? 'bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30'
+                          : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'
+                      }`}
+                    >
+                      +{formatDelayMinSec(item.delaySec)}
+                    </span>
+                  </div>
+
+                  {/* Informació d'estació i hores */}
+                  <div className="space-y-1 w-full text-xs">
+                    <div className="flex items-center gap-1.5 text-gray-600 dark:text-gray-300 font-bold truncate">
+                      <MapPin size={12} className="text-fgc-green shrink-0" />
+                      <span className="truncate">{item.currentStationName || item.currentStationCode}</span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px] font-mono text-gray-400 dark:text-gray-500 pt-1 border-t border-gray-100 dark:border-white/5">
+                      <span>Prev: {item.horaTeorica}</span>
+                      <span className="flex items-center gap-1 text-gray-600 dark:text-gray-300 font-bold">
+                        <Clock size={10} className="text-gray-400" />
+                        Real: {item.horaReal}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Indicador de clic interactiu */}
+                  <div className="w-full flex items-center justify-between text-[10px] font-bold text-gray-400 group-hover:text-fgc-green transition-colors pt-0.5">
+                    <span className="truncate">{item.desti ? `Destí: ${item.desti}` : 'Prem per obrir itinerari'}</span>
+                    <ChevronRight size={12} className="transform group-hover:translate-x-0.5 transition-transform shrink-0" />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </GlassPanel>
 
       {/* Targeta de la Circulació seleccionada */}
