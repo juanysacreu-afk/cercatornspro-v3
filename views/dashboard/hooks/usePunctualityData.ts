@@ -31,6 +31,7 @@ export interface DelayedCirculation {
   estacioNom: string;
   horaTeorica?: string;
   horaReal: string;
+  hour: number;
   diferenciaSegons: number;
   delayFormatted: string;
   creatEl?: string;
@@ -192,13 +193,18 @@ export const usePunctualityData = () => {
           rate: Number(((h.onTime / h.total) * 100).toFixed(1))
         }));
 
-      // 6. Circulacions amb retard recents (desduplicades per circulacio_id)
+      // 6. Circulacions amb retard (desduplicades per circulacio_id i hora per filtrar per franja)
       const sortedDelayed = [...delayedRows].sort((a, b) => (b.creat_el || '').localeCompare(a.creat_el || ''));
       const circMap = new Map<string, DelayedCirculation>();
 
       sortedDelayed.forEach(r => {
-        if (!circMap.has(r.circulacio_id)) {
-          circMap.set(r.circulacio_id, {
+        if (!r.hora_real) return;
+        const h = parseInt(r.hora_real.split(':')[0], 10);
+        if (isNaN(h)) return;
+        const key = `${r.circulacio_id}:${h}`;
+        const existing = circMap.get(key);
+        if (!existing || r.diferencia_segons > existing.diferenciaSegons) {
+          circMap.set(key, {
             circulacioId: r.circulacio_id,
             linia: r.linia || '',
             ut: r.ut,
@@ -206,6 +212,7 @@ export const usePunctualityData = () => {
             estacioNom: resolveStationLabel(r.estacio_codi, r.linia),
             horaTeorica: r.hora_teorica,
             horaReal: r.hora_real,
+            hour: h,
             diferenciaSegons: r.diferencia_segons,
             delayFormatted: formatDelayString(r.diferencia_segons),
             creatEl: r.creat_el
@@ -213,7 +220,7 @@ export const usePunctualityData = () => {
         }
       });
 
-      const recentDelays: DelayedCirculation[] = Array.from(circMap.values()).slice(0, 15);
+      const recentDelays: DelayedCirculation[] = Array.from(circMap.values());
 
       setStats({
         totalPassages,

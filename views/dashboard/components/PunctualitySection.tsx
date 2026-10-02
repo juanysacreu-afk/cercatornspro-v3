@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { 
   Clock, RefreshCw, AlertTriangle, CheckCircle2, TrendingUp, 
-  Train, ChevronRight, ChevronDown, ChevronUp, Filter, Activity, Timer, Search, ArrowUpRight, BarChart3
+  Train, ChevronRight, ChevronDown, ChevronUp, Filter, Activity, Timer, Search, ArrowUpRight, BarChart3, X
 } from 'lucide-react';
 import GlassPanel from '../../../components/common/GlassPanel';
 import { usePunctualityData, DelayedCirculation } from '../hooks/usePunctualityData';
@@ -35,6 +35,7 @@ export const PunctualitySection: React.FC<PunctualitySectionProps> = ({ onNaviga
   const { stats, loading, isRefreshing, lastRefreshLabel, refresh } = usePunctualityData();
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
   const [selectedLineFilter, setSelectedLineFilter] = useState<string>('Tots');
+  const [selectedHourFilter, setSelectedHourFilter] = useState<number | null>(null);
   const [searchFilter, setSearchFilter] = useState<string>('');
 
   const handleRefresh = () => {
@@ -52,7 +53,26 @@ export const PunctualitySection: React.FC<PunctualitySectionProps> = ({ onNaviga
   // Filtrar circulacions amb retard
   const filteredDelays = useMemo(() => {
     if (!stats?.recentDelays) return [];
-    return stats.recentDelays.filter(circ => {
+
+    // 1. Filtre per franja horària seleccionada (si n'hi ha)
+    let list = stats.recentDelays;
+    if (selectedHourFilter !== null) {
+      list = list.filter(circ => circ.hour === selectedHourFilter);
+    } else {
+      // Si no hi ha franja concreta, desdupliquem per circulacioId per mostrar l'últim pas
+      const seen = new Set<string>();
+      const dedup: DelayedCirculation[] = [];
+      list.forEach(circ => {
+        if (!seen.has(circ.circulacioId)) {
+          seen.add(circ.circulacioId);
+          dedup.push(circ);
+        }
+      });
+      list = dedup;
+    }
+
+    // 2. Filtre per línia i text de cerca
+    const filtered = list.filter(circ => {
       const matchLine = selectedLineFilter === 'Tots' || circ.linia.toUpperCase() === selectedLineFilter.toUpperCase();
       const matchSearch = !searchFilter.trim() || 
         circ.circulacioId.toUpperCase().includes(searchFilter.toUpperCase().trim()) ||
@@ -60,7 +80,10 @@ export const PunctualitySection: React.FC<PunctualitySectionProps> = ({ onNaviga
         circ.estacioNom.toUpperCase().includes(searchFilter.toUpperCase().trim());
       return matchLine && matchSearch;
     });
-  }, [stats?.recentDelays, selectedLineFilter, searchFilter]);
+
+    // 3. Ordenar per major retard primer
+    return filtered.sort((a, b) => b.diferenciaSegons - a.diferenciaSegons);
+  }, [stats?.recentDelays, selectedHourFilter, selectedLineFilter, searchFilter]);
 
   if (loading && !stats) {
     return (
@@ -325,14 +348,30 @@ export const PunctualitySection: React.FC<PunctualitySectionProps> = ({ onNaviga
       {/* ── Evolució Horària (Histograma de Franges) ─────────────── */}
       {stats.hourlyStats.length > 0 && (
         <div className="space-y-3 p-4 rounded-2xl bg-white/40 dark:bg-white/[0.02] border border-gray-100 dark:border-white/5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <TrendingUp size={16} className="text-fgc-green" />
               <h3 className="text-xs sm:text-sm font-bold text-[#4D5358] dark:text-white uppercase tracking-wider">
                 Evolució Horària de la Puntualitat
               </h3>
+              <span className="text-[11px] text-gray-400 dark:text-gray-500 font-normal">
+                · Clica una hora per veure els retards
+              </span>
             </div>
             <div className="flex items-center gap-3 text-[10px] text-gray-400 dark:text-gray-500">
+              {selectedHourFilter !== null && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    feedback.click();
+                    setSelectedHourFilter(null);
+                  }}
+                  className="flex items-center gap-1 text-[11px] font-bold text-fgc-green hover:underline cursor-pointer mr-2"
+                >
+                  <span>Mostrar totes les hores</span>
+                  <X size={12} />
+                </button>
+              )}
               <span className="flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-emerald-500" /> ≥95%
               </span>
@@ -349,8 +388,21 @@ export const PunctualitySection: React.FC<PunctualitySectionProps> = ({ onNaviga
             <div className="grid grid-flow-col auto-cols-fr gap-2 sm:gap-3 items-end h-32 w-full">
               {stats.hourlyStats.map(item => {
                 const barHeight = Math.max(12, Math.round(item.rate));
+                const isSelectedHour = selectedHourFilter === item.hour;
                 return (
-                  <div key={item.hour} className="flex flex-col items-center h-full justify-end group relative">
+                  <button
+                    key={item.hour}
+                    type="button"
+                    onClick={() => {
+                      feedback.click();
+                      setSelectedHourFilter(prev => prev === item.hour ? null : item.hour);
+                    }}
+                    className={`flex flex-col items-center h-full justify-end group relative p-1 rounded-2xl transition-all duration-200 cursor-pointer ${
+                      isSelectedHour
+                        ? 'bg-fgc-green/15 ring-2 ring-fgc-green shadow-sm scale-[1.03]'
+                        : 'hover:bg-white/60 dark:hover:bg-white/[0.04]'
+                    }`}
+                  >
                     {/* Tooltip flotant */}
                     <div className="absolute bottom-full mb-2 opacity-0 group-hover:opacity-100 transition-all duration-150 pointer-events-none z-30">
                       <div className="bg-gray-900 border border-gray-700 text-white text-[10px] py-1.5 px-2.5 rounded-xl shadow-xl whitespace-nowrap text-center">
@@ -358,16 +410,23 @@ export const PunctualitySection: React.FC<PunctualitySectionProps> = ({ onNaviga
                         <div>{item.rate}% en hora</div>
                         <div className="text-gray-400">{item.onTime} de {item.total} passos</div>
                         {item.delayed > 0 && <div className="text-red-400 font-bold">+{item.delayed} retards</div>}
+                        <div className="text-[9px] text-gray-300 mt-1 font-semibold">
+                          {isSelectedHour ? '✓ Franja seleccionada (clic per desseleccionar)' : '👆 Clic per filtrar retards'}
+                        </div>
                       </div>
                     </div>
 
                     {/* Percentatge sobre la barra */}
-                    <span className="text-[10px] sm:text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1 tabular-nums">
+                    <span className={`text-[10px] sm:text-[11px] font-bold mb-1 tabular-nums ${
+                      isSelectedHour ? 'text-fgc-green font-black scale-105' : 'text-gray-500 dark:text-gray-400'
+                    }`}>
                       {Math.round(item.rate)}%
                     </span>
 
                     {/* Barra gràfica */}
-                    <div className="w-full bg-gray-100 dark:bg-white/10 rounded-xl h-20 flex items-end p-1">
+                    <div className={`w-full rounded-xl h-20 flex items-end p-1 transition-colors ${
+                      isSelectedHour ? 'bg-fgc-green/20' : 'bg-gray-100 dark:bg-white/10'
+                    }`}>
                       <div
                         className={`w-full rounded-lg transition-all duration-500 ${getRateBg(item.rate)}`}
                         style={{ height: `${barHeight}%` }}
@@ -375,10 +434,12 @@ export const PunctualitySection: React.FC<PunctualitySectionProps> = ({ onNaviga
                     </div>
 
                     {/* Etiqueta hora */}
-                    <span className="text-[10px] sm:text-xs font-bold text-[#4D5358] dark:text-gray-300 mt-1.5">
+                    <span className={`text-[10px] sm:text-xs font-bold mt-1.5 ${
+                      isSelectedHour ? 'text-fgc-green font-black underline' : 'text-[#4D5358] dark:text-gray-300'
+                    }`}>
                       {item.label}
                     </span>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -389,7 +450,7 @@ export const PunctualitySection: React.FC<PunctualitySectionProps> = ({ onNaviga
       {/* ── Circulacions Actives amb Retard ──────────────────────── */}
       <div className="space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <AlertTriangle size={16} className="text-amber-500" />
             <h3 className="text-xs sm:text-sm font-bold text-[#4D5358] dark:text-white uppercase tracking-wider">
               Circulacions amb Retard Registrat
@@ -397,6 +458,23 @@ export const PunctualitySection: React.FC<PunctualitySectionProps> = ({ onNaviga
             {filteredDelays.length > 0 && (
               <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400">
                 {filteredDelays.length}
+              </span>
+            )}
+            {selectedHourFilter !== null && (
+              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                <Clock size={12} />
+                <span>Franja {selectedHourFilter.toString().padStart(2, '0')}:00h - {selectedHourFilter.toString().padStart(2, '0')}:59h</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    feedback.click();
+                    setSelectedHourFilter(null);
+                  }}
+                  className="hover:bg-amber-500/20 rounded-full p-0.5 text-amber-700 dark:text-amber-300 cursor-pointer"
+                  title="Treure filtre de franja"
+                >
+                  <X size={11} />
+                </button>
               </span>
             )}
           </div>
@@ -486,12 +564,14 @@ export const PunctualitySection: React.FC<PunctualitySectionProps> = ({ onNaviga
           <div className="flex flex-col items-center justify-center py-8 text-center rounded-2xl bg-white/30 dark:bg-white/[0.01] border border-gray-100 dark:border-white/5">
             <CheckCircle2 size={32} className="text-emerald-500 mb-2 opacity-80" />
             <p className="text-sm font-bold text-[#4D5358] dark:text-white">
-              Servei en Hora
+              {selectedHourFilter !== null ? `Franja ${selectedHourFilter.toString().padStart(2, '0')}h sense retards` : 'Servei en Hora'}
             </p>
             <p className="text-xs text-gray-400 mt-0.5">
-              {selectedLineFilter === 'Tots' 
-                ? 'No hi ha retards detectats o totes les circulacions compleixen el criteri oficial FGC.'
-                : `Cap circulació amb retard registrada a la línia ${selectedLineFilter}.`}
+              {selectedHourFilter !== null
+                ? `No es van registrar retards superiors a 4 minuts durant la franja de les ${selectedHourFilter.toString().padStart(2, '0')}:00h.`
+                : selectedLineFilter === 'Tots' 
+                  ? 'No hi ha retards detectats o totes les circulacions compleixen el criteri oficial FGC.'
+                  : `Cap circulació amb retard registrada a la línia ${selectedLineFilter}.`}
             </p>
           </div>
         )}
