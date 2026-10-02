@@ -8,8 +8,8 @@ import { decodeGeotrenCirculation } from '../views/incidencia/utils/decodeCircul
 
 import { supabase } from '../supabaseClient.ts';
 
-// Importación de utilidades y componentes extraídos
 import { getFgcMinutes, checkIfActive, calculateGap } from '../utils/time';
+import { getFgcServiceDate } from '../utils/gipRecorder';
 import { fetchAllFromSupabase } from '../utils/supabase';
 import { getStatusColor, getLiniaColor, getShortTornId, getCandidateShiftIds, getTrainPhone, ALL_STATIONS, STATION_CODE_MAP, getCirculationParity, ALL_FLEET_UNITS } from '../utils/fgc';
 import { resolveStationId } from '../utils/stations';
@@ -180,6 +180,9 @@ const CercarViewComponent: React.FC<{
   const [isAutoRefreshing, setIsAutoRefreshing] = useState(false);
   const activeSearchedUnitRef = useRef<string>('');
 
+  // Puntualitat GIP per torn
+  const [shiftPunctualityMap, setShiftPunctualityMap] = useState<Record<string, { total: number; onTime: number; delayed: number; rate: number | null }>>({});
+
   useEffect(() => {
     const handleOnline = () => setIsOfflineMode(false);
     const handleOffline = () => setIsOfflineMode(true);
@@ -276,6 +279,106 @@ const CercarViewComponent: React.FC<{
   useEffect(() => {
     fetchTrainStatuses();
   }, [results]);
+
+  // ── Puntualitat del torn/maquinista segons circulacions ja realitzades/iniciades ──
+  const fetchShiftPunctualities = React.useCallback(async () => {
+    if (!results || results.length === 0) return;
+
+    // Filtrar torns que ja han començat o finalitzat (nowMin >= start)
+    const activeOrFinishedShifts = results.filter((r: any) => {
+      if (!r.inici_torn) return false;
+      const start = getFgcMinutes(r.inici_torn);
+      return start !== null && nowMin >= start;
+    });
+
+    if (activeOrFinishedShifts.length === 0) return;
+
+    // Recollir codis de circulacions del torn que ja han començat
+    const allCircIds = new Set<string>();
+    activeOrFinishedShifts.forEach((s: any) => {
+      const circs = s.fullCirculations || s.circulations || [];
+      circs.forEach((c: any) => {
+        const codi = typeof c === 'string' ? c : c.codi;
+        if (!codi || codi === 'Viatger') return;
+        const cStart = getFgcMinutes(c.sortida);
+        if (cStart === null || nowMin >= cStart) {
+          allCircIds.add(codi);
+        }
+      });
+    });
+
+    if (allCircIds.size === 0) return;
+
+    try {
+      const serviceDate = getFgcServiceDate();
+      const { data: passages } = await supabase
+        .from('gip_registre_pas')
+        .select('circulacio_id, estat, diferencia_segons')
+        .eq('data_servei', serviceDate)
+        .in('circulacio_id', Array.from(allCircIds));
+
+      if (!passages) return;
+
+      const newMap: Record<string, { total: number; onTime: number; delayed: number; rate: number | null }> = {};
+
+      activeOrFinishedShifts.forEach((s: any) => {
+        const performedCircs = new Set(
+          (s.fullCirculations || s.circulations || [])
+            .filter((c: any) => {
+              const codi = typeof c === 'string' ? c : c.codi;
+              if (!codi || codi === 'Viatger') return false;
+              const cStart = getFgcMinutes(c.sortida);
+              return cStart === null || nowMin >= cStart;
+            })
+            .map((c: any) => (typeof c === 'string' ? c : c.codi))
+        );
+
+        const sPassages = passages.filter((p: any) => performedCircs.has(p.circulacio_id));
+        const total = sPassages.length;
+        const onTime = sPassages.filter((p: any) => p.estat === 'en_hora' || p.estat === 'avanc').length;
+        const delayed = total - onTime;
+        const rate = total > 0 ? Number(((onTime / total) * 100).toFixed(1)) : null;
+
+        newMap[s.id] = { total, onTime, delayed, rate };
+      });
+
+      setShiftPunctualityMap(prev => ({ ...prev, ...newMap }));
+    } catch (err) {
+      console.warn('[CercarView] Error calculant puntualitat del torn:', err);
+    }
+  }, [results, nowMin]);
+
+  useEffect(() => {
+    fetchShiftPunctualities();
+  }, [fetchShiftPunctualities]);
+
+  const getPunctualityBadge = (p: { total: number; onTime: number; rate: number | null } | undefined) => {
+    if (!p || p.rate === null || p.total === 0) {
+      return {
+        rate: null,
+        total: p?.total || 0,
+        onTime: p?.onTime || 0,
+        text: '--%',
+        badgeClass: 'bg-gray-100 text-gray-500 border-gray-200 dark:bg-white/5 dark:text-gray-400 dark:border-white/10'
+      };
+    }
+    const r = p.rate;
+    let badgeClass = '';
+    if (r >= 95) {
+      badgeClass = 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20';
+    } else if (r >= 85) {
+      badgeClass = 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20';
+    } else {
+      badgeClass = 'bg-red-50 text-red-600 border-red-200 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20';
+    }
+    return {
+      rate: r,
+      total: p.total,
+      onTime: p.onTime,
+      text: `${r}%`,
+      badgeClass
+    };
+  };
 
   // Realtime Subscriptions for Assignments
   useEffect(() => {
@@ -2524,6 +2627,33 @@ const CercarViewComponent: React.FC<{
                       </div>
                       <button onClick={() => scrollToElement(currentStatus.targetId)} className={`px-5 py-2.5 rounded-2xl text-[10px] sm:text-xs font-bold shadow-md border-b-4 border-black/10 transition-all ${currentStatus.color}`}>{currentStatus.label}</button>
                     </div>
+
+                    {/* DRETA: Indicador de puntualitat del torn/maquinista */}
+                    {(() => {
+                      const start = getFgcMinutes(group.inici_torn);
+                      const isShiftStartedOrFinished = start !== null && nowMin >= start;
+                      if (!isShiftStartedOrFinished) return null;
+
+                      const pInfo = getPunctualityBadge(shiftPunctualityMap[group.id]);
+                      return (
+                        <div 
+                          className="flex items-center gap-3 self-start lg:self-center bg-gray-50/80 dark:bg-white/[0.03] px-3.5 py-2 rounded-2xl border border-gray-200/60 dark:border-white/10 shadow-2xs"
+                          title="Percentatge de puntualitat oficial FGC de les circulacions realitzades en aquest torn avui"
+                        >
+                          <div className="flex flex-col text-right">
+                            <span className="text-[10px] font-bold text-gray-400 dark:text-gray-400 uppercase tracking-wider">
+                              Puntualitat
+                            </span>
+                            <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">
+                              {pInfo.total > 0 ? `${pInfo.onTime}/${pInfo.total} passos` : 'Sense registres'}
+                            </span>
+                          </div>
+                          <div className={`px-2.5 py-1 rounded-xl text-base sm:text-xl font-black tabular-nums border shadow-2xs ${pInfo.badgeClass}`}>
+                            {pInfo.text}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </GlassPanel>
                 <div className="bg-fgc-green divide-y divide-white/20 border-x border-fgc-green/20 shadow-sm overflow-hidden">
