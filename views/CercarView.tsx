@@ -2601,6 +2601,9 @@ const CercarViewComponent: React.FC<{
             }
 
             const currentStatus = getShiftCurrentStatus(group, idx);
+            const shiftStartMin = getFgcMinutes(group.inici_torn);
+            const isShiftStartedOrFinished = shiftStartMin !== null && nowMin >= shiftStartMin;
+            const shiftPunctuality = isShiftStartedOrFinished ? getPunctualityBadge(shiftPunctualityMap[group.id]) : null;
 
             return (
               <div key={idx} className="flex flex-col gap-1 group animate-in fade-in slide-in-from-bottom-12 duration-700">
@@ -2608,19 +2611,36 @@ const CercarViewComponent: React.FC<{
                   <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-fgc-green/30 to-transparent shimmer" />
                   <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                     <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 flex-1">
-                      <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-3">
-                          <h2 className="text-xl sm:text-3xl font-bold text-[#4D5358] dark:text-white tracking-tighter uppercase leading-tight">Torn {group.id}</h2>
-                          {group.drivers.length > 1 && (
-                            <div className="flex gap-2">
-                              <span className="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase flex items-center gap-1"><Users size={10} /> Compartit ({group.drivers.length})</span>
+                      <div className="w-full sm:w-auto flex items-center justify-between gap-4">
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-3">
+                            <h2 className="text-xl sm:text-3xl font-bold text-[#4D5358] dark:text-white tracking-tighter uppercase leading-tight">Torn {group.id}</h2>
+                            {group.drivers.length > 1 && (
+                              <div className="flex gap-2">
+                                <span className="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase flex items-center gap-1"><Users size={10} /> Compartit ({group.drivers.length})</span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 dark:bg-white/5 text-gray-500 rounded-lg text-[10px] font-bold uppercase border border-gray-200/50"><Timer size={12} /> {group.duracio}</div>
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 dark:bg-white/5 text-gray-500 rounded-lg text-[10px] font-bold uppercase border border-gray-200/50"><MapPin size={12} /> {group.dependencia}</div>
+                          </div>
+                        </div>
+
+                        {/* Mòbil (< lg): Puntualitat a la dreta del torn amb text a sobre de la píndola */}
+                        {shiftPunctuality && (
+                          <div 
+                            className="flex flex-col items-center lg:hidden flex-shrink-0"
+                            title="Percentatge de puntualitat oficial FGC de les circulacions realitzades en aquest torn avui"
+                          >
+                            <span className="text-[10px] font-bold text-gray-400 dark:text-gray-400 uppercase tracking-wider mb-0.5">
+                              Puntualitat
+                            </span>
+                            <div className={`px-2.5 py-0.5 rounded-xl text-sm font-black tabular-nums border shadow-2xs ${shiftPunctuality.badgeClass}`}>
+                              {shiftPunctuality.text}
                             </div>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 dark:bg-white/5 text-gray-500 rounded-lg text-[10px] font-bold uppercase border border-gray-200/50"><Timer size={12} /> {group.duracio}</div>
-                          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 dark:bg-white/5 text-gray-500 rounded-lg text-[10px] font-bold uppercase border border-gray-200/50"><MapPin size={12} /> {group.dependencia}</div>
-                        </div>
+                          </div>
+                        )}
                       </div>
                       <div className="flex items-center gap-2.5 text-base sm:text-xl font-bold text-fgc-green bg-fgc-green/5 px-4 py-2 rounded-xl border border-fgc-green/10 whitespace-nowrap">
                         <Clock size={20} /><span>{group.inici_torn}</span><span className="opacity-30 mx-1">—</span><span>{group.final_torn}</span>
@@ -2628,32 +2648,25 @@ const CercarViewComponent: React.FC<{
                       <button onClick={() => scrollToElement(currentStatus.targetId)} className={`px-5 py-2.5 rounded-2xl text-[10px] sm:text-xs font-bold shadow-md border-b-4 border-black/10 transition-all ${currentStatus.color}`}>{currentStatus.label}</button>
                     </div>
 
-                    {/* DRETA: Indicador de puntualitat del torn/maquinista */}
-                    {(() => {
-                      const start = getFgcMinutes(group.inici_torn);
-                      const isShiftStartedOrFinished = start !== null && nowMin >= start;
-                      if (!isShiftStartedOrFinished) return null;
-
-                      const pInfo = getPunctualityBadge(shiftPunctualityMap[group.id]);
-                      return (
-                        <div 
-                          className="flex items-center gap-3 self-start lg:self-center bg-gray-50/80 dark:bg-white/[0.03] px-3.5 py-2 rounded-2xl border border-gray-200/60 dark:border-white/10 shadow-2xs"
-                          title="Percentatge de puntualitat oficial FGC de les circulacions realitzades en aquest torn avui"
-                        >
-                          <div className="flex flex-col text-right">
-                            <span className="text-[10px] font-bold text-gray-400 dark:text-gray-400 uppercase tracking-wider">
-                              Puntualitat
-                            </span>
-                            <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">
-                              {pInfo.total > 0 ? `${pInfo.onTime}/${pInfo.total} passos` : 'Sense registres'}
-                            </span>
-                          </div>
-                          <div className={`px-2.5 py-1 rounded-xl text-base sm:text-xl font-black tabular-nums border shadow-2xs ${pInfo.badgeClass}`}>
-                            {pInfo.text}
-                          </div>
+                    {/* DRETA (Desktop >= lg): Indicador de puntualitat complet */}
+                    {shiftPunctuality && (
+                      <div 
+                        className="hidden lg:flex items-center gap-3 self-center bg-gray-50/80 dark:bg-white/[0.03] px-3.5 py-2 rounded-2xl border border-gray-200/60 dark:border-white/10 shadow-2xs flex-shrink-0"
+                        title="Percentatge de puntualitat oficial FGC de les circulacions realitzades en aquest torn avui"
+                      >
+                        <div className="flex flex-col text-right">
+                          <span className="text-[10px] font-bold text-gray-400 dark:text-gray-400 uppercase tracking-wider">
+                            Puntualitat
+                          </span>
+                          <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">
+                            {shiftPunctuality.total > 0 ? `${shiftPunctuality.onTime}/${shiftPunctuality.total} passos` : 'Sense registres'}
+                          </span>
                         </div>
-                      );
-                    })()}
+                        <div className={`px-2.5 py-1 rounded-xl text-base sm:text-xl font-black tabular-nums border shadow-2xs ${shiftPunctuality.badgeClass}`}>
+                          {shiftPunctuality.text}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </GlassPanel>
                 <div className="bg-fgc-green divide-y divide-white/20 border-x border-fgc-green/20 shadow-sm overflow-hidden">
