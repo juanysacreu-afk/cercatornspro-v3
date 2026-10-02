@@ -98,6 +98,34 @@ export interface GipRegistrePas {
   creat_el?: string;
 }
 
+export interface AgentPerformanceHistory {
+  id?: number;
+  data_servei: string;
+  empleat_id: string;
+  nom?: string;
+  cognoms?: string;
+  torn?: string;
+  servei?: string;
+  dependencia?: string;
+  hora_inici?: string;
+  hora_fi?: string;
+  puntualitat_percentatge: number | null;
+  passos_totals: number;
+  passos_en_hora: number;
+  passos_retard: number;
+  retard_maxim_segons: number;
+  retard_mitja_segons: number;
+  circulacions_totals: number;
+  circulacions_completades: number;
+  circulacions_en_curs: number;
+  circulacions_pendents: number;
+  detall_circulacions?: any[];
+  estat_torn: 'NO_INICIAT' | 'EN_CURS' | 'COMPLETAT' | 'PENDENT';
+  creat_el?: string;
+  actualitzat_el?: string;
+}
+
+
 export enum SearchType {
   Torn = 'torn',
   Maquinista = 'maquinista',

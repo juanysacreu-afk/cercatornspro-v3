@@ -1,8 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { DailyAssignment } from '../types.ts';
-import { Search, Phone, User, Loader2, Clock, CheckCircle2, Info, Filter, UserCircle, ChevronDown, Mail, Users, RefreshCw, X, Activity, ArrowRight } from 'lucide-react';
+import { DailyAssignment, AgentPerformanceHistory } from '../types.ts';
+import { Search, Phone, User, Loader2, Clock, CheckCircle2, Info, Filter, UserCircle, ChevronDown, Mail, Users, RefreshCw, X, Activity, ArrowRight, Database } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
 import { feedback } from '../utils/feedback';
+import { useServiceToday } from '../utils/useServiceToday';
+import { useToast } from '../components/ToastProvider';
+import { getDailyPerformanceSummary, syncAllAgentsPerformance } from '../utils/agentPerformanceService';
 import ErrorBoundary from '../components/common/ErrorBoundary';
 import AgentDetailModal from '../components/AgentDetailModal';
 
@@ -33,6 +36,7 @@ interface AgentsViewProps {
 const MemoizedMaquinistaCard = React.memo(({ 
   maquinista, 
   contact, 
+  perf,
   isAssigned, 
   isFOR, 
   isDIS, 
@@ -43,6 +47,7 @@ const MemoizedMaquinistaCard = React.memo(({
 }: {
   maquinista: any;
   contact: { phones: string[]; email: string | null };
+  perf?: AgentPerformanceHistory;
   isAssigned: boolean;
   isFOR: boolean;
   isDIS: boolean;
@@ -109,6 +114,15 @@ const MemoizedMaquinistaCard = React.memo(({
             >
               {maquinista.torn}
             </div>
+            {perf && perf.puntualitat_percentatge !== null && (
+              <span className={`px-2 py-0.5 rounded text-[8px] font-mono font-black border shrink-0 ${
+                perf.puntualitat_percentatge >= 95 ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800' :
+                perf.puntualitat_percentatge >= 85 ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800' :
+                'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800'
+              }`}>
+                {perf.puntualitat_percentatge}% Punt.
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -196,11 +210,15 @@ const AgentsViewComponent: React.FC<AgentsViewProps> = ({ isPrivacyMode, onNavig
   const [allAssignments, setAllAssignments] = useState<DailyAssignment[]>([]);
   const [allAgents, setAllAgents] = useState<any[]>([]);
   const [contacts, setContacts] = useState<Record<string, { phones: string[], email: string | null }>>({});
+  const [dailyPerfMap, setDailyPerfMap] = useState<Record<string, AgentPerformanceHistory>>({});
+  const [isSyncingHistory, setIsSyncingHistory] = useState(false);
   const [disDesFilter, setDisDesFilter] = useState<DisDesFilterType>('ALL');
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
   const [loadingMaquinistes, setLoadingMaquinistes] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<{ maquinista: any; contact: { phones: string[]; email: string | null } } | null>(null);
 
+  const todayService = useServiceToday();
+  const { showToast } = useToast();
   const filterRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -216,12 +234,14 @@ const AgentsViewComponent: React.FC<AgentsViewProps> = ({ isPrivacyMode, onNavig
   const fetchMaquinistes = async () => {
     setLoadingMaquinistes(true);
     try {
-      const [assigRes, contactsRes] = await Promise.all([
+      const [assigRes, contactsRes, perfRes] = await Promise.all([
         supabase.from('daily_assignments').select('*').order('cognoms', { ascending: true }),
-        supabase.from('agents').select('nomina, name, surname, phone, email, area').eq('area', 'bv')
+        supabase.from('agents').select('nomina, name, surname, phone, email, area').eq('area', 'bv'),
+        getDailyPerformanceSummary()
       ]);
 
       if (assigRes.data) setAllAssignments(assigRes.data);
+      if (perfRes) setDailyPerfMap(perfRes);
       if (contactsRes.data) {
         setAllAgents(contactsRes.data);
         const contactMap: Record<string, { phones: string[], email: string | null }> = {};
@@ -246,6 +266,25 @@ const AgentsViewComponent: React.FC<AgentsViewProps> = ({ isPrivacyMode, onNavig
       console.error('[AgentsView] Error carregant agents:', e);
     } finally {
       setLoadingMaquinistes(false);
+    }
+  };
+
+  const handleSyncAllPerformance = async () => {
+    setIsSyncingHistory(true);
+    feedback.click();
+    try {
+      const res = await syncAllAgentsPerformance(allAssignments, todayService);
+      if (res.success) {
+        showToast(`S'ha desat l'històric de ${res.savedCount} agents a Supabase!`, 'success');
+        const updatedMap = await getDailyPerformanceSummary();
+        setDailyPerfMap(updatedMap);
+      } else {
+        showToast("Error desant l'històric a Supabase.", 'error');
+      }
+    } catch (err) {
+      showToast("Error de connexió en sincronitzar l'històric.", 'error');
+    } finally {
+      setIsSyncingHistory(false);
     }
   };
 
@@ -322,7 +361,16 @@ const AgentsViewComponent: React.FC<AgentsViewProps> = ({ isPrivacyMode, onNavig
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+          <button
+            onClick={handleSyncAllPerformance}
+            disabled={isSyncingHistory || loadingMaquinistes}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-fgc-green/10 hover:bg-fgc-green/20 border border-fgc-green/30 text-xs font-bold text-fgc-green dark:text-fgc-green transition-all active:scale-95 disabled:opacity-50"
+            title="Guarda el rendiment i puntualitat de tots els maquinistes d'avui a Supabase per tenir l'històric complet"
+          >
+            <Database size={14} className={isSyncingHistory ? 'animate-spin' : ''} />
+            <span>{isSyncingHistory ? 'Guardant a Supabase...' : 'Guardar històric a Supabase'}</span>
+          </button>
           <div className="px-3 py-1.5 rounded-xl bg-white/60 dark:bg-white/[0.04] border border-gray-100 dark:border-white/5 text-xs font-bold text-gray-500 dark:text-gray-400">
             {filteredMaquinistes.length} agents
           </div>
@@ -412,11 +460,15 @@ const AgentsViewComponent: React.FC<AgentsViewProps> = ({ isPrivacyMode, onNavig
                   const isDES = maquinista.torn.startsWith('DES');
                   const isAssigned = !isFOR && !isDIS && !isDES && !['VAC', 'DAG', 'ABS', 'LLIB', 'AJN', 'S/N', 'S/A'].some((p: string) => maquinista.torn.startsWith(p));
 
+                  const empId = normalizeId(maquinista.empleat_id);
+                  const perf = dailyPerfMap[empId] || dailyPerfMap[String(maquinista.empleat_id || '').trim()];
+
                   return (
                     <MemoizedMaquinistaCard
                       key={maquinista.empleat_id}
                       maquinista={maquinista}
                       contact={contact}
+                      perf={perf}
                       isAssigned={isAssigned}
                       isFOR={isFOR}
                       isDIS={isDIS}
@@ -447,7 +499,11 @@ const AgentsViewComponent: React.FC<AgentsViewProps> = ({ isPrivacyMode, onNavig
           agent={selectedAgent.maquinista}
           contact={selectedAgent.contact}
           isPrivacyMode={isPrivacyMode}
-          onClose={() => setSelectedAgent(null)}
+          onClose={async () => {
+            setSelectedAgent(null);
+            const updated = await getDailyPerformanceSummary();
+            setDailyPerfMap(updated);
+          }}
           onNavigateToSearch={onNavigateToSearch}
         />
       )}

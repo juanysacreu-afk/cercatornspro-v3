@@ -21,7 +21,8 @@ import { getFgcServiceDate } from '../utils/gipRecorder';
 import { STATION_GEO_MAP } from '../utils/stationGeoData';
 import { useServiceToday } from '../utils/useServiceToday';
 import { feedback } from '../utils/feedback';
-import type { GipRegistrePas } from '../types';
+import { saveAgentPerformanceRecord, getAgentPerformanceHistory } from '../utils/agentPerformanceService';
+import type { GipRegistrePas, AgentPerformanceHistory } from '../types';
 
 interface AgentDetailModalProps {
   agent: any;
@@ -56,6 +57,11 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
   const [currentTimeStr, setCurrentTimeStr] = useState<string>('00:00:00');
   const [nowMin, setNowMin] = useState<number>(0);
   const [expandedCircId, setExpandedCircId] = useState<string | null>(null);
+  const [historyRecords, setHistoryRecords] = useState<AgentPerformanceHistory[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [isHistorySaved, setIsHistorySaved] = useState(false);
+  const [showHistorySection, setShowHistorySection] = useState(false);
+  const [expandedHistoryId, setExpandedHistoryId] = useState<number | null>(null);
 
   const todayService = useServiceToday();
 
@@ -526,6 +532,105 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
     };
   }, [circPunctualityList, gipPassages, shiftData, agent, nowMin]);
 
+  // 4. Carrega l'històric de rendiment de Supabase per aquest agent
+  const loadAgentHistory = useCallback(async () => {
+    if (!agent?.empleat_id) return;
+    setLoadingHistory(true);
+    try {
+      const records = await getAgentPerformanceHistory(agent.empleat_id);
+      setHistoryRecords(records);
+    } catch (e) {
+      console.error('[AgentDetailModal] Error carregant històric:', e);
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, [agent?.empleat_id]);
+
+  useEffect(() => {
+    loadAgentHistory();
+  }, [loadAgentHistory]);
+
+  // 5. Desa automàticament el rendiment i puntualitat a la taula 'agent_performance_history' de Supabase
+  useEffect(() => {
+    if (loadingShift || loadingGip || !agent?.empleat_id) return;
+
+    const rawTorn = (agent?.torn || '').trim().toUpperCase();
+    const isSpecialNonShift = ['VAC', 'DES', 'DIS', 'DAG', 'AJN', 'S/A'].some(p => rawTorn.startsWith(p));
+    if (isSpecialNonShift) return;
+
+    const currentTorn = shiftData?.id || rawTorn;
+    if (!currentTorn) return;
+
+    const serviceDate = getFgcServiceDate();
+
+    const record: AgentPerformanceHistory = {
+      data_servei: serviceDate,
+      empleat_id: String(agent.empleat_id).trim(),
+      nom: agent.nom || '',
+      cognoms: agent.cognoms || '',
+      torn: currentTorn,
+      servei: shiftData?.servei || todayService || '',
+      dependencia: shiftData?.dependencia || agent.dependencia || '',
+      hora_inici: shiftData?.inici_torn || agent.hora_inici || '',
+      hora_fi: shiftData?.final_torn || agent.hora_fi || '',
+      puntualitat_percentatge: overallPunctuality.rate,
+      passos_totals: overallPunctuality.totalPassages,
+      passos_en_hora: overallPunctuality.onTimePassages,
+      passos_retard: overallPunctuality.delayedCount,
+      retard_maxim_segons: overallPunctuality.maxDelaySec,
+      retard_mitja_segons: overallPunctuality.avgDelaySec,
+      circulacions_totals: overallPunctuality.totalCircs,
+      circulacions_completades: overallPunctuality.completedCircs,
+      circulacions_en_curs: overallPunctuality.inProgressCircs,
+      circulacions_pendents: overallPunctuality.pendingCircs,
+      detall_circulacions: circPunctualityList.map(c => ({
+        codi: c.codi,
+        linia: c.linia,
+        inici: c.inici,
+        final: c.final,
+        sortida: c.sortida,
+        arribada: c.arribada,
+        status: c.status,
+        totalStops: c.totalStops,
+        onTimeStops: c.onTimeStops,
+        delayedStopsCount: c.delayedStopsCount,
+        rate: c.rate,
+        maxDelaySec: c.maxDelaySec
+      })),
+      estat_torn: !overallPunctuality.isShiftStarted
+        ? 'NO_INICIAT'
+        : (overallPunctuality.completedCircs === overallPunctuality.totalCircs && overallPunctuality.totalCircs > 0)
+          ? 'COMPLETAT'
+          : 'EN_CURS'
+    };
+
+    saveAgentPerformanceRecord(record).then(res => {
+      if (res.success) {
+        setIsHistorySaved(true);
+        loadAgentHistory();
+      }
+    });
+  }, [
+    loadingShift,
+    loadingGip,
+    agent?.empleat_id,
+    agent?.nom,
+    agent?.cognoms,
+    agent?.torn,
+    agent?.dependencia,
+    agent?.hora_inici,
+    agent?.hora_fi,
+    shiftData?.id,
+    shiftData?.servei,
+    shiftData?.dependencia,
+    shiftData?.inici_torn,
+    shiftData?.final_torn,
+    overallPunctuality,
+    circPunctualityList,
+    todayService,
+    loadAgentHistory
+  ]);
+
   const getPunctualityColor = (rate: number | null) => {
     if (rate === null) return 'text-gray-400 bg-gray-100 dark:bg-white/5 border-gray-200 dark:border-white/10';
     if (rate >= 95) return 'text-emerald-700 bg-emerald-50 dark:bg-emerald-500/10 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30';
@@ -754,15 +859,23 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
                 </h3>
               </div>
 
-              {overallPunctuality.isShiftStarted && overallPunctuality.totalPassages > 0 ? (
-                <span className="text-xs font-semibold text-gray-400 dark:text-gray-500">
-                  {overallPunctuality.totalPassages} registres oficials GIP
-                </span>
-              ) : !overallPunctuality.isShiftStarted ? (
-                <span className="text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-2.5 py-1 rounded-xl border border-blue-200 dark:border-blue-500/20">
-                  Inici programat a les {shiftData?.inici_torn || agent.hora_inici}
-                </span>
-              ) : null}
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                {isHistorySaved && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-xs font-bold border border-emerald-200 dark:border-emerald-500/20 shadow-xs animate-in fade-in">
+                    <CheckCircle2 size={13} />
+                    Històric guardat a Supabase
+                  </span>
+                )}
+                {overallPunctuality.isShiftStarted && overallPunctuality.totalPassages > 0 ? (
+                  <span className="text-xs font-semibold text-gray-400 dark:text-gray-500">
+                    {overallPunctuality.totalPassages} registres oficials GIP
+                  </span>
+                ) : !overallPunctuality.isShiftStarted ? (
+                  <span className="text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-2.5 py-1 rounded-xl border border-blue-200 dark:border-blue-500/20">
+                    Inici programat a les {shiftData?.inici_torn || agent.hora_inici}
+                  </span>
+                ) : null}
+              </div>
             </div>
 
             {/* Bento Grid KPI Summary */}
@@ -850,6 +963,169 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
                       : 'Servei impecable'}
                 </span>
               </div>
+            </div>
+
+            {/* Accordion / Card: Històric de Rendiment Guardat a Supabase */}
+            <div className="bg-white dark:bg-gray-800 rounded-[28px] border border-gray-100 dark:border-white/5 shadow-sm overflow-hidden transition-all">
+              <button
+                onClick={() => setShowHistorySection(!showHistorySection)}
+                className="w-full flex items-center justify-between p-4 sm:p-5 hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-colors text-left"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-2xl bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                    <Calendar size={18} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm sm:text-base font-black text-[#4D5358] dark:text-white uppercase tracking-tight">
+                        Històric de Rendiment de l'Agent
+                      </h4>
+                      <span className="px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 text-xs font-bold border border-blue-200 dark:border-blue-500/20">
+                        {historyRecords.length} {historyRecords.length === 1 ? 'jornada' : 'jornades'} a Supabase
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 font-medium">
+                      Consulta el registre històric de puntualitat, retards i circulacions guardat a Supabase
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 text-gray-400">
+                  <span className="text-xs font-bold hidden sm:inline">{showHistorySection ? 'Amagar' : 'Mostrar'}</span>
+                  {showHistorySection ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                </div>
+              </button>
+
+              {showHistorySection && (
+                <div className="p-4 sm:p-6 border-t border-gray-100 dark:border-white/5 space-y-3 bg-gray-50/30 dark:bg-black/10 animate-in slide-in-from-top-2 duration-300">
+                  {loadingHistory ? (
+                    <div className="py-8 text-center text-gray-400 flex flex-col items-center gap-2">
+                      <RefreshCw size={20} className="animate-spin text-fgc-green" />
+                      <span className="text-xs font-bold">Carregant històric de Supabase...</span>
+                    </div>
+                  ) : historyRecords.length === 0 ? (
+                    <div className="py-6 text-center text-gray-400">
+                      <p className="text-xs font-medium">Encara no hi ha registres d'altres jornades guardats per aquest agent a la base de dades.</p>
+                      <p className="text-[11px] text-gray-500 mt-1">El registre d'avui s'està guardant automàticament.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {historyRecords.map((rec) => {
+                        const isExpanded = expandedHistoryId === rec.id;
+                        const rate = rec.puntualitat_percentatge !== null ? Number(rec.puntualitat_percentatge) : null;
+                        return (
+                          <div 
+                            key={rec.id}
+                            className="bg-white dark:bg-[#25282c] border border-gray-100 dark:border-white/5 rounded-2xl p-4 transition-all hover:border-gray-200 dark:hover:border-white/10"
+                          >
+                            <div 
+                              className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer"
+                              onClick={() => setExpandedHistoryId(isExpanded ? null : (rec.id || null))}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="p-2 rounded-xl bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300 font-mono text-xs font-bold">
+                                  {rec.data_servei}
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-black text-sm text-[#4D5358] dark:text-white">
+                                      Torn {rec.torn}
+                                    </span>
+                                    {rec.servei && (
+                                      <span className="text-[10px] uppercase font-bold text-gray-400 px-1.5 py-0.5 rounded bg-gray-100 dark:bg-white/5">
+                                        {rec.servei}
+                                      </span>
+                                    )}
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
+                                      rec.estat_torn === 'COMPLETAT' ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800' :
+                                      rec.estat_torn === 'EN_CURS' ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800' :
+                                      'bg-gray-100 text-gray-600 border-gray-200 dark:bg-white/5 dark:text-gray-400 dark:border-white/10'
+                                    }`}>
+                                      {rec.estat_torn}
+                                    </span>
+                                  </div>
+                                  <p className="text-[11px] text-gray-400 mt-0.5">
+                                    {rec.hora_inici} - {rec.hora_fi} · {rec.dependencia || 'FGC'}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Metrics summary */}
+                              <div className="flex items-center gap-2.5 flex-wrap sm:justify-end">
+                                {/* Rate pill */}
+                                <span className={`px-3 py-1 rounded-xl text-xs font-mono font-black border ${
+                                  rate === null ? 'bg-gray-100 text-gray-500 border-gray-200 dark:bg-white/5 dark:text-gray-400 dark:border-white/10' :
+                                  rate >= 95 ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800' :
+                                  rate >= 85 ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800' :
+                                  'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800'
+                                }`}>
+                                  {rate !== null ? `${rate}%` : '--%'}
+                                </span>
+
+                                {/* Circulations completed */}
+                                <span className="text-xs font-mono text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-white/5 px-2.5 py-1 rounded-xl border border-gray-100 dark:border-white/5 font-bold">
+                                  {rec.circulacions_completades}/{rec.circulacions_totals} circ.
+                                </span>
+
+                                {/* Delay */}
+                                {rec.passos_retard > 0 && (
+                                  <span className="text-xs font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 px-2 py-1 rounded-xl border border-red-100 dark:border-red-900/40">
+                                    {rec.passos_retard} retards (màx: +{formatDelayMinSec(rec.retard_maxim_segons)})
+                                  </span>
+                                )}
+
+                                <div className="text-gray-400 ml-1">
+                                  {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Expanded Details of the historical day */}
+                            {isExpanded && rec.detall_circulacions && rec.detall_circulacions.length > 0 && (
+                              <div className="mt-3 pt-3 border-t border-gray-100 dark:border-white/5 space-y-1.5 animate-in fade-in duration-200">
+                                <p className="text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-2">
+                                  Circulacions realitzades el {rec.data_servei}:
+                                </p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                  {rec.detall_circulacions.map((c: any, cIdx: number) => (
+                                    <div key={cIdx} className="p-2.5 rounded-xl bg-gray-50 dark:bg-white/[0.02] border border-gray-100 dark:border-white/5 flex items-center justify-between text-xs">
+                                      <div>
+                                        <span className="font-mono font-bold text-[#4D5358] dark:text-white mr-2">
+                                          {c.codi}
+                                        </span>
+                                        <span className="text-gray-400">
+                                          {c.sortida} → {c.arribada}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-1.5">
+                                        {c.rate !== null ? (
+                                          <span className={`font-mono font-bold text-[11px] ${
+                                            c.rate >= 95 ? 'text-emerald-600 dark:text-emerald-400' :
+                                            c.rate >= 85 ? 'text-amber-600 dark:text-amber-400' :
+                                            'text-red-600 dark:text-red-400'
+                                          }`}>
+                                            {c.rate}%
+                                          </span>
+                                        ) : (
+                                          <span className="text-gray-400 text-[10px]">--</span>
+                                        )}
+                                        {c.delayedStopsCount > 0 && (
+                                          <span className="text-red-500 font-bold text-[10px]">
+                                            (+{formatDelayMinSec(c.maxDelaySec)})
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
