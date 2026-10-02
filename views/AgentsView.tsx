@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { DailyAssignment } from '../types.ts';
-import { Search, Phone, User, Loader2, Clock, CheckCircle2, Info, Filter, UserCircle, ChevronDown, Mail, Users, RefreshCw, X } from 'lucide-react';
+import { Search, Phone, User, Loader2, Clock, CheckCircle2, Info, Filter, UserCircle, ChevronDown, Mail, Users, RefreshCw, X, Activity, ArrowRight } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
 import { feedback } from '../utils/feedback';
 import ErrorBoundary from '../components/common/ErrorBoundary';
+import AgentDetailModal from '../components/AgentDetailModal';
 
-type DisDesFilterType = 'ALL' | 'DIS' | 'DES' | 'DIS_DES' | 'FOR' | 'VAC' | 'DAG' | 'SERVEI' | 'AJN';
+type DisDesFilterType = 'ALL' | 'SERVEI' | 'DIS' | 'DES' | 'DIS_DES' | 'FOR' | 'VAC' | 'DAG' | 'AJN';
 
 const normalizeId = (id: any) => {
   if (!id) return '';
@@ -37,7 +38,8 @@ const MemoizedMaquinistaCard = React.memo(({
   isDIS, 
   isDES, 
   isPrivacyMode,
-  onNavigateToSearch 
+  onNavigateToSearch,
+  onSelect
 }: {
   maquinista: any;
   contact: { phones: string[]; email: string | null };
@@ -47,20 +49,22 @@ const MemoizedMaquinistaCard = React.memo(({
   isDES: boolean;
   isPrivacyMode: boolean;
   onNavigateToSearch?: (type: string, query: string) => void;
+  onSelect: () => void;
 }) => {
   const { phones = [], email } = contact;
   return (
     <div
-      className={`bg-white dark:bg-gray-800 rounded-[28px] p-5 border transition-all flex flex-col h-full gap-4 group hover:shadow-xl ${
-        isAssigned ? 'border-blue-200 dark:border-blue-500/20 bg-blue-50/10 dark:bg-blue-500/5 hover:border-blue-300' :
-        isFOR ? 'border-yellow-200 dark:border-yellow-500/20 bg-yellow-50/10 dark:bg-yellow-500/5 hover:border-yellow-300' :
-        isDIS ? 'border-orange-200 dark:border-orange-500/20 bg-orange-50/10 dark:bg-orange-500/5 hover:border-orange-300' :
-        isDES ? 'border-fgc-green/30 dark:border-fgc-green/20 bg-fgc-green/10 dark:bg-fgc-green/5 hover:border-fgc-green/30' :
-        'border-gray-100 dark:border-white/5 hover:border-fgc-green/30'
+      onClick={onSelect}
+      className={`bg-white dark:bg-gray-800 rounded-[28px] p-5 border transition-all flex flex-col h-full gap-4 group cursor-pointer hover:shadow-2xl hover:scale-[1.01] active:scale-[0.99] duration-300 relative ${
+        isAssigned ? 'border-blue-200 dark:border-blue-500/20 bg-blue-50/10 dark:bg-blue-500/5 hover:border-blue-400' :
+        isFOR ? 'border-yellow-200 dark:border-yellow-500/20 bg-yellow-50/10 dark:bg-yellow-500/5 hover:border-yellow-400' :
+        isDIS ? 'border-orange-200 dark:border-orange-500/20 bg-orange-50/10 dark:bg-orange-500/5 hover:border-orange-400' :
+        isDES ? 'border-fgc-green/30 dark:border-fgc-green/20 bg-fgc-green/10 dark:bg-fgc-green/5 hover:border-fgc-green/50' :
+        'border-gray-100 dark:border-white/5 hover:border-fgc-green/40'
       }`}
     >
       <div className="flex items-center gap-4">
-        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-xl shadow-md shrink-0 ${
+        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-xl shadow-md shrink-0 transition-transform group-hover:scale-105 ${
           isAssigned ? 'bg-blue-600 text-white' :
           isFOR ? 'bg-yellow-500 text-white' :
           isDIS ? 'bg-orange-500 text-white' :
@@ -71,7 +75,7 @@ const MemoizedMaquinistaCard = React.memo(({
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h3 className="text-base font-bold text-[#4D5358] dark:text-white leading-tight uppercase truncate">
+            <h3 className="text-base font-bold text-[#4D5358] dark:text-white leading-tight uppercase truncate group-hover:text-fgc-green transition-colors">
               {maquinista.cognoms}, {maquinista.nom}
             </h3>
             {maquinista.tipus_torn && (
@@ -87,7 +91,8 @@ const MemoizedMaquinistaCard = React.memo(({
           <div className="flex items-center gap-2 mt-0.5">
             <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500">#{maquinista.empleat_id}</span>
             <div 
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 if (isAssigned && onNavigateToSearch && maquinista.torn && maquinista.torn !== 'S/A') {
                   feedback.click();
                   onNavigateToSearch('torn', maquinista.torn);
@@ -95,7 +100,7 @@ const MemoizedMaquinistaCard = React.memo(({
               }}
               title={isAssigned && onNavigateToSearch ? `Veure detall del torn ${maquinista.torn}` : undefined}
               className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
-                isAssigned ? 'bg-blue-600 text-white cursor-pointer hover:bg-blue-700 hover:scale-105 active:scale-95' :
+                isAssigned ? 'bg-blue-600 text-white cursor-pointer hover:bg-blue-700 hover:scale-105 active:scale-95 shadow-sm' :
                 isFOR ? 'bg-yellow-500 text-white' :
                 isDIS ? 'bg-orange-500 text-white' :
                 isDES ? 'bg-fgc-green text-[#4D5358]' :
@@ -135,6 +140,10 @@ const MemoizedMaquinistaCard = React.memo(({
               <a
                 key={`phone-${idx}`}
                 href={isPrivacyMode ? undefined : `tel:${p}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (isPrivacyMode) e.preventDefault();
+                }}
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all shadow-sm ${
                   isAssigned ? 'bg-blue-600 text-white hover:bg-blue-700' :
                   isFOR ? 'bg-yellow-500 text-white hover:bg-yellow-600' :
@@ -150,6 +159,7 @@ const MemoizedMaquinistaCard = React.memo(({
             {email && (
               <a
                 href={`mailto:${email}`}
+                onClick={(e) => e.stopPropagation()}
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all shadow-sm ${
                   isAssigned ? 'bg-blue-600/20 text-blue-600 dark:text-blue-400 border border-blue-600/20' :
                   isFOR ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 border border-yellow-500/20' :
@@ -168,6 +178,15 @@ const MemoizedMaquinistaCard = React.memo(({
           <span className="text-[10px] font-bold text-gray-300 dark:text-gray-700 italic">Sense contacte</span>
         )}
       </div>
+
+      {/* Botó indicador de Fitxa i Puntualitat */}
+      <div className="pt-2 border-t border-gray-100/60 dark:border-white/5 flex items-center justify-between text-[11px] font-bold text-gray-400 group-hover:text-fgc-green transition-colors">
+        <span className="flex items-center gap-1.5">
+          <Activity size={12} className="text-fgc-green" />
+          Fitxa i puntualitat
+        </span>
+        <ArrowRight size={13} className="opacity-40 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+      </div>
     </div>
   );
 });
@@ -180,6 +199,7 @@ const AgentsViewComponent: React.FC<AgentsViewProps> = ({ isPrivacyMode, onNavig
   const [disDesFilter, setDisDesFilter] = useState<DisDesFilterType>('ALL');
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
   const [loadingMaquinistes, setLoadingMaquinistes] = useState(false);
+  const [selectedAgent, setSelectedAgent] = useState<{ maquinista: any; contact: { phones: string[]; email: string | null } } | null>(null);
 
   const filterRef = useRef<HTMLDivElement>(null);
 
@@ -403,6 +423,10 @@ const AgentsViewComponent: React.FC<AgentsViewProps> = ({ isPrivacyMode, onNavig
                       isDES={isDES}
                       isPrivacyMode={isPrivacyMode}
                       onNavigateToSearch={onNavigateToSearch}
+                      onSelect={() => {
+                        feedback.click();
+                        setSelectedAgent({ maquinista, contact });
+                      }}
                     />
                   );
                 })}
@@ -416,6 +440,17 @@ const AgentsViewComponent: React.FC<AgentsViewProps> = ({ isPrivacyMode, onNavig
           </div>
         </div>
       </div>
+
+      {/* MODAL DETALL DASHBOARD DE L'AGENT */}
+      {selectedAgent && (
+        <AgentDetailModal
+          agent={selectedAgent.maquinista}
+          contact={selectedAgent.contact}
+          isPrivacyMode={isPrivacyMode}
+          onClose={() => setSelectedAgent(null)}
+          onNavigateToSearch={onNavigateToSearch}
+        />
+      )}
     </div>
   );
 };
