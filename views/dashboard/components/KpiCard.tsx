@@ -78,35 +78,35 @@ export const KpiCard: React.FC<{
     sparklineData?: number[];
     className?: string;
 }> = ({ label, value, subtitle, icon, color, pulse, trend, infoText, progress, sparklineData, className = '' }) => (
-    <div className={`relative rounded-3xl p-5 sm:p-6 transition-all duration-500 hover:scale-[1.02] hover:shadow-xl
+    <div className={`relative rounded-2xl sm:rounded-3xl p-3.5 sm:p-4 lg:p-3 xl:p-4 transition-all duration-500 hover:scale-[1.01] hover:shadow-xl
         bg-white/70 dark:bg-white/[0.04] backdrop-blur-xl border border-white/20 dark:border-white/5
         shadow-[0_4px_24px_0_rgba(31,38,135,0.06)] dark:shadow-[0_4px_24px_0_rgba(0,0,0,0.25)] flex flex-col justify-between ${className}`}
     >
         {/* Accent Glow */}
-        <div className="absolute inset-0 overflow-hidden rounded-3xl pointer-events-none">
+        <div className="absolute inset-0 overflow-hidden rounded-2xl sm:rounded-3xl pointer-events-none">
             <div className="absolute -top-8 -right-8 w-24 h-24 rounded-full blur-3xl opacity-20" style={{ backgroundColor: color }} />
         </div>
 
-        <div className="relative z-10 flex items-start justify-between mb-3">
-            <div className="p-2.5 rounded-2xl" style={{ backgroundColor: color + '18' }}>
+        <div className="relative z-10 flex items-start justify-between mb-1.5 lg:mb-1">
+            <div className="p-2 sm:p-2.5 rounded-xl sm:rounded-2xl" style={{ backgroundColor: color + '18' }}>
                 <span style={{ color }}>{icon}</span>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
                 {pulse && (
-                    <span className="relative flex h-3 w-3">
+                    <span className="relative flex h-2.5 w-2.5 sm:h-3 sm:w-3">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                        <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500" />
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 sm:h-3 sm:w-3 bg-red-500" />
                     </span>
                 )}
                 {trend && trend !== 'neutral' && (
-                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${trend === 'up' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'}`}>
+                    <span className={`text-[10px] sm:text-xs font-semibold px-2 py-0.5 rounded-full ${trend === 'up' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'}`}>
                         {trend === 'up' ? '↑' : '↓'}
                     </span>
                 )}
                 {infoText && (
                     <div className="group relative">
-                        <Info size={16} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors cursor-help" />
+                        <Info size={15} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors cursor-help" />
                         <div className="pointer-events-none absolute bottom-full -right-2 w-64 mb-3 opacity-0 group-hover:opacity-100 transition-all duration-200 translate-y-1 group-hover:translate-y-0 z-[100]">
                             <div className="bg-gray-900/95 dark:bg-gray-800/95 border border-gray-700 dark:border-gray-600 text-white text-[11px] p-3 rounded-xl shadow-2xl backdrop-blur-md">
                                 {infoText}
@@ -119,9 +119,9 @@ export const KpiCard: React.FC<{
         </div>
 
         {progress !== undefined ? (
-            <div className="relative z-10 flex flex-col justify-end mt-1 sm:mt-2 lg:mt-auto mb-0.5">
-                <div className="flex flex-col xl:flex-row items-start xl:items-center gap-3 sm:gap-4 lg:gap-6">
-                    <div className="relative w-[72px] h-[72px] sm:w-[84px] sm:h-[84px] lg:w-[100px] lg:h-[100px] 2xl:w-[120px] 2xl:h-[120px] shrink-0 transition-all duration-500">
+            <div className="relative z-10 flex flex-col justify-end mt-0.5 sm:mt-1 lg:mt-auto mb-0.5">
+                <div className="flex flex-col xl:flex-row items-start xl:items-center gap-2.5 sm:gap-3 lg:gap-3.5">
+                    <div className="relative w-[56px] h-[56px] sm:w-[68px] sm:h-[68px] lg:w-[62px] lg:h-[62px] xl:w-[74px] xl:h-[74px] 2xl:w-[84px] 2xl:h-[84px] shrink-0 transition-all duration-500">
                         <svg className="w-full h-full transform -rotate-90 drop-shadow-sm" viewBox="0 0 36 36">
                             <path
                                 className="text-black/5 dark:text-white/5"
@@ -142,18 +142,18 @@ export const KpiCard: React.FC<{
                             />
                         </svg>
                         <div className="absolute inset-0 flex flex-col items-center justify-center">
-                            <span className="text-xl sm:text-2xl lg:text-3xl 2xl:text-[34px] font-black leading-none tracking-tighter translate-y-[2px]" style={{ color }}>
-                                {progress}<span className="text-[10px] sm:text-sm lg:text-base 2xl:text-lg tracking-normal font-bold opacity-70 ml-[2px]">%</span>
+                            <span className="text-base sm:text-xl lg:text-lg xl:text-xl 2xl:text-2xl font-black leading-none tracking-tighter translate-y-[1px]" style={{ color }}>
+                                {progress}<span className="text-[9px] sm:text-xs lg:text-[11px] xl:text-xs tracking-normal font-bold opacity-70 ml-[1px]">%</span>
                             </span>
                         </div>
                     </div>
                     <div className="min-w-0 flex-1">
-                        <div className="text-xs sm:text-sm lg:text-base font-bold text-[#4D5358] dark:text-white leading-tight uppercase tracking-wide transition-all" title={label}>{label}</div>
-                        {subtitle && <div className="text-[10px] sm:text-xs font-medium text-gray-500 dark:text-gray-400 mt-1 lg:mt-1.5 leading-snug transition-all" title={subtitle}>{subtitle}</div>}
+                        <div className="text-xs sm:text-sm lg:text-xs xl:text-sm font-bold text-[#4D5358] dark:text-white leading-tight uppercase tracking-wide transition-all" title={label}>{label}</div>
+                        {subtitle && <div className="text-[10px] sm:text-xs font-medium text-gray-500 dark:text-gray-400 mt-0.5 lg:mt-1 leading-snug transition-all" title={subtitle}>{subtitle}</div>}
                         {/* Sparkline below the label for progress cards */}
                         {sparklineData && sparklineData.length >= 2 && (
-                            <div className="mt-2">
-                                <Sparkline data={sparklineData} color={color} height={24} />
+                            <div className="mt-1 sm:mt-1.5">
+                                <Sparkline data={sparklineData} color={color} height={18} />
                             </div>
                         )}
                     </div>
@@ -163,14 +163,14 @@ export const KpiCard: React.FC<{
             <div className="relative z-10 mt-auto">
                 <div className="flex flex-row items-end justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                        <div className="text-3xl sm:text-4xl font-black tracking-tight text-[#4D5358] dark:text-white mt-1 lg:mt-4 transition-all duration-500" style={{ color }}>{value}</div>
-                        <div className="text-sm font-bold text-[#4D5358] dark:text-gray-300 mt-1 lg:mt-3 uppercase tracking-wide transition-all leading-tight" title={label}>{label}</div>
-                        {subtitle && <div className="text-[10px] sm:text-xs text-gray-400 dark:text-gray-500 mt-0.5 lg:mt-1.5 font-medium transition-all leading-snug" title={subtitle}>{subtitle}</div>}
+                        <div className="text-2xl sm:text-3xl lg:text-2xl xl:text-3xl font-black tracking-tight text-[#4D5358] dark:text-white mt-0.5 lg:mt-1.5 transition-all duration-500" style={{ color }}>{value}</div>
+                        <div className="text-xs sm:text-sm font-bold text-[#4D5358] dark:text-gray-300 mt-0.5 lg:mt-1 uppercase tracking-wide transition-all leading-tight" title={label}>{label}</div>
+                        {subtitle && <div className="text-[10px] sm:text-xs text-gray-400 dark:text-gray-500 mt-0.5 font-medium transition-all leading-snug" title={subtitle}>{subtitle}</div>}
                     </div>
                     {/* Sparkline aligned right for value cards - hidden on very small screens if it doesn't fit */}
                     {sparklineData && sparklineData.length >= 2 && (
-                        <div className="flex-none pb-1">
-                            <Sparkline data={sparklineData} color={color} height={28} />
+                        <div className="flex-none pb-0.5">
+                            <Sparkline data={sparklineData} color={color} height={22} />
                         </div>
                     )}
                 </div>

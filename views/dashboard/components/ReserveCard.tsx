@@ -22,22 +22,22 @@ export const ReserveCard: React.FC<{ slot: ReserveSlot }> = ({ slot }) => {
                         setIsExpanded(!isExpanded);
                     }
                 }}
-                className={`flex items-center gap-3 p-3 rounded-2xl bg-white/60 dark:bg-white/[0.03] border border-white/20 dark:border-white/5 transition-all outline-none ${slot.count > 0 ? 'cursor-pointer hover:shadow-md hover:scale-[1.01] active:scale-[0.99] group' : ''}`}
+                className={`flex items-center gap-2.5 p-2 sm:p-2.5 rounded-xl bg-white/60 dark:bg-white/[0.03] border border-white/20 dark:border-white/5 transition-all outline-none ${slot.count > 0 ? 'cursor-pointer hover:shadow-md hover:scale-[1.01] active:scale-[0.99] group' : ''}`}
             >
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-xs shrink-0 shadow-sm" style={{ backgroundColor: color }}>
+                <div className="w-8 h-8 sm:w-8.5 sm:h-8.5 rounded-lg sm:rounded-xl flex items-center justify-center text-white font-bold text-[11px] shrink-0 shadow-sm" style={{ backgroundColor: color }}>
                     {slot.station}
                 </div>
                 <div className="flex-1 min-w-0">
-                    <div className="text-sm font-bold text-[#4D5358] dark:text-white leading-tight">{slot.stationLabel}</div>
-                    <div className="text-[11px] text-gray-500 dark:text-gray-400 truncate opacity-80">
+                    <div className="text-xs sm:text-sm font-bold text-[#4D5358] dark:text-white leading-tight">{slot.stationLabel}</div>
+                    <div className="text-[10px] sm:text-[11px] text-gray-500 dark:text-gray-400 truncate opacity-80">
                         {slot.personnel.map(p => `${p.cognoms}`).join(', ')}
                     </div>
                 </div>
-                <div className="flex flex-col items-end gap-1 shrink-0">
-                    <span className="text-lg font-black text-[#4D5358] dark:text-white leading-none">{slot.count}</span>
+                <div className="flex flex-col items-end gap-0.5 shrink-0">
+                    <span className="text-base sm:text-lg font-black text-[#4D5358] dark:text-white leading-none">{slot.count}</span>
                     {slot.count > 0 && (
                         <ChevronRight
-                            size={14}
+                            size={13}
                             className={`text-gray-300 transition-transform duration-300 ${isExpanded ? 'rotate-90 text-fgc-green' : 'group-hover:translate-x-0.5'}`}
                         />
                     )}

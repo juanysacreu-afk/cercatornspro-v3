@@ -51,7 +51,7 @@ export const CoverageBarChart: React.FC<{ lineStatuses: any[] }> = ({ lineStatus
                 );
             })()}
 
-            <div className="flex items-stretch justify-between flex-1 w-full h-full min-h-[120px] pt-4 pb-0 px-1 sm:px-2 mt-2 gap-1 sm:gap-2">
+            <div className="flex items-stretch justify-between flex-1 w-full h-full min-h-[90px] pt-1 pb-0 px-1 sm:px-2 mt-1 gap-1 sm:gap-2">
                 {sortedLines.map(line => {
                     const p = line.activeCirculations > 0 ? Math.min(100, Math.round((line.activeCirculations / maxActive) * 100)) : 0;
                     const isHovered = hoveredLine === line.linia;
@@ -59,17 +59,17 @@ export const CoverageBarChart: React.FC<{ lineStatuses: any[] }> = ({ lineStatus
                     return (
                         <div
                             key={line.linia}
-                            className={`flex flex-col items-center justify-end gap-1.5 sm:gap-2 group flex-1 max-w-[48px] sm:max-w-[56px] h-full cursor-pointer transition-all duration-200 ${isHovered ? 'scale-110' : ''}`}
+                            className={`flex flex-col items-center justify-end gap-1 group flex-1 max-w-[48px] sm:max-w-[56px] h-full cursor-pointer transition-all duration-200 ${isHovered ? 'scale-110' : ''}`}
                             onMouseEnter={() => setHoveredLine(line.linia)}
                             onMouseLeave={() => setHoveredLine(null)}
                         >
-                            <span className={`text-[10px] sm:text-xs font-bold tabular-nums text-center leading-tight transition-all duration-300 ${isHovered ? 'text-[#4D5358] dark:text-white scale-110' : 'text-gray-400 dark:text-gray-500'}`}>
+                            <span className={`text-[9px] sm:text-[11px] font-bold tabular-nums text-center leading-tight transition-all duration-300 ${isHovered ? 'text-[#4D5358] dark:text-white scale-110' : 'text-gray-400 dark:text-gray-500'}`}>
                                 {line.totalCirculations > 0 ? line.activeCirculations : '-'}<br />
                                 <span className="opacity-50">/ {line.totalCirculations > 0 ? line.totalCirculations : '-'}</span>
                             </span>
-                                <div className="relative flex-1 w-full min-h-[30px] bg-gray-100 dark:bg-white/5 rounded-t-xl overflow-hidden shadow-inner flex items-end">
+                                <div className="relative flex-1 w-full min-h-[22px] bg-gray-100 dark:bg-white/5 rounded-t-xl overflow-hidden shadow-inner flex items-end">
                                 <div
-                                    className="w-full rounded-t-xl transition-all duration-1000 ease-out flex items-start justify-center pt-2 relative overflow-hidden"
+                                    className="w-full rounded-t-xl transition-all duration-1000 ease-out flex items-start justify-center pt-1 relative overflow-hidden"
                                     style={{
                                         height: p > 0 ? `${Math.max(8, p)}%` : '4px',
                                         backgroundColor: line.color,
@@ -81,7 +81,7 @@ export const CoverageBarChart: React.FC<{ lineStatuses: any[] }> = ({ lineStatus
                                 </div>
                             </div>
                             <div
-                                className={`w-8 sm:w-10 h-6 sm:h-7 rounded-lg flex items-center justify-center text-white font-black text-[10px] sm:text-[11px] shadow-sm transition-all duration-300 ${isHovered ? '-translate-y-1 shadow-lg' : ''}`}
+                                className={`w-7 sm:w-9 h-5 sm:h-6 rounded-md sm:rounded-lg flex items-center justify-center text-white font-black text-[9px] sm:text-[10px] shadow-sm transition-all duration-300 ${isHovered ? '-translate-y-0.5 shadow-lg' : ''}`}
                                 style={{ backgroundColor: line.color, opacity: p > 0 ? 1 : 0.5 }}
                             >
                                 {line.linia}

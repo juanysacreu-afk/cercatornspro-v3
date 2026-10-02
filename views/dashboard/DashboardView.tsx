@@ -60,26 +60,26 @@ const UpcomingCoveragePanel: React.FC<{
     if (upcomingAlerts.length === 0) return null;
 
     return (
-        <GlassPanel className="p-4 sm:p-5 flex flex-col gap-3 border-l-4 border-l-amber-400 animate-in slide-in-from-right-4 duration-500">
+        <GlassPanel className="p-2.5 sm:p-3 flex flex-col gap-1.5 border-l-4 border-l-amber-400 animate-in slide-in-from-right-4 duration-500">
             <div className="flex items-center gap-2">
-                <Timer size={16} className="text-amber-500" />
-                <h2 className="text-sm font-bold text-[#4D5358] dark:text-white uppercase tracking-wider">
+                <Timer size={14} className="text-amber-500" />
+                <h2 className="text-xs sm:text-sm font-bold text-[#4D5358] dark:text-white uppercase tracking-wider">
                     Pròximes cobertures
                 </h2>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400">
+                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400">
                     {upcomingAlerts.length}
                 </span>
             </div>
-            <div className="space-y-1.5 max-h-40 overflow-y-auto custom-scrollbar">
+            <div className="space-y-1 max-h-24 overflow-y-auto custom-scrollbar">
                 {upcomingAlerts.map(a => (
                     <div
                         key={a.id}
                         onClick={() => { if (a.tornId && onNavigate) { feedback.click(); onNavigate('torn', a.tornId); } }}
-                        className={`flex items-center gap-3 px-3 py-2 rounded-xl border border-amber-200/60 dark:border-amber-500/20 bg-amber-50/50 dark:bg-amber-500/[0.05] transition-all ${a.tornId ? 'cursor-pointer hover:shadow-md hover:scale-[1.01]' : ''}`}
+                        className={`flex items-center gap-2.5 px-2.5 py-1 rounded-lg border border-amber-200/60 dark:border-amber-500/20 bg-amber-50/50 dark:bg-amber-500/[0.05] transition-all ${a.tornId ? 'cursor-pointer hover:shadow-md hover:scale-[1.01]' : ''}`}
                     >
-                        <div className="shrink-0 flex flex-col items-center justify-center w-10 h-10 rounded-xl bg-amber-400/20 text-amber-600 dark:text-amber-400">
-                            <span className="text-xs font-black leading-tight">{Math.round(a.startsInMin)}</span>
-                            <span className="text-[8px] font-bold opacity-70">min</span>
+                        <div className="shrink-0 flex flex-col items-center justify-center w-8 h-8 rounded-lg bg-amber-400/20 text-amber-600 dark:text-amber-400">
+                            <span className="text-[11px] font-black leading-tight">{Math.round(a.startsInMin)}</span>
+                            <span className="text-[7px] font-bold opacity-70">min</span>
                         </div>
                         <div className="flex-1 min-w-0">
                             <div className="text-xs font-bold text-[#4D5358] dark:text-white truncate">{a.title.replace('SENSE MAQUINISTA', '').trim()}</div>
@@ -192,22 +192,21 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
     }
 
     return (
-        <div className="flex flex-col h-full overflow-y-auto overflow-x-hidden space-y-3 p-4 sm:pt-6 sm:pb-6 sm:px-8 animate-in fade-in duration-700">
+        <div className="flex flex-col h-full overflow-y-auto overflow-x-hidden space-y-2.5 p-3 sm:px-6 sm:py-3.5 lg:px-6 lg:py-2.5 animate-in fade-in duration-700">
 
             {/* Header */}
-            <header className="flex-none flex flex-col sm:flex-row sm:items-end justify-between gap-4 animate-fade-up-premium stagger-1">
+            <header className="flex-none flex flex-col sm:flex-row sm:items-end justify-between gap-3 animate-fade-up-premium stagger-1">
                 <div className="min-w-0 flex-1">
-                    <h1 className="text-xl sm:text-2xl font-bold text-[#4D5358] dark:text-white tracking-tight uppercase title-glow flex items-center gap-3 truncate">
-
-                        <Zap className="text-fgc-green" size={28} strokeWidth={2.5} />
+                    <h1 className="text-lg sm:text-xl font-bold text-[#4D5358] dark:text-white tracking-tight uppercase title-glow flex items-center gap-2.5 truncate">
+                        <Zap className="text-fgc-green" size={24} strokeWidth={2.5} />
                         CSO — Supervisió Operativa
                     </h1>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 font-medium tracking-tight mt-1 capitalize">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 font-medium tracking-tight mt-0.5 capitalize">
                         Servei {serviceToday.padStart(3, '0')} · {formattedDate}
                     </p>
                     {/* V4 – "Actualitzat fa Xs" */}
                     <div className="flex flex-wrap items-center gap-2 mt-0.5">
-                        <p className="text-[11px] text-gray-400 dark:text-gray-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                        <p className="text-[10px] sm:text-[11px] text-gray-400 dark:text-gray-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
                             <span className="inline-block w-1.5 h-1.5 rounded-full bg-fgc-green animate-pulse" />
                             Actualitzat {lastRefreshLabel}
                         </p>
@@ -218,41 +217,41 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                 </div>
 
                 {/* V1 – Live clock + actions */}
-                <div className="flex flex-col sm:flex-row items-center sm:items-end gap-3 sm:gap-4 w-full sm:w-auto">
-                    <div className="flex items-center justify-center sm:justify-between w-full sm:w-auto gap-4">
+                <div className="flex flex-col sm:flex-row items-center sm:items-end gap-2.5 sm:gap-3 w-full sm:w-auto">
+                    <div className="flex items-center justify-center sm:justify-between w-full sm:w-auto gap-3">
                         <WeatherWidget />
                         <div className="hidden sm:block">
                             <LiveClock />
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 w-full sm:w-auto justify-center sm:justify-end no-scrollbar">
+                    <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 sm:pb-0 w-full sm:w-auto justify-center sm:justify-end no-scrollbar">
                         {/* F5 – Export button */}
                         <button
                             onClick={handleExportCSV}
-                            className="flex-none flex items-center gap-2 px-3 py-2 rounded-2xl bg-white/60 dark:bg-white/[0.04] border border-gray-100 dark:border-white/5 text-xs font-semibold text-[#4D5358] dark:text-gray-300 hover:bg-fgc-green/10 transition-all active:scale-95"
+                            className="flex-none flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white/60 dark:bg-white/[0.04] border border-gray-100 dark:border-white/5 text-xs font-semibold text-[#4D5358] dark:text-gray-300 hover:bg-fgc-green/10 transition-all active:scale-95"
                             title="Exportar resum operacional (CSV)"
                         >
-                            <Download size={14} />
+                            <Download size={13} />
                             <span>Exportar</span>
                         </button>
                         {/* N4 - Monitor Mode */}
                         {setIsMonitorMode && (
                             <button
                                 onClick={() => setIsMonitorMode(true)}
-                                className="hidden sm:flex flex-none items-center gap-2 px-3 py-2 rounded-2xl bg-white/60 dark:bg-white/[0.04] border border-gray-100 dark:border-white/5 text-xs font-semibold text-[#4D5358] dark:text-gray-300 hover:bg-fgc-green/10 transition-all active:scale-95 group"
+                                className="hidden sm:flex flex-none items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white/60 dark:bg-white/[0.04] border border-gray-100 dark:border-white/5 text-xs font-semibold text-[#4D5358] dark:text-gray-300 hover:bg-fgc-green/10 transition-all active:scale-95 group"
                                 title="Desplegar Monitor CSO"
                             >
-                                <Maximize2 size={14} className="group-hover:text-fgc-green transition-colors" />
+                                <Maximize2 size={13} className="group-hover:text-fgc-green transition-colors" />
                                 <span>Monitor</span>
                             </button>
                         )}
                         <button
                             onClick={handleRefresh}
-                            className="flex-none flex items-center gap-2 px-3 py-2 rounded-2xl bg-white/60 dark:bg-white/[0.04] border border-gray-100 dark:border-white/5 text-xs font-semibold text-[#4D5358] dark:text-gray-300 hover:bg-fgc-green/10 transition-all active:scale-95"
+                            className="flex-none flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white/60 dark:bg-white/[0.04] border border-gray-100 dark:border-white/5 text-xs font-semibold text-[#4D5358] dark:text-gray-300 hover:bg-fgc-green/10 transition-all active:scale-95"
                             title="Sincronització manual de flota (s'actualitza també automàticament cada 10 min)"
                         >
-                            <RefreshCcw size={14} className={`${isRefreshing ? 'animate-spin' : ''}`} />
+                            <RefreshCcw size={13} className={`${isRefreshing ? 'animate-spin' : ''}`} />
                             <span>Actualitzar</span>
                         </button>
                     </div>
@@ -268,12 +267,12 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
             )}
 
             {/* KPI Cards Row */}
-            <div className="flex-none grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="flex-none grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
                 <KpiCard
                     label="Servei Cobert"
                     value={`${kpis.serviceCoverage}%`}
                     subtitle={`${kpis.activeTrains} de ${kpis.scheduledTrains} trens actius`}
-                    icon={<Gauge size={22} strokeWidth={2.5} />}
+                    icon={<Gauge size={20} strokeWidth={2.5} />}
                     color={kpis.serviceCoverage > 85 ? '#10B981' : kpis.serviceCoverage > 60 ? '#F59E0B' : '#EF4444'}
                     pulse={kpis.serviceCoverage < 80}
                     progress={kpis.serviceCoverage}
@@ -287,7 +286,7 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                     subtitle={kpis.assignedPersonnel < kpis.totalPersonnel
                         ? `${kpis.totalPersonnel - kpis.assignedPersonnel} torns sense cobrir`
                         : "Tot el servei planificat"}
-                    icon={<Users size={22} strokeWidth={2.5} />}
+                    icon={<Users size={20} strokeWidth={2.5} />}
                     color={kpis.planningCoverage === 100 ? "#6366F1" : "#EF4444"}
                     pulse={kpis.planningCoverage < 100}
                     progress={kpis.planningCoverage}
@@ -299,7 +298,7 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                     label="Reserves"
                     value={`${kpis.reserveAvailable}/${kpis.reserveTotal}`}
                     subtitle="maquinistes lliures"
-                    icon={<Shield size={22} strokeWidth={2.5} />}
+                    icon={<Shield size={20} strokeWidth={2.5} />}
                     color="#A8D017"
                     pulse={kpis.reserveAvailable === 0}
                     sparklineData={sparklines.reserve}
@@ -310,7 +309,7 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                     label="Flota Operativa"
                     value={kpis.availableTrainUnits}
                     subtitle={`${kpis.brokenTrainUnits} avariats`}
-                    icon={<Train size={22} strokeWidth={2.5} />}
+                    icon={<Train size={20} strokeWidth={2.5} />}
                     color="#1B79C9"
                     pulse={kpis.brokenTrainUnits > 3}
                     sparklineData={sparklines.fleet}
@@ -319,17 +318,17 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                 />
             </div>
 
-            <div className="flex-none flex flex-col lg:flex-row lg:h-[clamp(280px,45vh,460px)] gap-4">
+            <div className="flex-none flex flex-col lg:flex-row lg:h-[clamp(175px,23vh,220px)] gap-2.5 sm:gap-3">
 
                 {/* Coverage Bar Chart */}
-                <GlassPanel className="w-full lg:w-4/12 flex flex-col h-[300px] lg:h-auto lg:min-h-0 p-6 gap-5 animate-fade-up-premium stagger-5">
+                <GlassPanel className="w-full lg:w-4/12 flex flex-col h-[240px] lg:h-auto lg:min-h-0 p-3.5 sm:p-4 lg:p-3 xl:p-3.5 gap-2 animate-fade-up-premium stagger-5">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                            <Radio size={18} className="text-fgc-green" />
-                            <h2 className="text-base font-bold text-[#4D5358] dark:text-white uppercase tracking-wider">Cobertura de Xarxa</h2>
+                            <Radio size={16} className="text-fgc-green" />
+                            <h2 className="text-xs sm:text-sm font-bold text-[#4D5358] dark:text-white uppercase tracking-wider">Cobertura de Xarxa</h2>
                         </div>
                         <div className="group relative">
-                            <Info size={16} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors cursor-help" />
+                            <Info size={15} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors cursor-help" />
                             <div className="pointer-events-none absolute bottom-full -right-2 w-64 mb-3 opacity-0 group-hover:opacity-100 transition-all duration-200 translate-y-1 group-hover:translate-y-0 z-[100]">
                                 <div className="bg-gray-900/95 dark:bg-gray-800/95 border border-gray-700 dark:border-gray-600 text-white text-[11px] p-3 rounded-xl shadow-2xl backdrop-blur-md">
                                     Gràfic interactiu: passa el cursor sobre les barres per veure els torns actius de cada línia.
@@ -343,17 +342,17 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                 </GlassPanel>
 
                 {/* Alerts Panel */}
-                <GlassPanel className="w-full lg:w-5/12 flex flex-col min-h-[200px] lg:min-h-0 p-6 gap-4 animate-fade-up-premium stagger-6">
+                <GlassPanel className="w-full lg:w-5/12 flex flex-col min-h-[160px] lg:min-h-0 p-3.5 sm:p-4 lg:p-3 xl:p-3.5 gap-2 animate-fade-up-premium stagger-6">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                            <AlertTriangle size={18} className="text-amber-500" />
-                            <h2 className="text-base font-bold text-[#4D5358] dark:text-white uppercase tracking-wider">
+                            <AlertTriangle size={16} className="text-amber-500" />
+                            <h2 className="text-xs sm:text-sm font-bold text-[#4D5358] dark:text-white uppercase tracking-wider">
                                 Atenció Requerida
                             </h2>
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2.5">
                             <div className="group relative">
-                                <Info size={16} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors cursor-help" />
+                                <Info size={15} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors cursor-help" />
                                 <div className="pointer-events-none absolute bottom-full right-0 w-72 mb-3 opacity-0 group-hover:opacity-100 transition-all duration-200 translate-y-1 group-hover:translate-y-0 z-[100]">
                                     <div className="bg-gray-900/95 dark:bg-gray-800/95 border border-gray-700 dark:border-gray-600 text-white text-[11px] p-3 rounded-xl shadow-2xl backdrop-blur-md">
                                         Alertes detectades al sistema. Es reactualitzen en temps real via Supabase Realtime.
@@ -362,40 +361,40 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                                 </div>
                             </div>
                             {alerts.length > 0 && (
-                                <span className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${criticalAlerts.length > 0
+                                <span className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${criticalAlerts.length > 0
                                     ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'
                                     : 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400'
                                     }`}>
-                                    <Zap size={12} />
+                                    <Zap size={11} />
                                     {alerts.length}
                                 </span>
                             )}
                         </div>
                     </div>
 
-                    <div className="flex-1 min-h-0 overflow-y-auto pr-1 custom-scrollbar space-y-2">
+                    <div className="flex-1 min-h-0 overflow-y-auto pr-1 custom-scrollbar space-y-1.5">
                         {criticalAlerts.map(a => <AlertRow key={a.id} alert={a} onNavigate={onNavigateToSearch} />)}
                         {warningAlerts.map(a => <AlertRow key={a.id} alert={a} onNavigate={onNavigateToSearch} />)}
 
                         {alerts.length === 0 && (
-                            <div className="flex flex-col items-center justify-center py-8 text-gray-400">
-                                <Activity size={32} className="mb-2 opacity-40" />
-                                <p className="text-sm font-medium">Tot correcte</p>
-                                <p className="text-xs">Cap alerta activa</p>
+                            <div className="flex flex-col items-center justify-center py-6 text-gray-400">
+                                <Activity size={28} className="mb-1 opacity-40" />
+                                <p className="text-xs font-medium">Tot correcte</p>
+                                <p className="text-[10px]">Cap alerta activa</p>
                             </div>
                         )}
                     </div>
                 </GlassPanel>
 
                 {/* Reserves Panel */}
-                <GlassPanel className="w-full lg:w-3/12 flex flex-col min-h-[240px] lg:min-h-0 p-6 gap-4 animate-fade-up-premium stagger-6">
+                <GlassPanel className="w-full lg:w-3/12 flex flex-col min-h-[160px] lg:min-h-0 p-3.5 sm:p-4 lg:p-3 xl:p-3.5 gap-2 animate-fade-up-premium stagger-6">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                            <MapPin size={18} className="text-fgc-green" />
-                            <h2 className="text-base font-bold text-[#4D5358] dark:text-white uppercase tracking-wider">Reserves</h2>
+                            <MapPin size={16} className="text-fgc-green" />
+                            <h2 className="text-xs sm:text-sm font-bold text-[#4D5358] dark:text-white uppercase tracking-wider">Reserves</h2>
                         </div>
                         <div className="group relative">
-                            <Info size={16} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors cursor-help" />
+                            <Info size={15} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors cursor-help" />
                             <div className="pointer-events-none absolute bottom-full right-0 w-64 mb-3 opacity-0 group-hover:opacity-100 transition-all duration-200 translate-y-1 group-hover:translate-y-0 z-[100]">
                                 <div className="bg-gray-900/95 dark:bg-gray-800/95 border border-gray-700 dark:border-gray-600 text-white text-[11px] p-3 rounded-xl shadow-2xl backdrop-blur-md">
                                     Clica sobre una estació per veure el detall dels maquinistes de reserva actius i l'historial d'assignacions del dia.
@@ -405,20 +404,20 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                         </div>
                     </div>
 
-                    <div className="flex-1 min-h-0 overflow-y-auto pr-1 custom-scrollbar space-y-2">
+                    <div className="flex-1 min-h-0 overflow-y-auto pr-1 custom-scrollbar space-y-1.5">
                         {/* F4 – ReserveCard with expanded history */}
                         {reserves.map(r => <ReserveCard key={r.station} slot={r} />)}
                         {reserves.length === 0 && (
-                            <div className="flex flex-col items-center justify-center py-8 text-gray-400">
-                                <Shield size={32} className="mb-2 opacity-40" />
-                                <p className="text-sm font-medium">Sense reserves</p>
-                                <p className="text-xs">Cap maquinista de reserva actiu</p>
+                            <div className="flex flex-col items-center justify-center py-6 text-gray-400">
+                                <Shield size={28} className="mb-1 opacity-40" />
+                                <p className="text-xs font-medium">Sense reserves</p>
+                                <p className="text-[10px]">Cap maquinista de reserva actiu</p>
                             </div>
                         )}
                     </div>
 
-                    <div className="flex-none pt-3 border-t border-gray-100 dark:border-white/5">
-                        <div className="text-xs text-gray-400 dark:text-gray-500 flex justify-between">
+                    <div className="flex-none pt-1.5 border-t border-gray-100 dark:border-white/5">
+                        <div className="text-[11px] text-gray-400 dark:text-gray-500 flex justify-between">
                             <span>Disponibilitat reserves</span>
                             <span className="font-bold text-[#4D5358] dark:text-white">{kpis.reserveAvailable} de {kpis.reserveTotal}</span>
                         </div>

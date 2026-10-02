@@ -26,14 +26,14 @@ export const AlertRow: React.FC<{ alert: PersonnelAlert; onNavigate?: (type: str
     return (
         <div
             onClick={handleRowClick}
-            className={`flex items-center gap-3 p-3.5 mx-1 rounded-2xl border-l-4 transition-all ${alert.tornId ? 'cursor-pointer hover:shadow-md hover:scale-[1.01] active:scale-[0.99]' : ''} ${severityStyles[alert.severity]}`}
+            className={`flex items-center gap-2.5 p-2 sm:p-2.5 mx-0.5 rounded-xl border-l-4 transition-all ${alert.tornId ? 'cursor-pointer hover:shadow-md hover:scale-[1.01] active:scale-[0.99]' : ''} ${severityStyles[alert.severity]}`}
         >
             <div className="shrink-0">{severityIcons[alert.severity]}</div>
             <div className="flex-1 min-w-0">
-                <div className="text-sm font-bold text-[#4D5358] dark:text-white truncate">{alert.title}</div>
-                <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{alert.subtitle}</div>
+                <div className="text-xs sm:text-sm font-bold text-[#4D5358] dark:text-white truncate">{alert.title}</div>
+                <div className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">{alert.subtitle}</div>
             </div>
-            <ChevronRight size={14} className="text-gray-300 shrink-0" />
+            <ChevronRight size={13} className="text-gray-300 shrink-0" />
         </div>
     );
 };

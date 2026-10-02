@@ -105,40 +105,40 @@ export const PunctualitySection: React.FC<PunctualitySectionProps> = ({ onNaviga
   if (!stats) return null;
 
   return (
-    <GlassPanel className="p-5 sm:p-6 flex flex-col gap-6 animate-fade-up-premium">
+    <GlassPanel className="p-3.5 sm:p-4 lg:p-3 xl:p-4 flex flex-col gap-2.5 sm:gap-3 animate-fade-up-premium">
       {/* ── Capçalera Secció ────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100 dark:border-white/5">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-fgc-green/15 text-fgc-green flex items-center justify-center shrink-0">
-            <Clock size={22} strokeWidth={2.5} />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-gray-100 dark:border-white/5">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-fgc-green/15 text-fgc-green flex items-center justify-center shrink-0">
+            <Clock size={16} strokeWidth={2.5} />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-base sm:text-lg font-bold text-[#4D5358] dark:text-white uppercase tracking-wider">
+              <h2 className="text-sm sm:text-base font-bold text-[#4D5358] dark:text-white uppercase tracking-wider">
                 Puntualitat del Servei (GIP)
               </h2>
-              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-fgc-green/10 text-fgc-green border border-fgc-green/20">
+              <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-fgc-green/10 text-fgc-green border border-fgc-green/20">
                 <span className="w-1.5 h-1.5 rounded-full bg-fgc-green animate-pulse" />
                 En directe
               </span>
             </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+            <p className="text-[10px] sm:text-[11px] text-gray-500 dark:text-gray-400 font-medium">
               Criteri oficial FGC: pas en hora &lt; 4 minuts (≤ 239s de retard)
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-3 self-end sm:self-center">
-          <span className="text-[11px] text-gray-400 dark:text-gray-500 font-medium">
+        <div className="flex items-center gap-2 self-end sm:self-center">
+          <span className="text-[10px] sm:text-[11px] text-gray-400 dark:text-gray-500 font-medium">
             Actualitzat {lastRefreshLabel}
           </span>
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/60 dark:bg-white/[0.04] border border-gray-200/60 dark:border-white/10 text-xs font-semibold text-[#4D5358] dark:text-gray-300 hover:bg-fgc-green/10 hover:text-fgc-green transition-all active:scale-95 disabled:opacity-50"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/60 dark:bg-white/[0.04] border border-gray-200/60 dark:border-white/10 text-xs font-semibold text-[#4D5358] dark:text-gray-300 hover:bg-fgc-green/10 hover:text-fgc-green transition-all active:scale-95 disabled:opacity-50"
             title="Refrescar puntualitat ara"
           >
-            <RefreshCw size={13} className={isRefreshing ? 'animate-spin text-fgc-green' : ''} />
+            <RefreshCw size={12} className={isRefreshing ? 'animate-spin text-fgc-green' : ''} />
             <span>Actualitzar</span>
           </button>
           <button
@@ -146,108 +146,108 @@ export const PunctualitySection: React.FC<PunctualitySectionProps> = ({ onNaviga
               feedback.click();
               setIsExpanded(prev => !prev);
             }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/60 dark:bg-white/[0.04] border border-gray-200/60 dark:border-white/10 text-xs font-semibold text-[#4D5358] dark:text-gray-300 hover:bg-fgc-green/10 hover:text-fgc-green transition-all active:scale-95"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/60 dark:bg-white/[0.04] border border-gray-200/60 dark:border-white/10 text-xs font-semibold text-[#4D5358] dark:text-gray-300 hover:bg-fgc-green/10 hover:text-fgc-green transition-all active:scale-95"
             title={isExpanded ? 'Plegar detalls de puntualitat' : 'Expandir detalls de puntualitat'}
           >
-            {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+            {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
             <span>{isExpanded ? 'Contraure' : 'Expandir'}</span>
           </button>
         </div>
       </div>
 
       {/* ── KPIs Principals ─────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
         {/* KPI 1: Índex Global */}
-        <div className="p-4 rounded-2xl bg-white/50 dark:bg-white/[0.02] border border-gray-100 dark:border-white/5 flex flex-col justify-between shadow-sm">
+        <div className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-white/50 dark:bg-white/[0.02] border border-gray-100 dark:border-white/5 flex flex-col justify-between shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+            <span className="text-[10px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
               Índex Global
             </span>
-            <div className={`p-1.5 rounded-xl ${stats.globalRate >= 95 ? 'bg-emerald-500/10 text-emerald-500' : stats.globalRate >= 85 ? 'bg-amber-500/10 text-amber-500' : 'bg-red-500/10 text-red-500'}`}>
-              <TrendingUp size={16} />
+            <div className={`p-1 rounded-lg ${stats.globalRate >= 95 ? 'bg-emerald-500/10 text-emerald-500' : stats.globalRate >= 85 ? 'bg-amber-500/10 text-amber-500' : 'bg-red-500/10 text-red-500'}`}>
+              <TrendingUp size={14} />
             </div>
           </div>
-          <div className="my-2">
-            <div className={`text-3xl sm:text-4xl font-black tabular-nums tracking-tight ${getRateColor(stats.globalRate)}`}>
+          <div className="my-1">
+            <div className={`text-2xl sm:text-3xl font-black tabular-nums tracking-tight ${getRateColor(stats.globalRate)}`}>
               {stats.globalRate}%
             </div>
-            <div className="w-full bg-gray-100 dark:bg-white/10 h-2 rounded-full mt-2 overflow-hidden">
+            <div className="w-full bg-gray-100 dark:bg-white/10 h-1.5 rounded-full mt-1.5 overflow-hidden">
               <div 
                 className={`h-full rounded-full transition-all duration-700 ${getRateBg(stats.globalRate)}`}
                 style={{ width: `${Math.min(100, stats.globalRate)}%` }}
               />
             </div>
           </div>
-          <div className="text-[11px] text-gray-500 dark:text-gray-400 truncate">
+          <div className="text-[10px] sm:text-[11px] text-gray-500 dark:text-gray-400 truncate">
             <span className="font-bold text-[#4D5358] dark:text-gray-200">{stats.onTimeCount.toLocaleString('ca-ES')}</span> de {stats.totalPassages.toLocaleString('ca-ES')} passos en hora
           </div>
         </div>
 
         {/* KPI 2: Passos Totals */}
-        <div className="p-4 rounded-2xl bg-white/50 dark:bg-white/[0.02] border border-gray-100 dark:border-white/5 flex flex-col justify-between shadow-sm">
+        <div className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-white/50 dark:bg-white/[0.02] border border-gray-100 dark:border-white/5 flex flex-col justify-between shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+            <span className="text-[10px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
               Passos Registrats
             </span>
-            <div className="p-1.5 rounded-xl bg-blue-500/10 text-blue-500">
-              <Activity size={16} />
+            <div className="p-1 rounded-lg bg-blue-500/10 text-blue-500">
+              <Activity size={14} />
             </div>
           </div>
-          <div className="my-2">
-            <div className="text-3xl sm:text-4xl font-black text-[#4D5358] dark:text-white tabular-nums tracking-tight">
+          <div className="my-1">
+            <div className="text-2xl sm:text-3xl font-black text-[#4D5358] dark:text-white tabular-nums tracking-tight">
               {stats.totalPassages.toLocaleString('ca-ES')}
             </div>
-            <div className="text-xs text-blue-600 dark:text-blue-400 font-bold mt-2">
+            <div className="text-[11px] sm:text-xs text-blue-600 dark:text-blue-400 font-bold mt-1">
               Validats per GeoTren avui
             </div>
           </div>
-          <div className="text-[11px] text-gray-500 dark:text-gray-400">
+          <div className="text-[10px] sm:text-[11px] text-gray-500 dark:text-gray-400">
             Detectats a la xarxa BV07
           </div>
         </div>
 
         {/* KPI 3: Passos amb Retard */}
-        <div className="p-4 rounded-2xl bg-white/50 dark:bg-white/[0.02] border border-gray-100 dark:border-white/5 flex flex-col justify-between shadow-sm">
+        <div className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-white/50 dark:bg-white/[0.02] border border-gray-100 dark:border-white/5 flex flex-col justify-between shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+            <span className="text-[10px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
               Passos amb Retard
             </span>
-            <div className={`p-1.5 rounded-xl ${stats.delayedCount > 0 ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
-              <AlertTriangle size={16} />
+            <div className={`p-1 rounded-lg ${stats.delayedCount > 0 ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
+              <AlertTriangle size={14} />
             </div>
           </div>
-          <div className="my-2">
-            <div className={`text-3xl sm:text-4xl font-black tabular-nums tracking-tight ${stats.delayedCount > 0 ? 'text-red-500 dark:text-red-400' : 'text-emerald-500'}`}>
+          <div className="my-1">
+            <div className={`text-2xl sm:text-3xl font-black tabular-nums tracking-tight ${stats.delayedCount > 0 ? 'text-red-500 dark:text-red-400' : 'text-emerald-500'}`}>
               {stats.delayedCount.toLocaleString('ca-ES')}
             </div>
-            <div className="text-xs text-red-600 dark:text-red-400 font-bold mt-2">
+            <div className="text-[11px] sm:text-xs text-red-600 dark:text-red-400 font-bold mt-1">
               {stats.totalPassages > 0 ? ((stats.delayedCount / stats.totalPassages) * 100).toFixed(1) : 0}% dels passos totals
             </div>
           </div>
-          <div className="text-[11px] text-gray-500 dark:text-gray-400">
+          <div className="text-[10px] sm:text-[11px] text-gray-500 dark:text-gray-400">
             Desviació &gt; 239 segons (+4 min)
           </div>
         </div>
 
         {/* KPI 4: Retard Mitjà */}
-        <div className="p-4 rounded-2xl bg-white/50 dark:bg-white/[0.02] border border-gray-100 dark:border-white/5 flex flex-col justify-between shadow-sm">
+        <div className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-white/50 dark:bg-white/[0.02] border border-gray-100 dark:border-white/5 flex flex-col justify-between shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+            <span className="text-[10px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
               Retard Mitjà
             </span>
-            <div className="p-1.5 rounded-xl bg-amber-500/10 text-amber-500">
-              <Timer size={16} />
+            <div className="p-1 rounded-lg bg-amber-500/10 text-amber-500">
+              <Timer size={14} />
             </div>
           </div>
-          <div className="my-2">
-            <div className="text-3xl sm:text-4xl font-black text-[#4D5358] dark:text-white tabular-nums tracking-tight">
+          <div className="my-1">
+            <div className="text-2xl sm:text-3xl font-black text-[#4D5358] dark:text-white tabular-nums tracking-tight">
               {stats.avgDelayFormatted}
             </div>
-            <div className="text-xs text-amber-600 dark:text-amber-400 font-bold mt-2">
+            <div className="text-[11px] sm:text-xs text-amber-600 dark:text-amber-400 font-bold mt-1">
               Circulacions afectades
             </div>
           </div>
-          <div className="text-[11px] text-gray-500 dark:text-gray-400">
+          <div className="text-[10px] sm:text-[11px] text-gray-500 dark:text-gray-400">
             Mitjana de temps acumulat
           </div>
         </div>
@@ -259,7 +259,7 @@ export const PunctualitySection: React.FC<PunctualitySectionProps> = ({ onNaviga
           feedback.click();
           setIsExpanded(prev => !prev);
         }}
-        className="w-full py-2 flex items-center justify-center gap-2 text-xs font-bold text-gray-500 hover:text-fgc-green dark:text-gray-400 dark:hover:text-fgc-green transition-colors border-t border-gray-100 dark:border-white/5 pt-3 group cursor-pointer"
+        className="w-full py-1.5 flex items-center justify-center gap-1.5 text-xs font-bold text-gray-500 hover:text-fgc-green dark:text-gray-400 dark:hover:text-fgc-green transition-colors border-t border-gray-100 dark:border-white/5 pt-1.5 group cursor-pointer"
       >
         <span>
           {isExpanded
@@ -267,7 +267,7 @@ export const PunctualitySection: React.FC<PunctualitySectionProps> = ({ onNaviga
             : 'Expandir informació detallada (línies, evolució horària i retards)'}
         </span>
         <ChevronDown
-          size={15}
+          size={14}
           className={`transition-transform duration-300 group-hover:text-fgc-green ${
             isExpanded ? 'rotate-180' : ''
           }`}
