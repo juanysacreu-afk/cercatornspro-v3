@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, RefreshCcw, Train, Menu, X, Download, BookOpen, Settings, Moon, Sun, ShieldAlert, Eye, Layers, Volume2, VolumeX, MessageCircle, HelpCircle, Calendar, Activity } from 'lucide-react';
+import { Search, RefreshCcw, Train, Menu, X, Download, BookOpen, Settings, Moon, Sun, ShieldAlert, Eye, Layers, Volume2, VolumeX, MessageCircle, HelpCircle, Calendar, Activity, Users } from 'lucide-react';
 import { AppTab } from './types.ts';
 import { CercarView } from './views/CercarView.tsx';
 import OrganitzaView from './views/OrganitzaView.tsx';
 import CiclesView from './views/CiclesView.tsx';
 import IncidenciaView from './views/IncidenciaView.tsx';
 import GipView from './views/GipView.tsx';
+import AgentsView from './views/AgentsView.tsx';
 import DashboardView from './views/dashboard/DashboardView.tsx';
 import MensajeriaView from './views/mensajeria/MensajeriaView.tsx';
 import { startGipRecorder } from './utils/gipRecorder.ts';
@@ -351,6 +352,7 @@ const App: React.FC = () => {
     { id: AppTab.Organitza, label: 'Organitza', icon: <RefreshCcw size={18} /> },
     { id: AppTab.Incidencia, label: 'Incidència', icon: <ShieldAlert size={18} /> },
     { id: AppTab.Gip, label: 'GIP', icon: <Activity size={18} /> },
+    { id: AppTab.Agents, label: 'Agents', icon: <Users size={18} /> },
     { id: AppTab.Cicles, label: 'Unitats', icon: <Train size={18} /> },
     { id: AppTab.Mensajeria, label: 'Missatges', icon: <MessageCircle size={18} /> }
   ];
@@ -714,6 +716,12 @@ const App: React.FC = () => {
               {
                 id: AppTab.Gip, Component: <GipView
                   isPrivacyMode={isPrivacyMode}
+                />
+              },
+              {
+                id: AppTab.Agents, Component: <AgentsView
+                  isPrivacyMode={isPrivacyMode}
+                  onNavigateToSearch={handleNavigateToSearch}
                 />
               },
               { id: AppTab.Cicles, Component: <CiclesView parkedUnits={parkedUnits} onParkedUnitsChange={fetchParkedUnits} /> },

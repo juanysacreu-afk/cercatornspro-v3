@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { OrganizeType, DailyAssignment } from '../types.ts';
-import { Search, Phone, User, Loader2, Clock, LayoutGrid, ArrowRight, CheckCircle2, Coffee, Info, Filter, UserCircle, ChevronDown, X, Train, Hash, RefreshCcw, Mail, GanttChart } from 'lucide-react';
+import { OrganizeType } from '../types.ts';
+import { Search, Phone, User, Clock, LayoutGrid, ArrowRight, Coffee, Info, X, Train, Hash, RefreshCcw, Mail, GanttChart, Loader2 } from 'lucide-react';
 import OrganitzaGantt from './organitza/OrganitzaGantt';
 import { supabase } from '../supabaseClient.ts';
 import { fetchFullTurns } from '../utils/queries.ts';
@@ -8,12 +8,6 @@ import { getShortTornId, getFgcMinutes, formatFgcTime } from '../utils/stations'
 import { useServiceToday } from '../utils/useServiceToday';
 import { feedback } from '../utils/feedback';
 
-type DisDesFilterType = 'ALL' | 'DIS' | 'DES' | 'DIS_DES' | 'FOR' | 'VAC' | 'DAG' | 'SERVEI' | 'AJN';
-
-const normalizeId = (id: any) => {
-  if (!id) return '';
-  return String(id).trim().replace(/^0+/, '');
-};
 const OrganitzaViewComponent: React.FC<{
   isPrivacyMode: boolean,
   onNavigateToSearch?: (type: string, query: string) => void
@@ -38,15 +32,6 @@ const OrganitzaViewComponent: React.FC<{
   const [turnsData, setTurnsData] = useState<(any | null)[]>([null, null, null, null]);
   const [loadingComparator, setLoadingComparator] = useState(false);
 
-  const [maquinistaQuery, setMaquinistaQuery] = useState('');
-  const [allAssignments, setAllAssignments] = useState<DailyAssignment[]>([]);
-  const [allAgents, setAllAgents] = useState<any[]>([]);
-  const [contacts, setContacts] = useState<Record<string, { phones: string[], email: string | null }>>({});
-  const [disDesFilter, setDisDesFilter] = useState<DisDesFilterType>('DIS_DES');
-  const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
-  const [loadingMaquinistes, setLoadingMaquinistes] = useState(false);
-
-  const filterRef = useRef<HTMLDivElement>(null);
   const serveiTypes = ['0', '100', '400', '500'];
 
 
@@ -73,58 +58,6 @@ const OrganitzaViewComponent: React.FC<{
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
   }, []);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
-        setIsFilterMenuOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    if (organizeType === OrganizeType.Maquinista) {
-      fetchMaquinistes();
-    }
-  }, [organizeType]);
-
-  const fetchMaquinistes = async () => {
-    setLoadingMaquinistes(true);
-    try {
-      const [assigRes, contactsRes] = await Promise.all([
-        supabase.from('daily_assignments').select('*').order('cognoms', { ascending: true }),
-        supabase.from('agents').select('nomina, name, surname, phone, email, area').eq('area', 'bv')
-      ]);
-
-      if (assigRes.data) setAllAssignments(assigRes.data);
-      if (contactsRes.data) {
-        setAllAgents(contactsRes.data);
-        const contactMap: Record<string, { phones: string[], email: string | null }> = {};
-
-        contactsRes.data.forEach((a: any) => {
-          const nominaStr = String(a.nomina || '').trim();
-          if (!nominaStr) return;
-
-          let phones: string[] = [];
-          if (a.phone) {
-            phones = [String(a.phone)];
-          }
-
-          contactMap[normalizeId(nominaStr)] = {
-            phones,
-            email: a.email || null
-          };
-        });
-        setContacts(contactMap);
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoadingMaquinistes(false);
-    }
-  };
 
   const getSegments = useCallback((turn: any) => {
     if (!turn) return [];
@@ -240,61 +173,6 @@ const OrganitzaViewComponent: React.FC<{
     return coincidences.findIndex(c => c.end > nowMin);
   }, [coincidences, nowMin]);
 
-  const filteredMaquinistes = useMemo(() => {
-    const bvAgentIds = new Set(allAgents.map(a => normalizeId(a.nomina)));
-    let baseList = allAssignments.filter(a => bvAgentIds.has(normalizeId(a.empleat_id)));
-
-    // Si el filtre és 'ALL', afegim els agents que NO estan a daily_assignments
-    // Si el filtre és 'ALL', afegim els agents que NO estan a daily_assignments
-    if (disDesFilter === 'ALL') {
-      const assignedIds = new Set(allAssignments.map(a => normalizeId(a.empleat_id)));
-      const unassignedAgents = allAgents
-        .filter(agent => !assignedIds.has(normalizeId(agent.nomina)))
-        .map(agent => ({
-          id: -1 * parseInt(agent.nomina || '0'),
-          empleat_id: agent.nomina,
-          nom: agent.name || '',
-          cognoms: agent.surname || '',
-          torn: 'S/A',
-          hora_inici: '--:--',
-          hora_fi: '--:--',
-          tipus_torn: '',
-          observacions: '',
-          is_unassigned: true,
-          created_at: new Date().toISOString(),
-          rango_horario_extra: null
-        }));
-      baseList = [...baseList, ...unassignedAgents];
-    }
-
-    return baseList.filter(maquinista => {
-      const searchStr = maquinistaQuery.toLowerCase();
-      const queryMatch = (maquinista.nom || '').toLowerCase().includes(searchStr) ||
-        (maquinista.cognoms || '').toLowerCase().includes(searchStr) ||
-        maquinista.empleat_id.includes(searchStr);
-
-      if (!queryMatch) return false;
-      if (disDesFilter === 'ALL') return true;
-      if (disDesFilter === 'DIS') return maquinista.torn.startsWith('DIS');
-      if (disDesFilter === 'DES') return maquinista.torn.startsWith('DES');
-      if (disDesFilter === 'DIS_DES') return maquinista.torn.startsWith('DIS') || maquinista.torn.startsWith('DES');
-      if (disDesFilter === 'FOR') return maquinista.torn.startsWith('FOR');
-      if (disDesFilter === 'VAC') return maquinista.torn.startsWith('VAC');
-      if (disDesFilter === 'DAG') return maquinista.torn.startsWith('DAG');
-      if (disDesFilter === 'AJN') return maquinista.torn.startsWith('AJN');
-
-      if (disDesFilter === 'SERVEI') {
-        return !maquinista.torn.startsWith('FOR') &&
-          !maquinista.torn.startsWith('DIS') &&
-          !maquinista.torn.startsWith('DES') &&
-          !['VAC', 'DAG', 'ABS', 'LLIB'].some(p => maquinista.torn.startsWith(p)) &&
-          maquinista.torn !== 'S/A';
-      }
-
-      return true;
-    }).sort((a, b) => (a.cognoms || '').localeCompare(b.cognoms || ''));
-  }, [allAssignments, allAgents, maquinistaQuery, disDesFilter]);
-
   const SimpleTimeline = ({ segments, label, colorMode = 'normal', turnId = '', globalMin, globalMax }: { segments: any[], label: string, colorMode?: 'normal' | 'coincidence', turnId?: string, globalMin: number, globalMax: number }) => {
     if (segments.length === 0 && colorMode !== 'coincidence') return null;
     const total = globalMax - globalMin; if (total <= 0) return null;
@@ -322,26 +200,13 @@ const OrganitzaViewComponent: React.FC<{
     );
   };
 
-  const filterLabels: Record<DisDesFilterType, string> = {
-    ALL: 'Tots',
-    SERVEI: 'SERVEI',
-    DIS: 'DIS',
-    DES: 'DES',
-    DIS_DES: 'DIS + DES',
-    FOR: 'FOR',
-    VAC: 'VAC',
-    DAG: 'DAG',
-    AJN: 'AJN'
-  };
-
   return (
     <div className="space-y-6 sm:space-y-8 p-4 sm:p-8 animate-in fade-in duration-700 max-w-7xl mx-auto w-full">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div><h1 className="text-2xl sm:text-3xl font-bold text-[#4D5358] dark:text-white tracking-tight title-glow uppercase">Organització de Torn</h1><p className="text-sm sm:text-base text-gray-500 dark:text-gray-400 font-medium">Anàlisi comparativa i gestió.</p></div>
         <div className="flex bg-white/20 dark:bg-black/20 p-1.5 rounded-[20px] backdrop-blur-md border border-white/20 shadow-inner">
-          <button onClick={() => { feedback.deepClick(); setOrganizeType(OrganizeType.Comparador); }} className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-6 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-sm font-bold transition-all whitespace-nowrap ${organizeType === OrganizeType.Comparador ? 'bg-fgc-grey dark:bg-fgc-green dark:text-[#4D5358] text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-white/10'}`}><RefreshCcw size={16} /><span className="truncate">Comparador</span></button>
-          <button onClick={() => { feedback.deepClick(); setOrganizeType(OrganizeType.Maquinista); }} className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-6 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-sm font-bold transition-all whitespace-nowrap ${organizeType === OrganizeType.Maquinista ? 'bg-fgc-grey dark:bg-fgc-green dark:text-[#4D5358] text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-white/10'}`}><User size={16} /><span className="truncate">Maquinistes</span></button>
-          <button onClick={() => { feedback.deepClick(); setOrganizeType(OrganizeType.Malla); }} className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-6 py-2 sm:py-2.5 rounded-xl text-[11px] sm:text-sm font-bold transition-all whitespace-nowrap ${organizeType === OrganizeType.Malla ? 'bg-fgc-grey dark:bg-fgc-green dark:text-[#4D5358] text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-white/10'}`}><GanttChart size={16} /><span className="truncate">Malla</span></button>
+          <button onClick={() => { feedback.deepClick(); setOrganizeType(OrganizeType.Comparador); }} className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${organizeType === OrganizeType.Comparador ? 'bg-fgc-grey dark:bg-fgc-green dark:text-[#4D5358] text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-white/10'}`}><RefreshCcw size={16} /><span className="truncate">Comparador</span></button>
+          <button onClick={() => { feedback.deepClick(); setOrganizeType(OrganizeType.Malla); }} className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${organizeType === OrganizeType.Malla ? 'bg-fgc-grey dark:bg-fgc-green dark:text-[#4D5358] text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-white/10'}`}><GanttChart size={16} /><span className="truncate">Malla</span></button>
         </div>
       </header>
 
@@ -489,100 +354,14 @@ const OrganitzaViewComponent: React.FC<{
               </div>
             )}
           </div>
-        ) : organizeType === OrganizeType.Maquinista ? (
-          <div key="maquinistes-view" className="space-y-8 animate-in fade-in slide-in-from-right-8 duration-700 ease-out-expo">
-            <div className="bg-white dark:bg-fgc-grey rounded-[40px] p-6 sm:p-10 border border-gray-100 dark:border-white/5 shadow-sm space-y-8 transition-colors">
-              <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" size={20} />
-                  <input
-                    type="text"
-                    placeholder="Cerca per nom, cognoms o nòmina..."
-                    value={maquinistaQuery}
-                    onChange={(e) => setMaquinistaQuery(e.target.value)}
-                    className="w-full bg-gray-50 dark:bg-black/20 border-none rounded-[24px] py-4 pl-14 pr-8 focus:ring-4 focus:ring-fgc-green/20 outline-none font-bold text-lg transition-all dark:text-white dark:placeholder:text-gray-600 shadow-inner"
-                  />
-                </div>
-
-                <div className="relative" ref={filterRef}>
-                  <button
-                    onClick={() => setIsFilterMenuOpen(!isFilterMenuOpen)}
-                    className="h-full flex items-center justify-between gap-3 px-6 py-4 bg-gray-50 dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-[24px] font-bold text-sm text-[#4D5358] dark:text-gray-200 transition-all hover:bg-gray-100 dark:hover:bg-white/10 min-w-[180px] shadow-sm"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Filter size={16} className="text-fgc-green" />
-                      <span>Filtre: {filterLabels[disDesFilter]}</span>
-                    </div>
-                    <ChevronDown size={18} className={`transition-transform duration-300 ${isFilterMenuOpen ? 'rotate-180' : ''}`} />
-                  </button>
-
-                  {isFilterMenuOpen && (
-                    <div className="absolute top-full right-0 mt-3 w-64 bg-white dark:bg-gray-800 rounded-[24px] shadow-2xl border border-gray-100 dark:border-white/10 py-3 z-[100] animate-in fade-in slide-in-from-top-4 duration-200">
-                      {(Object.keys(filterLabels) as DisDesFilterType[]).map((option) => (
-                        <button
-                          key={option}
-                          onClick={() => {
-                            setDisDesFilter(option);
-                            setIsFilterMenuOpen(false);
-                          }}
-                          className={`w-full flex items-center justify-between px-6 py-4 text-sm font-bold transition-colors hover:bg-gray-50 dark:hover:bg-white/5 ${disDesFilter === option ? 'text-fgc-green' : 'text-[#4D5358] dark:text-gray-200'
-                            }`}
-                        >
-                          {filterLabels[option]}
-                          {disDesFilter === option && <CheckCircle2 size={16} />}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="pt-6 border-t border-dashed border-gray-100 dark:border-white/10 transition-colors">
-                {loadingMaquinistes ? (
-                  <div className="py-20 flex flex-col items-center justify-center gap-4">
-                    <Loader2 className="animate-spin text-fgc-green" size={40} />
-                    <p className="font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest text-[10px]">Recuperant llistat...</p>
-                  </div>
-                ) : filteredMaquinistes.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filteredMaquinistes.map((maquinista) => {
-                      const contact = contacts[normalizeId(maquinista.empleat_id)] || { phones: [], email: null };
-                      const isFOR = maquinista.torn.startsWith('FOR');
-                      const isDIS = maquinista.torn.startsWith('DIS');
-                      const isDES = maquinista.torn.startsWith('DES');
-                      const isAssigned = !isFOR && !isDIS && !isDES && !['VAC', 'DAG', 'ABS', 'LLIB', 'AJN', 'S/N', 'S/A'].some(p => maquinista.torn.startsWith(p));
-
-                      return (
-                        <MemoizedMaquinistaCard
-                          key={maquinista.empleat_id}
-                          maquinista={maquinista}
-                          contact={contact}
-                          isAssigned={isAssigned}
-                          isFOR={isFOR}
-                          isDIS={isDIS}
-                          isDES={isDES}
-                          isPrivacyMode={isPrivacyMode}
-                        />
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="py-20 text-center space-y-4 opacity-40 transition-colors">
-                    <UserCircle size={60} className="mx-auto text-gray-200 dark:text-gray-800" />
-                    <p className="font-bold text-[#4D5358] dark:text-gray-400 uppercase tracking-[0.2em] text-[10px]">No s'ha trobat personal per a la cerca actual</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        ) : organizeType === OrganizeType.Malla ? (
+        ) : (
           <div key="malla-view" className="animate-in fade-in slide-in-from-right-8 duration-700 ease-out-expo">
             <OrganitzaGantt
               onNavigateToSearch={onNavigateToSearch}
               isPrivacyMode={isPrivacyMode}
             />
           </div>
-        ) : null}
+        )}
       </div>
     </div>
   );
@@ -792,114 +571,6 @@ const CompareInputSlot = ({ label, value, onChange, data, onClear, nowMin, getSe
     </div>
   );
 };
-
-const MemoizedMaquinistaCard = React.memo(({ maquinista, contact, isAssigned, isFOR, isDIS, isDES, isPrivacyMode }: any) => {
-  const { phones = [], email } = contact;
-  return (
-    <div
-      className={`bg-white dark:bg-gray-800 rounded-[28px] p-5 border transition-all flex flex-col h-full gap-4 group hover:shadow-xl ${isAssigned ? 'border-blue-200 dark:border-blue-500/20 bg-blue-50/10 dark:bg-blue-500/5 hover:border-blue-300' :
-        isFOR ? 'border-yellow-200 dark:border-yellow-500/20 bg-yellow-50/10 dark:bg-yellow-500/5 hover:border-yellow-300' :
-          isDIS ? 'border-orange-200 dark:border-orange-500/20 bg-orange-50/10 dark:bg-orange-500/5 hover:border-orange-300' :
-            isDES ? 'border-fgc-green/30 dark:border-fgc-green/20 bg-fgc-green/10 dark:bg-fgc-green/5 hover:border-fgc-green/30' :
-              'border-gray-100 dark:border-white/5 hover:border-fgc-green/30'
-        }`}
-    >
-      <div className="flex items-center gap-4">
-        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-xl shadow-md shrink-0 ${isAssigned ? 'bg-blue-600 text-white' :
-          isFOR ? 'bg-yellow-500 text-white' :
-            isDIS ? 'bg-orange-500 text-white' :
-              isDES ? 'bg-fgc-green text-[#4D5358]' :
-                'bg-fgc-grey dark:bg-black text-white'
-          }`}>
-          {maquinista.cognoms?.charAt(0) || maquinista.nom?.charAt(0)}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <h3 className="text-base font-bold text-[#4D5358] dark:text-white leading-tight uppercase truncate">{maquinista.cognoms}, {maquinista.nom}</h3>
-            {maquinista.tipus_torn && (
-              <span className={`px-2 py-0.5 rounded text-[7px] font-bold uppercase border shrink-0 ${maquinista.tipus_torn === 'Reducció'
-                ? 'bg-purple-600 text-white border-purple-700'
-                : 'bg-blue-600 text-white border-blue-700'
-                }`}>
-                {maquinista.tipus_torn === 'Reducció' ? 'RED' : 'TORN'}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-2 mt-0.5">
-            <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500">#{maquinista.empleat_id}</span>
-            <div className={`px-2 py-0.5 rounded text-[10px] font-bold ${isAssigned ? 'bg-blue-600 text-white' :
-              isFOR ? 'bg-yellow-500 text-white' :
-                isDIS ? 'bg-orange-500 text-white' :
-                  isDES ? 'bg-fgc-green text-[#4D5358]' :
-                    'bg-gray-100 dark:bg-black text-gray-400 dark:text-gray-600'
-              }`}>
-              {maquinista.torn}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-2 pt-3 border-t border-gray-100/50 dark:border-white/5 transition-colors">
-        <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
-          <Clock size={12} className="text-fgc-green" />
-          <span className="text-[11px] font-bold">{maquinista.hora_inici} — {maquinista.hora_fi}</span>
-        </div>
-        {(maquinista.abs_parc_c === 'S' || maquinista.dta === 'S' || maquinista.dpa === 'S') && (
-          <div className="flex gap-2">
-            {maquinista.abs_parc_c === 'S' && <span className="bg-red-50 text-red-600 text-[8px] font-bold px-1.5 py-0.5 rounded border border-red-100">ABS</span>}
-            {maquinista.dta === 'S' && <span className="bg-blue-50 text-blue-600 text-[8px] font-bold px-1.5 py-0.5 rounded border border-blue-100">DTA</span>}
-            {maquinista.dpa === 'S' && <span className="bg-purple-50 text-purple-600 text-[8px] font-bold px-1.5 py-0.5 rounded border border-purple-100">DPA</span>}
-          </div>
-        )}
-        {maquinista.observacions && (
-          <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
-            <Info size={12} className="text-fgc-green" />
-            <span className="text-[11px] font-bold truncate">{maquinista.observacions}</span>
-          </div>
-        )}
-      </div>
-
-      <div className="flex flex-wrap gap-2 mt-auto">
-        {phones.length > 0 || email ? (
-          <>
-            {phones.map((p: any, idx: number) => (
-              <a
-                key={`phone-${idx}`}
-                href={isPrivacyMode ? undefined : `tel:${p}`}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all shadow-sm ${isAssigned ? 'bg-blue-600 text-white hover:bg-blue-700' :
-                  isFOR ? 'bg-yellow-500 text-white hover:bg-yellow-600' :
-                    isDIS ? 'bg-orange-500 text-white hover:bg-orange-600' :
-                      isDES ? 'bg-fgc-green text-[#4D5358] hover:brightness-110' :
-                        'bg-fgc-grey dark:bg-black text-white hover:bg-fgc-dark'
-                  } ${isPrivacyMode ? 'cursor-default' : ''}`}
-              >
-                <Phone size={12} />
-                {isPrivacyMode ? '*** ** ** **' : p}
-              </a>
-            ))}
-            {email && (
-              <a
-                href={`mailto:${email}`}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all shadow-sm ${isAssigned ? 'bg-blue-600/20 text-blue-600 dark:text-blue-400 border border-blue-600/20' :
-                  isFOR ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 border border-yellow-500/20' :
-                    isDIS ? 'bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/20' :
-                      isDES ? 'bg-fgc-green/20 text-green-800 dark:text-fgc-green border border-fgc-green/20' :
-                        'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 border border-gray-100 dark:border-white/5'
-                  }`}
-                title={email}
-              >
-                <Mail size={12} />
-                {email.length > 20 ? 'Email' : email}
-              </a>
-            )}
-          </>
-        ) : (
-          <span className="text-[10px] font-bold text-gray-300 dark:text-gray-700 italic">Sense contacte</span>
-        )}
-      </div>
-    </div>
-  );
-});
 
 export const OrganitzaView = React.memo(OrganitzaViewComponent);
 export default OrganitzaView;

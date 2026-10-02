@@ -78,6 +78,7 @@ export enum AppTab {
   Organitza = 'organitza',
   Incidencia = 'incidencia',
   Gip = 'gip',
+  Agents = 'agents',
   Cicles = 'cicles',
   Mensajeria = 'mensajeria'
 }
