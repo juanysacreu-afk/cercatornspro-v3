@@ -39,6 +39,19 @@ const resolveStationName = (codeOrName: string, linia: string = ''): string => {
   return trimmed;
 };
 
+const formatDelayMinSec = (totalSeconds: number): string => {
+  if (!totalSeconds || totalSeconds <= 0) return '0s';
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = Math.round(totalSeconds % 60);
+  if (mins > 0 && secs > 0) {
+    return `${mins}m ${secs.toString().padStart(2, '0')}s`;
+  }
+  if (mins > 0 && secs === 0) {
+    return `${mins}m 00s`;
+  }
+  return `0m ${secs.toString().padStart(2, '0')}s`;
+};
+
 export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
   agent,
   contact,
@@ -805,7 +818,7 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
                   {!overallPunctuality.isShiftStarted
                     ? 'Torn pendent d\'inici'
                     : overallPunctuality.delayedCount > 0 
-                      ? `Màx: +${overallPunctuality.maxDelaySec}s` 
+                      ? `Màx: +${formatDelayMinSec(overallPunctuality.maxDelaySec)}` 
                       : '0 retards registrats'}
                 </span>
               </div>
@@ -837,7 +850,7 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
                 </span>
                 <div className="my-2">
                   <span className="text-3xl sm:text-4xl font-black font-mono text-[#4D5358] dark:text-white tracking-tight">
-                    {overallPunctuality.avgDelaySec > 0 ? `+${overallPunctuality.avgDelaySec}s` : '0s'}
+                    {overallPunctuality.avgDelaySec > 0 ? `+${formatDelayMinSec(overallPunctuality.avgDelaySec)}` : '0s'}
                   </span>
                 </div>
                 <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 truncate">
@@ -997,13 +1010,13 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
                                   <div className="flex items-center gap-2">
                                     <AlertTriangle size={14} className="text-red-500 shrink-0" />
                                     <span className="text-[#4D5358] dark:text-gray-200 font-bold">
-                                      {stop.estacio_nom || resolveStationName(stop.estacio_codi)}
+                                      {resolveStationName(stop.estacio_nom || stop.estacio_codi, item.linia)}
                                     </span>
                                   </div>
                                   <div className="flex items-center gap-3 font-mono text-[11px]">
                                     <span className="text-gray-400">Teòric: {stop.hora_teorica}</span>
                                     <span className="text-red-600 dark:text-red-400 font-bold">
-                                      +{stop.diferencia_segons}s retard
+                                      +{formatDelayMinSec(stop.diferencia_segons)} retard
                                     </span>
                                   </div>
                                 </div>
