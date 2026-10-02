@@ -575,7 +575,7 @@ const App: React.FC = () => {
           {/* Settings Dropdown - Now always accessible and correctly positioned */}
           {isSettingsOpen && (
             <div
-              className={`fixed ${isProNav ? 'left-20 bottom-6 ml-4 z-[100]' : 'right-4 top-24 z-[100]'} w-64 bg-white dark:bg-[#4D5358] rounded-[24px] shadow-2xl border border-gray-100 dark:border-white/10 py-3 animate-modal-premium`}
+              className={`fixed ${isProNav ? 'left-20 bottom-6 ml-4 z-[100]' : 'right-4 top-24 z-[100]'} w-72 bg-white dark:bg-[#4D5358] rounded-[24px] shadow-2xl border border-gray-100 dark:border-white/10 py-3 animate-modal-premium`}
               ref={settingsRef}
             >
               <div className="px-6 py-3 border-b border-gray-100 dark:border-white/5">
@@ -617,13 +617,13 @@ const App: React.FC = () => {
                   aria-label={isDarkMode ? 'Desactivar modo fosc' : 'Activar modo fosc'}
                   className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-xl bg-gray-100 dark:bg-white/10 text-fgc-grey dark:text-gray-300 group-hover:scale-110 transition-transform">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="p-2 rounded-xl bg-gray-100 dark:bg-white/10 text-fgc-grey dark:text-gray-300 group-hover:scale-110 transition-transform shrink-0">
                       {isDarkMode ? <Moon size={18} /> : <Sun size={18} />}
                     </div>
                     <span className="text-sm font-bold text-fgc-grey dark:text-gray-200">Mode Fosc</span>
                   </div>
-                  <div className={`w-12 h-6 rounded-full relative transition-colors duration-300 border ${isDarkMode ? 'bg-fgc-green border-fgc-green' : 'bg-gray-200 border-gray-300'}`}>
+                  <div className={`w-12 h-6 min-w-[48px] rounded-full relative transition-colors duration-300 border shrink-0 ${isDarkMode ? 'bg-fgc-green border-fgc-green' : 'bg-gray-200 border-gray-300'}`}>
                     <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-300 ${isDarkMode ? 'left-7' : 'left-1'}`} />
                   </div>
                 </button>
@@ -638,15 +638,15 @@ const App: React.FC = () => {
                   aria-label={isProNav ? 'Desactivar navegació lateral' : 'Activar navegació lateral'}
                   className="hidden lg:flex w-full items-center justify-between p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-xl bg-gray-100 dark:bg-white/10 text-fgc-grey dark:text-gray-300 group-hover:scale-110 transition-transform">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="p-2 rounded-xl bg-gray-100 dark:bg-white/10 text-fgc-grey dark:text-gray-300 group-hover:scale-110 transition-transform shrink-0">
                       <Layers size={18} />
                     </div>
                     <span className="text-sm font-bold text-fgc-grey dark:text-gray-200">
                       Navegació
                     </span>
                   </div>
-                  <div className={`w-12 h-6 rounded-full relative transition-colors duration-300 border ${isProNav ? 'bg-fgc-green border-fgc-green' : 'bg-gray-200 border-gray-300'}`}>
+                  <div className={`w-12 h-6 min-w-[48px] rounded-full relative transition-colors duration-300 border shrink-0 ${isProNav ? 'bg-fgc-green border-fgc-green' : 'bg-gray-200 border-gray-300'}`}>
                     <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-300 ${isProNav ? 'left-7' : 'left-1'}`} />
                   </div>
                 </button>
@@ -658,15 +658,15 @@ const App: React.FC = () => {
                   aria-label={isSoundEnabled ? "Desactivar sons de l'aplicació" : "Activar sons de l'aplicació"}
                   className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-xl bg-gray-100 dark:bg-white/10 text-fgc-grey dark:text-gray-300 group-hover:scale-110 transition-transform">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="p-2 rounded-xl bg-gray-100 dark:bg-white/10 text-fgc-grey dark:text-gray-300 group-hover:scale-110 transition-transform shrink-0">
                       {isSoundEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
                     </div>
                     <span className="text-sm font-bold text-fgc-grey dark:text-gray-200">
                       Sons de l'App
                     </span>
                   </div>
-                  <div className={`w-12 h-6 rounded-full relative transition-colors duration-300 border ${isSoundEnabled ? 'bg-fgc-green border-fgc-green' : 'bg-gray-200 border-gray-300'}`}>
+                  <div className={`w-12 h-6 min-w-[48px] rounded-full relative transition-colors duration-300 border shrink-0 ${isSoundEnabled ? 'bg-fgc-green border-fgc-green' : 'bg-gray-200 border-gray-300'}`}>
                     <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-300 ${isSoundEnabled ? 'left-7' : 'left-1'}`} />
                   </div>
                 </button>
@@ -678,20 +678,20 @@ const App: React.FC = () => {
                   aria-label="Avisos de Retard al Mòbil (> 4 min)"
                   className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-xl transition-transform ${isDelayNotifsActive ? 'bg-fgc-green/15 text-fgc-green' : 'bg-gray-100 dark:bg-white/10 text-fgc-grey dark:text-gray-300'} group-hover:scale-110`}>
+                  <div className="flex items-center gap-3 min-w-0 pr-2">
+                    <div className={`p-2 rounded-xl transition-transform shrink-0 ${isDelayNotifsActive ? 'bg-fgc-green/15 text-fgc-green' : 'bg-gray-100 dark:bg-white/10 text-fgc-grey dark:text-gray-300'} group-hover:scale-110`}>
                       {isDelayNotifsActive ? <BellRing size={18} className="animate-pulse" /> : <Bell size={18} />}
                     </div>
-                    <div className="text-left">
-                      <span className="text-sm font-bold text-fgc-grey dark:text-gray-200 block">
-                        Avisos Mòbil (&gt; 4 min)
+                    <div className="text-left min-w-0 flex-1">
+                      <span className="text-sm font-bold text-fgc-grey dark:text-gray-200 block truncate">
+                        Avisos Mòbil (&gt; 4m)
                       </span>
-                      <span className="text-[10px] text-gray-400 dark:text-gray-500">
-                        Alerta de trens amb retard
+                      <span className="text-[10px] text-gray-400 dark:text-gray-500 block truncate">
+                        Alertes de retard FGC
                       </span>
                     </div>
                   </div>
-                  <div className={`w-12 h-6 rounded-full relative transition-colors duration-300 border ${isDelayNotifsActive ? 'bg-fgc-green border-fgc-green' : 'bg-gray-200 border-gray-300'}`}>
+                  <div className={`w-12 h-6 min-w-[48px] rounded-full relative transition-colors duration-300 border shrink-0 ${isDelayNotifsActive ? 'bg-fgc-green border-fgc-green' : 'bg-gray-200 border-gray-300'}`}>
                     <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-300 ${isDelayNotifsActive ? 'left-7' : 'left-1'}`} />
                   </div>
                 </button>
