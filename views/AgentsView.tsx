@@ -114,7 +114,7 @@ const MemoizedMaquinistaCard = React.memo(({
             >
               {maquinista.torn}
             </div>
-            {perf && perf.puntualitat_percentatge !== null && (
+            {perf && perf.puntualitat_percentatge !== null ? (
               <span className={`px-2 py-0.5 rounded text-[8px] font-mono font-black border shrink-0 ${
                 perf.puntualitat_percentatge >= 95 ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800' :
                 perf.puntualitat_percentatge >= 85 ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800' :
@@ -122,7 +122,11 @@ const MemoizedMaquinistaCard = React.memo(({
               }`}>
                 {perf.puntualitat_percentatge}% Punt.
               </span>
-            )}
+            ) : isAssigned && perf?.estat_torn === 'NO_INICIAT' ? (
+              <span className="px-2 py-0.5 rounded text-[8px] font-mono font-bold text-gray-400 bg-gray-50 border border-gray-200 dark:bg-white/5 dark:text-gray-500 dark:border-white/10 shrink-0">
+                --% Punt.
+              </span>
+            ) : null}
           </div>
         </div>
       </div>
@@ -262,6 +266,18 @@ const AgentsViewComponent: React.FC<AgentsViewProps> = ({ isPrivacyMode, onNavig
         });
         setContacts(contactMap);
       }
+
+      // Sincronització automàtica en segon pla de la puntualitat de tots els agents actius
+      if (assigRes.data && assigRes.data.length > 0) {
+        syncAllAgentsPerformance(assigRes.data, todayService).then(res => {
+          if (res.success && res.perfMap) {
+            setDailyPerfMap(prev => ({
+              ...prev,
+              ...res.perfMap
+            }));
+          }
+        });
+      }
     } catch (e) {
       console.error('[AgentsView] Error carregant agents:', e);
     } finally {
@@ -275,9 +291,10 @@ const AgentsViewComponent: React.FC<AgentsViewProps> = ({ isPrivacyMode, onNavig
     try {
       const res = await syncAllAgentsPerformance(allAssignments, todayService);
       if (res.success) {
-        showToast(`S'ha desat l'històric de ${res.savedCount} agents a Supabase!`, 'success');
-        const updatedMap = await getDailyPerformanceSummary();
-        setDailyPerfMap(updatedMap);
+        if (res.perfMap) {
+          setDailyPerfMap(prev => ({ ...prev, ...res.perfMap }));
+        }
+        showToast(`S'ha sincronitzat i desat l'històric de ${res.savedCount} agents a Supabase!`, 'success');
       } else {
         showToast("Error desant l'històric a Supabase.", 'error');
       }
@@ -366,10 +383,10 @@ const AgentsViewComponent: React.FC<AgentsViewProps> = ({ isPrivacyMode, onNavig
             onClick={handleSyncAllPerformance}
             disabled={isSyncingHistory || loadingMaquinistes}
             className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-fgc-green/10 hover:bg-fgc-green/20 border border-fgc-green/30 text-xs font-bold text-fgc-green dark:text-fgc-green transition-all active:scale-95 disabled:opacity-50"
-            title="Guarda el rendiment i puntualitat de tots els maquinistes d'avui a Supabase per tenir l'històric complet"
+            title="Sincronitza i actualitza el rendiment i puntualitat de tots els maquinistes d'avui a Supabase"
           >
             <Database size={14} className={isSyncingHistory ? 'animate-spin' : ''} />
-            <span>{isSyncingHistory ? 'Guardant a Supabase...' : 'Guardar històric a Supabase'}</span>
+            <span>{isSyncingHistory ? 'Sincronitzant...' : 'Sincronitzar històric'}</span>
           </button>
           <div className="px-3 py-1.5 rounded-xl bg-white/60 dark:bg-white/[0.04] border border-gray-100 dark:border-white/5 text-xs font-bold text-gray-500 dark:text-gray-400">
             {filteredMaquinistes.length} agents

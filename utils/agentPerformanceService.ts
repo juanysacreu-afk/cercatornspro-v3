@@ -82,7 +82,10 @@ export const getDailyPerformanceSummary = async (
     const map: Record<string, AgentPerformanceHistory> = {};
     data.forEach((row: any) => {
       if (row.empleat_id) {
-        map[row.empleat_id] = row as AgentPerformanceHistory;
+        const rawId = String(row.empleat_id).trim();
+        const normId = rawId.replace(/^0+/, '');
+        map[rawId] = row as AgentPerformanceHistory;
+        if (normId) map[normId] = row as AgentPerformanceHistory;
       }
     });
     return map;
@@ -93,14 +96,29 @@ export const getDailyPerformanceSummary = async (
 };
 
 /**
+ * Genera IDs candidats d'un torn per cercar a la taula shifts
+ */
+export const getCandidateShiftIdsForAgent = (clean: string, todayService: string): string[] => {
+  const candidates = new Set<string>();
+  candidates.add(clean);
+  const prefixes = [todayService === '0' ? '0' : (todayService?.charAt(0) || '1'), '1', '0', '4', '5'];
+  const q3 = clean.match(/^Q(\d{3})$/);
+  if (q3) prefixes.forEach(p => candidates.add(`Q${p}${q3[1]}`));
+  const num = clean.replace(/\D/g, '');
+  if (num) prefixes.forEach(p => candidates.add(`Q${p}${num.padStart(3, '0')}`));
+  if (!clean.startsWith('Q')) candidates.add(`Q${clean}`);
+  return Array.from(candidates);
+};
+
+/**
  * Sincronitza i desa a Supabase el rendiment de tots els agents assignats a la jornada d'avui.
  */
 export const syncAllAgentsPerformance = async (
   assignments: any[],
   todayService: string
-): Promise<{ success: boolean; savedCount: number; error?: any }> => {
+): Promise<{ success: boolean; savedCount: number; perfMap?: Record<string, AgentPerformanceHistory>; error?: any }> => {
   if (!assignments || assignments.length === 0) {
-    return { success: true, savedCount: 0 };
+    return { success: true, savedCount: 0, perfMap: {} };
   }
 
   const serviceDate = getFgcServiceDate();
@@ -111,31 +129,36 @@ export const syncAllAgentsPerformance = async (
   try {
     const activeAssignments = assignments.filter(a => {
       const t = (a.torn || '').trim().toUpperCase();
-      return t && !['VAC', 'DES', 'DIS', 'DAG', 'AJN', 'S/A'].some(p => t.startsWith(p));
+      return t && !['VAC', 'DES', 'DIS', 'DAG', 'AJN', 'S/A', 'FOR', 'LLIB', 'ABS'].some(p => t.startsWith(p));
     });
 
     if (activeAssignments.length === 0) {
-      return { success: true, savedCount: 0 };
+      return { success: true, savedCount: 0, perfMap: {} };
     }
 
     const { data: dbShifts } = await supabase.from('shifts').select('*');
+    const shiftsList = dbShifts || [];
     const shiftsMap = new Map<string, any>();
-    (dbShifts || []).forEach(s => {
+    shiftsList.forEach(s => {
       shiftsMap.set(s.id.toUpperCase(), s);
     });
 
     const allCircCodes = new Set<string>();
+    const agentShiftPairs: { agent: any; shift: any }[] = [];
+
     activeAssignments.forEach(a => {
       const cleanTorn = (a.torn || '').trim().toUpperCase();
-      const s = shiftsMap.get(cleanTorn) 
-        || shiftsMap.get(`Q${cleanTorn}`)
-        || (shiftsMap.get(`Q1${cleanTorn.padStart(3, '0')}`))
-        || (shiftsMap.get(`Q0${cleanTorn.padStart(3, '0')}`))
-        || (shiftsMap.get(`Q4${cleanTorn.padStart(3, '0')}`))
-        || (shiftsMap.get(`Q5${cleanTorn.padStart(3, '0')}`));
+      const candidates = getCandidateShiftIdsForAgent(cleanTorn, todayService);
+      const matches = shiftsList.filter(s => candidates.includes(s.id.toUpperCase()));
+      const best = matches.find(s => s.servei === todayService && s.circulations?.length > 0)
+        || matches.find(s => s.circulations?.length > 0)
+        || matches[0]
+        || shiftsMap.get(cleanTorn);
 
-      if (s?.circulations && Array.isArray(s.circulations)) {
-        s.circulations.forEach((c: any) => {
+      agentShiftPairs.push({ agent: a, shift: best });
+
+      if (best?.circulations && Array.isArray(best.circulations)) {
+        best.circulations.forEach((c: any) => {
           const code = typeof c === 'string' ? c : (c.codi || c.realCodi || c.id);
           if (code && code !== 'Viatger') allCircCodes.add(code);
         });
@@ -145,17 +168,23 @@ export const syncAllAgentsPerformance = async (
     const circCodeList = Array.from(allCircCodes);
     let allPassages: GipRegistrePas[] = [];
     if (circCodeList.length > 0) {
-      for (let i = 0; i < circCodeList.length; i += 100) {
-        const chunk = circCodeList.slice(i, i + 100);
-        const { data: pData } = await supabase
-          .from('gip_registre_pas')
-          .select('*')
-          .eq('data_servei', serviceDate)
-          .in('circulacio_id', chunk);
-        if (pData) {
-          allPassages = allPassages.concat(pData as GipRegistrePas[]);
-        }
+      const chunkSize = 40;
+      const promises = [];
+      for (let i = 0; i < circCodeList.length; i += chunkSize) {
+        const chunk = circCodeList.slice(i, i + chunkSize);
+        promises.push(
+          supabase
+            .from('gip_registre_pas')
+            .select('*')
+            .eq('data_servei', serviceDate)
+            .in('circulacio_id', chunk)
+            .limit(5000)
+        );
       }
+      const results = await Promise.all(promises);
+      results.forEach(r => {
+        if (r.data) allPassages = allPassages.concat(r.data as GipRegistrePas[]);
+      });
     }
 
     const passagesByCirc = new Map<string, GipRegistrePas[]>();
@@ -166,16 +195,9 @@ export const syncAllAgentsPerformance = async (
     });
 
     const recordsToUpsert: AgentPerformanceHistory[] = [];
+    const perfMap: Record<string, AgentPerformanceHistory> = {};
 
-    activeAssignments.forEach(a => {
-      const cleanTorn = (a.torn || '').trim().toUpperCase();
-      const s = shiftsMap.get(cleanTorn) 
-        || shiftsMap.get(`Q${cleanTorn}`)
-        || (shiftsMap.get(`Q1${cleanTorn.padStart(3, '0')}`))
-        || (shiftsMap.get(`Q0${cleanTorn.padStart(3, '0')}`))
-        || (shiftsMap.get(`Q4${cleanTorn.padStart(3, '0')}`))
-        || (shiftsMap.get(`Q5${cleanTorn.padStart(3, '0')}`));
-
+    agentShiftPairs.forEach(({ agent: a, shift: s }) => {
       const circs = s?.circulations || [];
       const shiftStartMin = getFgcMinutes(s?.inici_torn || a.hora_inici);
       const isShiftStarted = shiftStartMin !== null && nowMin >= shiftStartMin;
@@ -239,12 +261,12 @@ export const syncAllAgentsPerformance = async (
 
       const maxDelaySec = allDelaysSec.length > 0 ? Math.max(...allDelaysSec) : 0;
       const avgDelaySec = allDelaysSec.length > 0 
-        ? Math.round(allDelaysSec.reduce((a, b) => a + b, 0) / allDelaysSec.length) 
+        ? Math.round(allDelaysSec.reduce((x, y) => x + y, 0) / allDelaysSec.length) 
         : 0;
 
       const pendingCircs = circs.length - completedCircs - inProgressCircs;
 
-      recordsToUpsert.push({
+      const record: AgentPerformanceHistory = {
         data_servei: serviceDate,
         empleat_id: String(a.empleat_id).trim(),
         nom: a.nom || '',
@@ -270,24 +292,31 @@ export const syncAllAgentsPerformance = async (
           : (completedCircs === circs.length && circs.length > 0) 
             ? 'COMPLETAT' 
             : 'EN_CURS'
-      });
+      };
+
+      recordsToUpsert.push(record);
+
+      const rawId = String(a.empleat_id).trim();
+      const normId = rawId.replace(/^0+/, '');
+      perfMap[rawId] = record;
+      if (normId) perfMap[normId] = record;
     });
 
-    for (let i = 0; i < recordsToUpsert.length; i += 50) {
-      const chunk = recordsToUpsert.slice(i, i + 50);
-      const { error: upErr } = await supabase
-        .from('agent_performance_history')
-        .upsert(chunk.map(r => ({ ...r, actualitzat_el: new Date().toISOString() })), {
-          onConflict: 'data_servei,empleat_id,torn'
-        });
-      if (upErr) {
-        console.error('[AgentPerformanceService] Error en chunk upsert:', upErr);
+    // Desat a Supabase en segon pla per persistir l'històric complet
+    (async () => {
+      for (let i = 0; i < recordsToUpsert.length; i += 50) {
+        const chunk = recordsToUpsert.slice(i, i + 50);
+        await supabase
+          .from('agent_performance_history')
+          .upsert(chunk.map(r => ({ ...r, actualitzat_el: new Date().toISOString() })), {
+            onConflict: 'data_servei,empleat_id,torn'
+          });
       }
-    }
+    })().catch(err => console.error('[AgentPerformanceService] Error en chunk upsert:', err));
 
-    return { success: true, savedCount: recordsToUpsert.length };
+    return { success: true, savedCount: recordsToUpsert.length, perfMap };
   } catch (e) {
     console.error('[AgentPerformanceService] Excepció en syncAllAgentsPerformance:', e);
-    return { success: false, savedCount: 0, error: e };
+    return { success: false, savedCount: 0, perfMap: {}, error: e };
   }
 };
