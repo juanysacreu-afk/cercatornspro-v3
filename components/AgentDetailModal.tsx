@@ -14,7 +14,8 @@ import {
   getCandidateShiftIds, 
   getShortTornId, 
   resolveStationId,
-  getLiniaColorHex 
+  getLiniaColorHex,
+  formatDelayMinSec
 } from '../utils/stations';
 import { getFgcServiceDate } from '../utils/gipRecorder';
 import { STATION_GEO_MAP } from '../utils/stationGeoData';
@@ -39,18 +40,6 @@ const resolveStationName = (codeOrName: string, linia: string = ''): string => {
   return trimmed;
 };
 
-const formatDelayMinSec = (totalSeconds: number): string => {
-  if (!totalSeconds || totalSeconds <= 0) return '0s';
-  const mins = Math.floor(totalSeconds / 60);
-  const secs = Math.round(totalSeconds % 60);
-  if (mins > 0 && secs > 0) {
-    return `${mins}m ${secs.toString().padStart(2, '0')}s`;
-  }
-  if (mins > 0 && secs === 0) {
-    return `${mins}m 00s`;
-  }
-  return `0m ${secs.toString().padStart(2, '0')}s`;
-};
 
 export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
   agent,

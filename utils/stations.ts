@@ -1,7 +1,10 @@
+import type { GipRegistrePas } from '../types';
+
 /**
  * Centralized Station Data & Utilities
  * Single source of truth for all station-related logic across the app.
  */
+
 
 // ──────────────────────────────────────────────
 // Station Lists by Line
@@ -329,3 +332,61 @@ export const getSegments = (from: string, to: string, linia: string = ''): strin
     }
     return segments;
 };
+
+// ──────────────────────────────────────────────
+// GIP Delays & Passages Matching
+// ──────────────────────────────────────────────
+
+/**
+ * Formats a delay or difference in seconds to a human-readable "Xm YYs" string.
+ * Example: 543 -> "9m 03s", 60 -> "1m 00s", 45 -> "0m 45s", 0 -> "0s"
+ */
+export const formatDelayMinSec = (totalSeconds: number): string => {
+    const abs = Math.abs(Math.round(totalSeconds || 0));
+    if (abs === 0) return '0s';
+    const mins = Math.floor(abs / 60);
+    const secs = abs % 60;
+    if (mins > 0 && secs > 0) return `${mins}m ${secs.toString().padStart(2, '0')}s`;
+    if (mins > 0 && secs === 0) return `${mins}m 00s`;
+    return `0m ${secs.toString().padStart(2, '0')}s`;
+};
+
+/**
+ * Matches a station point from a circulation's itinerary with a GIP passage record.
+ * Matches by resolved 2-letter station code and selects closest theoretical time if multiple.
+ */
+export const findGipPassageForPoint = (
+    passages: GipRegistrePas[] | undefined,
+    point: { nom?: string; codi?: string; hora?: string }
+): GipRegistrePas | undefined => {
+    if (!passages || passages.length === 0 || !point) return undefined;
+    const targetCode = resolveStationId(point.nom || point.codi || '');
+    if (!targetCode) return undefined;
+
+    const matches = passages.filter(p => {
+        const pCode = resolveStationId(p.estacio_codi || p.estacio_nom || '');
+        return pCode === targetCode;
+    });
+
+    if (matches.length === 0) return undefined;
+    if (matches.length === 1) return matches[0];
+
+    // If multiple records for the same station, match closest theoretical time
+    const pointMin = getFgcMinutes(point.hora);
+    if (pointMin === null) return matches[0];
+
+    let best = matches[0];
+    let minDiff = Infinity;
+    for (const m of matches) {
+        const mMin = getFgcMinutes(m.hora_teorica);
+        if (mMin !== null) {
+            const diff = Math.abs(mMin - pointMin);
+            if (diff < minDiff) {
+                minDiff = diff;
+                best = m;
+            }
+        }
+    }
+    return best;
+};
+

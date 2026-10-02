@@ -16,7 +16,7 @@ import { resolveStationId } from '../utils/stations';
 import { fetchFullTurns, fetchPassengerInfo } from '../utils/queries';
 import { syncOfflineData } from '../utils/offlineSync';
 import { offlineFetchFullTurns, offlineSearchTurnIds, offlineSearchMaquinistaTurnIds, offlineSearchCirculationTurnIds } from '../utils/offlineQueries';
-import { ItineraryPoint } from '../components/ItineraryPoint';
+import { ItineraryTimeline } from '../components/ItineraryTimeline';
 import { ShiftTimeline } from '../components/ShiftTimeline';
 import { TimeGapRow } from '../components/TimeGapRow';
 import { CirculationHeader } from '../components/CirculationHeader';
@@ -1919,14 +1919,7 @@ const CercarViewComponent: React.FC<{
                                 <CirculationRow circ={circ} itemKey={itemKey} nowMin={nowMin} trainStatuses={trainStatuses} getTrainPhone={getTrainPhone} getLiniaColor={getLiniaColor} openUnitMenu={openUnitMenu} toggleItinerari={toggleItinerari} isPrivacyMode={isPrivacyMode} onCycleClick={handleCycleClick} />
                               )}
                               {expandedItinerari === itemKey && (
-                                <div className="p-4 sm:p-10 bg-white dark:bg-fgc-grey border-t border-gray-100 dark:border-white/5 animate-in slide-in-from-top-4 duration-500 overflow-hidden">
-                                  <div className="relative flex flex-col pl-8 sm:pl-16 pr-2 sm:pr-6 py-4 space-y-0">
-                                    <div className="absolute left-[15px] sm:left-[29px] top-10 bottom-10 w-0.5 sm:w-1 bg-gray-100 dark:bg-gray-800 rounded-full" />
-                                    {[{ nom: circ.inici, hora: circ.sortida, via: circ.via_inici }, ...(circ.estacions?.map((st: any) => ({ nom: st.nom, hora: st.hora || st.sortida || st.arribada, via: st.via })) || []), { nom: circ.final, hora: circ.arribada, via: circ.via_final }].map((point, pIdx, arr) => (
-                                      <ItineraryPoint key={pIdx} point={point} isFirst={pIdx === 0} isLast={pIdx === arr.length - 1} nextPoint={arr[pIdx + 1]} nowMin={nowMin} />
-                                    ))}
-                                  </div>
-                                </div>
+                                <ItineraryTimeline circ={circ} nowMin={nowMin} />
                               )}
                             </div>
                           );
@@ -2708,14 +2701,7 @@ const CercarViewComponent: React.FC<{
                             <div id={`circ-row-${shiftItemKey}`} className={`flex flex-col relative scroll-mt-24 ${isActive ? 'ring-2 ring-inset ring-red-600 z-10' : ''}`}>
                               <CirculationRow circ={circ} itemKey={shiftItemKey} nowMin={nowMin} trainStatuses={trainStatuses} getTrainPhone={getTrainPhone} getLiniaColor={getLiniaColor} openUnitMenu={openUnitMenu} toggleItinerari={toggleItinerari} isPrivacyMode={isPrivacyMode} passengerInfo={passengerInfoMap[circ.codi] || []} onCycleClick={handleCycleClick} />
                               {expandedItinerari === shiftItemKey && (
-                                <div className="p-4 sm:p-10 bg-white dark:bg-fgc-grey border-t border-gray-100 dark:border-white/5 animate-in slide-in-from-top-4 duration-500 overflow-hidden">
-                                  <div className="relative flex flex-col pl-8 sm:pl-16 pr-2 sm:pr-6 py-4 space-y-0">
-                                    <div className="absolute left-[15px] sm:left-[29px] top-10 bottom-10 w-0.5 sm:w-1 bg-gray-100 dark:bg-gray-800 rounded-full" />
-                                    {[{ nom: circ.inici, hora: circ.sortida, via: circ.via_inici }, ...(circ.estacions?.map((st: any) => ({ nom: st.nom, hora: st.hora || st.sortida || st.arribada, via: st.via })) || []), { nom: circ.final, hora: circ.arribada, via: circ.via_final }].map((point, pIdx, arr) => (
-                                      <ItineraryPoint key={pIdx} point={point} isFirst={pIdx === 0} isLast={pIdx === arr.length - 1} nextPoint={arr[pIdx + 1]} nowMin={nowMin} />
-                                    ))}
-                                  </div>
-                                </div>
+                                <ItineraryTimeline circ={circ} nowMin={nowMin} />
                               )}
                             </div>
                             <TimeGapRow from={circ.arribada} to={group.fullCirculations?.[cIdx + 1]?.sortida || group.final_torn} id={`gap-row-${idx}-${cIdx}`} nowMin={nowMin} />
