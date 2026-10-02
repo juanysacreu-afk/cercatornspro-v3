@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
   X, Phone, Mail, Clock, Train, MapPin, Activity, 
   CheckCircle2, AlertTriangle, ArrowRight, RefreshCw, 
@@ -62,6 +62,7 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
   const [isHistorySaved, setIsHistorySaved] = useState(false);
   const [showHistorySection, setShowHistorySection] = useState(false);
   const [expandedHistoryId, setExpandedHistoryId] = useState<number | null>(null);
+  const lastSavedKeyRef = useRef<string>('');
 
   const todayService = useServiceToday();
 
@@ -533,24 +534,24 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
   }, [circPunctualityList, gipPassages, shiftData, agent, nowMin]);
 
   // 4. Carrega l'històric de rendiment de Supabase per aquest agent
-  const loadAgentHistory = useCallback(async () => {
+  const loadAgentHistory = useCallback(async (isSilent = false) => {
     if (!agent?.empleat_id) return;
-    setLoadingHistory(true);
+    if (!isSilent) setLoadingHistory(true);
     try {
       const records = await getAgentPerformanceHistory(agent.empleat_id);
       setHistoryRecords(records);
     } catch (e) {
       console.error('[AgentDetailModal] Error carregant històric:', e);
     } finally {
-      setLoadingHistory(false);
+      if (!isSilent) setLoadingHistory(false);
     }
   }, [agent?.empleat_id]);
 
   useEffect(() => {
-    loadAgentHistory();
+    loadAgentHistory(false);
   }, [loadAgentHistory]);
 
-  // 5. Desa automàticament el rendiment i puntualitat a la taula 'agent_performance_history' de Supabase
+  // 5. Desa automàticament el rendiment i puntualitat a la taula 'agent_performance_history' de Supabase només quan canvia
   useEffect(() => {
     if (loadingShift || loadingGip || !agent?.empleat_id) return;
 
@@ -563,53 +564,63 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
 
     const serviceDate = getFgcServiceDate();
 
-    const record: AgentPerformanceHistory = {
-      data_servei: serviceDate,
-      empleat_id: String(agent.empleat_id).trim(),
-      nom: agent.nom || '',
-      cognoms: agent.cognoms || '',
-      torn: currentTorn,
-      servei: shiftData?.servei || todayService || '',
-      dependencia: shiftData?.dependencia || agent.dependencia || '',
-      hora_inici: shiftData?.inici_torn || agent.hora_inici || '',
-      hora_fi: shiftData?.final_torn || agent.hora_fi || '',
-      puntualitat_percentatge: overallPunctuality.rate,
-      passos_totals: overallPunctuality.totalPassages,
-      passos_en_hora: overallPunctuality.onTimePassages,
-      passos_retard: overallPunctuality.delayedCount,
-      retard_maxim_segons: overallPunctuality.maxDelaySec,
-      retard_mitja_segons: overallPunctuality.avgDelaySec,
-      circulacions_totals: overallPunctuality.totalCircs,
-      circulacions_completades: overallPunctuality.completedCircs,
-      circulacions_en_curs: overallPunctuality.inProgressCircs,
-      circulacions_pendents: overallPunctuality.pendingCircs,
-      detall_circulacions: circPunctualityList.map(c => ({
-        codi: c.codi,
-        linia: c.linia,
-        inici: c.inici,
-        final: c.final,
-        sortida: c.sortida,
-        arribada: c.arribada,
-        status: c.status,
-        totalStops: c.totalStops,
-        onTimeStops: c.onTimeStops,
-        delayedStopsCount: c.delayedStopsCount,
-        rate: c.rate,
-        maxDelaySec: c.maxDelaySec
-      })),
-      estat_torn: !overallPunctuality.isShiftStarted
-        ? 'NO_INICIAT'
-        : (overallPunctuality.completedCircs === overallPunctuality.totalCircs && overallPunctuality.totalCircs > 0)
-          ? 'COMPLETAT'
-          : 'EN_CURS'
-    };
+    // Clau única per evitar re-desats innecessaris en bucle
+    const saveKey = `${serviceDate}-${agent.empleat_id}-${currentTorn}-${overallPunctuality.rate}-${overallPunctuality.completedCircs}-${overallPunctuality.totalPassages}-${overallPunctuality.delayedCount}`;
+    if (lastSavedKeyRef.current === saveKey) return;
 
-    saveAgentPerformanceRecord(record).then(res => {
-      if (res.success) {
-        setIsHistorySaved(true);
-        loadAgentHistory();
-      }
-    });
+    const timeout = setTimeout(() => {
+      lastSavedKeyRef.current = saveKey;
+
+      const record: AgentPerformanceHistory = {
+        data_servei: serviceDate,
+        empleat_id: String(agent.empleat_id).trim(),
+        nom: agent.nom || '',
+        cognoms: agent.cognoms || '',
+        torn: currentTorn,
+        servei: shiftData?.servei || todayService || '',
+        dependencia: shiftData?.dependencia || agent.dependencia || '',
+        hora_inici: shiftData?.inici_torn || agent.hora_inici || '',
+        hora_fi: shiftData?.final_torn || agent.hora_fi || '',
+        puntualitat_percentatge: overallPunctuality.rate,
+        passos_totals: overallPunctuality.totalPassages,
+        passos_en_hora: overallPunctuality.onTimePassages,
+        passos_retard: overallPunctuality.delayedCount,
+        retard_maxim_segons: overallPunctuality.maxDelaySec,
+        retard_mitja_segons: overallPunctuality.avgDelaySec,
+        circulacions_totals: overallPunctuality.totalCircs,
+        circulacions_completades: overallPunctuality.completedCircs,
+        circulacions_en_curs: overallPunctuality.inProgressCircs,
+        circulacions_pendents: overallPunctuality.pendingCircs,
+        detall_circulacions: circPunctualityList.map(c => ({
+          codi: c.codi,
+          linia: c.linia,
+          inici: c.inici,
+          final: c.final,
+          sortida: c.sortida,
+          arribada: c.arribada,
+          status: c.status,
+          totalStops: c.totalStops,
+          onTimeStops: c.onTimeStops,
+          delayedStopsCount: c.delayedStopsCount,
+          rate: c.rate,
+          maxDelaySec: c.maxDelaySec
+        })),
+        estat_torn: !overallPunctuality.isShiftStarted
+          ? 'NO_INICIAT'
+          : (overallPunctuality.completedCircs === overallPunctuality.totalCircs && overallPunctuality.totalCircs > 0)
+            ? 'COMPLETAT'
+            : 'EN_CURS'
+      };
+
+      saveAgentPerformanceRecord(record).then(res => {
+        if (res.success) {
+          setIsHistorySaved(true);
+          loadAgentHistory(true);
+        }
+      });
+    }, 1200);
+
+    return () => clearTimeout(timeout);
   }, [
     loadingShift,
     loadingGip,
@@ -625,8 +636,11 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
     shiftData?.dependencia,
     shiftData?.inici_torn,
     shiftData?.final_torn,
-    overallPunctuality,
-    circPunctualityList,
+    overallPunctuality.rate,
+    overallPunctuality.completedCircs,
+    overallPunctuality.totalPassages,
+    overallPunctuality.delayedCount,
+    overallPunctuality.isShiftStarted,
     todayService,
     loadAgentHistory
   ]);
@@ -997,7 +1011,7 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
 
               {showHistorySection && (
                 <div className="p-4 sm:p-6 border-t border-gray-100 dark:border-white/5 space-y-3 bg-gray-50/30 dark:bg-black/10 animate-in slide-in-from-top-2 duration-300">
-                  {loadingHistory ? (
+                  {loadingHistory && historyRecords.length === 0 ? (
                     <div className="py-8 text-center text-gray-400 flex flex-col items-center gap-2">
                       <RefreshCw size={20} className="animate-spin text-fgc-green" />
                       <span className="text-xs font-bold">Carregant històric de Supabase...</span>
