@@ -194,29 +194,17 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
       if (circCodes.length > 0) {
         const serviceDate = getFgcServiceDate();
 
-        // 1. Query for today's service date
-        let { data: passages, error: gipErr } = await supabase
+        // Query STRICTLY for today's service date!
+        const { data: passages, error: gipErr } = await supabase
           .from('gip_registre_pas')
           .select('*')
           .eq('data_servei', serviceDate)
           .in('circulacio_id', circCodes);
 
-        // 2. If no passages for today's exact date, fetch recent passages available for these circs
-        if (!passages || passages.length === 0) {
-          const { data: anyDatePassages } = await supabase
-            .from('gip_registre_pas')
-            .select('*')
-            .in('circulacio_id', circCodes)
-            .order('id', { ascending: false })
-            .limit(500);
-
-          if (anyDatePassages && anyDatePassages.length > 0) {
-            passages = anyDatePassages;
-          }
-        }
-
         if (!gipErr && passages) {
           setGipPassages(passages as GipRegistrePas[]);
+        } else {
+          setGipPassages([]);
         }
       } else {
         setGipPassages([]);
@@ -434,26 +422,31 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
 
     return shiftData.fullCirculations.map((c: any) => {
       const codi = (c.codi === 'Viatger' && c.realCodi) ? c.realCodi : (c.codi || c.realCodi);
-      const cPassages = gipPassages.filter(p => p.circulacio_id === codi || (c.realCodi && p.circulacio_id === c.realCodi) || (c.codi && p.circulacio_id === c.codi));
+      const sMin = getFgcMinutes(c.sortida);
+      const eMin = getFgcMinutes(c.arribada);
+
+      // Determine real-time status strictly based on scheduled time
+      let status: 'COMPLETED' | 'IN_PROGRESS' | 'PENDING' = 'PENDING';
+      if (sMin !== null && eMin !== null) {
+        if (nowMin >= eMin) {
+          status = 'COMPLETED';
+        } else if (nowMin >= sMin && nowMin < eMin) {
+          status = 'IN_PROGRESS';
+        } else {
+          status = 'PENDING';
+        }
+      }
+
+      // If circulation has not started yet (PENDING), it has NO passages yet today
+      const cPassages = status === 'PENDING'
+        ? []
+        : gipPassages.filter(p => p.circulacio_id === codi || (c.realCodi && p.circulacio_id === c.realCodi) || (c.codi && p.circulacio_id === c.codi));
 
       const totalStops = cPassages.length;
       const onTimeStops = cPassages.filter(p => p.estat === 'en_hora' || p.estat === 'avanc').length;
       const delayedStops = cPassages.filter(p => p.estat === 'retard');
 
       const rate = totalStops > 0 ? Number(((onTimeStops / totalStops) * 100).toFixed(1)) : null;
-
-      const sMin = getFgcMinutes(c.sortida);
-      const eMin = getFgcMinutes(c.arribada);
-
-      let status: 'COMPLETED' | 'IN_PROGRESS' | 'PENDING' = 'PENDING';
-      if (sMin !== null && eMin !== null) {
-        if (nowMin >= eMin) status = 'COMPLETED';
-        else if (nowMin >= sMin && nowMin < eMin) status = 'IN_PROGRESS';
-        else if (totalStops > 0) status = 'COMPLETED';
-        else status = 'PENDING';
-      } else if (totalStops > 0) {
-        status = 'COMPLETED';
-      }
 
       const maxDelaySec = delayedStops.length > 0 
         ? Math.max(...delayedStops.map(p => p.diferencia_segons || 0)) 
@@ -482,23 +475,27 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
 
   // 3. Shift Global Punctuality Summary
   const overallPunctuality = useMemo(() => {
-    const circsWithGip = new Set(circPunctualityList.filter(cp => cp.totalStops > 0).map(cp => cp.codi));
-    const performedCircCodes = new Set(circPunctualityList.filter(cp => cp.status !== 'PENDING').map(cp => cp.codi));
-    const activeOrRegisteredCircCodes = new Set([...Array.from(performedCircCodes), ...Array.from(circsWithGip)]);
+    const shiftStartMin = getFgcMinutes(shiftData?.inici_torn || agent?.hora_inici);
+    const isShiftStarted = shiftStartMin !== null && nowMin >= shiftStartMin;
 
-    let relevantPassages = gipPassages.filter(p => activeOrRegisteredCircCodes.has(p.circulacio_id));
+    // Only circulations that have actually started or completed can contribute to punctuality
+    const activeOrCompletedCircs = isShiftStarted 
+      ? circPunctualityList.filter(cp => cp.status !== 'PENDING')
+      : [];
 
-    // Fallback: If no circs matched by code, but we have passages for shift circulations, use all
-    if (relevantPassages.length === 0 && gipPassages.length > 0) {
-      const allCircCodes = new Set(circPunctualityList.map(cp => cp.codi).filter(Boolean));
-      relevantPassages = gipPassages.filter(p => allCircCodes.has(p.circulacio_id));
-    }
+    const activeOrCompletedCodes = new Set(activeOrCompletedCircs.map(cp => cp.codi));
+
+    const relevantPassages = isShiftStarted 
+      ? gipPassages.filter(p => activeOrCompletedCodes.has(p.circulacio_id))
+      : [];
 
     const totalPassages = relevantPassages.length;
     const onTimePassages = relevantPassages.filter(p => p.estat === 'en_hora' || p.estat === 'avanc').length;
     const delayedPassages = relevantPassages.filter(p => p.estat === 'retard');
 
-    const rate = totalPassages > 0 ? Number(((onTimePassages / totalPassages) * 100).toFixed(1)) : null;
+    const rate = (isShiftStarted && totalPassages > 0)
+      ? Number(((onTimePassages / totalPassages) * 100).toFixed(1))
+      : null;
 
     const maxDelaySec = delayedPassages.length > 0 
       ? Math.max(...delayedPassages.map(p => p.diferencia_segons || 0)) 
@@ -508,11 +505,12 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
       ? Math.round(delayedPassages.reduce((acc, p) => acc + (p.diferencia_segons || 0), 0) / delayedPassages.length)
       : 0;
 
-    const completedCircs = circPunctualityList.filter(cp => cp.status === 'COMPLETED').length;
-    const inProgressCircs = circPunctualityList.filter(cp => cp.status === 'IN_PROGRESS').length;
-    const pendingCircs = circPunctualityList.filter(cp => cp.status === 'PENDING').length;
+    const completedCircs = isShiftStarted ? circPunctualityList.filter(cp => cp.status === 'COMPLETED').length : 0;
+    const inProgressCircs = isShiftStarted ? circPunctualityList.filter(cp => cp.status === 'IN_PROGRESS').length : 0;
+    const pendingCircs = circPunctualityList.length - completedCircs - inProgressCircs;
 
     return {
+      isShiftStarted,
       rate,
       totalPassages,
       onTimePassages,
@@ -524,7 +522,7 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
       inProgressCircs,
       pendingCircs
     };
-  }, [circPunctualityList, gipPassages]);
+  }, [circPunctualityList, gipPassages, shiftData, agent, nowMin]);
 
   const getPunctualityColor = (rate: number | null) => {
     if (rate === null) return 'text-gray-400 bg-gray-100 dark:bg-white/5 border-gray-200 dark:border-white/10';
@@ -754,11 +752,15 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
                 </h3>
               </div>
 
-              {overallPunctuality.totalPassages > 0 && (
+              {overallPunctuality.isShiftStarted && overallPunctuality.totalPassages > 0 ? (
                 <span className="text-xs font-semibold text-gray-400 dark:text-gray-500">
                   {overallPunctuality.totalPassages} registres oficials GIP
                 </span>
-              )}
+              ) : !overallPunctuality.isShiftStarted ? (
+                <span className="text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-2.5 py-1 rounded-xl border border-blue-200 dark:border-blue-500/20">
+                  Inici programat a les {shiftData?.inici_torn || agent.hora_inici}
+                </span>
+              ) : null}
             </div>
 
             {/* Bento Grid KPI Summary */}
@@ -779,9 +781,11 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
                   </span>
                 </div>
                 <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 truncate">
-                  {overallPunctuality.totalPassages > 0 
-                    ? `${overallPunctuality.onTimePassages} de ${overallPunctuality.totalPassages} a temps` 
-                    : 'Sense dades de pas'}
+                  {!overallPunctuality.isShiftStarted 
+                    ? 'Torn no iniciat'
+                    : overallPunctuality.totalPassages > 0 
+                      ? `${overallPunctuality.onTimePassages} de ${overallPunctuality.totalPassages} a temps` 
+                      : 'Sense dades de pas'}
                 </span>
               </div>
 
@@ -798,9 +802,11 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
                   </span>
                 </div>
                 <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 truncate">
-                  {overallPunctuality.delayedCount > 0 
-                    ? `Màx: +${overallPunctuality.maxDelaySec}s` 
-                    : '0 retards registrats'}
+                  {!overallPunctuality.isShiftStarted
+                    ? 'Torn pendent d\'inici'
+                    : overallPunctuality.delayedCount > 0 
+                      ? `Màx: +${overallPunctuality.maxDelaySec}s` 
+                      : '0 retards registrats'}
                 </span>
               </div>
 
@@ -816,7 +822,11 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
                   </span>
                 </div>
                 <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 truncate">
-                  {overallPunctuality.inProgressCircs > 0 ? '1 en curs ara' : 'Completades del torn'}
+                  {!overallPunctuality.isShiftStarted
+                    ? 'Cap circulació iniciada'
+                    : overallPunctuality.inProgressCircs > 0
+                      ? `${overallPunctuality.inProgressCircs} en curs ara`
+                      : 'Completades del torn'}
                 </span>
               </div>
 
@@ -831,7 +841,11 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
                   </span>
                 </div>
                 <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 truncate">
-                  {overallPunctuality.delayedCount > 0 ? 'En punts de control' : 'Servei impecable'}
+                  {!overallPunctuality.isShiftStarted
+                    ? 'Servei no iniciat'
+                    : overallPunctuality.delayedCount > 0
+                      ? 'En punts de control'
+                      : 'Servei impecable'}
                 </span>
               </div>
             </div>
@@ -999,6 +1013,10 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
                             <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 text-xs font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
                               <CheckCircle2 size={16} />
                               Tots els passos s'han realitzat amb puntualitat estricta (100% en hora).
+                            </div>
+                          ) : item.status === 'PENDING' ? (
+                            <div className="p-3 rounded-xl bg-gray-100/50 dark:bg-white/5 text-xs font-medium text-gray-400 dark:text-gray-500 text-center">
+                              Aquesta circulació encara no ha iniciat el seu trajecte (sortida prevista a les {item.sortida}). Els passos es registraran en temps real un cop en servei.
                             </div>
                           ) : (
                             <div className="p-3 rounded-xl bg-gray-100/50 dark:bg-white/5 text-xs font-medium text-gray-400 dark:text-gray-500 text-center">
