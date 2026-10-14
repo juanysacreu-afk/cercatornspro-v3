@@ -6,9 +6,10 @@ interface TrainInspectorPopupProps {
     train: LivePersonnel;
     onClose: () => void;
     onOpenRoute: (trainId: string) => void;
+    isPrivacyMode?: boolean;
 }
 
-const TrainInspectorPopup: React.FC<TrainInspectorPopupProps> = ({ train, onClose, onOpenRoute }) => {
+const TrainInspectorPopup: React.FC<TrainInspectorPopupProps> = ({ train, onClose, onOpenRoute, isPrivacyMode = true }) => {
     if (!train) return null;
     const isWorking = train.type === 'TRAIN';
     const liniaColor = train.color;
@@ -17,24 +18,29 @@ const TrainInspectorPopup: React.FC<TrainInspectorPopupProps> = ({ train, onClos
     return (
         <div className="z-[300] animate-in zoom-in-95 fade-in duration-300 pointer-events-auto my-auto">
             <div
-                className="w-80 sm:w-88 max-h-[calc(100dvh-32px)] flex flex-col overflow-hidden relative group"
+                className="w-80 sm:w-88 max-h-[calc(100dvh-32px)] flex flex-col overflow-hidden rounded-[28px] relative group"
                 style={{
                     background: 'rgba(15, 15, 20, 0.98)',
                     backdropFilter: 'blur(20px) saturate(180%)',
                     WebkitBackdropFilter: 'blur(20px) saturate(180%)',
                     border: '1px solid rgba(255, 255, 255, 0.15)',
                     borderRadius: '28px',
+                    WebkitMaskImage: '-webkit-radial-gradient(white, black)',
+                    isolation: 'isolate',
+                    transform: 'translateZ(0)',
                     boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8), inset 0 0 0 1px rgba(255, 255, 255, 0.1)'
                 }}
             >
-                {/* Animated Glow Background */}
-                <div
-                    className="absolute -top-12 -right-12 w-40 h-40 blur-[60px] transition-all duration-700 opacity-50 pointer-events-none"
-                    style={{ backgroundColor: liniaColor }}
-                />
+                {/* Animated Glow Background strictly clipped to 28px border */}
+                <div className="absolute inset-0 overflow-hidden rounded-[28px] pointer-events-none z-0">
+                    <div
+                        className="absolute -top-10 -right-10 w-36 h-36 rounded-full blur-[40px] transition-all duration-700 opacity-40 pointer-events-none"
+                        style={{ backgroundColor: liniaColor }}
+                    />
+                </div>
 
                 {/* Header (Pinned at top) */}
-                <div className="p-5 border-b border-white/10 flex justify-between items-start shrink-0 relative z-[10] bg-black/30 backdrop-blur-md">
+                <div className="p-5 border-b border-white/10 flex justify-between items-start shrink-0 relative z-[10] bg-black/30 backdrop-blur-md rounded-t-[28px]">
                     <div>
                         <div className="flex items-center gap-2 mb-1">
                             <span className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">Inspector d'Unitat</span>
@@ -85,13 +91,16 @@ const TrainInspectorPopup: React.FC<TrainInspectorPopupProps> = ({ train, onClos
                                     {train.phones.map((phone, pIdx) => (
                                         <a
                                             key={pIdx}
-                                            href={`tel:${phone}`}
-                                            onClick={(e) => e.stopPropagation()}
-                                            className="inline-flex items-center gap-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-md text-[9px] font-black transition-all active:scale-95"
-                                            title={`Trucar a ${train.driver}: ${phone}`}
+                                            href={isPrivacyMode ? undefined : `tel:${phone}`}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (isPrivacyMode) e.preventDefault();
+                                            }}
+                                            className={`inline-flex items-center gap-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-md text-[9px] font-black transition-all active:scale-95 ${isPrivacyMode ? 'cursor-default' : ''}`}
+                                            title={isPrivacyMode ? 'Telèfon protegit per mode privacitat' : `Trucar a ${train.driver}: ${phone}`}
                                         >
                                             <Phone size={10} />
-                                            <span>{phone}</span>
+                                            <span>{isPrivacyMode ? '*** ** ** **' : phone}</span>
                                         </a>
                                     ))}
                                 </div>

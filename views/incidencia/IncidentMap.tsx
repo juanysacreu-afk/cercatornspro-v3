@@ -767,6 +767,7 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                             window.scrollTo({ top: 0, behavior: 'smooth' });
                                         }
                                     }}
+                                    isPrivacyMode={isPrivacyMode}
                                 />
                             </div>
                         </div>
@@ -785,6 +786,7 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                             window.scrollTo({ top: 0, behavior: 'smooth' });
                                         }
                                     }}
+                                    isPrivacyMode={isPrivacyMode}
                                 />
                             </div>
                         </div>
