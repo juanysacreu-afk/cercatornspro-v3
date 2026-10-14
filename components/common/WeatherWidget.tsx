@@ -3,51 +3,15 @@ import ReactDOM from 'react-dom';
 import {
     Cloud, CloudDrizzle, CloudFog, CloudLightning, CloudRain, CloudSnow,
     Moon, Sun, Wind, MapPin, Eye, Droplets, Thermometer, Gauge,
-    Sunset, Sunrise, X, Activity, CloudSun, Train
+    Sunset, Sunrise, X, Activity, CloudSun, Train, Radio, Compass
 } from 'lucide-react';
 import { STATION_GEO_DATA, haversineKm } from '../../utils/stationGeoData';
-
-interface WeatherCurrent {
-    temperature: number;
-    apparentTemperature: number;
-    humidity: number;
-    windSpeed: number;
-    windGusts: number;
-    windDirection: number;
-    weatherCode: number;
-    isDay: boolean;
-    visibility: number;
-    precipitationProbability: number;
-    cloudCover: number;
-    pressure: number;
-}
-
-interface WeatherDaily {
-    sunrise: string;
-    sunset: string;
-    tempMax: number;
-    tempMin: number;
-    precipSum: number;
-    uvIndex: number;
-    windMax: number;
-}
-
-interface WeatherForecastDay {
-    date: string;
-    weatherCode: number;
-    tempMax: number;
-    tempMin: number;
-}
-
-interface WeatherData {
-    current: WeatherCurrent;
-    daily: WeatherDaily;
-    forecast: WeatherForecastDay[];
-    lat: number;
-    lon: number;
-    municipality?: string;
-    nearestStation?: string;
-}
+import {
+    fetchHybridWeather,
+    HybridWeatherData,
+    METEOCAT_FGC_STATIONS,
+    MeteocatFgcStation
+} from '../../utils/meteocatService';
 
 const WMO_DESCRIPTIONS: Record<number, string> = {
     0: 'Cel clar', 1: 'Principalment clar', 2: 'Parcialment nuvolat', 3: 'Cobert',
@@ -94,115 +58,75 @@ function getWeatherIcon(code: number, isDay: boolean, size: number = 14, classNa
 }
 
 export const WeatherWidget: React.FC = () => {
-    const [weather, setWeather] = useState<WeatherData | null>(null);
+    const [weather, setWeather] = useState<HybridWeatherData | null>(null);
     const [loading, setLoading] = useState(true);
+    const [switching, setSwitching] = useState(false);
     const [error, setError] = useState(false);
     const [open, setOpen] = useState(false);
+    const [userCoords, setUserCoords] = useState<{ lat: number; lon: number }>({ lat: 41.3879, lon: 2.1699 });
+    const [selectedStationId, setSelectedStationId] = useState<string>('auto');
     const modalRef = useRef<HTMLDivElement>(null);
 
+    const loadData = async (lat: number, lon: number, explicitStation?: string) => {
+        try {
+            const data = await fetchHybridWeather(
+                lat,
+                lon,
+                explicitStation === 'auto' ? undefined : explicitStation
+            );
+            setWeather(data);
+            setError(false);
+        } catch (err) {
+            console.error('[WeatherWidget] Error loading weather:', err);
+            setError(true);
+        } finally {
+            setLoading(false);
+            setSwitching(false);
+        }
+    };
+
+    // Initial Geolocation & fetch
     useEffect(() => {
-        const fetchWeather = async (lat: number = 41.3879, lon: number = 2.1699) => {
-            try {
-                // 1. Fetch Location Name (Reverse Geocoding)
-                let locationName = 'Barcelona';
-                try {
-                    const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10`, {
-                        headers: { 'User-Agent': 'CercatornsPro/1.0' }
-                    });
-                    if (geoRes.ok) {
-                        const geoData = await geoRes.json();
-                        locationName = geoData.address.city ||
-                            geoData.address.town ||
-                            geoData.address.village ||
-                            geoData.address.municipality ||
-                            geoData.address.suburb ||
-                            'Barcelona';
-                    }
-                } catch (e) {
-                    console.warn('Reverse geocoding failed', e);
-                }
-
-                // 2. Fetch Weather
-                const params = [
-                    `latitude=${lat}`,
-                    `longitude=${lon}`,
-                    `current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,is_day,visibility,precipitation_probability,cloud_cover,pressure_msl`,
-                    `daily=weather_code,sunrise,sunset,temperature_2m_max,temperature_2m_min,precipitation_sum,uv_index_max,wind_speed_10m_max`,
-                    `timezone=Europe%2FBerlin`,
-                    `forecast_days=4`
-                ].join('&');
-
-                const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`);
-                if (!res.ok) throw new Error('API Error');
-                const data = await res.json();
-                const c = data.current;
-                const d = data.daily;
-
-                const forecastDays: WeatherForecastDay[] = [];
-                if (d.time && d.time.length > 1) {
-                    for (let i = 1; i < Math.min(d.time.length, 4); i++) {
-                        forecastDays.push({
-                            date: d.time[i],
-                            weatherCode: d.weather_code[i],
-                            tempMax: Math.round(d.temperature_2m_max?.[i] ?? 0),
-                            tempMin: Math.round(d.temperature_2m_min?.[i] ?? 0)
-                        });
-                    }
-                }
-
-                setWeather({
-                    current: {
-                        temperature: Math.round(c.temperature_2m),
-                        apparentTemperature: Math.round(c.apparent_temperature),
-                        humidity: c.relative_humidity_2m,
-                        windSpeed: Math.round(c.wind_speed_10m),
-                        windGusts: Math.round(c.wind_gusts_10m),
-                        windDirection: c.wind_direction_10m,
-                        weatherCode: c.weather_code,
-                        isDay: c.is_day === 1,
-                        visibility: Math.round(c.visibility / 100) / 10, // km
-                        precipitationProbability: c.precipitation_probability || 0,
-                        cloudCover: c.cloud_cover,
-                        pressure: Math.round(c.pressure_msl),
-                    },
-                    daily: {
-                        sunrise: d.sunrise?.[0] || '',
-                        sunset: d.sunset?.[0] || '',
-                        tempMax: Math.round(d.temperature_2m_max?.[0] ?? 0),
-                        tempMin: Math.round(d.temperature_2m_min?.[0] ?? 0),
-                        precipSum: Math.round((d.precipitation_sum?.[0] ?? 0) * 10) / 10,
-                        uvIndex: Math.round(d.uv_index_max?.[0] ?? 0),
-                        windMax: Math.round(d.wind_speed_10m_max?.[0] ?? 0),
-                    },
-                    forecast: forecastDays,
-                    lat, lon,
-                    municipality: locationName,
-                    nearestStation: getNearestStationInfo(lat, lon)
-                });
-                setError(false);
-            } catch (err) {
-                console.error('Weather error:', err);
-                setError(true);
-            } finally {
-                setLoading(false);
-            }
-        };
+        let isMounted = true;
 
         const init = () => {
             if ('geolocation' in navigator) {
                 navigator.geolocation.getCurrentPosition(
-                    p => fetchWeather(p.coords.latitude, p.coords.longitude),
-                    () => fetchWeather(),
-                    { timeout: 10000 }
+                    p => {
+                        if (!isMounted) return;
+                        const coords = { lat: p.coords.latitude, lon: p.coords.longitude };
+                        setUserCoords(coords);
+                        loadData(coords.lat, coords.lon, selectedStationId);
+                    },
+                    () => {
+                        if (!isMounted) return;
+                        loadData(userCoords.lat, userCoords.lon, selectedStationId);
+                    },
+                    { timeout: 8000 }
                 );
-            } else fetchWeather();
+            } else {
+                loadData(userCoords.lat, userCoords.lon, selectedStationId);
+            }
         };
 
         init();
-        const id = setInterval(init, 10 * 60 * 1000);
-        return () => clearInterval(id);
+        const id = setInterval(() => {
+            loadData(userCoords.lat, userCoords.lon, selectedStationId);
+        }, 10 * 60 * 1000);
+
+        return () => {
+            isMounted = false;
+            clearInterval(id);
+        };
     }, []);
 
+    // Handle station selector change
+    const handleStationSelect = (stationId: string) => {
+        if (stationId === selectedStationId && !switching) return;
+        setSelectedStationId(stationId);
+        setSwitching(true);
+        loadData(userCoords.lat, userCoords.lon, stationId);
+    };
 
     // Close on Escape or outside click
     useEffect(() => {
@@ -222,230 +146,348 @@ export const WeatherWidget: React.FC = () => {
         return () => { document.body.style.overflow = ''; };
     }, [open]);
 
-    if (loading) return <div className="animate-pulse h-6 w-28 bg-gray-200 dark:bg-white/10 rounded-full" />;
+    if (loading) return <div className="animate-pulse h-6 w-32 bg-gray-200 dark:bg-white/10 rounded-full" />;
     if (error || !weather) return null;
 
-    const { current: w, daily: d } = weather;
+    const { current: w, daily: d, stationInfo } = weather;
     const desc = WMO_DESCRIPTIONS[w.weatherCode] || 'Desconegut';
     const uv = getUVLabel(d.uvIndex);
+    const isMeteocat = weather.source === 'hybrid';
+    const nearestFgc = getNearestStationInfo(weather.lat, weather.lon);
 
     return (
         <>
-            {/* ── Compact chip (always visible) ── */}
+            {/* ── Compact chip (always visible on Dashboard header) ── */}
             <button
                 onClick={() => setOpen(true)}
-                className="flex items-center gap-2 px-3 py-1.5 bg-white/50 dark:bg-black/20 backdrop-blur-md rounded-full border border-gray-200/50 dark:border-white/5 shadow-sm hover:shadow-md hover:scale-[1.03] transition-all cursor-pointer group"
-                title="Veure detall meteorològic"
+                className="flex items-center gap-2 px-3 py-1.5 bg-white/70 dark:bg-black/30 backdrop-blur-md rounded-full border border-gray-200/60 dark:border-white/10 shadow-sm hover:shadow-md hover:scale-[1.02] transition-all cursor-pointer group"
+                title="Meteo oficial FGC · Clic per veure detall de sensors i previsió"
             >
                 {getWeatherIcon(w.weatherCode, w.isDay)}
-                <div className="flex items-center gap-1">
-                    <span className="text-xs font-bold text-gray-800 dark:text-gray-200">{w.temperature}°C</span>
-                    <MapPin size={8} className="text-fgc-green animate-pulse" />
+                <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-black text-gray-800 dark:text-gray-100 tabular-nums">
+                        {w.temperature}°C
+                    </span>
+                    {isMeteocat ? (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-[#75990F]/15 text-[#5e7c0c] dark:text-[#A8D017]">
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#75990F] animate-pulse" />
+                            {stationInfo?.shortName || weather.nearestStation}
+                        </span>
+                    ) : (
+                        <div className="flex items-center gap-1">
+                            <MapPin size={9} className="text-fgc-green animate-pulse" />
+                            <span className="text-[10px] text-gray-500 font-semibold">{weather.nearestStation}</span>
+                        </div>
+                    )}
                 </div>
-                <span className="opacity-30 mx-0.5">•</span>
-                <Wind size={12} className="text-gray-400" />
-                <span className="text-[10px] text-gray-500 font-medium">{w.windSpeed} km/h</span>
+                <span className="opacity-25 mx-0.5">•</span>
+                <Wind size={12} className="text-gray-400 group-hover:text-teal-500 transition-colors" />
+                <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">{w.windSpeed} km/h</span>
             </button>
 
-            {/* ── Full Weather Modal via Portal (renders at document.body, above everything) ── */}
+            {/* ── Full Weather Modal via Portal ── */}
             {open && ReactDOM.createPortal(
                 <div
-                    className="fixed inset-0 z-[9999] flex items-start justify-end p-4 pt-16 sm:pt-20"
+                    className="fixed inset-0 z-[9999] flex items-start justify-end p-3 sm:p-4 pt-14 sm:pt-16"
                     onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}
                 >
                     {/* Dimmed backdrop */}
                     <div
-                        className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200"
+                        className="absolute inset-0 bg-black/45 backdrop-blur-sm animate-in fade-in duration-200"
                         onClick={() => setOpen(false)}
                     />
 
-                    {/* Panel */}
+                    {/* Panel Container */}
                     <div
                         ref={modalRef}
-                        className="relative z-10 w-full max-w-sm bg-white dark:bg-slate-950 backdrop-blur-2xl border border-gray-200/60 dark:border-white/10 rounded-3xl shadow-2xl overflow-hidden animate-in slide-in-from-top-4 duration-300"
+                        className="relative z-10 w-full max-w-md bg-white dark:bg-slate-950 backdrop-blur-2xl border border-gray-200/80 dark:border-white/10 rounded-3xl shadow-2xl overflow-hidden animate-in slide-in-from-top-4 duration-300 max-h-[92vh] flex flex-col"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        {/* Header gradient */}
-                        <div className={`relative px-6 pt-6 pb-8 ${w.isDay
-                            ? 'bg-gradient-to-br from-sky-400/20 via-blue-300/10 to-transparent'
-                            : 'bg-gradient-to-br from-indigo-900/40 via-slate-800/20 to-transparent'}`}
+                        {/* Header Gradient */}
+                        <div className={`relative px-5 pt-5 pb-6 flex-none ${w.isDay
+                            ? 'bg-gradient-to-br from-sky-400/20 via-blue-200/10 to-transparent'
+                            : 'bg-gradient-to-br from-indigo-950/60 via-slate-900/30 to-transparent'}`}
                         >
+                            {/* Close Button */}
                             <button
                                 onClick={() => setOpen(false)}
-                                className="absolute top-4 right-4 p-1.5 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 transition-all z-20"
+                                className="absolute top-4 right-4 p-1.5 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 transition-all z-20 text-gray-500 dark:text-gray-300"
+                                title="Tancar"
                             >
-                                <X size={14} className="text-gray-600 dark:text-gray-300" />
+                                <X size={15} />
                             </button>
 
-                            <div className="flex items-start gap-4">
-                                <div className="flex-none">
-                                    {getWeatherIcon(w.weatherCode, w.isDay, 52, 'drop-shadow-lg')}
+                            {/* Station Selector Bar (CSO Operational Bases) */}
+                            <div className="mb-3.5 pr-8">
+                                <div className="text-[9px] font-black uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1.5 flex items-center gap-1">
+                                    <Compass size={10} className="text-[#75990F]" />
+                                    Bases i Estacions FGC
                                 </div>
-                                <div>
-                                    <div className="flex flex-col mb-2">
-                                        <div className="flex items-center gap-1.5 text-[9px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-[0.15em]">
-                                            Ubicació
+                                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+                                    <button
+                                        onClick={() => handleStationSelect('auto')}
+                                        disabled={switching}
+                                        className={`flex-none px-2.5 py-1 rounded-full text-[10px] font-bold transition-all ${selectedStationId === 'auto'
+                                            ? 'bg-[#75990F] text-white shadow-sm'
+                                            : 'bg-white/70 dark:bg-white/5 text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-white/10 border border-gray-200/40 dark:border-white/5'
+                                            }`}
+                                    >
+                                        🛰️ Auto (GPS)
+                                    </button>
+                                    {METEOCAT_FGC_STATIONS.map(st => (
+                                        <button
+                                            key={st.id}
+                                            onClick={() => handleStationSelect(st.id)}
+                                            disabled={switching}
+                                            className={`flex-none px-2.5 py-1 rounded-full text-[10px] font-bold transition-all ${selectedStationId === st.id
+                                                ? 'bg-[#75990F] text-white shadow-sm'
+                                                : 'bg-white/70 dark:bg-white/5 text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-white/10 border border-gray-200/40 dark:border-white/5'
+                                                }`}
+                                            title={st.name}
+                                        >
+                                            {st.shortName}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Main Weather Information */}
+                            <div className="flex items-start gap-4">
+                                <div className="flex-none pt-1">
+                                    {getWeatherIcon(w.weatherCode, w.isDay, 56, 'drop-shadow-lg')}
+                                </div>
+
+                                <div className="flex-1 min-w-0">
+                                    {/* Location & Sensor badge */}
+                                    <div className="flex flex-col">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                            <span className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white tracking-tight truncate">
+                                                {weather.municipality}
+                                            </span>
+                                            {isMeteocat && (
+                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#75990F]/20 text-[#547008] dark:text-[#A8D017] border border-[#75990F]/30">
+                                                    <Radio size={9} className="animate-pulse" />
+                                                    Sensor XEMA ({stationInfo?.id})
+                                                </span>
+                                            )}
                                         </div>
-                                        <div className="text-2xl sm:text-4xl font-black text-[#1a1c1e] dark:text-white leading-none tracking-tighter">
-                                            {weather.municipality}
-                                        </div>
-                                        {weather.nearestStation && (
-                                            <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-[#75990F] dark:text-[#A8D017] mt-1 drop-shadow-sm">
-                                                <Train size={12} strokeWidth={3} />
-                                                <span>FGC {weather.nearestStation}</span>
+
+                                        {stationInfo && (
+                                            <div className="text-[10px] text-gray-500 dark:text-gray-400 font-medium truncate mt-0.5">
+                                                {stationInfo.name} · {stationInfo.badge}
+                                            </div>
+                                        )}
+
+                                        {nearestFgc && (
+                                            <div className="flex items-center gap-1 text-[11px] font-bold text-[#75990F] dark:text-[#A8D017] mt-0.5">
+                                                <Train size={11} strokeWidth={2.5} />
+                                                <span>FGC {nearestFgc}</span>
                                             </div>
                                         )}
                                     </div>
-                                    <div className="flex items-end gap-3">
-                                        <div className="text-5xl font-black text-gray-900 dark:text-white tabular-nums leading-none">
+
+                                    {/* Big Temp and Conditions */}
+                                    <div className="flex items-baseline gap-3 mt-2">
+                                        <div className="text-4xl sm:text-5xl font-black text-gray-900 dark:text-white tabular-nums tracking-tighter">
                                             {w.temperature}°
                                         </div>
                                         <div>
-                                            <div className="text-sm text-gray-600 dark:text-gray-300 font-bold">{desc}</div>
+                                            <div className="text-sm font-bold text-gray-700 dark:text-gray-200">{desc}</div>
                                             <div className="text-[10px] text-gray-400 dark:text-gray-500 font-medium flex items-center gap-1 mt-0.5">
                                                 <Thermometer size={10} />
-                                                Se sent com {w.apparentTemperature}°C
+                                                Sensació tèrmica {w.apparentTemperature}°C
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Max / Min */}
-                            <div className="flex items-center gap-3 mt-4">
-                                <span className="text-xs font-bold text-red-500">↑ {d.tempMax}°</span>
-                                <span className="text-xs font-bold text-blue-500">↓ {d.tempMin}°</span>
-                                <span className="text-[10px] text-gray-400 ml-auto flex items-center gap-1">
-                                    <MapPin size={9} className="text-fgc-green" />
-                                    {weather.lat.toFixed(3)}, {weather.lon.toFixed(3)}
-                                </span>
+                            {/* Max / Min & Sensor reading timestamp */}
+                            <div className="flex items-center justify-between text-xs font-bold mt-3 pt-2 border-t border-gray-200/40 dark:border-white/5">
+                                <div className="flex items-center gap-3">
+                                    <span className="text-red-500">↑ {d.tempMax}°</span>
+                                    <span className="text-blue-500">↓ {d.tempMin}°</span>
+                                </div>
+                                {stationInfo?.readingTime ? (
+                                    <span className="text-[10px] font-medium text-gray-400 dark:text-gray-500">
+                                        Lectura física: {stationInfo.readingTime} h
+                                    </span>
+                                ) : (
+                                    <span className="text-[10px] font-medium text-gray-400 dark:text-gray-500">
+                                        En temps real
+                                    </span>
+                                )}
                             </div>
                         </div>
 
-                        {/* Grid stats */}
-                        <div className="px-5 py-4 grid grid-cols-3 gap-3">
-                            {/* Humidity */}
-                            <StatTile
-                                icon={<Droplets size={15} className="text-blue-400" />}
-                                label="Humitat"
-                                value={`${w.humidity}%`}
-                            />
-                            {/* Visibility */}
-                            <StatTile
-                                icon={<Eye size={15} className="text-indigo-400" />}
-                                label="Visibilitat"
-                                value={`${w.visibility} km`}
-                                alert={w.visibility < 1}
-                            />
-                            {/* Cloud */}
-                            <StatTile
-                                icon={<Cloud size={15} className="text-gray-400" />}
-                                label="Nuvolositat"
-                                value={`${w.cloudCover}%`}
-                            />
-                            {/* Wind */}
-                            <StatTile
-                                icon={<Wind size={15} className="text-teal-400" />}
-                                label="Vent"
-                                value={`${w.windSpeed} km/h`}
-                                sub={getWindDir(w.windDirection)}
-                            />
-                            {/* Wind gusts */}
-                            <StatTile
-                                icon={<Activity size={15} className="text-orange-400" />}
-                                label="Ratxes"
-                                value={`${w.windGusts} km/h`}
-                                alert={w.windGusts > 60}
-                            />
-                            {/* Pressure */}
-                            <StatTile
-                                icon={<Gauge size={15} className="text-purple-400" />}
-                                label="Pressió"
-                                value={`${w.pressure} hPa`}
-                            />
-                        </div>
+                        {/* Scrollable Body: Sensors & Forecast */}
+                        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 no-scrollbar">
+                            {/* Grid stats (6 items) */}
+                            <div>
+                                <div className="text-[9px] font-black uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">
+                                    Lectures de Sensors i Atmosfera
+                                </div>
+                                <div className="grid grid-cols-3 gap-2.5">
+                                    <StatTile
+                                        icon={<Droplets size={14} className="text-blue-400" />}
+                                        label="Humitat"
+                                        value={`${w.humidity}%`}
+                                        sub={isMeteocat ? 'Sensor XEMA' : undefined}
+                                    />
+                                    <StatTile
+                                        icon={<Wind size={14} className="text-teal-400" />}
+                                        label="Vent"
+                                        value={`${w.windSpeed} km/h`}
+                                        sub={getWindDir(w.windDirection)}
+                                    />
+                                    <StatTile
+                                        icon={<Activity size={14} className="text-orange-400" />}
+                                        label="Ratxa Màx."
+                                        value={`${w.windGusts} km/h`}
+                                        alert={w.windGusts > 50}
+                                        sub={w.windGusts > 50 ? 'Alerta vent' : (isMeteocat ? 'Anemòmetre' : undefined)}
+                                    />
+                                    <StatTile
+                                        icon={<Gauge size={14} className="text-purple-400" />}
+                                        label="Pressió"
+                                        value={`${w.pressure} hPa`}
+                                    />
+                                    <StatTile
+                                        icon={<Eye size={14} className="text-indigo-400" />}
+                                        label="Visibilitat"
+                                        value={`${w.visibility} km`}
+                                        alert={w.visibility < 1}
+                                    />
+                                    <StatTile
+                                        icon={<Cloud size={14} className="text-gray-400" />}
+                                        label="Nuvols"
+                                        value={`${w.cloudCover}%`}
+                                    />
+                                </div>
+                            </div>
 
-                        {/* Precip & UV row */}
-                        <div className="px-5 pb-4 grid grid-cols-2 gap-3">
-                            <div className="flex items-center gap-3 px-3 py-2.5 bg-blue-50/50 dark:bg-blue-500/10 rounded-2xl border border-blue-100/50 dark:border-blue-500/20">
-                                <CloudRain size={16} className="text-blue-500 dark:text-blue-400 flex-none" />
-                                <div>
-                                    <div className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">Precipitació</div>
-                                    <div className="text-sm font-black text-gray-800 dark:text-white">{w.precipitationProbability}%
-                                        <span className="text-[10px] font-normal text-gray-400 ml-1">prob.</span>
+                            {/* Precip & UV row */}
+                            <div className="grid grid-cols-2 gap-2.5">
+                                <div className="flex items-center gap-3 p-3 bg-blue-50/60 dark:bg-blue-500/10 rounded-2xl border border-blue-100/60 dark:border-blue-500/20">
+                                    <CloudRain size={16} className="text-blue-500 dark:text-blue-400 flex-none" />
+                                    <div>
+                                        <div className="text-[9px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">
+                                            Precipitació
+                                        </div>
+                                        <div className="text-sm font-black text-gray-800 dark:text-white">
+                                            {w.precipitationProbability}%
+                                            <span className="text-[10px] font-normal text-gray-400 ml-1">prob.</span>
+                                        </div>
+                                        <div className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">
+                                            {d.precipSum} mm acumulats avui
+                                        </div>
                                     </div>
-                                    <div className="text-[10px] text-gray-400 dark:text-gray-500">{d.precipSum} mm avui</div>
                                 </div>
-                            </div>
-                            <div className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl border ${d.uvIndex >= 6
-                                ? 'bg-orange-50/50 dark:bg-orange-500/10 border-orange-100/50 dark:border-orange-500/20'
-                                : 'bg-gray-50/50 dark:bg-white/5 border-gray-100/50 dark:border-white/5'}`}
-                            >
-                                <Sun size={16} className="text-amber-500 dark:text-amber-400 flex-none" />
-                                <div>
-                                    <div className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">Índex UV</div>
-                                    <div className={`text-sm font-black ${uv.color}`}>{d.uvIndex}
-                                        <span className="text-[10px] font-semibold ml-1">{uv.label}</span>
+
+                                <div className={`flex items-center gap-3 p-3 rounded-2xl border ${d.uvIndex >= 6
+                                    ? 'bg-orange-50/60 dark:bg-orange-500/10 border-orange-100/60 dark:border-orange-500/20'
+                                    : 'bg-gray-50/60 dark:bg-white/5 border-gray-100/60 dark:border-white/5'
+                                    }`}
+                                >
+                                    <Sun size={16} className="text-amber-500 dark:text-amber-400 flex-none" />
+                                    <div>
+                                        <div className="text-[9px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">
+                                            Índex UV
+                                        </div>
+                                        <div className={`text-sm font-black ${uv.color}`}>
+                                            {d.uvIndex}
+                                            <span className="text-[10px] font-semibold ml-1">{uv.label}</span>
+                                        </div>
+                                        <div className="text-[10px] text-gray-400 dark:text-gray-500">
+                                            Radiació màx. solar
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
 
-                        {/* Sunrise / Sunset */}
-                        <div className="px-5 pb-5 flex items-center justify-between">
-                            <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-500/10 rounded-2xl border border-amber-100 dark:border-amber-500/20 flex-1 mr-2">
-                                <Sunrise size={14} className="text-amber-400" />
-                                <div>
-                                    <div className="text-[9px] text-gray-400 uppercase tracking-wider font-semibold">Sortida sol</div>
-                                    <div className="text-sm font-black text-gray-800 dark:text-white">{formatTime(d.sunrise)}</div>
+                            {/* Sunrise / Sunset */}
+                            <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2.5 px-3 py-2 bg-amber-50/60 dark:bg-amber-500/10 rounded-2xl border border-amber-100/60 dark:border-amber-500/20 flex-1">
+                                    <Sunrise size={14} className="text-amber-500" />
+                                    <div>
+                                        <div className="text-[9px] text-gray-400 uppercase tracking-wider font-semibold">Sortida sol</div>
+                                        <div className="text-xs font-black text-gray-800 dark:text-white">{formatTime(d.sunrise)}</div>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2.5 px-3 py-2 bg-indigo-50/60 dark:bg-indigo-500/10 rounded-2xl border border-indigo-100/60 dark:border-indigo-500/20 flex-1">
+                                    <Sunset size={14} className="text-indigo-400" />
+                                    <div>
+                                        <div className="text-[9px] text-gray-400 uppercase tracking-wider font-semibold">Posta sol</div>
+                                        <div className="text-xs font-black text-gray-800 dark:text-white">{formatTime(d.sunset)}</div>
+                                    </div>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50 dark:bg-indigo-500/10 rounded-2xl border border-indigo-100 dark:border-indigo-500/20 flex-1">
-                                <Sunset size={14} className="text-indigo-400" />
-                                <div>
-                                    <div className="text-[9px] text-gray-400 uppercase tracking-wider font-semibold">Posta sol</div>
-                                    <div className="text-sm font-black text-gray-800 dark:text-white">{formatTime(d.sunset)}</div>
-                                </div>
-                            </div>
-                        </div>
 
-                        {/* Forecast (Next 3 Days) */}
-                        {weather.forecast && weather.forecast.length > 0 && (
-                            <div className="px-5 pb-5">
-                                <div className="flex flex-col gap-2 p-3 bg-gray-50/50 dark:bg-white/[0.02] border border-gray-100/50 dark:border-white/5 rounded-2xl">
-                                    <div className="text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest pl-1 mb-1">Propers dies</div>
-                                    <div className="flex justify-between divide-x divide-gray-200 dark:divide-white/5">
+                            {/* 7-8 Days Official Forecast (SMC / Meteocat) */}
+                            {weather.forecast && weather.forecast.length > 0 && (
+                                <div>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-[9px] font-black uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                                            Previsió Oficial ({weather.forecast.length} dies)
+                                        </span>
+                                        {isMeteocat && (
+                                            <span className="text-[9px] font-bold text-[#75990F] dark:text-[#A8D017]">
+                                                SMC Municipal
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
                                         {weather.forecast.map((day, idx) => {
                                             const dateObj = new Date(day.date);
                                             const dayName = new Intl.DateTimeFormat('ca-ES', { weekday: 'short' }).format(dateObj).replace('.', '');
                                             return (
-                                                <div key={idx} className="flex-1 flex flex-col items-center justify-center px-1">
-                                                    <span className="text-[10px] font-black text-gray-500 dark:text-gray-400 mb-2 uppercase">{dayName}</span>
-                                                    {getWeatherIcon(day.weatherCode, true, 18, 'drop-shadow-sm')}
-                                                    <div className="mt-2 text-xs flex items-center justify-center gap-1.5 font-bold">
-                                                        <span className="text-gray-800 dark:text-gray-200">{day.tempMax}°</span>
-                                                        <span className="text-gray-400 dark:text-gray-600 font-medium">{day.tempMin}°</span>
+                                                <div
+                                                    key={idx}
+                                                    className="flex-none w-16 p-2 rounded-2xl bg-gray-50/70 dark:bg-white/[0.03] border border-gray-100/70 dark:border-white/5 flex flex-col items-center justify-center text-center transition-all hover:bg-gray-100/70 dark:hover:bg-white/[0.06]"
+                                                >
+                                                    <span className="text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase mb-1.5">
+                                                        {dayName}
+                                                    </span>
+                                                    <div className="my-0.5">
+                                                        {getWeatherIcon(day.weatherCode, true, 20, 'drop-shadow-sm')}
                                                     </div>
+                                                    <div className="mt-1.5 text-[11px] font-black text-gray-800 dark:text-gray-200">
+                                                        {day.tempMax}°
+                                                    </div>
+                                                    <div className="text-[10px] font-medium text-gray-400 dark:text-gray-500">
+                                                        {day.tempMin}°
+                                                    </div>
+                                                    {day.precipProbability !== undefined && day.precipProbability > 0 && (
+                                                        <span className="text-[9px] font-bold text-blue-500 mt-1">
+                                                            {day.precipProbability}%
+                                                        </span>
+                                                    )}
                                                 </div>
                                             );
                                         })}
                                     </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
+                        </div>
 
-                        {/* Footer */}
-                        <div className="px-5 pb-4 text-center">
-                            <p className="text-[9px] text-gray-400 dark:text-gray-600">Open-Meteo · Actualitzat en temps real</p>
+                        {/* Footer with institutional source certification */}
+                        <div className="px-5 py-3 border-t border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-white/[0.01] flex items-center justify-between text-[9px] text-gray-400 dark:text-gray-500 flex-none">
+                            <span>
+                                {isMeteocat
+                                    ? 'Servei Meteorològic de Catalunya (XEMA) + Open-Meteo'
+                                    : 'Open-Meteo API'}
+                            </span>
+                            <span className="font-bold text-[#75990F]">FGC Operacions</span>
                         </div>
                     </div>
-                </div>
-                , document.body)}
+                </div>,
+                document.body
+            )}
         </>
     );
 };
 
-// ── Helper sub-component ──
+// ── Helper Sub-component ──
 const StatTile: React.FC<{
     icon: React.ReactNode;
     label: string;
@@ -453,24 +495,25 @@ const StatTile: React.FC<{
     sub?: string;
     alert?: boolean;
 }> = ({ icon, label, value, sub, alert }) => (
-    <div className={`flex flex-col gap-1 p-3 rounded-2xl border transition-all ${alert
+    <div className={`flex flex-col gap-1 p-2.5 rounded-2xl border transition-all ${alert
         ? 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30'
-        : 'bg-gray-50 dark:bg-white/[0.04] border-gray-100 dark:border-white/5'}`}
+        : 'bg-gray-50 dark:bg-white/[0.03] border-gray-100 dark:border-white/5'
+        }`}
     >
         <div className="flex items-center gap-1.5">
             {icon}
-            <span className="text-[9px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wide">{label}</span>
+            <span className="text-[9px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider truncate">
+                {label}
+            </span>
         </div>
-        <div className={`text-sm font-black leading-none ${alert ? 'text-red-500' : 'text-gray-800 dark:text-slate-100'}`}>{value}</div>
-        {sub && <div className="text-[9px] text-gray-400 font-medium">{sub}</div>}
+        <div className={`text-sm font-black leading-none ${alert ? 'text-red-500' : 'text-gray-800 dark:text-slate-100'}`}>
+            {value}
+        </div>
+        {sub && <div className="text-[9px] text-gray-400 dark:text-gray-500 font-medium truncate">{sub}</div>}
     </div>
 );
 
-// ── Pure logic helpers (Outside component to avoid closure issues) ──
-
-/**
- * Finds the nearest FGC station and returns formatted info: "Nom Estació (X.X km)"
- */
+// ── Pure logic helpers ──
 function getNearestStationInfo(lat: number, lon: number): string {
     if (!STATION_GEO_DATA || STATION_GEO_DATA.length === 0) return '';
 
