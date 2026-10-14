@@ -15,26 +15,26 @@ const TrainInspectorPopup: React.FC<TrainInspectorPopupProps> = ({ train, onClos
     const punct = train.punctuality;
 
     return (
-        <div className="z-[300] animate-in zoom-in-95 fade-in duration-300 pointer-events-auto">
+        <div className="z-[300] animate-in zoom-in-95 fade-in duration-300 pointer-events-auto my-auto">
             <div
-                className="w-80 overflow-hidden relative group"
+                className="w-80 sm:w-88 max-h-[calc(100dvh-32px)] flex flex-col overflow-hidden relative group"
                 style={{
                     background: 'rgba(15, 15, 20, 0.98)',
                     backdropFilter: 'blur(20px) saturate(180%)',
                     WebkitBackdropFilter: 'blur(20px) saturate(180%)',
                     border: '1px solid rgba(255, 255, 255, 0.15)',
-                    borderRadius: '32px',
+                    borderRadius: '28px',
                     boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8), inset 0 0 0 1px rgba(255, 255, 255, 0.1)'
                 }}
             >
                 {/* Animated Glow Background */}
                 <div
-                    className="absolute -top-12 -right-12 w-40 h-40 blur-[60px] transition-all duration-700 opacity-50"
+                    className="absolute -top-12 -right-12 w-40 h-40 blur-[60px] transition-all duration-700 opacity-50 pointer-events-none"
                     style={{ backgroundColor: liniaColor }}
                 />
 
-                {/* Header */}
-                <div className="p-6 border-b border-white/10 flex justify-between items-start">
+                {/* Header (Pinned at top) */}
+                <div className="p-5 border-b border-white/10 flex justify-between items-start shrink-0 relative z-[10] bg-black/30 backdrop-blur-md">
                     <div>
                         <div className="flex items-center gap-2 mb-1">
                             <span className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">Inspector d'Unitat</span>
@@ -69,7 +69,7 @@ const TrainInspectorPopup: React.FC<TrainInspectorPopupProps> = ({ train, onClos
                     </button>
                 </div>
 
-                <div className="p-6 space-y-6">
+                <div className="p-5 space-y-4 overflow-y-auto flex-1 overscroll-contain">
                     {/* Operator Info */}
                     <div className="flex items-start gap-4">
                         <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center border border-white/10 group-hover:border-fgc-green/30 transition-all shrink-0">

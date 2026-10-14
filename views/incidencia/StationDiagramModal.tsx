@@ -15,8 +15,8 @@ interface StationDiagramModalProps {
 }
 
 const ModalWrapper: React.FC<{ title: string; accentColor: string; onClose: () => void; children: React.ReactNode }> = ({ title, accentColor, onClose, children }) => (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-        <div className="bg-[#121212] p-8 rounded-[40px] border border-white/10 shadow-2xl max-w-4xl w-full relative overflow-hidden ring-1 ring-white/20">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300 overflow-y-auto">
+        <div className="bg-[#121212] p-6 sm:p-8 rounded-[40px] border border-white/10 shadow-2xl max-w-4xl w-full relative overflow-hidden ring-1 ring-white/20 my-auto max-h-[calc(100dvh-32px)] overflow-y-auto">
             <button onClick={onClose} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-white transition-colors bg-white/5 rounded-full">
                 <X size={20} />
             </button>
@@ -246,8 +246,8 @@ const PlCatalunyaDiagram: React.FC<{ liveData: LivePersonnel[]; parkedUnits: any
     const fallbackTracks = [{ y: Y_V1, label: "V1" }, { y: Y_V2, label: "V2" }, { y: Y_V3, label: "V3" }, { y: Y_V4, label: "V4" }, { y: Y_V5, label: "V5" }];
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-            <div className="bg-[#121212] p-8 rounded-[40px] border border-white/10 shadow-2xl max-w-4xl w-full relative overflow-hidden ring-1 ring-white/20">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300 overflow-y-auto">
+            <div className="bg-[#121212] p-6 sm:p-8 rounded-[40px] border border-white/10 shadow-2xl max-w-4xl w-full relative overflow-hidden ring-1 ring-white/20 my-auto max-h-[calc(100dvh-32px)] overflow-y-auto">
                 <button onClick={onClose} className="absolute top-6 right-6 p-2 text-gray-400 hover:text-white transition-colors bg-white/5 rounded-full"><X size={20} /></button>
                 <div className="flex items-center gap-4 mb-8">
                     <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse ring-4 ring-red-500/20" />

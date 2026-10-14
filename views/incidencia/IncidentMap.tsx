@@ -316,12 +316,12 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                 </div>
             </div>
             {(selectedCutStations.size > 0 || selectedCutSegments.size > 0) && (<button onClick={clearAllCuts} className="text-[10px] font-bold text-red-500 uppercase flex items-center gap-2 bg-red-50 dark:bg-red-950/30 px-4 py-2.5 rounded-xl hover:scale-105 transition-all shadow-sm border border-red-100 dark:border-red-900/40 animate-in fade-in zoom-in-95 self-start mb-4"><Trash2 size={14} /> Anul·lar Talls ({selectedCutStations.size + selectedCutSegments.size})</button>)}
-            <div className="w-full h-[350px] sm:h-[400px] md:h-[420px] lg:h-[450px] bg-gray-50/30 dark:bg-black/20 rounded-3xl overflow-hidden border border-black/5 dark:border-white/5 relative">
+            <div className="w-full h-[380px] sm:h-[420px] md:h-[450px] lg:h-[480px] bg-gray-50/30 dark:bg-black/20 rounded-3xl overflow-hidden border border-black/5 dark:border-white/5 relative">
                 <TransformWrapper
                     initialScale={1}
                     minScale={0.5}
                     maxScale={4}
-                    centerOnInit={false}
+                    centerOnInit={true}
                     limitToBounds={false}
                     doubleClick={{ disabled: true }}
                     onTransformed={(_ref, state) => {
@@ -338,7 +338,7 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                             </div>
                             <TransformComponent wrapperClass="!w-full !h-full" contentClass="!w-full !h-full">
                                 <div className="w-full h-full flex items-center justify-center min-w-[1000px]">
-                                    <svg viewBox="-40 -30 790 250" className="w-full h-full overflow-visible">
+                                    <svg viewBox="-45 -35 810 265" className="w-full h-full overflow-visible">
                                         <g className="opacity-40">
                                             <line x1="-35" y1="84" x2="0" y2="84" stroke="#4D5358" strokeWidth="2" strokeLinecap="round" />
                                             <path d="M 0 84 L 12 96" stroke="#4D5358" strokeWidth="2" fill="none" />
@@ -562,7 +562,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                                     <g className="drop-shadow-md">
                                                         <rect x={-(labelWidth / 2)} y={-16} width={labelWidth} height={12} rx={3} fill={p.color} />
                                                         <text x={0} y={-10} textAnchor="middle" dominantBaseline="middle" className="text-[8px] font-bold fill-white uppercase tracking-tighter">{p.id}</text>
-                                                        {isMoving && (<circle cx={labelWidth / 2 - 2} cy={-10} r={1.5} fill="#22c55e"><animate attributeName="opacity" values="1;0.3;1" dur="1.5s" repeatCount="indefinite" /></circle>)}
                                                     </g>
                                                 </g>
                                             );
@@ -691,27 +690,6 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                                             >
                                                                 {utLabel}
                                                             </text>
-                                                            {/* Driver assigned badge */}
-                                                            {gt.isDriverAssigned && (
-                                                                <g transform={`translate(${-(bgWidth / 2) - 5}, -16)`}>
-                                                                    <circle cx={0} cy={0} r={5} fill="#059669" stroke="white" strokeWidth="1" className="drop-shadow-sm">
-                                                                        <title>{`Maquinista assignat: ${gt.driver} (Torn ${gt.torn})`}</title>
-                                                                    </circle>
-                                                                    <circle cx={0} cy={-1.5} r={1.6} fill="white" />
-                                                                    <path d="M -2.5 3 C -2.5 1.2, 2.5 1.2, 2.5 3 Z" fill="white" />
-                                                                </g>
-                                                            )}
-                                                            {/* Punctuality badge: Blau=Avançat, Verd=En hora (fins a 3m), Ambre=3-4m, Roig=>4m */}
-                                                            {punct.category !== 'EN_HORA' ? (
-                                                                <g transform="translate(10, -18)">
-                                                                    <circle cx={0} cy={0} r={5.5} fill={punct.colorHex} stroke="white" strokeWidth="1" className="drop-shadow-sm" />
-                                                                    <text x={0} y={1.2} textAnchor="middle" dominantBaseline="middle" className="text-[5px] font-black fill-white pointer-events-none">
-                                                                        {punct.badgeText}
-                                                                    </text>
-                                                                </g>
-                                                            ) : (
-                                                                <circle cx={10} cy={-18} r={3} fill="#22c55e" stroke="white" strokeWidth="0.8" className="drop-shadow-sm" />
-                                                            )}
                                                         </g>
                                                     );
 
@@ -776,8 +754,8 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
             {typeof document !== 'undefined' && createPortal(
                 <>
                     {selectedTrain && (
-                        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setSelectedTrain(null)}>
-                            <div onClick={(e) => e.stopPropagation()} className="max-w-full">
+                        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-300 overflow-y-auto" onClick={() => setSelectedTrain(null)}>
+                            <div onClick={(e) => e.stopPropagation()} className="max-w-full my-auto">
                                 <TrainInspectorPopup
                                     train={selectedTrain}
                                     onClose={() => setSelectedTrain(null)}
@@ -794,8 +772,8 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                         </div>
                     )}
                     {selectedGeoTren && (
-                        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setSelectedGeoTren(null)}>
-                            <div onClick={(e) => e.stopPropagation()} className="max-w-full">
+                        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-300 overflow-y-auto" onClick={() => setSelectedGeoTren(null)}>
+                            <div onClick={(e) => e.stopPropagation()} className="max-w-full my-auto">
                                 <GeoTrenInspectorPopup
                                     gt={selectedGeoTren}
                                     onClose={() => setSelectedGeoTren(null)}
