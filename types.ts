@@ -1,3 +1,4 @@
+import type { PunctualityInfo } from './utils/delayNotifications';
 
 export interface Shift {
   id: string;
@@ -178,6 +179,17 @@ export interface LivePersonnel {
   startTimeMin?: number;
   endTimeMin?: number;
   progress?: number;
+
+  // Unificació Maquinista / Convoy (Enriquiment telemètric GeoTren en temps real)
+  ut?: string;
+  speedKmh?: number;
+  delaySec?: number;
+  punctuality?: PunctualityInfo;
+  isGeoTrenSynced?: boolean;
+  geoTrenId?: string;
+  etaNextMin?: number | null;
+  fusionState?: 'EN_ANDANA' | 'APROXIMANT' | 'EN_MARXA';
+  distanceToTrackMeters?: number;
 }
 
 /** Nodo de estación para el mapa SVG */

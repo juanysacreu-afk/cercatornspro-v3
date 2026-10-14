@@ -459,7 +459,9 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                                 </g>
                                             );
                                         })}
-                                        {!isGeoTrenEnabled && trains.map((p, idx) => {
+                                        {trains
+                                            .filter(p => !isGeoTrenEnabled || !p.isGeoTrenSynced)
+                                            .map((p, idx) => {
                                             const offset = (p as any).visualOffset || 0;
                                             let isAffected = false;
                                             let effectiveCutStations = new Set(selectedCutStations);
@@ -571,19 +573,24 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                                 .map((gt, idx) => {
                                                     const mainLinia = mainLiniaForFilter(gt.lin);
                                                     const color = getLiniaColorHex(mainLinia);
+                                                    const decodedUt = decodeGeotrenUt(gt.ut, gt.tipus_unitat);
+                                                    const decodedUtLabel = decodedUt || gt.tipus_unitat || '???';
                                                     let utLabel = '';
-                                                    if (geoTrenDisplayMode === 'CIRC' && gt.id) {
-                                                        const decodedCirc = decodeGeotrenCirculation(gt.id);
-                                                        if (decodedCirc) {
-                                                            const numPadded = decodedCirc.number.padStart(3, '0');
-                                                            utLabel = `${decodedCirc.direction}${numPadded}`;
+                                                    if (geoTrenDisplayMode === 'CIRC') {
+                                                        if (gt.circulacioId) {
+                                                            utLabel = gt.circulacioId;
+                                                        } else if (gt.id) {
+                                                            const decodedCirc = decodeGeotrenCirculation(gt.id);
+                                                            if (decodedCirc) {
+                                                                utLabel = `${decodedCirc.direction}${decodedCirc.number.padStart(3, '0')}`;
+                                                            } else {
+                                                                utLabel = decodedUtLabel;
+                                                            }
                                                         } else {
-                                                            const decoded = decodeGeotrenUt(gt.ut, gt.tipus_unitat);
-                                                            utLabel = decoded || gt.tipus_unitat || '???';
+                                                            utLabel = decodedUtLabel;
                                                         }
                                                     } else {
-                                                        const decoded = decodeGeotrenUt(gt.ut, gt.tipus_unitat);
-                                                        utLabel = decoded || gt.tipus_unitat || '???';
+                                                        utLabel = decodedUtLabel;
                                                     }
                                                     
                                                     const bgWidth = utLabel.length > 3 ? 42 : 32;
@@ -614,6 +621,9 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                                                 setSelectedGeoTren(gt);
                                                             }}
                                                         >
+                                                            <title>
+                                                                {`UT ${decodedUtLabel} · Circulació ${gt.circulacioId || '---'}\nMaquinista: ${gt.driver || 'Sense assignar'}${gt.torn ? ` (Torn ${gt.torn})` : ''}\nEstat: ${gt.fusionState === 'EN_ANDANA' ? 'Aturat a andana' : gt.isMoving ? 'En marxa' : 'Aturat'}\nPuntualitat: ${punct.label}`}
+                                                            </title>
                                                             {/* Breadcrumb trail — only on hover */}
                                                             {isHovered && gt.trail.length > 1 && gt.trail.slice(0, -1).map((pt, ti) => {
                                                                 const opacity = 0.12 + (ti / gt.trail.length) * 0.3;
@@ -681,6 +691,16 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                                             >
                                                                 {utLabel}
                                                             </text>
+                                                            {/* Driver assigned badge */}
+                                                            {gt.isDriverAssigned && (
+                                                                <g transform={`translate(${-(bgWidth / 2) - 5}, -16)`}>
+                                                                    <circle cx={0} cy={0} r={5} fill="#059669" stroke="white" strokeWidth="1" className="drop-shadow-sm">
+                                                                        <title>{`Maquinista assignat: ${gt.driver} (Torn ${gt.torn})`}</title>
+                                                                    </circle>
+                                                                    <circle cx={0} cy={-1.5} r={1.6} fill="white" />
+                                                                    <path d="M -2.5 3 C -2.5 1.2, 2.5 1.2, 2.5 3 Z" fill="white" />
+                                                                </g>
+                                                            )}
                                                             {/* Punctuality badge: Blau=Avançat, Verd=En hora (fins a 3m), Ambre=3-4m, Roig=>4m */}
                                                             {punct.category !== 'EN_HORA' ? (
                                                                 <g transform="translate(10, -18)">
@@ -694,6 +714,7 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                                             )}
                                                         </g>
                                                     );
+
                                                 });
                                         })()}
                                         {/* Parked Units */}
@@ -778,6 +799,14 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                 <GeoTrenInspectorPopup
                                     gt={selectedGeoTren}
                                     onClose={() => setSelectedGeoTren(null)}
+                                    onOpenRoute={(circulacioId) => {
+                                        if (setQuery && handleSearchCirculation && circulacioId) {
+                                            setQuery(circulacioId);
+                                            handleSearchCirculation();
+                                            setSelectedGeoTren(null);
+                                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                                        }
+                                    }}
                                 />
                             </div>
                         </div>

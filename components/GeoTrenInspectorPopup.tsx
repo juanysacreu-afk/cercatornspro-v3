@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Train, ArrowRight, Activity, Clock, Users, MapPin, Info, AlertTriangle, Timer } from 'lucide-react';
+import { X, Train, ArrowRight, Activity, Clock, Users, MapPin, Info, AlertTriangle, Timer, User, Phone, Compass, UserX } from 'lucide-react';
 import { getLiniaColorHex, LINIA_STATIONS, resolveStationId } from '../utils/stations';
 import type { GeoTrenEnhanced } from '../views/incidencia/hooks/useLiveMapData';
 import { decodeGeotrenUt } from '../views/incidencia/utils/decodeUt';
@@ -9,9 +9,10 @@ import { getPunctualityInfo } from '../utils/delayNotifications';
 interface GeoTrenInspectorPopupProps {
     gt: GeoTrenEnhanced;
     onClose: () => void;
+    onOpenRoute?: (circulacioId: string) => void;
 }
 
-const GeoTrenInspectorPopup: React.FC<GeoTrenInspectorPopupProps> = ({ gt, onClose }) => {
+const GeoTrenInspectorPopup: React.FC<GeoTrenInspectorPopupProps> = ({ gt, onClose, onOpenRoute }) => {
     if (!gt) return null;
 
     const liniaColor = getLiniaColorHex(gt.lin);
@@ -136,6 +137,62 @@ const GeoTrenInspectorPopup: React.FC<GeoTrenInspectorPopupProps> = ({ gt, onClo
                 </div>
 
                 <div className="p-6 space-y-5">
+                    {/* Targeta Maquinista Assignat (Unificació Maquinista / Convoy) */}
+                    <div className="bg-white/10 p-4 rounded-2xl border border-white/10 space-y-3">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${gt.isDriverAssigned ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-white/5 text-gray-400 border border-white/10'}`}>
+                                    {gt.isDriverAssigned ? <User size={18} /> : <UserX size={18} />}
+                                </div>
+                                <div>
+                                    <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">
+                                        Maquinista Assignat
+                                    </p>
+                                    <p className="text-xs font-black text-white uppercase leading-tight">
+                                        {gt.driver || 'Sense assignar'}
+                                    </p>
+                                </div>
+                            </div>
+                            {gt.torn && gt.torn !== '---' && (
+                                <span className="bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 text-[9px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wider">
+                                    Torn {gt.torn}
+                                </span>
+                            )}
+                        </div>
+
+                        {gt.isDriverAssigned && (
+                            <div className="pt-2 border-t border-white/5 flex flex-col gap-2">
+                                <div className="flex items-center justify-between text-[9px] font-bold text-gray-300">
+                                    {gt.shiftStart && gt.shiftEnd ? (
+                                        <span>Horari: <strong className="text-white font-mono">{gt.shiftStart} - {gt.shiftEnd}</strong> {gt.shiftDep ? `(${gt.shiftDep})` : ''}</span>
+                                    ) : (
+                                        <span>Servei en curs</span>
+                                    )}
+                                </div>
+
+                                {/* Botons de trucada directa */}
+                                {gt.phones && gt.phones.length > 0 ? (
+                                    <div className="flex items-center gap-2 pt-1 flex-wrap">
+                                        {gt.phones.map((phone, pIdx) => (
+                                            <a
+                                                key={pIdx}
+                                                href={`tel:${phone}`}
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="inline-flex items-center gap-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 px-2.5 py-1 rounded-lg text-[10px] font-black transition-all active:scale-95"
+                                                title={`Trucar directament a ${gt.driver}: ${phone}`}
+                                            >
+                                                <Phone size={12} />
+                                                <span>{phone}</span>
+                                            </a>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="text-[9px] font-bold text-gray-500 italic">Sense telèfon registrat</p>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
                     {/* Direction & Status */}
                     <div className="grid grid-cols-2 gap-4">
                         <div className="bg-white/10 p-3 rounded-2xl border border-white/10">
@@ -277,6 +334,19 @@ const GeoTrenInspectorPopup: React.FC<GeoTrenInspectorPopupProps> = ({ gt, onClo
                         )}
                     </div>
 
+
+                    {onOpenRoute && (gt.circulacioId || (gt.id && decodeGeotrenCirculation(gt.id)?.fullName)) && (
+                        <button
+                            onClick={() => {
+                                const code = gt.circulacioId || decodeGeotrenCirculation(gt.id)?.fullName;
+                                if (code) onOpenRoute(code);
+                            }}
+                            className="w-full bg-fgc-green hover:bg-fgc-green/90 text-fgc-grey font-black py-3 rounded-2xl text-[10px] uppercase tracking-[0.2em] transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2 mt-2"
+                        >
+                            <Compass size={14} />
+                            Obrir Detalls Ruta ({gt.circulacioId || decodeGeotrenCirculation(gt.id)?.fullName})
+                        </button>
+                    )}
 
                     <button
                         onClick={onClose}

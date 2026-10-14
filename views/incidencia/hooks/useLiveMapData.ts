@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { supabase } from '../../../supabaseClient';
 import {
     getFgcMinutes, formatFgcTime, isServiceVisible, resolveStationId,
-    getLiniaColorHex, getShortTornId
+    getLiniaColorHex, getShortTornId, normalizeCircId
 } from '../../../utils/stations';
 import {
     STATION_GEO_MAP, interpolateBetweenStations, estimateEta, estimateEtaByPk, haversineKm
@@ -11,6 +11,7 @@ import { snapToTrack, getRemainingRailKm } from '../../../utils/trackGeometry';
 import { MAP_STATIONS } from '../mapConstants';
 import { getFullPath } from '../mapUtils';
 import { decodeGeotrenUt } from '../utils/decodeUt';
+import { decodeGeotrenCirculation } from '../utils/decodeCirculation';
 import { recordTrainKinematics, detectStationFusion } from '../../../utils/trainKinematics';
 import { getPunctualityInfo, PunctualityInfo } from '../../../utils/delayNotifications';
 import type { LivePersonnel, IncidenciaMode, GeoTrenPoint, Shift } from '../../../types';
@@ -47,6 +48,24 @@ export interface GeoTrenEnhanced extends GeoTrenPoint {
     snappedLon?: number;
     /** Orthogonal distance to rail track in meters */
     distanceToTrackMeters?: number;
+
+    // ── Unificació Maquinista / Convoy ──────────────────────────────
+    /** Decoded circulation identifier (e.g. 'D096', 'F102') */
+    circulacioId?: string;
+    /** Nom complet del maquinista assignat ('COGNOMS, NOM' o 'Sense assignar') */
+    driver?: string;
+    driverName?: string;
+    driverSurname?: string;
+    /** Torn de servei ('T-102' o '102') */
+    torn?: string;
+    shiftStart?: string;
+    shiftEnd?: string;
+    shiftDep?: string;
+    servei?: string;
+    /** Telèfons de contacte directes del maquinista */
+    phones?: string[];
+    /** Certesa d'assignació d'agent */
+    isDriverAssigned?: boolean;
 }
 
 const GEOTREN_API = 'https://dadesobertes.fgc.cat/api/v2/catalog/datasets/posicionament-dels-trens/exports/json';
@@ -67,7 +86,7 @@ export const useLiveMapData = ({
     isRealTime, isPaused, customTime, selectedServei, mode, manualOverrides, isGeoTrenEnabled
 }: UseLiveMapDataProps) => {
     const [loading, setLoading] = useState(false);
-    const [liveData, setLiveData] = useState<LivePersonnel[]>([]);
+    const [rawLiveData, setRawLiveData] = useState<LivePersonnel[]>([]);
     const [displayMin, setDisplayMin] = useState<number>(0);
     const [allShifts, setAllShifts] = useState<Shift[]>([]); // Cache shifts
 
@@ -106,7 +125,7 @@ export const useLiveMapData = ({
 
     // GeoTren Enhanced Data
     const geoTrenEnhancedRef = useRef<Map<string, GeoTrenEnhanced>>(new Map());
-    const [geoTrenData, setGeoTrenData] = useState<GeoTrenEnhanced[]>([]);
+    const [rawGeoTrenData, setRawGeoTrenData] = useState<GeoTrenEnhanced[]>([]);
 
     /** Build enhanced GeoTren entry with real GPS interpolation + breadcrumb trail */
     const buildEnhanced = useCallback((raw: GeoTrenPoint): GeoTrenEnhanced => {
@@ -277,6 +296,9 @@ export const useLiveMapData = ({
             }
         }
 
+        const decodedCirc = decodeGeotrenCirculation(raw.id);
+        const circulacioId = decodedCirc ? `${decodedCirc.direction}${decodedCirc.number.padStart(3, '0')}` : undefined;
+
         const enhanced: GeoTrenEnhanced = {
             ...raw,
             mapX, mapY, isMoving, nextStMapId, delayMin, delaySec, punctuality, etaNextMin, trail,
@@ -284,7 +306,8 @@ export const useLiveMapData = ({
             speedKmh,
             snappedLat,
             snappedLon,
-            distanceToTrackMeters
+            distanceToTrackMeters,
+            circulacioId
         };
         geoTrenEnhancedRef.current.set(raw.id, enhanced);
         return enhanced;
@@ -325,7 +348,7 @@ export const useLiveMapData = ({
                 }
             });
 
-            setGeoTrenData(Array.from(uniqueTrains.values()));
+            setRawGeoTrenData(Array.from(uniqueTrains.values()));
         } catch (err) {
             console.error('[GeoTren] fetch error:', err);
         }
@@ -364,7 +387,7 @@ export const useLiveMapData = ({
             });
 
             if (activeShifts.length === 0) {
-                setLiveData([]);
+                setRawLiveData([]);
                 setLoading(false);
                 return;
             }
@@ -703,7 +726,7 @@ export const useLiveMapData = ({
                 collisionMap[key] = count + 1;
                 return { ...p, visualOffset: count };
             });
-            setLiveData(offsetData);
+            setRawLiveData(offsetData);
 
         } catch (e) {
             console.error("Error live map:", e);
@@ -731,7 +754,105 @@ export const useLiveMapData = ({
         };
     }, [mode, selectedServei]);
 
+    // ── Unificació Maquinista / Convoy ──────────────────────────────
+    const { unifiedLiveData, unifiedGeoTren } = useMemo(() => {
+        // 1. Map of personnel by normalized circulation ID
+        const personnelByCirc = new Map<string, LivePersonnel>();
+        for (const p of rawLiveData) {
+            if (p.type === 'TRAIN' && p.id) {
+                personnelByCirc.set(normalizeCircId(p.id), p);
+            }
+        }
+
+        // 2. Map of GeoTren trains by normalized circulation ID
+        const geoTrenByCirc = new Map<string, GeoTrenEnhanced>();
+        for (const gt of rawGeoTrenData) {
+            const circId = gt.circulacioId || (decodeGeotrenCirculation(gt.id)?.fullName);
+            if (circId) {
+                geoTrenByCirc.set(normalizeCircId(circId), gt);
+            }
+        }
+
+        // 3. Enrich GeoTren trains with Driver & Shift information
+        const enrichedGeoTren: GeoTrenEnhanced[] = rawGeoTrenData.map(gt => {
+            const circId = gt.circulacioId || (decodeGeotrenCirculation(gt.id)?.fullName);
+            const normCirc = circId ? normalizeCircId(circId) : '';
+            const driverInfo = normCirc ? personnelByCirc.get(normCirc) : undefined;
+
+            if (driverInfo) {
+                const hasDriver = !!(driverInfo.driver && driverInfo.driver !== 'Sense assignar');
+                return {
+                    ...gt,
+                    circulacioId: circId,
+                    driver: driverInfo.driver,
+                    driverName: driverInfo.driverName,
+                    driverSurname: driverInfo.driverSurname,
+                    torn: driverInfo.torn,
+                    shiftStart: driverInfo.shiftStart,
+                    shiftEnd: driverInfo.shiftEnd,
+                    shiftDep: driverInfo.shiftDep,
+                    servei: driverInfo.servei,
+                    phones: driverInfo.phones,
+                    isDriverAssigned: hasDriver
+                };
+            }
+
+            return {
+                ...gt,
+                circulacioId: circId,
+                isDriverAssigned: false
+            };
+        });
+
+        // 4. Enrich Personnel with Real Convoy Telemetry and Snap Coordinates
+        const enrichedLiveData: LivePersonnel[] = rawLiveData.map(p => {
+            if (p.type !== 'TRAIN' || !p.id) {
+                return p;
+            }
+
+            const normCirc = normalizeCircId(p.id);
+            const gt = geoTrenByCirc.get(normCirc);
+
+            if (gt && isGeoTrenEnabled) {
+                const decodedUt = decodeGeotrenUt(gt.ut, gt.tipus_unitat);
+                return {
+                    ...p,
+                    isGeoTrenSynced: true,
+                    geoTrenId: gt.id,
+                    ut: decodedUt || gt.tipus_unitat,
+                    speedKmh: gt.speedKmh,
+                    delaySec: gt.delaySec,
+                    punctuality: gt.punctuality,
+                    etaNextMin: gt.etaNextMin,
+                    fusionState: gt.fusionState,
+                    distanceToTrackMeters: gt.distanceToTrackMeters,
+                    // Snap driver map coordinates directly to the real physical convoy location!
+                    x: gt.mapX,
+                    y: gt.mapY,
+                    isMoving: gt.isMoving,
+                    stationId: gt.estacionat_a ? (resolveStationId(gt.estacionat_a, p.linia) || p.stationId) : p.stationId,
+                    nextStationId: gt.nextStMapId || p.nextStationId
+                };
+            }
+
+            return {
+                ...p,
+                isGeoTrenSynced: false
+            };
+        });
+
+        return {
+            unifiedLiveData: enrichedLiveData,
+            unifiedGeoTren: enrichedGeoTren
+        };
+    }, [rawLiveData, rawGeoTrenData, isGeoTrenEnabled]);
+
     return {
-        liveData, loading, geoTrenData, displayMin, allShifts, setAllShifts
+        liveData: unifiedLiveData,
+        loading,
+        geoTrenData: unifiedGeoTren,
+        displayMin,
+        allShifts,
+        setAllShifts
     };
 };

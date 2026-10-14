@@ -451,3 +451,20 @@ export const findGipPassageForPoint = (
     return best;
 };
 
+/**
+ * Normalizes circulation IDs to ensure matching across sources.
+ * E.g., 'd96' -> 'D096', 'D096' -> 'D096', '96' -> '096', 'F102' -> 'F102'.
+ * Extracts leading letters and pads trailing numeric digits to 3 digits.
+ */
+export const normalizeCircId = (id: string | null | undefined): string => {
+    if (!id) return '';
+    const clean = id.trim().toUpperCase();
+    const match = clean.match(/^([A-Z]*)(\d+)(.*)$/);
+    if (match) {
+        const prefix = match[1];
+        const num = match[2].padStart(3, '0');
+        const suffix = match[3] || '';
+        return `${prefix}${num}${suffix}`;
+    }
+    return clean;
+};
