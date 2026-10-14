@@ -57,13 +57,28 @@ function getWeatherIcon(code: number, isDay: boolean, size: number = 14, classNa
     return isDay ? <Sun size={size} className={`text-amber-400 ${className}`} /> : <Moon size={size} className={`text-indigo-300 ${className}`} />;
 }
 
+const STORAGE_COORDS_KEY = 'cercatorns_last_weather_coords';
+
+const getInitialCoords = (): { lat: number; lon: number } => {
+    try {
+        const saved = localStorage.getItem(STORAGE_COORDS_KEY);
+        if (saved) {
+            const p = JSON.parse(saved);
+            if (typeof p.lat === 'number' && typeof p.lon === 'number') {
+                return p;
+            }
+        }
+    } catch {}
+    return { lat: 41.3879, lon: 2.1699 };
+};
+
 export const WeatherWidget: React.FC = () => {
     const [weather, setWeather] = useState<HybridWeatherData | null>(null);
     const [loading, setLoading] = useState(true);
     const [switching, setSwitching] = useState(false);
     const [error, setError] = useState(false);
     const [open, setOpen] = useState(false);
-    const [userCoords, setUserCoords] = useState<{ lat: number; lon: number }>({ lat: 41.3879, lon: 2.1699 });
+    const [userCoords, setUserCoords] = useState<{ lat: number; lon: number }>(getInitialCoords);
     const [selectedStationId, setSelectedStationId] = useState<string>('auto');
     const modalRef = useRef<HTMLDivElement>(null);
 
@@ -95,14 +110,18 @@ export const WeatherWidget: React.FC = () => {
                     p => {
                         if (!isMounted) return;
                         const coords = { lat: p.coords.latitude, lon: p.coords.longitude };
+                        try {
+                            localStorage.setItem(STORAGE_COORDS_KEY, JSON.stringify(coords));
+                        } catch {}
                         setUserCoords(coords);
                         loadData(coords.lat, coords.lon, selectedStationId);
                     },
-                    () => {
+                    (geoErr) => {
+                        console.warn('[WeatherWidget] Geolocation error or permission denied:', geoErr.message);
                         if (!isMounted) return;
                         loadData(userCoords.lat, userCoords.lon, selectedStationId);
                     },
-                    { timeout: 8000 }
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
                 );
             } else {
                 loadData(userCoords.lat, userCoords.lon, selectedStationId);
@@ -161,24 +180,17 @@ export const WeatherWidget: React.FC = () => {
             <button
                 onClick={() => setOpen(true)}
                 className="flex items-center gap-2 px-3 py-1.5 bg-white/70 dark:bg-black/30 backdrop-blur-md rounded-full border border-gray-200/60 dark:border-white/10 shadow-sm hover:shadow-md hover:scale-[1.02] transition-all cursor-pointer group"
-                title="Meteo oficial FGC · Clic per veure detall de sensors i previsió"
+                title={`Meteo FGC · ${weather.municipality} · Clic per veure detall de sensors i previsió`}
             >
                 {getWeatherIcon(w.weatherCode, w.isDay)}
                 <div className="flex items-center gap-1.5">
                     <span className="text-xs font-black text-gray-800 dark:text-gray-100 tabular-nums">
                         {w.temperature}°C
                     </span>
-                    {isMeteocat ? (
-                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-[#75990F]/15 text-[#5e7c0c] dark:text-[#A8D017]">
-                            <span className="w-1.5 h-1.5 rounded-full bg-[#75990F] animate-pulse" />
-                            {stationInfo?.shortName || weather.nearestStation}
-                        </span>
-                    ) : (
-                        <div className="flex items-center gap-1">
-                            <MapPin size={9} className="text-fgc-green animate-pulse" />
-                            <span className="text-[10px] text-gray-500 font-semibold">{weather.nearestStation}</span>
-                        </div>
-                    )}
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-[#75990F]/15 text-[#5e7c0c] dark:text-[#A8D017]">
+                        <MapPin size={9} className="text-fgc-green animate-pulse" />
+                        {weather.municipality}
+                    </span>
                 </div>
                 <span className="opacity-25 mx-0.5">•</span>
                 <Wind size={12} className="text-gray-400 group-hover:text-teal-500 transition-colors" />
@@ -232,7 +244,7 @@ export const WeatherWidget: React.FC = () => {
                                             : 'bg-white/70 dark:bg-white/5 text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-white/10 border border-gray-200/40 dark:border-white/5'
                                             }`}
                                     >
-                                        🛰️ Auto (GPS)
+                                        🛰️ Auto ({weather.isGpsAuto ? weather.municipality : 'GPS'})
                                     </button>
                                     {METEOCAT_FGC_STATIONS.map(st => (
                                         <button
@@ -264,17 +276,24 @@ export const WeatherWidget: React.FC = () => {
                                             <span className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white tracking-tight truncate">
                                                 {weather.municipality}
                                             </span>
-                                            {isMeteocat && (
-                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#75990F]/20 text-[#547008] dark:text-[#A8D017] border border-[#75990F]/30">
-                                                    <Radio size={9} className="animate-pulse" />
-                                                    Sensor XEMA ({stationInfo?.id})
+                                            {weather.isGpsAuto ? (
+                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/25">
+                                                    <MapPin size={9} className="animate-pulse text-blue-500" />
+                                                    GPS Detectat
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#75990F]/15 text-[#5e7c0c] dark:text-[#A8D017] border border-[#75990F]/25">
+                                                    Base FGC
                                                 </span>
                                             )}
                                         </div>
 
                                         {stationInfo && (
-                                            <div className="text-[10px] text-gray-500 dark:text-gray-400 font-medium truncate mt-0.5">
-                                                {stationInfo.name} · {stationInfo.badge}
+                                            <div className="text-[10px] text-gray-500 dark:text-gray-400 font-medium truncate mt-0.5 flex items-center gap-1">
+                                                <Radio size={9} className="text-[#75990F] flex-none" />
+                                                <span>
+                                                    Sensor XEMA: {stationInfo.name} ({stationInfo.distanceKm} km)
+                                                </span>
                                             </div>
                                         )}
 
@@ -428,11 +447,11 @@ export const WeatherWidget: React.FC = () => {
                                 <div>
                                     <div className="flex items-center justify-between mb-2">
                                         <span className="text-[9px] font-black uppercase tracking-wider text-gray-400 dark:text-gray-500">
-                                            Previsió Oficial ({weather.forecast.length} dies)
+                                            Previsió Oficial · {weather.municipality} ({weather.forecast.length} dies)
                                         </span>
                                         {isMeteocat && (
                                             <span className="text-[9px] font-bold text-[#75990F] dark:text-[#A8D017]">
-                                                SMC Municipal
+                                                SMC Oficial
                                             </span>
                                         )}
                                     </div>

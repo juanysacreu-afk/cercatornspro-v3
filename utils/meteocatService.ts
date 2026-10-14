@@ -63,6 +63,7 @@ export interface HybridWeatherData {
     lat: number;
     lon: number;
     municipality: string;
+    isGpsAuto: boolean;
     nearestStation: string;
     source: 'meteocat-xema' | 'open-meteo' | 'hybrid';
     stationInfo?: {
@@ -72,6 +73,11 @@ export interface HybridWeatherData {
         badge: string;
         readingTime?: string;
         distanceKm: number;
+    };
+    municipalityInfo?: {
+        code: string;
+        name: string;
+        comarca?: string;
     };
 }
 
@@ -161,6 +167,47 @@ export const METEOCAT_FGC_STATIONS: MeteocatFgcStation[] = [
     }
 ];
 
+export interface SeedMunicipality {
+    code: string;
+    name: string;
+    lat: number;
+    lon: number;
+    comarca?: string;
+}
+
+/**
+ * High-speed seed of key Catalan municipalities (Vallès, Barcelonès, Baix Llobregat, Bages, Anoia)
+ * for instant resolution with zero network lag
+ */
+export const MUNICIPALITIES_SEED: SeedMunicipality[] = [
+    { code: '081803', name: 'Ripollet', lat: 41.4971, lon: 2.1550, comarca: 'Vallès Occidental' },
+    { code: '082665', name: 'Cerdanyola del Vallès', lat: 41.4913, lon: 2.1402, comarca: 'Vallès Occidental' },
+    { code: '082520', name: 'Barberà del Vallès', lat: 41.5167, lon: 2.1265, comarca: 'Vallès Occidental' },
+    { code: '089045', name: 'Badia del Vallès', lat: 41.5097, lon: 2.1158, comarca: 'Vallès Occidental' },
+    { code: '081250', name: 'Montcada i Reixac', lat: 41.4862, lon: 2.1868, comarca: 'Vallès Occidental' },
+    { code: '082055', name: 'Sant Cugat del Vallès', lat: 41.4679, lon: 2.0782, comarca: 'Vallès Occidental' },
+    { code: '081846', name: 'Rubí', lat: 41.4863, lon: 2.0314, comarca: 'Vallès Occidental' },
+    { code: '081878', name: 'Sabadell', lat: 41.5481, lon: 2.1088, comarca: 'Vallès Occidental' },
+    { code: '082798', name: 'Terrassa', lat: 41.5597, lon: 2.0075, comarca: 'Vallès Occidental' },
+    { code: '082384', name: 'Sant Quirze del Vallès', lat: 41.5300, lon: 2.0887, comarca: 'Vallès Occidental' },
+    { code: '080193', name: 'Barcelona', lat: 41.3856, lon: 2.1687, comarca: 'Barcelonès' },
+    { code: '080155', name: 'Badalona', lat: 41.4500, lon: 2.2470, comarca: 'Barcelonès' },
+    { code: '082458', name: 'Santa Coloma de Gramenet', lat: 41.4517, lon: 2.2081, comarca: 'Barcelonès' },
+    { code: '081017', name: "L'Hospitalet de Llobregat", lat: 41.3597, lon: 2.0998, comarca: 'Barcelonès' },
+    { code: '080734', name: 'Cornellà de Llobregat', lat: 41.3562, lon: 2.0701, comarca: 'Baix Llobregat' },
+    { code: '081691', name: 'El Prat de Llobregat', lat: 41.3405, lon: 2.0802, comarca: 'Baix Llobregat' },
+    { code: '082110', name: 'Sant Feliu de Llobregat', lat: 41.3833, lon: 2.0500, comarca: 'Baix Llobregat' },
+    { code: '081232', name: 'Molins de Rei', lat: 41.4133, lon: 2.0167, comarca: 'Baix Llobregat' },
+    { code: '080543', name: 'Castellbisbal', lat: 41.4789, lon: 1.9755, comarca: 'Baix Llobregat' },
+    { code: '081142', name: 'Martorell', lat: 41.4744, lon: 1.9281, comarca: 'Baix Llobregat' },
+    { code: '082631', name: 'Sant Vicenç dels Horts', lat: 41.3933, lon: 2.0100, comarca: 'Baix Llobregat' },
+    { code: '081136', name: 'Manresa', lat: 41.7289, lon: 1.8267, comarca: 'Bages' },
+    { code: '081271', name: 'Monistrol de Montserrat', lat: 41.5954, lon: 1.8375, comarca: 'Bages' },
+    { code: '081022', name: 'Igualada', lat: 41.5811, lon: 1.6178, comarca: 'Anoia' },
+    { code: '081245', name: 'Mollet del Vallès', lat: 41.5392, lon: 2.2131, comarca: 'Vallès Oriental' },
+    { code: '080961', name: 'Granollers', lat: 41.6093, lon: 2.2985, comarca: 'Vallès Oriental' }
+];
+
 const METEOCAT_DEFAULT_KEY = 'Hr2Qm4asTA3nTnHss5vjG2G4WBiwNjlh13lIA9g2';
 
 export const getMeteocatApiKey = (): string => {
@@ -168,6 +215,88 @@ export const getMeteocatApiKey = (): string => {
     const procEnv = typeof process !== 'undefined' ? process.env?.VITE_METEOCAT_API_KEY : undefined;
     return metaEnv || procEnv || METEOCAT_DEFAULT_KEY;
 };
+
+/**
+ * Cache for all 947 Catalan reference municipalities from Meteocat
+ */
+let allMunicipalitiesCache: SeedMunicipality[] | null = null;
+let isFetchingMunis = false;
+
+async function loadAllMunicipalities(apiKey: string): Promise<SeedMunicipality[]> {
+    if (allMunicipalitiesCache && allMunicipalitiesCache.length > 0) {
+        return allMunicipalitiesCache;
+    }
+
+    if (isFetchingMunis) {
+        return MUNICIPALITIES_SEED;
+    }
+
+    try {
+        isFetchingMunis = true;
+        const res = await fetch('https://api.meteo.cat/referencia/v1/municipis', {
+            headers: { 'X-Api-Key': apiKey }
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data) && data.length > 0) {
+                allMunicipalitiesCache = data
+                    .filter(m => m.coordenades?.latitud && m.coordenades?.longitud)
+                    .map(m => ({
+                        code: m.codi,
+                        name: m.nom,
+                        lat: m.coordenades.latitud,
+                        lon: m.coordenades.longitud,
+                        comarca: m.comarca?.nom
+                    }));
+                return allMunicipalitiesCache;
+            }
+        }
+    } catch (e) {
+        console.warn('[Meteocat] Error loading full municipalities reference:', e);
+    } finally {
+        isFetchingMunis = false;
+    }
+
+    return MUNICIPALITIES_SEED;
+}
+
+/**
+ * Resolves GPS coordinates to the exact closest Catalan municipality
+ */
+export async function resolveMunicipality(
+    lat: number,
+    lon: number,
+    apiKey: string
+): Promise<{ code: string; name: string; comarca?: string; distanceKm: number }> {
+    // 1. Check seed first for instant sub-millisecond match
+    let pool = allMunicipalitiesCache && allMunicipalitiesCache.length > 0
+        ? allMunicipalitiesCache
+        : MUNICIPALITIES_SEED;
+
+    let nearest = pool[0];
+    let minDist = haversineKm(lat, lon, nearest.lat, nearest.lon);
+
+    for (let i = 1; i < pool.length; i++) {
+        const m = pool[i];
+        const d = haversineKm(lat, lon, m.lat, m.lon);
+        if (d < minDist) {
+            minDist = d;
+            nearest = m;
+        }
+    }
+
+    // Trigger background loading of full list if not ready
+    if (!allMunicipalitiesCache) {
+        loadAllMunicipalities(apiKey).catch(() => {});
+    }
+
+    return {
+        code: nearest.code,
+        name: nearest.name,
+        comarca: nearest.comarca,
+        distanceKm: minDist
+    };
+}
 
 /**
  * Finds the closest Meteocat station to the given GPS coordinates
@@ -285,11 +414,16 @@ export async function fetchHybridWeather(
 ): Promise<HybridWeatherData> {
     const apiKey = getMeteocatApiKey();
 
-    // 1. Determine target station
+    const isGpsAuto = !explicitStationId || explicitStationId === 'auto';
+
     let targetStation: MeteocatFgcStation;
     let distanceKm: number;
+    let displayMunicipality: string;
+    let forecastMuniCode: string;
+    let municipalityInfo: { code: string; name: string; comarca?: string } | undefined;
 
-    if (explicitStationId) {
+    if (!isGpsAuto && explicitStationId) {
+        // User manually selected a station from the pills
         const found = METEOCAT_FGC_STATIONS.find(s => s.id === explicitStationId);
         if (found) {
             targetStation = found;
@@ -299,15 +433,28 @@ export async function fetchHybridWeather(
             targetStation = nearest.station;
             distanceKm = nearest.distanceKm;
         }
+        displayMunicipality = targetStation.municipalityName;
+        forecastMuniCode = targetStation.municipalityCode;
+        municipalityInfo = {
+            code: forecastMuniCode,
+            name: displayMunicipality
+        };
     } else {
+        // Auto GPS mode: Resolve real municipality where user is situated (e.g. Ripollet)
+        const resolved = await resolveMunicipality(lat, lon, apiKey);
+        displayMunicipality = resolved.name;
+        forecastMuniCode = resolved.code;
+        municipalityInfo = resolved;
+
+        // Nearest XEMA physical sensor station (ground truth for temp/wind/rain)
         const nearest = findNearestMeteocatStation(lat, lon);
         targetStation = nearest.station;
         distanceKm = nearest.distanceKm;
     }
 
     // Coords to query Open-Meteo (use target station coords if explicitly picked, else user coords)
-    const queryLat = explicitStationId ? targetStation.lat : lat;
-    const queryLon = explicitStationId ? targetStation.lon : lon;
+    const queryLat = (!isGpsAuto && explicitStationId) ? targetStation.lat : lat;
+    const queryLon = (!isGpsAuto && explicitStationId) ? targetStation.lon : lon;
 
     // 2. Fetch Open-Meteo concurrently (provides fallback and secondary fields)
     const openMeteoPromise = (async () => {
@@ -333,8 +480,8 @@ export async function fetchHybridWeather(
         fetchXemaVariable(35, apiKey)
     ]);
 
-    // 4. Fetch Meteocat 8-day Municipal Forecast
-    const meteocatForecastPromise = fetchMeteocatForecast(targetStation.municipalityCode, apiKey);
+    // 4. Fetch Meteocat 8-day Municipal Forecast for the detected/selected municipality
+    const meteocatForecastPromise = fetchMeteocatForecast(forecastMuniCode, apiKey);
 
     // Run in parallel with resilience
     const [omResult, mcSensorsResult, mcForecastResult] = await Promise.allSettled([
@@ -394,7 +541,7 @@ export async function fetchHybridWeather(
     let isMeteocatActive = false;
     let sensorReadingTime: string | undefined = undefined;
 
-    // Process Meteocat Sensors
+    // Process Meteocat Sensors (ground truth from physical sensor)
     if (mcSensorsResult.status === 'fulfilled' && mcSensorsResult.value) {
         const [tData, hData, wData, gData, pData] = mcSensorsResult.value;
 
@@ -443,7 +590,6 @@ export async function fetchHybridWeather(
 
         // Adjust apparent temperature with real humidity if available
         if (tVal && hVal) {
-            // Simplified Australian Bureau of Meteorology Apparent Temperature
             const T = tVal.valor;
             const e = (hVal.valor / 100) * 6.105 * Math.exp((17.27 * T) / (237.7 + T));
             const ws = (wVal?.valor || 0.5);
@@ -502,7 +648,8 @@ export async function fetchHybridWeather(
         forecast,
         lat: queryLat,
         lon: queryLon,
-        municipality: targetStation.municipalityName,
+        municipality: displayMunicipality,
+        isGpsAuto,
         nearestStation: `${targetStation.shortName}`,
         source: isMeteocatActive ? 'hybrid' : 'open-meteo',
         stationInfo: {
@@ -512,6 +659,7 @@ export async function fetchHybridWeather(
             badge: targetStation.badge,
             readingTime: sensorReadingTime,
             distanceKm: Math.round(distanceKm * 10) / 10
-        }
+        },
+        municipalityInfo
     };
 }
