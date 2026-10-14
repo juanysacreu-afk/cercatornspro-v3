@@ -6,6 +6,7 @@ import {
 import GlassPanel from '../../../components/common/GlassPanel';
 import { usePunctualityData, DelayedCirculation } from '../hooks/usePunctualityData';
 import { feedback } from '../../../utils/feedback';
+import { getPunctualityInfo } from '../../../utils/delayNotifications';
 
 const LINE_COLORS: Record<string, string> = {
   'S1': '#E46608',
@@ -455,11 +456,18 @@ export const PunctualitySection: React.FC<PunctualitySectionProps> = ({ onNaviga
             <h3 className="text-xs sm:text-sm font-bold text-[#4D5358] dark:text-white uppercase tracking-wider">
               Circulacions amb Retard Registrat
             </h3>
-            {filteredDelays.length > 0 && (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400">
-                {filteredDelays.length}
-              </span>
-            )}
+            {filteredDelays.length > 0 && (() => {
+              const hasRed = filteredDelays.some(c => c.diferenciaSegons > 240);
+              return (
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                  hasRed
+                    ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'
+                    : 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400'
+                }`}>
+                  {filteredDelays.length}
+                </span>
+              );
+            })()}
             {selectedHourFilter !== null && (
               <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
                 <Clock size={12} />
@@ -518,12 +526,13 @@ export const PunctualitySection: React.FC<PunctualitySectionProps> = ({ onNaviga
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-80 overflow-y-auto pr-1 custom-scrollbar">
             {filteredDelays.map(circ => {
               const lineColor = LINE_COLORS[circ.linia] || '#4D5358';
+              const punct = circ.punctuality || getPunctualityInfo(circ.diferenciaSegons);
               return (
                 <div
                   key={`${circ.circulacioId}-${circ.estacioCodi}`}
                   onClick={() => handleCircClick(circ.circulacioId)}
-                  className="flex items-center justify-between p-3 rounded-2xl border border-red-200/60 dark:border-red-500/20 bg-red-50/40 dark:bg-red-500/[0.04] hover:bg-red-50/80 dark:hover:bg-red-500/[0.08] transition-all cursor-pointer group shadow-2xs hover:scale-[1.01]"
-                  title={`Clic per obrir la circulació ${circ.circulacioId}`}
+                  className={`flex items-center justify-between p-3 rounded-2xl border transition-all cursor-pointer group shadow-2xs hover:scale-[1.01] ${punct.cardBorderClass} ${punct.cardBgClass}`}
+                  title={`Clic per obrir la circulació ${circ.circulacioId} (${punct.label})`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div 
@@ -543,6 +552,11 @@ export const PunctualitySection: React.FC<PunctualitySectionProps> = ({ onNaviga
                             {circ.ut}
                           </span>
                         )}
+                        <span
+                          className="w-1.5 h-1.5 rounded-full shrink-0"
+                          style={{ backgroundColor: punct.colorHex }}
+                          title={punct.label}
+                        />
                       </div>
                       <div className="text-[11px] text-gray-500 dark:text-gray-400 truncate">
                         {circ.estacioNom} · {circ.horaTeorica ? `${circ.horaTeorica} → ` : ''}{circ.horaReal}
@@ -551,7 +565,7 @@ export const PunctualitySection: React.FC<PunctualitySectionProps> = ({ onNaviga
                   </div>
 
                   <div className="shrink-0 flex items-center gap-2 pl-2">
-                    <span className="px-2 py-1 rounded-xl text-xs font-black bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400 border border-red-200 dark:border-red-500/30 tabular-nums">
+                    <span className={`px-2 py-1 rounded-xl text-xs font-black font-mono tabular-nums border ${punct.badgeClass}`}>
                       {circ.delayFormatted}
                     </span>
                     <ArrowUpRight size={14} className="text-gray-300 group-hover:text-fgc-green group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />

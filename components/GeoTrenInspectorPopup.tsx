@@ -4,6 +4,7 @@ import { getLiniaColorHex, LINIA_STATIONS, resolveStationId } from '../utils/sta
 import type { GeoTrenEnhanced } from '../views/incidencia/hooks/useLiveMapData';
 import { decodeGeotrenUt } from '../views/incidencia/utils/decodeUt';
 import { decodeGeotrenCirculation } from '../views/incidencia/utils/decodeCirculation';
+import { getPunctualityInfo } from '../utils/delayNotifications';
 
 interface GeoTrenInspectorPopupProps {
     gt: GeoTrenEnhanced;
@@ -14,9 +15,8 @@ const GeoTrenInspectorPopup: React.FC<GeoTrenInspectorPopupProps> = ({ gt, onClo
     if (!gt) return null;
 
     const liniaColor = getLiniaColorHex(gt.lin);
-    const isPunctual = (gt as any).en_hora === 'True';
-    const hasDelay = gt.delayMin > 1;
     const decodedUt = decodeGeotrenUt(gt.ut, gt.tipus_unitat);
+    const punct = gt.punctuality || getPunctualityInfo((gt as any).delaySec ?? (gt.delayMin * 60));
 
 
     // Extract next stops
@@ -101,7 +101,10 @@ const GeoTrenInspectorPopup: React.FC<GeoTrenInspectorPopupProps> = ({ gt, onClo
                         </div>
                         <h3 className="text-3xl font-black text-white font-mono tracking-tighter flex items-center gap-2">
                             UT {decodedUt || gt.tipus_unitat}
-                            <span className={`w-2 h-2 rounded-full ${isPunctual ? 'bg-fgc-green' : 'bg-red-500'} animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.8)]`} />
+                            <span
+                                className="w-2.5 h-2.5 rounded-full animate-pulse shadow-md"
+                                style={{ backgroundColor: punct.colorHex, boxShadow: `0 0 10px ${punct.colorHex}cc` }}
+                            />
                         </h3>
                         {(() => {
                             // Decode circulation ID for S1, S2, L6, L7, and L12
@@ -137,28 +140,42 @@ const GeoTrenInspectorPopup: React.FC<GeoTrenInspectorPopupProps> = ({ gt, onClo
                     <div className="grid grid-cols-2 gap-4">
                         <div className="bg-white/10 p-3 rounded-2xl border border-white/10">
                             <p className="text-[8px] font-black text-gray-300 uppercase tracking-widest mb-1 flex items-center gap-1">
-                                <Activity size={10} /> Direcció
+                                <Activity size={10} /> {gt.speedKmh !== undefined && gt.speedKmh > 0 ? `Cinemàtica (${gt.speedKmh} km/h)` : 'Estat de Marxa'}
                             </p>
-                            <p className="text-xs font-black text-white uppercase">{gt.dir === 'A' ? 'Ascendent' : 'Descendent'}</p>
+                            <p className="text-xs font-black text-white uppercase">
+                                {gt.fusionState === 'EN_ANDANA' ? 'Aturat a andana' : gt.fusionState === 'APROXIMANT' ? 'Arribant a andana' : (gt.dir === 'A' ? 'Ascendent' : 'Descendent')}
+                            </p>
                         </div>
-                        <div className="bg-white/10 p-3 rounded-2xl border border-white/10">
+                        <div className={`p-3 rounded-2xl border ${punct.bgClass} ${punct.borderClass}`}>
                             <p className="text-[8px] font-black text-gray-300 uppercase tracking-widest mb-1 flex items-center gap-1">
-                                <Clock size={10} /> Estat
+                                <Clock size={10} /> Puntualitat
                             </p>
-                            <p className={`text-xs font-black uppercase ${isPunctual ? 'text-fgc-green' : 'text-red-500'}`}>
-                                {isPunctual ? 'Puntual' : 'Amb retard'}
+                            <p className={`text-xs font-black uppercase ${punct.textClass}`}>
+                                {punct.label}
                             </p>
                         </div>
                     </div>
 
                     {/* Delay + ETA row */}
                     <div className="grid grid-cols-2 gap-4">
-                        <div className={`p-3 rounded-2xl border ${hasDelay ? 'bg-red-500/15 border-red-500/30' : 'bg-white/5 border-white/10'}`}>
+                        <div className={`p-3 rounded-2xl border ${punct.bgClass} ${punct.borderClass}`}>
                             <p className="text-[8px] font-black text-gray-300 uppercase tracking-widest mb-1 flex items-center gap-1">
-                                <AlertTriangle size={10} /> Retard
+                                <AlertTriangle size={10} /> Desviació Marxa
                             </p>
-                            <p className={`text-sm font-black ${hasDelay ? 'text-red-400' : 'text-fgc-green'}`}>
-                                {hasDelay ? `+${gt.delayMin} min` : 'Cap retard'}
+                            <p className={`text-sm font-black ${punct.textClass}`}>
+                                {(() => {
+                                    const sec = punct.delaySec;
+                                    if (sec < -20) {
+                                        const absSec = Math.abs(sec);
+                                        const m = Math.floor(absSec / 60);
+                                        const s = absSec % 60;
+                                        return m > 0 ? `-${m}m ${s}s (avançat)` : `-${s}s (avançat)`;
+                                    }
+                                    if (sec <= 0) return '0 min (en hora)';
+                                    const m = Math.floor(sec / 60);
+                                    const s = sec % 60;
+                                    return s > 0 ? `+${m}m ${s}s` : `+${m} min`;
+                                })()}
                             </p>
                         </div>
                         <div className="bg-white/5 p-3 rounded-2xl border border-white/10">

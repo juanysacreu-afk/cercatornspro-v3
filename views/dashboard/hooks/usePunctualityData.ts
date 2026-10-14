@@ -3,6 +3,7 @@ import { supabase } from '../../../supabaseClient';
 import { getFgcServiceDate } from '../../../utils/gipRecorder';
 import { resolveStationId } from '../../../utils/stations';
 import { STATION_GEO_MAP } from '../../../utils/stationGeoData';
+import { getPunctualityInfo, PunctualityInfo } from '../../../utils/delayNotifications';
 
 export interface LinePunctuality {
   linia: string;
@@ -35,6 +36,7 @@ export interface DelayedCirculation {
   diferenciaSegons: number;
   delayFormatted: string;
   creatEl?: string;
+  punctuality?: PunctualityInfo;
 }
 
 export interface PunctualityStats {
@@ -51,11 +53,13 @@ export interface PunctualityStats {
 }
 
 export const formatDelayString = (seconds: number): string => {
-  if (!seconds || seconds <= 0) return '0s';
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  if (mins === 0) return `+${secs}s`;
-  return `+${mins}m ${secs.toString().padStart(2, '0')}s`;
+  if (!seconds || seconds === 0) return '0s';
+  const abs = Math.abs(seconds);
+  const mins = Math.floor(abs / 60);
+  const secs = abs % 60;
+  const sign = seconds < 0 ? '-' : '+';
+  if (mins === 0) return `${sign}${secs}s`;
+  return `${sign}${mins}m ${secs.toString().padStart(2, '0')}s`;
 };
 
 const resolveStationLabel = (codeOrName: string, linia: string = ''): string => {
@@ -193,8 +197,10 @@ export const usePunctualityData = () => {
           rate: Number(((h.onTime / h.total) * 100).toFixed(1))
         }));
 
-      // 6. Circulacions amb retard (desduplicades per circulacio_id i hora per filtrar per franja)
-      const sortedDelayed = [...delayedRows].sort((a, b) => (b.creat_el || '').localeCompare(a.creat_el || ''));
+      // 6. Circulacions amb retard i incidències de marxa (desduplicades per circulacio_id i hora per filtrar per franja)
+      // Inclou retards oficials FGC (>240s), retards moderats (180s-240s) i avenços (< -20s)
+      const targetDelayed = allRows.filter(r => r.estat === 'retard' || (typeof r.diferencia_segons === 'number' && (r.diferencia_segons > 180 || r.diferencia_segons < -20)));
+      const sortedDelayed = [...targetDelayed].sort((a, b) => (b.creat_el || '').localeCompare(a.creat_el || ''));
       const circMap = new Map<string, DelayedCirculation>();
 
       sortedDelayed.forEach(r => {
@@ -203,7 +209,7 @@ export const usePunctualityData = () => {
         if (isNaN(h)) return;
         const key = `${r.circulacio_id}:${h}`;
         const existing = circMap.get(key);
-        if (!existing || r.diferencia_segons > existing.diferenciaSegons) {
+        if (!existing || Math.abs(r.diferencia_segons) > Math.abs(existing.diferenciaSegons)) {
           circMap.set(key, {
             circulacioId: r.circulacio_id,
             linia: r.linia || '',
@@ -215,7 +221,8 @@ export const usePunctualityData = () => {
             hour: h,
             diferenciaSegons: r.diferencia_segons,
             delayFormatted: formatDelayString(r.diferencia_segons),
-            creatEl: r.creat_el
+            creatEl: r.creat_el,
+            punctuality: getPunctualityInfo(r.diferencia_segons)
           });
         }
       });

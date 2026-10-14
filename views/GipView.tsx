@@ -11,7 +11,7 @@ import { decodeGeotrenCirculation } from './incidencia/utils/decodeCirculation';
 import { decodeGeotrenUt } from './incidencia/utils/decodeUt';
 import { GipRegistrePas } from '../types';
 import { useToast } from '../components/ToastProvider';
-import { isDelayNotifsEnabled, setDelayNotifsEnabled, requestDelayNotifsPermission, sendTestNotification, checkAndNotifyDelay } from '../utils/delayNotifications';
+import { isDelayNotifsEnabled, setDelayNotifsEnabled, requestDelayNotifsPermission, sendTestNotification, checkAndNotifyDelay, getPunctualityInfo } from '../utils/delayNotifications';
 
 const resolveStationName = (codeOrName: string, linia: string = ''): string => {
   if (!codeOrName) return '';
@@ -439,7 +439,7 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
     return delayedActiveCircs.filter(c => c.linia === filterLine);
   }, [delayedActiveCircs, filterLine]);
 
-  // Format de la xapa de diferència (Regla oficial FGC)
+  // Format de la xapa de diferència (Regla 4 colors: Blau <0s, Verd <=180s, Ambre 180-240s, Roig >240s)
   const renderDeviationBadge = (diffSec: number | null, estat: 'en_hora' | 'retard' | 'avanc' | 'pendent') => {
     if (diffSec === null || estat === 'pendent') {
       return (
@@ -449,46 +449,32 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
       );
     }
 
+    const punct = getPunctualityInfo(diffSec);
     const absSec = Math.abs(diffSec);
     const m = Math.floor(absSec / 60);
     const s = absSec % 60;
     const timeFormatted = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 
-    if (diffSec < 0) {
-      // Avanç (Blau)
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-black font-mono bg-blue-500/20 text-blue-400 border border-blue-500/30">
-          <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
-          -{timeFormatted} Avanç
-        </span>
-      );
+    let labelText = '';
+    if (punct.category === 'AVANCAT') {
+      labelText = `-${timeFormatted} Avanç`;
+    } else if (diffSec === 0) {
+      labelText = `00:00 En hora`;
+    } else if (punct.category === 'EN_HORA') {
+      labelText = `+${timeFormatted} En hora`;
+    } else if (punct.category === 'AMBAR') {
+      labelText = `+${timeFormatted} Mod. (3-4m)`;
+    } else {
+      labelText = `+${timeFormatted} Retard`;
     }
 
-    if (diffSec === 0) {
-      // Puntual exacte (Verd)
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-black font-mono bg-fgc-green/20 text-fgc-green border border-fgc-green/30">
-          <span className="w-1.5 h-1.5 rounded-full bg-fgc-green" />
-          00:00 En hora
-        </span>
-      );
-    }
-
-    if (diffSec <= 239) {
-      // Retard lleu <= 3 min 59 s: Groc i "En hora"
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-black font-mono bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 border border-yellow-500/30">
-          <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 dark:bg-yellow-400 animate-pulse" />
-          +{timeFormatted} En hora
-        </span>
-      );
-    }
-
-    // Retard greu > 3 min 59 s (>= 240 s): Vermell i "Retard"
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-black font-mono bg-red-500/20 text-red-500 border border-red-500/30">
-        <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-        +{timeFormatted} Retard
+      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-xs font-black font-mono border ${punct.badgeClass}`}>
+        <span
+          className={`w-1.5 h-1.5 rounded-full ${punct.category !== 'EN_HORA' ? 'animate-pulse' : ''}`}
+          style={{ backgroundColor: punct.colorHex }}
+        />
+        {labelText}
       </span>
     );
   };
@@ -704,7 +690,7 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 pt-1">
             {filteredDelayedCircs.map((item, index) => {
               const isSelected = selectedCirc?.id === item.id;
-              const isHighDelay = item.delaySec >= 240; // >= 4 minuts (retard oficial FGC)
+              const punct = getPunctualityInfo(item.delaySec);
 
               return (
                 <button
@@ -714,7 +700,7 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
                   className={`text-left p-3.5 rounded-2xl border transition-all flex flex-col justify-between gap-2.5 relative group ${
                     isSelected
                       ? 'bg-fgc-green/10 border-fgc-green shadow-md scale-[1.02]'
-                      : 'bg-white/60 dark:bg-black/20 hover:bg-white dark:hover:bg-black/40 border-gray-200/60 dark:border-white/10 hover:border-fgc-green/50 shadow-sm hover:shadow'
+                      : `bg-white/60 dark:bg-black/20 hover:bg-white dark:hover:bg-black/40 ${punct.cardBorderClass} shadow-sm hover:shadow`
                   }`}
                 >
                   {/* Capçalera: Rànquing, Codi, Línia, UT i Retard */}
@@ -736,14 +722,15 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
                           UT {item.ut}
                         </span>
                       )}
+                      <span
+                        className="w-1.5 h-1.5 rounded-full shrink-0"
+                        style={{ backgroundColor: punct.colorHex }}
+                        title={punct.label}
+                      />
                     </div>
 
                     <span
-                      className={`px-2 py-0.5 rounded-lg text-xs font-black font-mono tracking-tight shrink-0 border ${
-                        isHighDelay
-                          ? 'bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30'
-                          : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'
-                      }`}
+                      className={`px-2 py-0.5 rounded-lg text-xs font-black font-mono tracking-tight shrink-0 border ${punct.badgeClass}`}
                     >
                       +{formatDelayMinSec(item.delaySec)}
                     </span>
@@ -869,13 +856,21 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
                     <div className="sm:col-span-5 flex items-center justify-between sm:justify-start gap-2.5 min-w-0">
                       <div className="flex items-center gap-2.5 min-w-0">
                         {/* Indicador de pas */}
-                        <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                          stop.isLiveNow
-                            ? 'bg-fgc-green animate-ping'
-                            : isPassed
-                              ? (stop.estat === 'retard' && (stop.diferenciaSegons || 0) > 239 ? 'bg-red-500' : 'bg-fgc-green')
-                              : 'bg-gray-300 dark:bg-gray-600'
-                        }`} />
+                        {(() => {
+                          if (stop.isLiveNow) {
+                            return <div className="w-2.5 h-2.5 rounded-full shrink-0 bg-fgc-green animate-ping" />;
+                          }
+                          if (!isPassed || stop.diferenciaSegons === null) {
+                            return <div className="w-2.5 h-2.5 rounded-full shrink-0 bg-gray-300 dark:bg-gray-600" />;
+                          }
+                          const p = getPunctualityInfo(stop.diferenciaSegons);
+                          return (
+                            <div
+                              className="w-2.5 h-2.5 rounded-full shrink-0 shadow-xs"
+                              style={{ backgroundColor: p.colorHex }}
+                            />
+                          );
+                        })()}
 
                         {/* Nom de l'estació responsive */}
                         <div>

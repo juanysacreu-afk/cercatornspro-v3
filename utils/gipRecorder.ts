@@ -5,7 +5,8 @@ import { decodeGeotrenUt } from '../views/incidencia/utils/decodeUt';
 import { decodeGeotrenCirculation } from '../views/incidencia/utils/decodeCirculation';
 import { getFgcMinutes } from './time';
 import { GipRegistrePas } from '../types';
-import { checkAndNotifyDelay } from './delayNotifications';
+import { checkAndNotifyDelay, checkAndNotifyAdvance } from './delayNotifications';
+import { recordTrainKinematics, detectStationFusion } from './trainKinematics';
 
 const GEOTREN_API = 'https://dadesobertes.fgc.cat/api/v2/catalog/datasets/posicionament-dels-trens/exports/json';
 
@@ -199,53 +200,53 @@ export const pollAndRecordGipPassages = async (): Promise<number> => {
       const stops = await getCirculationStops(circCode, linia);
       if (!stops || stops.length === 0) continue;
 
-      // 4. Determinar la posició actual o la darrera estació superada
+      // 4. Determinar la posició actual o la darrera estació superada via FUSIÓ SENSORIAL (iSIC + GPS + Cinemàtica)
+      const properes = parseProperesParades(gt.properes_parades);
+      const nextTargetCode = properes.length > 0 ? properes[0] : null;
+      const candidateCodes = stops.map(s => s.code);
+
+      // Traçabilitat cinemàtica (velocitat instantània suavitzada)
+      const { speedKmh } = recordTrainKinematics(circCode, gt.geo_point_2d?.lat, gt.geo_point_2d?.lon);
+
+      // Fusiò sensorial d'andana
+      const fusion = detectStationFusion(
+        gt.estacionat_a,
+        linia,
+        gt.geo_point_2d?.lat,
+        gt.geo_point_2d?.lon,
+        speedKmh,
+        candidateCodes,
+        nextTargetCode
+      );
+
       let currentStationIndex = -1;
 
-      // A) Si està expressament estacionat segons SIRTRAN
-      if (gt.estacionat_a && gt.estacionat_a.trim() !== '') {
-        const estCode = resolveStationId(gt.estacionat_a.trim(), linia);
-        const idx = stops.findIndex(s => s.code === estCode);
+      // Cas 1: El tren està físicament DETINGUT a l'andana (per iSIC o per GPS<=75m + v<=7 km/h)
+      if (fusion.state === 'EN_ANDANA' && fusion.stationCode) {
+        const idx = stops.findIndex(s => s.code === fusion.stationCode);
         if (idx !== -1) {
           currentStationIndex = idx;
         }
       }
 
-      // B) Si no té estacionat_a, comprovar properes_parades
-      const properes = parseProperesParades(gt.properes_parades);
-      if (currentStationIndex === -1 && properes.length > 0) {
-        const nextTargetCode = properes[0];
+      // Cas 2: Si no està detingut a l'andana però té pròximes parades definides
+      if (currentStationIndex === -1 && nextTargetCode) {
         const nextIdx = stops.findIndex(s => s.code === nextTargetCode);
         if (nextIdx > 0) {
-          // El tren ja ha superat l'estació immediatament anterior
+          // El tren és en aproximació o marxa; la darrera estació superada és la immediatament anterior
           currentStationIndex = nextIdx - 1;
         } else if (nextIdx === 0) {
-          // El tren encara és a l'estació d'origen o acostant-se a la primera
+          // El tren encara és a l'estació d'origen
           currentStationIndex = 0;
         }
       }
 
-      // C) Si properes_parades és buit (tren arribant o ja a l'estació final)
+      // Cas 3: No hi ha properes_parades (tren arribant o ja al final de trajecte)
       if (currentStationIndex === -1 && properes.length === 0) {
-        currentStationIndex = stops.length - 1;
-      }
-
-      // D) Comprovació GPS de proximitat (ràdio 200m) com a suport addicional
-      if (gt.geo_point_2d?.lat && gt.geo_point_2d?.lon) {
-        let minD = Infinity;
-        let nearCode: string | null = null;
-        for (const st of STATION_GEO_DATA) {
-          const dM = haversineKm(gt.geo_point_2d.lat, gt.geo_point_2d.lon, st.lat, st.lon) * 1000;
-          if (dM < minD) {
-            minD = dM;
-            nearCode = st.id;
-          }
-        }
-        if (nearCode && minD <= 200) {
-          const gpsIdx = stops.findIndex(s => s.code === nearCode);
-          if (gpsIdx !== -1 && gpsIdx >= currentStationIndex) {
-            currentStationIndex = gpsIdx;
-          }
+        if (fusion.state === 'EN_ANDANA' || (fusion.distanceMeters !== null && fusion.distanceMeters <= 100 && speedKmh <= 10)) {
+          currentStationIndex = stops.length - 1;
+        } else {
+          currentStationIndex = Math.max(0, stops.length - 2);
         }
       }
 
@@ -284,9 +285,9 @@ export const pollAndRecordGipPassages = async (): Promise<number> => {
         }
 
         let estat: 'en_hora' | 'retard' | 'avanc' = 'en_hora';
-        if (diffSec > 239) {
+        if (diffSec > 240) {
           estat = 'retard';
-          // Si és la posició en temps real i supera 4 minuts (240s), avisar al mòbil
+          // Si és la posició en temps real i supera 4 minuts (240s - Roig), avisar al mòbil
           if (i === currentStationIndex) {
             checkAndNotifyDelay({
               circId: circCode,
@@ -296,8 +297,18 @@ export const pollAndRecordGipPassages = async (): Promise<number> => {
               stationName: stop.nom || stop.code
             }).catch(() => {});
           }
-        } else if (diffSec < 0) {
+        } else if (diffSec < -20) {
           estat = 'avanc';
+          // Si és la posició en temps real i va avançat (Blau), avisar
+          if (i === currentStationIndex && diffSec < -45) {
+            checkAndNotifyAdvance({
+              circId: circCode,
+              linia,
+              ut: decodedUt,
+              delaySec: diffSec,
+              stationName: stop.nom || stop.code
+            }).catch(() => {});
+          }
         } else {
           estat = 'en_hora';
         }

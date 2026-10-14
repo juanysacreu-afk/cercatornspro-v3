@@ -20,6 +20,7 @@ import { decodeGeotrenUt } from '../../views/incidencia/utils/decodeUt';
 import { decodeGeotrenCirculation } from '../../views/incidencia/utils/decodeCirculation';
 import { resetAssignmentsFromGeoTren } from '../../utils/assignmentService';
 import { useToast } from '../../components/ToastProvider';
+import { getPunctualityInfo } from '../../utils/delayNotifications';
 interface IncidentMapProps {
     liveData: LivePersonnel[];
     parkedUnits: any[];
@@ -593,7 +594,7 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                                     // Direction offset
                                                     const isAsc = (gt as any).dir === 'A' || (gt as any).dir === 'ASC';
                                                     const yOffset = isAsc ? 7 : -7;
-                                                    const hasDelay = gt.delayMin > 1;
+                                                    const punct = gt.punctuality || getPunctualityInfo((gt as any).delaySec ?? (gt.delayMin * 60));
                                                     const isHovered = hoveredTrain === `geotren-${gt.id}`;
                                                     return (
                                                         <g
@@ -643,17 +644,17 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                                                 <circle
                                                                     cx={0} cy={0} r={12}
                                                                     fill="none"
-                                                                    stroke={color}
+                                                                    stroke={punct.colorHex}
                                                                     strokeWidth="1.5"
                                                                     opacity={0.5}
                                                                     style={{ animation: 'train-pulse-ring 2.5s ease-out infinite' }}
                                                                 />
                                                             )}
-                                                            {/* Main dot */}
+                                                            {/* Main dot with punctuality halo (Blau: avançat, Verd: ≤3m, Ambre: 3-4m, Roig: >4m) */}
                                                             <circle
                                                                 cx={0} cy={0} r={8}
                                                                 fill={color}
-                                                                stroke="white"
+                                                                stroke={punct.colorHex}
                                                                 strokeWidth="2.5"
                                                                 className="drop-shadow-md group-hover/gt:r-10 transition-all"
                                                                 style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
@@ -680,14 +681,16 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                                             >
                                                                 {utLabel}
                                                             </text>
-                                                            {/* Delay badge */}
-                                                            {hasDelay && (
-                                                                <>
-                                                                    <circle cx={9} cy={-18} r={5} fill="#ef4444" stroke="white" strokeWidth="1" />
-                                                                    <text x={9} y={-15} textAnchor="middle" className="text-[5px] font-black fill-white pointer-events-none">
-                                                                        +{gt.delayMin}'
+                                                            {/* Punctuality badge: Blau=Avançat, Verd=En hora (fins a 3m), Ambre=3-4m, Roig=>4m */}
+                                                            {punct.category !== 'EN_HORA' ? (
+                                                                <g transform="translate(10, -18)">
+                                                                    <circle cx={0} cy={0} r={5.5} fill={punct.colorHex} stroke="white" strokeWidth="1" className="drop-shadow-sm" />
+                                                                    <text x={0} y={1.2} textAnchor="middle" dominantBaseline="middle" className="text-[5px] font-black fill-white pointer-events-none">
+                                                                        {punct.badgeText}
                                                                     </text>
-                                                                </>
+                                                                </g>
+                                                            ) : (
+                                                                <circle cx={10} cy={-18} r={3} fill="#22c55e" stroke="white" strokeWidth="0.8" className="drop-shadow-sm" />
                                                             )}
                                                         </g>
                                                     );

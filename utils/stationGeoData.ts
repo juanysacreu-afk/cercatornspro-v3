@@ -146,20 +146,42 @@ export function interpolateBetweenStations(
 }
 
 /**
- * Estimate ETA in minutes using a fixed average speed.
+ * Estimate ETA in minutes using a fixed average speed with kinematic adjustments.
  * Kept as a fast fallback when PK data is not available.
  */
 export function estimateEta(
     remainingKm: number,
     avgSpeedKmh = 60,
-    knownDelayMin = 0
+    knownDelayMin = 0,
+    fusionState: 'EN_ANDANA' | 'APROXIMANT' | 'EN_MARXA' = 'EN_MARXA',
+    intermediateStopsCount = 0
 ): number {
-    const travelMin = (remainingKm / avgSpeedKmh) * 60;
-    return Math.max(0, Math.round(travelMin + knownDelayMin));
+    const pureTravelSec = (remainingKm / Math.max(10, avgSpeedKmh)) * 3600;
+
+    // Kinematic adjustment (acceleration + deceleration losses)
+    let kinematicLossSec = 0;
+    let dwellLossSec = intermediateStopsCount * 25;
+
+    if (fusionState === 'EN_ANDANA') {
+        dwellLossSec += 15; // remaining dwell at origin platform
+        kinematicLossSec += 20; // full acceleration from 0 + deceleration into destination
+    } else if (fusionState === 'APROXIMANT') {
+        kinematicLossSec += 12; // final braking into target station
+    } else {
+        kinematicLossSec += 12; // deceleration into target station from cruise speed
+    }
+
+    if (intermediateStopsCount > 0) {
+        kinematicLossSec += intermediateStopsCount * 20;
+    }
+
+    const totalSec = pureTravelSec + kinematicLossSec + dwellLossSec;
+    return Math.max(0, Math.round(totalSec / 60 + knownDelayMin));
 }
 
 /**
- * Estimate ETA in minutes using the REAL speed limits of the segment (PK-weighted average).
+ * Estimate ETA in minutes using the REAL speed limits of the segment (PK-weighted average),
+ * adjusted for realistic acceleration/braking curves and dwell times.
  *
  * This is the preferred method when both GPS coords and station PK data are available.
  *
@@ -170,6 +192,8 @@ export function estimateEta(
  * @param isAscending true = heading toward higher PK (toward Terrassa/Sabadell/Tibidabo/RE)
  * @param isContravia true = running on contravia track
  * @param knownDelayMin Official delay from GeoTren API (minutes, positive = late)
+ * @param fusionState Current sensor-fusion state ('EN_ANDANA' | 'APROXIMANT' | 'EN_MARXA')
+ * @param intermediateStopsCount Count of intermediate stops before target
  */
 export function estimateEtaByPk(
     fromSt: StationGeoData,
@@ -178,13 +202,15 @@ export function estimateEtaByPk(
     trainLon: number,
     isAscending: boolean,
     isContravia = false,
-    knownDelayMin = 0
+    knownDelayMin = 0,
+    fusionState: 'EN_ANDANA' | 'APROXIMANT' | 'EN_MARXA' = 'EN_MARXA',
+    intermediateStopsCount = 0
 ): number {
     // Only valid when both stations share the same PK segment
     if (fromSt.pkSegment !== toSt.pkSegment) {
         // Cross-segment: fall back to haversine + max segment speed
         const distKm = haversineKm(trainLat, trainLon, toSt.lat, toSt.lon);
-        return estimateEta(distKm, 60, knownDelayMin);
+        return estimateEta(distKm, 60, knownDelayMin, fusionState, intermediateStopsCount);
     }
 
     // PK of the train inferred from GPS interpolation within the segment
@@ -205,8 +231,27 @@ export function estimateEtaByPk(
 
     // Remaining distance by GPS (more reliable than PK delta alone)
     const remainingKm = haversineKm(trainLat, trainLon, toSt.lat, toSt.lon);
-    const travelMin = (remainingKm / avgSpeed) * 60;
-    return Math.max(0, Math.round(travelMin + knownDelayMin));
+    const pureTravelSec = (remainingKm / Math.max(10, avgSpeed)) * 3600;
+
+    // Kinematics and dwell loss calculations
+    let kinematicLossSec = 0;
+    let dwellLossSec = intermediateStopsCount * 25;
+
+    if (fusionState === 'EN_ANDANA') {
+        dwellLossSec += 15; // remaining dwell at origin
+        kinematicLossSec += (avgSpeed >= 80 ? 25 : 18); // acc from 0 + dec at dest
+    } else if (fusionState === 'APROXIMANT') {
+        kinematicLossSec += 12; // final braking into target station
+    } else {
+        kinematicLossSec += (avgSpeed >= 80 ? 14 : 9); // dec from cruise into dest
+    }
+
+    if (intermediateStopsCount > 0) {
+        kinematicLossSec += intermediateStopsCount * (avgSpeed >= 80 ? 25 : 18);
+    }
+
+    const totalSec = pureTravelSec + kinematicLossSec + dwellLossSec;
+    return Math.max(0, Math.round(totalSec / 60 + knownDelayMin));
 }
 
 /**

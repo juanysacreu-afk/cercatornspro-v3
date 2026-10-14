@@ -10,6 +10,8 @@ import {
 import { MAP_STATIONS } from '../mapConstants';
 import { getFullPath } from '../mapUtils';
 import { decodeGeotrenUt } from '../utils/decodeUt';
+import { recordTrainKinematics, detectStationFusion } from '../../../utils/trainKinematics';
+import { getPunctualityInfo, PunctualityInfo } from '../../../utils/delayNotifications';
 import type { LivePersonnel, IncidenciaMode, GeoTrenPoint, Shift } from '../../../types';
 
 
@@ -26,10 +28,18 @@ export interface GeoTrenEnhanced extends GeoTrenPoint {
     nextStMapId: string | null;
     /** Minutes of delay vs. theoretical schedule (positive = late) */
     delayMin: number;
+    /** Exact delay in seconds (negative = advanced, positive = late) */
+    delaySec: number;
+    /** Punctuality 4-level semaphore status (Blue, Green, Amber, Red) */
+    punctuality: PunctualityInfo;
     /** ETA to next stop in minutes (from current real time) */
     etaNextMin: number | null;
     /** Array of past SVG positions for breadcrumb trail */
     trail: Array<{ x: number; y: number; ts: number }>;
+    /** Fused state: stopped at platform, approaching/braking, or running on line */
+    fusionState?: 'EN_ANDANA' | 'APROXIMANT' | 'EN_MARXA';
+    /** Estimated speed in km/h derived from GPS kinematics */
+    speedKmh?: number;
 }
 
 const GEOTREN_API = 'https://dadesobertes.fgc.cat/api/v2/catalog/datasets/posicionament-dels-trens/exports/json';
@@ -138,16 +148,44 @@ export const useLiveMapData = ({
         const fromGeo = resolvedFromId ? STATION_GEO_MAP.get(resolvedFromId) : null;
         const toGeo = nextStMapId ? STATION_GEO_MAP.get(nextStMapId) : null;
 
-        if (trainLat && trainLon && fromGeo && toGeo && fromStMapNode && toStMapNode && !raw.estacionat_a) {
-            // GPS-based interpolation — most accurate
+        // ── Kinematics & Sensor Fusion (GPS + iSIC) ────────────────────────
+        const { speedKmh } = recordTrainKinematics(raw.id, trainLat, trainLon);
+        const candidateCodes: string[] = [];
+        if (resolvedFromId) candidateCodes.push(resolvedFromId);
+        if (nextStMapId) candidateCodes.push(nextStMapId);
+
+        const fusion = detectStationFusion(
+            raw.estacionat_a,
+            mainLinia,
+            trainLat,
+            trainLon,
+            speedKmh,
+            candidateCodes.length > 0 ? candidateCodes : undefined,
+            nextStMapId
+        );
+
+        if (fusion.state === 'EN_ANDANA' && fusion.stationCode) {
+            // Definitively stopped at platform (either iSIC confirmed or GPS stopped <=75m + v<=7 km/h)
+            const stNode = MAP_STATIONS.find(s => s.id === fusion.stationCode) || fromStMapNode;
+            if (stNode) {
+                mapX = stNode.x;
+                mapY = stNode.y;
+            } else if (fromStMapNode) {
+                mapX = fromStMapNode.x;
+                mapY = fromStMapNode.y;
+            }
+            isMoving = false;
+        } else if (trainLat && trainLon && fromGeo && toGeo && fromStMapNode && toStMapNode && !raw.estacionat_a) {
+            // GPS-based interpolation — with sensor fusion movement validation
             const t = interpolateBetweenStations(trainLat, trainLon, fromGeo, toGeo);
             mapX = fromStMapNode.x + t * (toStMapNode.x - fromStMapNode.x);
             mapY = fromStMapNode.y + t * (toStMapNode.y - fromStMapNode.y);
-            isMoving = true;
+            isMoving = fusion.isMoving;
         } else if (raw.estacionat_a && fromStMapNode) {
             // Stopped at a station
             mapX = fromStMapNode.x;
             mapY = fromStMapNode.y;
+            isMoving = false;
         } else if (!raw.estacionat_a && fromStMapNode && toStMapNode) {
             // Moving but no GPS — fallback to 50% interpolation
             mapX = (fromStMapNode.x + toStMapNode.x) / 2;
@@ -162,11 +200,15 @@ export const useLiveMapData = ({
 
         // ── ETA and delay computation ─────────────────────────────────────
         let delayMin = 0;
+        let delaySec = 0;
         let etaNextMin: number | null = null;
 
         if (typeof raw.retard === 'number') {
+            delaySec = raw.retard;
             delayMin = Math.round(raw.retard / 60); // API returns seconds
         }
+
+        const punctuality = getPunctualityInfo(delaySec);
 
         if (nextStMapId && toGeo) {
             if (trainLat && trainLon) {
@@ -181,14 +223,15 @@ export const useLiveMapData = ({
                             trainLat, trainLon,
                             isAscending,
                             false,
-                            delayMin
+                            delayMin,
+                            fusion.state
                         );
                     } catch (_) {
-                        etaNextMin = estimateEta(remainingKm, 60, delayMin);
+                        etaNextMin = estimateEta(remainingKm, 60, delayMin, fusion.state);
                     }
                 } else {
                     // Cross-segment or fromGeo unavailable: simple distance/speed
-                    etaNextMin = estimateEta(remainingKm, 60, delayMin);
+                    etaNextMin = estimateEta(remainingKm, 60, delayMin, fusion.state);
                 }
             } else if (nextStops.length > 0 && nextStops[0].hora_prevista) {
                 // No GPS: fall back to scheduled arrival time
@@ -216,7 +259,9 @@ export const useLiveMapData = ({
 
         const enhanced: GeoTrenEnhanced = {
             ...raw,
-            mapX, mapY, isMoving, nextStMapId, delayMin, etaNextMin, trail
+            mapX, mapY, isMoving, nextStMapId, delayMin, delaySec, punctuality, etaNextMin, trail,
+            fusionState: fusion.state,
+            speedKmh
         };
         geoTrenEnhancedRef.current.set(raw.id, enhanced);
         return enhanced;

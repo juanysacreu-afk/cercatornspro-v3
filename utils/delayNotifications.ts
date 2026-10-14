@@ -322,3 +322,137 @@ export const checkAndNotifyDelay = async (info: DelayAlertInfo): Promise<boolean
 
   return true;
 };
+
+export type PunctualityCategory = 'AVANCAT' | 'EN_HORA' | 'AMBAR' | 'ROIG';
+
+export interface PunctualityInfo {
+  category: PunctualityCategory;
+  colorHex: string;     // '#3b82f6' (Blau) | '#22c55e' (Verd) | '#f59e0b' (Ambre) | '#ef4444' (Roig)
+  bgClass: string;
+  textClass: string;
+  borderClass: string;
+  cardBgClass: string;
+  cardBorderClass: string;
+  badgeClass: string;
+  label: string;
+  badgeText: string;
+  delaySec: number;
+}
+
+/**
+ * Classifica la desviació de puntualitat segons la regla de negoci sol·licitada:
+ * - Blau: Adelantat (delaySec < 0s)
+ * - Verd: En hora fins a 3 minuts (0 <= delaySec <= 180s)
+ * - Ambre: Entre 3 i 4 minuts (180s < delaySec <= 240s)
+ * - Roig: Retard superior a 4 minuts (delaySec > 240s)
+ */
+export const getPunctualityInfo = (delaySec: number = 0): PunctualityInfo => {
+  if (delaySec < 0) {
+    const absSec = Math.abs(delaySec);
+    const m = Math.floor(absSec / 60);
+    const s = absSec % 60;
+    const badgeText = m > 0 ? `-${m}'` : `-${s}s`;
+    return {
+      category: 'AVANCAT',
+      colorHex: '#3b82f6', // Blau
+      bgClass: 'bg-blue-500/15 dark:bg-blue-500/20',
+      textClass: 'text-blue-600 dark:text-blue-400',
+      borderClass: 'border-blue-500/30 dark:border-blue-500/40',
+      cardBgClass: 'bg-blue-50/40 dark:bg-blue-500/[0.04] hover:bg-blue-50/80 dark:hover:bg-blue-500/[0.08]',
+      cardBorderClass: 'border-blue-200/70 dark:border-blue-500/25',
+      badgeClass: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30',
+      label: 'Adelantat',
+      badgeText,
+      delaySec
+    };
+  }
+
+  if (delaySec <= 180) {
+    const m = Math.round(delaySec / 60);
+    return {
+      category: 'EN_HORA',
+      colorHex: '#22c55e', // Verd
+      bgClass: 'bg-emerald-500/15 dark:bg-emerald-500/20',
+      textClass: 'text-emerald-600 dark:text-emerald-400',
+      borderClass: 'border-emerald-500/30 dark:border-emerald-500/40',
+      cardBgClass: 'bg-emerald-50/40 dark:bg-emerald-500/[0.04] hover:bg-emerald-50/80 dark:hover:bg-emerald-500/[0.08]',
+      cardBorderClass: 'border-emerald-200/70 dark:border-emerald-500/25',
+      badgeClass: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30',
+      label: 'En hora (≤ 3m)',
+      badgeText: m > 0 ? `+${m}'` : '✓',
+      delaySec
+    };
+  }
+
+  if (delaySec <= 240) {
+    const m = Math.round(delaySec / 60);
+    return {
+      category: 'AMBAR',
+      colorHex: '#f59e0b', // Ambre (3 a 4 minuts)
+      bgClass: 'bg-amber-500/15 dark:bg-amber-500/20',
+      textClass: 'text-amber-600 dark:text-amber-400',
+      borderClass: 'border-amber-500/30 dark:border-amber-500/40',
+      cardBgClass: 'bg-amber-50/40 dark:bg-amber-500/[0.04] hover:bg-amber-50/80 dark:hover:bg-amber-500/[0.08]',
+      cardBorderClass: 'border-amber-200/70 dark:border-amber-500/25',
+      badgeClass: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30',
+      label: 'Retard moderat (3-4 min)',
+      badgeText: `+${m}'`,
+      delaySec
+    };
+  }
+
+  // Superior a 4 minuts
+  const m = Math.round(delaySec / 60);
+  return {
+    category: 'ROIG',
+    colorHex: '#ef4444', // Roig (> 4 minuts)
+    bgClass: 'bg-red-500/15 dark:bg-red-500/20',
+    textClass: 'text-red-600 dark:text-red-400',
+    borderClass: 'border-red-500/30 dark:border-red-500/40',
+    cardBgClass: 'bg-red-50/40 dark:bg-red-500/[0.04] hover:bg-red-50/80 dark:hover:bg-red-500/[0.08]',
+    cardBorderClass: 'border-red-200/70 dark:border-red-500/25',
+    badgeClass: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400 border border-red-200 dark:border-red-500/30',
+    label: 'Retard greu (>4 min)',
+    badgeText: `+${m}'`,
+    delaySec
+  };
+};
+
+/**
+ * Comprova si cal enviar un avís per marxa avançada (tren avançat més de 45 segons)
+ */
+export const checkAndNotifyAdvance = async (info: DelayAlertInfo): Promise<boolean> => {
+  if (!isDelayNotifsEnabled()) return false;
+  if (info.delaySec > -45) return false;
+
+  const circKey = `adv-${info.circId.trim().toUpperCase()}`;
+  const now = Date.now();
+  const last = notifiedDelays.get(circKey);
+
+  if (last && now - last.timestamp < COOLDOWN_MS) {
+    return false;
+  }
+
+  notifiedDelays.set(circKey, { timestamp: now, delaySec: info.delaySec });
+
+  const absSec = Math.abs(info.delaySec);
+  const m = Math.floor(absSec / 60);
+  const s = absSec % 60;
+  const advStr = m > 0 ? `${m}m ${s}s` : `${s}s`;
+  const lineStr = info.linia ? ` (${info.linia})` : '';
+  const utStr = info.ut ? ` [UT ${info.ut}]` : '';
+  const stStr = info.stationName ? ` a ${info.stationName}` : '';
+
+  const title = `🔷 Tren Avançat -${advStr} · ${info.circId}${lineStr}`;
+  const body = `La circulació ${info.circId}${utStr} va ${advStr} avançada a l'horari oficial${stStr}. Cal regular marxa a l'andana.`;
+
+  sendSystemNotification({
+    title,
+    body,
+    tag: `adv-${circKey}`,
+    url: `/?view=gip&circ=${encodeURIComponent(info.circId)}`
+  }).catch(() => {});
+
+  return true;
+};
+
