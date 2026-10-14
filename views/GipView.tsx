@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Search, MapPin, Clock, ArrowRight, RefreshCcw, Activity, Train, TrainFront, CheckCircle2, AlertCircle, AlertTriangle, ChevronRight, X, Calendar, Layers, Bell, BellRing, Sparkles } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import GlassPanel from '../components/common/GlassPanel';
-import { resolveStationId, formatDelayMinSec } from '../utils/stations';
+import { resolveStationId, formatDelayMinSec, normalizeTimeDiffSec, calculateTimeDiffSec, timeStringToSeconds } from '../utils/stations';
 import { getLiniaColor, getTrainPhone } from '../utils/fgc';
 import { STATION_GEO_MAP } from '../utils/stationGeoData';
 import { getFgcMinutes } from '../utils/time';
@@ -198,12 +198,20 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
             const p = latestByCirc.get(a.id);
             if (!p) return;
 
-            // Filtre de temps: considerem que és el retard actiu d'ara si ha passat en els darrers 35 minuts
-            const pMin = getFgcMinutes(p.hora_real);
-            if (pMin === null || Math.abs(nowMin - pMin) > 35) return;
+            // Filtre de temps: considerem que és el retard actiu d'ara si ha passat en els darrers 35 minuts (circular)
+            const pSecs = timeStringToSeconds(p.hora_real);
+            const nowSecs = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+            const elapsedSec = pSecs !== null ? calculateTimeDiffSec(nowSecs, pSecs) : Infinity;
+            if (Math.abs(elapsedSec) > 35 * 60) return;
+
+            const normalizedDelaySec = normalizeTimeDiffSec(p.diferencia_segons);
+            let resolvedEstat: 'en_hora' | 'retard' | 'avanc' = p.estat;
+            if (normalizedDelaySec > 240) resolvedEstat = 'retard';
+            else if (normalizedDelaySec < -20) resolvedEstat = 'avanc';
+            else resolvedEstat = 'en_hora';
 
             // Filtre sol·licitat: només circulacions amb més de 3 minuts 30 segons (210 segons)
-            if (p.diferencia_segons > 210) {
+            if (normalizedDelaySec > 210) {
               delayedList.push({
                 id: a.id,
                 linia: a.linia || p.linia || '',
@@ -213,18 +221,18 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
                 currentStationName: resolveStationName(p.estacio_nom || p.estacio_codi, a.linia || p.linia),
                 horaReal: formatTimeToHHMMSS(p.hora_real),
                 horaTeorica: formatTimeToHHMMSS(p.hora_teorica),
-                delaySec: p.diferencia_segons,
-                estat: p.estat
+                delaySec: normalizedDelaySec,
+                estat: resolvedEstat
               });
             }
 
             // Si el retard supera els 4 minuts (>= 240s), activar alerta mòbil si està activat
-            if (p.diferencia_segons >= 240) {
+            if (normalizedDelaySec >= 240) {
               checkAndNotifyDelay({
                 circId: a.id,
                 linia: a.linia || p.linia || '',
                 ut: a.ut || p.ut || '',
-                delaySec: p.diferencia_segons,
+                delaySec: normalizedDelaySec,
                 stationName: resolveStationName(p.estacio_nom || p.estacio_codi, a.linia || p.linia),
                 desti: a.desti || ''
               }).catch(() => {});
@@ -347,8 +355,12 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
         const isLiveHere = activeMatch?.currentSt === st.code;
 
         if (recorded) {
-          let diffSec = recorded.diferencia_segons;
+          let diffSec = normalizeTimeDiffSec(recorded.diferencia_segons);
           let estat: 'en_hora' | 'retard' | 'avanc' = recorded.estat;
+          if (diffSec > 240) estat = 'retard';
+          else if (diffSec < -20) estat = 'avanc';
+          else estat = 'en_hora';
+
           return {
             code: st.code,
             nom: st.nom,
@@ -440,8 +452,8 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
   }, [delayedActiveCircs, filterLine]);
 
   // Format de la xapa de diferència (Regla 4 colors: Blau <0s, Verd <=180s, Ambre 180-240s, Roig >240s)
-  const renderDeviationBadge = (diffSec: number | null, estat: 'en_hora' | 'retard' | 'avanc' | 'pendent') => {
-    if (diffSec === null || estat === 'pendent') {
+  const renderDeviationBadge = (rawDiffSec: number | null, estat: 'en_hora' | 'retard' | 'avanc' | 'pendent') => {
+    if (rawDiffSec === null || estat === 'pendent') {
       return (
         <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest italic">
           Pendent
@@ -449,6 +461,7 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
       );
     }
 
+    const diffSec = normalizeTimeDiffSec(rawDiffSec);
     const punct = getPunctualityInfo(diffSec);
     const absSec = Math.abs(diffSec);
     const m = Math.floor(absSec / 60);

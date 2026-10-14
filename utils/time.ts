@@ -10,7 +10,15 @@ export function getFgcMinutes(timeStr: string): number {
   return getFgcMinutesBase(timeStr) ?? 0;
 }
 
-export { formatFgcTime };
+export { 
+  formatFgcTime,
+  normalizeTimeDiffSec,
+  timeStringToSeconds,
+  secondsToTimeString,
+  calculateTimeDiffSec,
+  getFgcOperationalHour,
+  formatDelayMinSec
+} from './stations';
 
 export function calculateGap(from: string, to: string): number {
   if (!from || !to) return 0;

@@ -1,5 +1,5 @@
 import { supabase } from '../supabaseClient';
-import { resolveStationId } from './stations';
+import { resolveStationId, calculateTimeDiffSec, normalizeTimeDiffSec, timeStringToSeconds, secondsToTimeString } from './stations';
 import { STATION_GEO_DATA, haversineKm } from './stationGeoData';
 import { decodeGeotrenUt } from '../views/incidencia/utils/decodeUt';
 import { decodeGeotrenCirculation } from '../views/incidencia/utils/decodeCirculation';
@@ -126,29 +126,7 @@ export const getCirculationStops = async (circCode: string, linia: string = ''):
  */
 const VALID_BV_LINES = new Set(['S1', 'S2', 'L6', 'L7', 'L12']);
 
-/**
- * Converteix una cadena "HH:MM:SS" a segons des de les 00:00:00
- */
-const timeStringToSeconds = (tStr?: string | null): number | null => {
-  if (!tStr) return null;
-  const parts = tStr.trim().split(':');
-  if (parts.length < 2) return null;
-  const h = parseInt(parts[0], 10);
-  const m = parseInt(parts[1], 10);
-  const s = parts[2] ? parseInt(parts[2], 10) : 0;
-  if (isNaN(h) || isNaN(m)) return null;
-  return h * 3600 + m * 60 + (isNaN(s) ? 0 : s);
-};
 
-const secondsToTimeString = (totalSec: number): string => {
-  let sec = Math.round(totalSec);
-  while (sec < 0) sec += 86400;
-  sec = sec % 86400;
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  const s = sec % 60;
-  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-};
 
 /**
  * Parseja el camp properes_parades de GeoTren a un array de codis d'estació ordenat
@@ -252,14 +230,11 @@ export const pollAndRecordGipPassages = async (): Promise<number> => {
 
       if (currentStationIndex === -1) continue;
 
-      // 5. Calcular el retard / avanç observat a la posició actual
+      // 5. Calcular el retard / avanç observat a la posició actual (amb gestió circular del canvi de mitjanit)
       const currentStop = stops[currentStationIndex];
       let currentDiffSec = 0;
       if (currentStop?.hora) {
-        const theoSecs = timeStringToSeconds(currentStop.hora);
-        if (theoSecs !== null) {
-          currentDiffSec = nowSecs - theoSecs;
-        }
+        currentDiffSec = calculateTimeDiffSec(nowSecs, currentStop.hora);
       }
 
       // 6. Enregistrar totes les parades fins a currentStationIndex que no estiguin enregistrades
@@ -283,6 +258,8 @@ export const pollAndRecordGipPassages = async (): Promise<number> => {
             diffSec = currentDiffSec;
           }
         }
+
+        diffSec = normalizeTimeDiffSec(diffSec);
 
         let estat: 'en_hora' | 'retard' | 'avanc' = 'en_hora';
         if (diffSec > 240) {

@@ -1,6 +1,6 @@
 import { supabase } from '../supabaseClient';
 import { getFgcServiceDate } from './gipRecorder';
-import { getFgcMinutes } from './stations';
+import { getFgcMinutes, normalizeTimeDiffSec } from './stations';
 import { getServiceToday } from './serviceCalendar';
 import type { AgentPerformanceHistory, GipRegistrePas } from '../types';
 
@@ -255,7 +255,8 @@ export const syncAllAgentsPerformance = async (
           onTimeShiftPassages += onTimeStops;
           delayedShiftPassagesCount += delayedStops.length;
           delayedStops.forEach(p => {
-            if (p.diferencia_segons) allDelaysSec.push(p.diferencia_segons);
+            const normSec = normalizeTimeDiffSec(p.diferencia_segons);
+            if (normSec > 0) allDelaysSec.push(normSec);
           });
         }
 
@@ -272,10 +273,10 @@ export const syncAllAgentsPerformance = async (
             estacio_nom: p.estacio_nom || p.estacio_codi || '',
             hora_teorica: p.hora_teorica || '',
             hora_real: p.hora_real || '',
-            diferencia_segons: p.diferencia_segons || 0
+            diferencia_segons: normalizeTimeDiffSec(p.diferencia_segons)
           })),
           rate: totalStops > 0 ? Number(((onTimeStops / totalStops) * 100).toFixed(1)) : null,
-          maxDelaySec: delayedStops.length > 0 ? Math.max(...delayedStops.map(p => p.diferencia_segons || 0)) : 0
+          maxDelaySec: delayedStops.length > 0 ? Math.max(...delayedStops.map(p => normalizeTimeDiffSec(p.diferencia_segons))) : 0
         });
       });
 

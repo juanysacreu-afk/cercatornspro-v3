@@ -158,6 +158,66 @@ export const isServiceVisible = (val: string | undefined, f: string): boolean =>
 // Shared Time Utilities (FGC day starts at 04:00)
 // ──────────────────────────────────────────────
 
+/**
+ * Normalizes any difference in seconds between two clock times to [-43200, 43200] (-12h to +12h).
+ * Resolves day boundary rollovers (e.g. 23:59:00 vs 00:00:10 yields +70s delay instead of -86330s advance).
+ */
+export const normalizeTimeDiffSec = (diffSec: number | null | undefined): number => {
+    if (typeof diffSec !== 'number' || isNaN(diffSec)) return 0;
+    let diff = Math.round(diffSec);
+    while (diff < -43200) diff += 86400;
+    while (diff > 43200) diff -= 86400;
+    return diff;
+};
+
+/**
+ * Converts a "HH:MM" or "HH:MM:SS" time string to seconds since midnight (0 <= s < 86400).
+ * Handles hours >= 24 gracefully via modulo 24.
+ */
+export const timeStringToSeconds = (tStr?: string | null): number | null => {
+    if (!tStr) return null;
+    const clean = tStr.trim();
+    const parts = clean.split(':');
+    if (parts.length < 2) return null;
+    const h = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10);
+    const s = parts[2] ? parseInt(parts[2], 10) : 0;
+    if (isNaN(h) || isNaN(m)) return null;
+    const normH = ((h % 24) + 24) % 24;
+    return normH * 3600 + m * 60 + (isNaN(s) ? 0 : s);
+};
+
+/**
+ * Converts seconds since midnight to "HH:MM:SS" format.
+ */
+export const secondsToTimeString = (totalSec: number): string => {
+    let sec = Math.round(totalSec);
+    sec = ((sec % 86400) + 86400) % 86400;
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+};
+
+/**
+ * Calculates the circular difference in seconds between two clock times: (real - theoretical).
+ * Positive = delay (+), Negative = advance (-).
+ * Automatically accounts for midnight rollover (e.g. 23:59:00 vs 00:00:10 -> +70s).
+ */
+export const calculateTimeDiffSec = (timeReal: string | number, timeTheo: string | number): number => {
+    const realSec = typeof timeReal === 'number' ? timeReal : timeStringToSeconds(timeReal);
+    const theoSec = typeof timeTheo === 'number' ? timeTheo : timeStringToSeconds(timeTheo);
+    if (realSec === null || theoSec === null) return 0;
+    return normalizeTimeDiffSec(realSec - theoSec);
+};
+
+/**
+ * Returns FGC operational hour order (hours < 4 belong to late-night slots of current service day: 24h - 27h).
+ */
+export const getFgcOperationalHour = (h: number): number => {
+    return h < 4 ? h + 24 : h;
+};
+
 /** Converts "HH:MM" or "HH:MM:SS" to minutes since midnight, with FGC day wrapping (hours < 4 = next day) */
 export const getFgcMinutes = (timeStr: string | undefined): number | null => {
     if (!timeStr || typeof timeStr !== 'string' || !timeStr.includes(':')) return null;
@@ -342,7 +402,8 @@ export const getSegments = (from: string, to: string, linia: string = ''): strin
  * Example: 543 -> "9m 03s", 60 -> "1m 00s", 45 -> "0m 45s", 0 -> "0s"
  */
 export const formatDelayMinSec = (totalSeconds: number): string => {
-    const abs = Math.abs(Math.round(totalSeconds || 0));
+    const norm = normalizeTimeDiffSec(totalSeconds);
+    const abs = Math.abs(norm);
     if (abs === 0) return '0s';
     const mins = Math.floor(abs / 60);
     const secs = abs % 60;

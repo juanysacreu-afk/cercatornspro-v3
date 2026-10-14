@@ -15,7 +15,8 @@ import {
   getShortTornId, 
   resolveStationId,
   getLiniaColorHex,
-  formatDelayMinSec
+  formatDelayMinSec,
+  normalizeTimeDiffSec
 } from '../utils/stations';
 import { getFgcServiceDate } from '../utils/gipRecorder';
 import { STATION_GEO_MAP } from '../utils/stationGeoData';
@@ -460,7 +461,7 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
       const rate = totalStops > 0 ? Number(((onTimeStops / totalStops) * 100).toFixed(1)) : null;
 
       const maxDelaySec = delayedStops.length > 0 
-        ? Math.max(...delayedStops.map(p => p.diferencia_segons || 0)) 
+        ? Math.max(...delayedStops.map(p => normalizeTimeDiffSec(p.diferencia_segons))) 
         : 0;
 
       return {
@@ -509,11 +510,11 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
       : null;
 
     const maxDelaySec = delayedPassages.length > 0 
-      ? Math.max(...delayedPassages.map(p => p.diferencia_segons || 0)) 
+      ? Math.max(...delayedPassages.map(p => normalizeTimeDiffSec(p.diferencia_segons))) 
       : 0;
 
     const avgDelaySec = delayedPassages.length > 0
-      ? Math.round(delayedPassages.reduce((acc, p) => acc + (p.diferencia_segons || 0), 0) / delayedPassages.length)
+      ? Math.round(delayedPassages.reduce((acc, p) => acc + normalizeTimeDiffSec(p.diferencia_segons), 0) / delayedPassages.length)
       : 0;
 
     const completedCircs = isShiftStarted ? circPunctualityList.filter(cp => cp.status === 'COMPLETED').length : 0;

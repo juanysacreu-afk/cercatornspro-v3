@@ -1,4 +1,4 @@
-import { formatDelayMinSec } from './stations';
+import { formatDelayMinSec, normalizeTimeDiffSec } from './stations';
 import { feedback } from './feedback';
 import { supabase } from '../supabaseClient';
 
@@ -269,7 +269,8 @@ export interface DelayAlertInfo {
  */
 export const checkAndNotifyDelay = async (info: DelayAlertInfo): Promise<boolean> => {
   if (!isDelayNotifsEnabled()) return false;
-  if (info.delaySec < DELAY_ALERT_THRESHOLD_SEC) return false;
+  const normalizedDelay = normalizeTimeDiffSec(info.delaySec);
+  if (normalizedDelay < DELAY_ALERT_THRESHOLD_SEC) return false;
 
   const circKey = info.circId.trim().toUpperCase();
   const now = Date.now();
@@ -279,15 +280,15 @@ export const checkAndNotifyDelay = async (info: DelayAlertInfo): Promise<boolean
   // o si el retard ha pujat més de 2 minuts (120 segons) addicionals
   if (last) {
     const elapsed = now - last.timestamp;
-    const delayIncrease = info.delaySec - last.delaySec;
+    const delayIncrease = normalizedDelay - last.delaySec;
     if (elapsed < COOLDOWN_MS && delayIncrease < 120) {
       return false;
     }
   }
 
-  notifiedDelays.set(circKey, { timestamp: now, delaySec: info.delaySec });
+  notifiedDelays.set(circKey, { timestamp: now, delaySec: normalizedDelay });
 
-  const delayFormatted = formatDelayMinSec(info.delaySec);
+  const delayFormatted = formatDelayMinSec(normalizedDelay);
   const lineStr = info.linia ? ` (${info.linia})` : '';
   const utStr = info.ut ? ` [UT ${info.ut}]` : '';
   const stStr = info.stationName ? ` a ${info.stationName}` : '';
@@ -346,7 +347,8 @@ export interface PunctualityInfo {
  * - Ambre: Entre 3 i 4 minuts (180s < delaySec <= 240s)
  * - Roig: Retard superior a 4 minuts (delaySec > 240s)
  */
-export const getPunctualityInfo = (delaySec: number = 0): PunctualityInfo => {
+export const getPunctualityInfo = (rawDelaySec: number = 0): PunctualityInfo => {
+  const delaySec = normalizeTimeDiffSec(rawDelaySec);
   if (delaySec < 0) {
     const absSec = Math.abs(delaySec);
     const m = Math.floor(absSec / 60);
@@ -423,7 +425,8 @@ export const getPunctualityInfo = (delaySec: number = 0): PunctualityInfo => {
  */
 export const checkAndNotifyAdvance = async (info: DelayAlertInfo): Promise<boolean> => {
   if (!isDelayNotifsEnabled()) return false;
-  if (info.delaySec > -45) return false;
+  const normalizedDelay = normalizeTimeDiffSec(info.delaySec);
+  if (normalizedDelay > -45) return false;
 
   const circKey = `adv-${info.circId.trim().toUpperCase()}`;
   const now = Date.now();
@@ -433,9 +436,9 @@ export const checkAndNotifyAdvance = async (info: DelayAlertInfo): Promise<boole
     return false;
   }
 
-  notifiedDelays.set(circKey, { timestamp: now, delaySec: info.delaySec });
+  notifiedDelays.set(circKey, { timestamp: now, delaySec: normalizedDelay });
 
-  const absSec = Math.abs(info.delaySec);
+  const absSec = Math.abs(normalizedDelay);
   const m = Math.floor(absSec / 60);
   const s = absSec % 60;
   const advStr = m > 0 ? `${m}m ${s}s` : `${s}s`;

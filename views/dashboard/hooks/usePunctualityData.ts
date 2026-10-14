@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../../../supabaseClient';
 import { getFgcServiceDate } from '../../../utils/gipRecorder';
-import { resolveStationId } from '../../../utils/stations';
+import { resolveStationId, normalizeTimeDiffSec, getFgcOperationalHour } from '../../../utils/stations';
 import { STATION_GEO_MAP } from '../../../utils/stationGeoData';
 import { getPunctualityInfo, PunctualityInfo } from '../../../utils/delayNotifications';
 
@@ -53,11 +53,12 @@ export interface PunctualityStats {
 }
 
 export const formatDelayString = (seconds: number): string => {
-  if (!seconds || seconds === 0) return '0s';
-  const abs = Math.abs(seconds);
+  const norm = normalizeTimeDiffSec(seconds);
+  if (!norm || norm === 0) return '0s';
+  const abs = Math.abs(norm);
   const mins = Math.floor(abs / 60);
   const secs = abs % 60;
-  const sign = seconds < 0 ? '-' : '+';
+  const sign = norm < 0 ? '-' : '+';
   if (mins === 0) return `${sign}${secs}s`;
   return `${sign}${mins}m ${secs.toString().padStart(2, '0')}s`;
 };
@@ -134,7 +135,19 @@ export const usePunctualityData = () => {
         if (r.data) allRows = allRows.concat(r.data);
       });
 
-      // 3. Càlcul de mètriques globals
+      // 3. Normalització de les dades per evitar distorsions per canvi de mitjanit (23:59 -> 00:00)
+      allRows.forEach(r => {
+        r.diferencia_segons = normalizeTimeDiffSec(r.diferencia_segons);
+        if (r.diferencia_segons > 240) {
+          r.estat = 'retard';
+        } else if (r.diferencia_segons < -20) {
+          r.estat = 'avanc';
+        } else {
+          r.estat = 'en_hora';
+        }
+      });
+
+      // 4. Càlcul de mètriques globals
       const onTimeRows = allRows.filter(r => r.estat === 'en_hora' || r.estat === 'avanc');
       const delayedRows = allRows.filter(r => r.estat === 'retard');
       const onTimeCount = onTimeRows.length;
@@ -146,7 +159,7 @@ export const usePunctualityData = () => {
       const avgDelaySec = delayedRows.length > 0 ? Math.round(totalDelaySec / delayedRows.length) : 0;
       const avgDelayFormatted = formatDelayString(avgDelaySec);
 
-      // 4. Mètriques per línia oficial
+      // 5. Mètriques per línia oficial
       const standardLines = ['S1', 'S2', 'L6', 'L7', 'L12'];
       const lineStats: LinePunctuality[] = standardLines.map(linia => {
         const lRows = allRows.filter(r => r.linia === linia);
@@ -168,7 +181,7 @@ export const usePunctualityData = () => {
         };
       });
 
-      // 5. Evolució horària
+      // 6. Evolució horària ordenada pel cicle operatiu oficial FGC (04h -> 23h -> 00h -> 01h -> 02h -> 03h)
       const hourMap = new Map<number, { hour: number; total: number; onTime: number; delayed: number }>();
       allRows.forEach(r => {
         if (!r.hora_real) return;
@@ -187,7 +200,7 @@ export const usePunctualityData = () => {
       });
 
       const hourlyStats: HourlyPunctuality[] = Array.from(hourMap.values())
-        .sort((a, b) => a.hour - b.hour)
+        .sort((a, b) => getFgcOperationalHour(a.hour) - getFgcOperationalHour(b.hour))
         .map(h => ({
           hour: h.hour,
           label: `${h.hour.toString().padStart(2, '0')}h`,

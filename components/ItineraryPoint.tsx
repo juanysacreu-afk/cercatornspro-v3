@@ -2,7 +2,7 @@
 import React from 'react';
 import { Clock, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { getFgcMinutes } from '../utils/time';
-import { formatDelayMinSec, resolveStationId } from '../utils/stations';
+import { formatDelayMinSec, resolveStationId, normalizeTimeDiffSec } from '../utils/stations';
 import { STATION_GEO_MAP } from '../utils/stationGeoData';
 import type { GipRegistrePas } from '../types';
 
@@ -78,21 +78,30 @@ export const ItineraryPoint: React.FC<ItineraryPointProps> = ({
                             </div>
 
                             {/* Delay / Advance / On-time Badge */}
-                            {gipPassage.diferencia_segons >= 60 ? (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-50 dark:bg-red-950/40 text-xs font-bold text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/50 shadow-xs animate-in fade-in">
-                                    <AlertTriangle size={12} className="shrink-0" />
-                                    +{formatDelayMinSec(gipPassage.diferencia_segons)} retard
-                                </span>
-                            ) : gipPassage.diferencia_segons <= -60 ? (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-xs font-bold text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900/50 shadow-xs animate-in fade-in">
-                                    -{formatDelayMinSec(Math.abs(gipPassage.diferencia_segons))} avanç
-                                </span>
-                            ) : (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-xs font-bold text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50 shadow-xs animate-in fade-in">
-                                    <CheckCircle2 size={12} className="shrink-0" />
-                                    En hora {gipPassage.diferencia_segons !== 0 ? `(${gipPassage.diferencia_segons > 0 ? `+${gipPassage.diferencia_segons}s` : `${gipPassage.diferencia_segons}s`})` : ''}
-                                </span>
-                            )}
+                            {(() => {
+                                const diffSec = normalizeTimeDiffSec(gipPassage.diferencia_segons);
+                                if (diffSec >= 60) {
+                                    return (
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-50 dark:bg-red-950/40 text-xs font-bold text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/50 shadow-xs animate-in fade-in">
+                                            <AlertTriangle size={12} className="shrink-0" />
+                                            +{formatDelayMinSec(diffSec)} retard
+                                        </span>
+                                    );
+                                }
+                                if (diffSec <= -60) {
+                                    return (
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-xs font-bold text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900/50 shadow-xs animate-in fade-in">
+                                            -{formatDelayMinSec(Math.abs(diffSec))} avanç
+                                        </span>
+                                    );
+                                }
+                                return (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-xs font-bold text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50 shadow-xs animate-in fade-in">
+                                        <CheckCircle2 size={12} className="shrink-0" />
+                                        En hora {diffSec !== 0 ? `(${diffSec > 0 ? `+${diffSec}s` : `${diffSec}s`})` : ''}
+                                    </span>
+                                );
+                            })()}
                         </div>
                     )}
                 </div>
