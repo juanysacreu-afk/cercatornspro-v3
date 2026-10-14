@@ -56,10 +56,21 @@ export interface WeatherForecastDay {
     precipProbability?: number;
 }
 
+export interface WeatherAlert {
+    id: string;
+    type: 'vent' | 'pluja' | 'temperatura' | 'visibilitat' | 'smp_oficial';
+    level: 'yellow' | 'orange' | 'red';
+    title: string;
+    description: string;
+    impactFgc: string;
+    source: 'Meteocat SMP' | 'Sensor XEMA' | 'Previsió Oficial' | 'Model Atmosfèric';
+}
+
 export interface HybridWeatherData {
     current: WeatherCurrent;
     daily: WeatherDaily;
     forecast: WeatherForecastDay[];
+    alerts: WeatherAlert[];
     lat: number;
     lon: number;
     municipality: string;
@@ -404,6 +415,113 @@ async function fetchMeteocatForecast(muniCode: string, apiKey: string): Promise<
 }
 
 /**
+ * Evaluates rail operational safety alerts based on real-time XEMA physical sensor readings,
+ * official SMC forecasts, and meteorological risk thresholds for FGC train operations.
+ */
+export function evaluateWeatherAlerts(
+    current: WeatherCurrent,
+    daily: WeatherDaily,
+    stationName: string,
+    municipality: string
+): WeatherAlert[] {
+    const alerts: WeatherAlert[] = [];
+
+    // 1. Wind Gusts (VENTCAT / Rail Pantograph & Catenary safety)
+    if (current.windGusts >= 70) {
+        alerts.push({
+            id: 'wind-red',
+            type: 'vent',
+            level: 'red',
+            title: `Alerta per vent extrem (${current.windGusts} km/h)`,
+            description: `S'ha registrat una ratxa màxima de ${current.windGusts} km/h a ${stationName}.`,
+            impactFgc: "Risc sever per a la catenària i caiguda d'arbrat a la via. Recomanada marxa amb precaució o límit a 50 km/h.",
+            source: 'Sensor XEMA'
+        });
+    } else if (current.windGusts >= 50) {
+        alerts.push({
+            id: 'wind-orange',
+            type: 'vent',
+            level: 'orange',
+            title: `Avís per ratxes de vent fortes (${current.windGusts} km/h)`,
+            description: `Ratxes superiors a 50 km/h detectades a la zona de ${municipality}.`,
+            impactFgc: 'Atenció a pantògrafs en trams oberts del Vallès i viaductes.',
+            source: 'Sensor XEMA'
+        });
+    }
+
+    // 2. Severe Thunderstorms & Rain (INUNCAT / Rail Adherence)
+    if (current.weatherCode >= 95) {
+        alerts.push({
+            id: 'storm',
+            type: 'pluja',
+            level: 'orange',
+            title: 'Avís de tempesta elèctrica',
+            description: `Tempesta activa detectada a la zona de ${municipality}.`,
+            impactFgc: 'Risc de descàrregues atmosfèriques en subestacions i circuits de via.',
+            source: 'Previsió Oficial'
+        });
+    } else if (daily.precipSum >= 20 || current.weatherCode === 65 || current.weatherCode === 82) {
+        alerts.push({
+            id: 'rain-heavy',
+            type: 'pluja',
+            level: 'orange',
+            title: `Avís per acumulació de pluja (${daily.precipSum} mm)`,
+            description: `Precipitació intensa registrada avui a ${municipality}.`,
+            impactFgc: "Reducció severa d'adherència carril-roda. Augmentar distàncies de frenada.",
+            source: 'Sensor XEMA'
+        });
+    }
+
+    // 3. Extreme Temperatures (Track Dilation & Ice on Catenary)
+    if (current.temperature >= 36) {
+        alerts.push({
+            id: 'heat-extreme',
+            type: 'temperatura',
+            level: 'orange',
+            title: `Alerta per calor extrema (${current.temperature}°C)`,
+            description: `Temperatures molt elevades detectades a la xarxa (${municipality}).`,
+            impactFgc: "Vigilància d'esveltesa i dilatació tèrmica del carril soldat continu (CWR).",
+            source: 'Sensor XEMA'
+        });
+    } else if (current.temperature <= 0) {
+        alerts.push({
+            id: 'freeze-red',
+            type: 'temperatura',
+            level: 'red',
+            title: `Alerta per glaçada sota zero (${current.temperature}°C)`,
+            description: `Temperatures sota zero registrades a la zona de ${municipality}.`,
+            impactFgc: 'Risc de gel al fil de contacte de la catenària i patinament en agulles.',
+            source: 'Sensor XEMA'
+        });
+    } else if (current.temperature <= 2 && current.humidity >= 80) {
+        alerts.push({
+            id: 'freeze-yellow',
+            type: 'temperatura',
+            level: 'yellow',
+            title: `Avís per risc de gebre (${current.temperature}°C)`,
+            description: `Humitat molt alta (${current.humidity}%) i temperatura vora el punt de congelació.`,
+            impactFgc: 'Possible formació de capa de gebre a la catenària en primeres circulacions del matí.',
+            source: 'Sensor XEMA'
+        });
+    }
+
+    // 4. Fog / Low Visibility
+    if (current.visibility < 1) {
+        alerts.push({
+            id: 'fog',
+            type: 'visibilitat',
+            level: 'yellow',
+            title: `Avís per boira densa (${current.visibility} km)`,
+            description: 'Visibilitat reduïda inferior a 1.000 metres a la via.',
+            impactFgc: 'Conducció atenta i observació de senyals lluminosos en superfície.',
+            source: 'Model Atmosfèric'
+        });
+    }
+
+    return alerts;
+}
+
+/**
  * Main Hybrid Fetch Function:
  * Interleaves Meteocat XEMA ground station physical sensors + official SMC forecast with Open-Meteo supplementary data.
  */
@@ -642,10 +760,14 @@ export async function fetchHybridWeather(
         }
     }
 
+    // Evaluate rail operational emergency alerts (wind gusts, storms, rain, freezing/catenary ice, heat/track dilation)
+    const alerts = evaluateWeatherAlerts(current, daily, targetStation.name, displayMunicipality);
+
     return {
         current,
         daily,
         forecast,
+        alerts,
         lat: queryLat,
         lon: queryLon,
         municipality: displayMunicipality,

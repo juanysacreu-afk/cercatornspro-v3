@@ -3,12 +3,14 @@ import ReactDOM from 'react-dom';
 import {
     Cloud, CloudDrizzle, CloudFog, CloudLightning, CloudRain, CloudSnow,
     Moon, Sun, Wind, MapPin, Eye, Droplets, Thermometer, Gauge,
-    Sunset, Sunrise, X, Activity, CloudSun, Train, Radio, Compass
+    Sunset, Sunrise, X, Activity, CloudSun, Train, Radio, Compass,
+    AlertTriangle, ShieldAlert, ShieldCheck
 } from 'lucide-react';
 import { STATION_GEO_DATA, haversineKm } from '../../utils/stationGeoData';
 import {
     fetchHybridWeather,
     HybridWeatherData,
+    WeatherAlert,
     METEOCAT_FGC_STATIONS,
     MeteocatFgcStation
 } from '../../utils/meteocatService';
@@ -195,6 +197,16 @@ export const WeatherWidget: React.FC = () => {
                 <span className="opacity-25 mx-0.5">•</span>
                 <Wind size={12} className="text-gray-400 group-hover:text-teal-500 transition-colors" />
                 <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">{w.windSpeed} km/h</span>
+                {weather.alerts && weather.alerts.length > 0 && (
+                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-black animate-pulse ${
+                        weather.alerts.some(a => a.level === 'red')
+                            ? 'bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/30'
+                            : 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+                    }`}>
+                        <AlertTriangle size={10} />
+                        {weather.alerts[0].type.toUpperCase()}
+                    </span>
+                )}
             </button>
 
             {/* ── Full Weather Modal via Portal ── */}
@@ -339,8 +351,59 @@ export const WeatherWidget: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Scrollable Body: Sensors & Forecast */}
+                        {/* Scrollable Body: Alerts, Sensors & Forecast */}
                         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 no-scrollbar">
+                            {/* Emergency Alerts Section */}
+                            {weather.alerts && weather.alerts.length > 0 ? (
+                                <div className="space-y-2">
+                                    <div className="text-[9px] font-black uppercase tracking-wider text-red-500 dark:text-red-400 flex items-center gap-1.5">
+                                        <AlertTriangle size={12} className="animate-pulse" />
+                                        Alertes i Avisos per a la Circulació
+                                    </div>
+                                    {weather.alerts.map((alert) => (
+                                        <div
+                                            key={alert.id}
+                                            className={`p-3 rounded-2xl border flex items-start gap-2.5 shadow-sm transition-all ${
+                                                alert.level === 'red'
+                                                    ? 'bg-red-50/80 dark:bg-red-500/10 border-red-200 dark:border-red-500/30 text-red-950 dark:text-red-200'
+                                                    : 'bg-amber-50/80 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30 text-amber-950 dark:text-amber-200'
+                                            }`}
+                                        >
+                                            <AlertTriangle
+                                                size={18}
+                                                className={`flex-none mt-0.5 ${
+                                                    alert.level === 'red' ? 'text-red-500' : 'text-amber-500'
+                                                }`}
+                                            />
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                                                    <span className="text-xs font-black uppercase tracking-tight">
+                                                        {alert.title}
+                                                    </span>
+                                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-white/70 dark:bg-white/10 border border-black/5 dark:border-white/5">
+                                                        {alert.source}
+                                                    </span>
+                                                </div>
+                                                <p className="text-[11px] font-medium mt-1 leading-snug opacity-90">
+                                                    {alert.description}
+                                                </p>
+                                                <div className="mt-2 text-[10px] font-bold flex items-center gap-1.5 text-gray-800 dark:text-gray-100 bg-white/80 dark:bg-white/10 px-2.5 py-1.5 rounded-xl border border-black/5 dark:border-white/5">
+                                                    <Train size={12} className="flex-none text-[#75990F]" />
+                                                    <span>Impacte FGC: {alert.impactFgc}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-[#75990F]/10 border border-[#75990F]/20 text-[#547008] dark:text-[#A8D017]">
+                                    <ShieldCheck size={16} className="flex-none text-[#75990F]" />
+                                    <span className="text-[11px] font-bold">
+                                        Sense alertes meteorològiques a la zona · Condicions normals de via
+                                    </span>
+                                </div>
+                            )}
+
                             {/* Grid stats (6 items) */}
                             <div>
                                 <div className="text-[9px] font-black uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">
