@@ -17,7 +17,15 @@ import Sidebar from './components/common/Sidebar.tsx';
 import { supabase } from './supabaseClient.ts';
 import { feedback } from './utils/feedback';
 import { getMapPositionForPk } from './views/incidencia/mapUtils';
-import { isDelayNotifsEnabled, setDelayNotifsEnabled, requestDelayNotifsPermission } from './utils/delayNotifications';
+import {
+  isDelayNotifsEnabled,
+  setDelayNotifsEnabled,
+  requestDelayNotifsPermission,
+  getDelayAlertThresholdMin,
+  setDelayAlertThresholdMin,
+  formatDelayThresholdLabel,
+  DelayThresholdMinutes
+} from './utils/delayNotifications';
 
 import { OnboardingTour } from './components/common/OnboardingTour.tsx';
 import { useToast } from './components/ToastProvider';
@@ -247,9 +255,35 @@ const App: React.FC = () => {
     if (newState) feedback.click();
   };
 
+  const [delayThresholdMin, setDelayThresholdMin] = useState<DelayThresholdMinutes>(() => {
+    return getDelayAlertThresholdMin();
+  });
+
   const [isDelayNotifsActive, setIsDelayNotifsActive] = useState<boolean>(() => {
     return isDelayNotifsEnabled();
   });
+
+  useEffect(() => {
+    const handleThresholdChange = (e: any) => {
+      if (e.detail?.threshold) setDelayThresholdMin(e.detail.threshold);
+    };
+    const handleNotifsChange = (e: any) => {
+      if (typeof e.detail?.enabled === 'boolean') setIsDelayNotifsActive(e.detail.enabled);
+    };
+    window.addEventListener('nexus_delay_threshold_changed', handleThresholdChange);
+    window.addEventListener('nexus_delay_notifs_changed', handleNotifsChange);
+    return () => {
+      window.removeEventListener('nexus_delay_threshold_changed', handleThresholdChange);
+      window.removeEventListener('nexus_delay_notifs_changed', handleNotifsChange);
+    };
+  }, []);
+
+  const handleSelectThreshold = (t: DelayThresholdMinutes) => {
+    setDelayThresholdMin(t);
+    setDelayAlertThresholdMin(t);
+    feedback.click();
+    showToast(`Llindar d'avisos al mòbil establert a ${formatDelayThresholdLabel(t)}`, 'info');
+  };
 
   const handleToggleDelayNotifs = async () => {
     if (isDelayNotifsActive) {
@@ -261,7 +295,7 @@ const App: React.FC = () => {
       const res = await requestDelayNotifsPermission();
       if (res.granted) {
         setIsDelayNotifsActive(true);
-        showToast('Avisos al mòbil activats (> 4 min)', 'success');
+        showToast(`Avisos al mòbil activats (${formatDelayThresholdLabel(delayThresholdMin)})`, 'success');
       } else if (res.permission === 'denied') {
         showToast('El permís de notificacions està bloquejat al navegador/mòbil', 'error');
       } else {
@@ -671,30 +705,63 @@ const App: React.FC = () => {
                   </div>
                 </button>
 
-                <button
-                  onClick={handleToggleDelayNotifs}
-                  role="switch"
-                  aria-checked={isDelayNotifsActive}
-                  aria-label="Avisos de Retard al Mòbil (> 4 min)"
-                  className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group"
-                >
-                  <div className="flex items-center gap-3 min-w-0 pr-2">
-                    <div className={`p-2 rounded-xl transition-transform shrink-0 ${isDelayNotifsActive ? 'bg-fgc-green/15 text-fgc-green' : 'bg-gray-100 dark:bg-white/10 text-fgc-grey dark:text-gray-300'} group-hover:scale-110`}>
-                      {isDelayNotifsActive ? <BellRing size={18} className="animate-pulse" /> : <Bell size={18} />}
+                <div className="rounded-2xl border border-gray-100 dark:border-white/5 overflow-hidden transition-colors">
+                  <button
+                    onClick={handleToggleDelayNotifs}
+                    role="switch"
+                    aria-checked={isDelayNotifsActive}
+                    aria-label={`Avisos de Retard al Mòbil (${formatDelayThresholdLabel(delayThresholdMin)})`}
+                    className="w-full flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group"
+                  >
+                    <div className="flex items-center gap-3 min-w-0 pr-2">
+                      <div className={`p-2 rounded-xl transition-transform shrink-0 ${isDelayNotifsActive ? 'bg-fgc-green/15 text-fgc-green' : 'bg-gray-100 dark:bg-white/10 text-fgc-grey dark:text-gray-300'} group-hover:scale-110`}>
+                        {isDelayNotifsActive ? <BellRing size={18} className="animate-pulse" /> : <Bell size={18} />}
+                      </div>
+                      <div className="text-left min-w-0 flex-1">
+                        <span className="text-sm font-bold text-fgc-grey dark:text-gray-200 block truncate">
+                          Avisos Mòbil ({formatDelayThresholdLabel(delayThresholdMin)})
+                        </span>
+                        <span className="text-[10px] text-gray-400 dark:text-gray-500 block truncate">
+                          Alertes de retard FGC
+                        </span>
+                      </div>
                     </div>
-                    <div className="text-left min-w-0 flex-1">
-                      <span className="text-sm font-bold text-fgc-grey dark:text-gray-200 block truncate">
-                        Avisos Mòbil (&gt; 4m)
-                      </span>
-                      <span className="text-[10px] text-gray-400 dark:text-gray-500 block truncate">
-                        Alertes de retard FGC
-                      </span>
+                    <div className={`w-12 h-6 min-w-[48px] rounded-full relative transition-colors duration-300 border shrink-0 ${isDelayNotifsActive ? 'bg-fgc-green border-fgc-green' : 'bg-gray-200 border-gray-300'}`}>
+                      <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-300 ${isDelayNotifsActive ? 'left-7' : 'left-1'}`} />
+                    </div>
+                  </button>
+
+                  {/* Selector del llindar de temps per a notificacions: 3, 4 o > 5 minuts */}
+                  <div className="px-4 pb-3.5 pt-2 bg-gray-50/70 dark:bg-white/[0.02] border-t border-gray-100 dark:border-white/5 flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400">
+                      Temps per avisar:
+                    </span>
+                    <div className="flex items-center gap-1 bg-gray-200/60 dark:bg-black/40 p-1 rounded-xl border border-gray-200/80 dark:border-white/10">
+                      {([3, 4, 5] as DelayThresholdMinutes[]).map((t) => {
+                        const isSelected = delayThresholdMin === t;
+                        const label = t === 5 ? '> 5 min' : `${t} min`;
+                        return (
+                          <button
+                            key={t}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSelectThreshold(t);
+                            }}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all ${
+                              isSelected
+                                ? 'bg-white dark:bg-fgc-green text-fgc-grey dark:text-fgc-grey shadow-sm scale-105'
+                                : 'text-gray-500 hover:text-fgc-grey dark:text-gray-400 dark:hover:text-white'
+                            }`}
+                            title={`Avisar quan el retard sigui de ${t === 5 ? 'més de 5 minuts' : `${t} minuts`}`}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
-                  <div className={`w-12 h-6 min-w-[48px] rounded-full relative transition-colors duration-300 border shrink-0 ${isDelayNotifsActive ? 'bg-fgc-green border-fgc-green' : 'bg-gray-200 border-gray-300'}`}>
-                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-300 ${isDelayNotifsActive ? 'left-7' : 'left-1'}`} />
-                  </div>
-                </button>
+                </div>
 
                 {/* Calendar Manager Button */}
                 <button

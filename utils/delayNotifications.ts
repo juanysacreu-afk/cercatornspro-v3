@@ -3,8 +3,80 @@ import { feedback } from './feedback';
 import { supabase } from '../supabaseClient';
 
 const STORAGE_KEY = 'nexus_delay_notifs_enabled';
-export const DELAY_ALERT_THRESHOLD_SEC = 240; // 4 minuts (retard oficial FGC)
+export const STORAGE_KEY_THRESHOLD = 'nexus_delay_notifs_threshold';
+export const DELAY_ALERT_THRESHOLD_SEC = 240; // 4 minuts (retard oficial FGC per defecte)
 const COOLDOWN_MS = 15 * 60 * 1000; // 15 minuts de refredament per tren per evitar saturació
+
+export type DelayThresholdMinutes = 3 | 4 | 5;
+export const DEFAULT_DELAY_THRESHOLD_MIN: DelayThresholdMinutes = 4;
+
+/**
+ * Obté el llindar de retard seleccionat per l'usuari (3, 4 o 5 minuts)
+ */
+export const getDelayAlertThresholdMin = (): DelayThresholdMinutes => {
+  try {
+    const val = localStorage.getItem(STORAGE_KEY_THRESHOLD);
+    if (val === '3' || val === '4' || val === '5') {
+      return Number(val) as DelayThresholdMinutes;
+    }
+  } catch {}
+  return DEFAULT_DELAY_THRESHOLD_MIN;
+};
+
+/**
+ * Desa el llindar de retard seleccionat (3, 4 o 5 minuts) i emet un esdeveniment reactiu
+ */
+export const setDelayAlertThresholdMin = (threshold: DelayThresholdMinutes): void => {
+  try {
+    localStorage.setItem(STORAGE_KEY_THRESHOLD, threshold.toString());
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('nexus_delay_threshold_changed', { detail: { threshold } }));
+    }
+  } catch (e) {
+    console.warn('Could not save delay threshold', e);
+  }
+};
+
+/**
+ * Retorna el llindar en segons segons els minuts configurats:
+ * - 3 min -> 180 segons
+ * - 4 min -> 240 segons
+ * - 5 min -> 300 segons
+ */
+export const getDelayAlertThresholdSec = (threshold?: DelayThresholdMinutes): number => {
+  const min = threshold ?? getDelayAlertThresholdMin();
+  return min * 60;
+};
+
+/**
+ * Etiqueta curta per a botons i capçaleres: "≥ 3m", "≥ 4m" o "> 5m"
+ */
+export const formatDelayThresholdLabel = (threshold?: DelayThresholdMinutes): string => {
+  const min = threshold ?? getDelayAlertThresholdMin();
+  if (min === 5) return '> 5m';
+  return `≥ ${min}m`;
+};
+
+/**
+ * Etiqueta completa per a textos descriptius: "3 minuts", "4 minuts", "més de 5 minuts"
+ */
+export const formatDelayThresholdFullLabel = (threshold?: DelayThresholdMinutes): string => {
+  const min = threshold ?? getDelayAlertThresholdMin();
+  if (min === 5) return 'més de 5 minuts';
+  return `${min} minuts`;
+};
+
+/**
+ * Comprova si un retard (en segons) compleix la condició del llindar seleccionat
+ */
+export const isCirculationDelayedByThreshold = (delaySec: number, threshold?: DelayThresholdMinutes): boolean => {
+  const min = threshold ?? getDelayAlertThresholdMin();
+  const normalized = normalizeTimeDiffSec(delaySec);
+  if (min === 5) {
+    return normalized > 300; // Més de 5 minuts
+  }
+  return normalized >= min * 60; // 3 min (>= 180s) o 4 min (>= 240s)
+};
 
 // VAPID Clau Pública oficial generada per a Web Push en segon pla (App Tancada)
 export const VAPID_PUBLIC_KEY = 'BNQstO2w84c7CPzPC_ZULMNDTFxptTB_Bzd84DNPxFnzaIEZISASCy0smt_tKbZsAihU2LGVPAUBOtP6qK0d-6I';
@@ -40,7 +112,7 @@ export const getDelayNotifsPermission = (): NotificationPermission | 'unsupporte
 };
 
 /**
- * Comprova si l'usuari ha activat la preferència d'avisos de retard (> 4 min)
+ * Comprova si l'usuari ha activat la preferència d'avisos de retard
  */
 export const isDelayNotifsEnabled = (): boolean => {
   if (!isDelayNotifsSupported()) return false;
@@ -53,11 +125,14 @@ export const isDelayNotifsEnabled = (): boolean => {
 };
 
 /**
- * Desa la preferència d'activació d'avisos
+ * Desa la preferència d'activació d'avisos i emet esdeveniment reactiu
  */
 export const setDelayNotifsEnabled = (enabled: boolean): void => {
   try {
     localStorage.setItem(STORAGE_KEY, enabled ? 'true' : 'false');
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('nexus_delay_notifs_changed', { detail: { enabled } }));
+    }
   } catch (e) {
     console.warn('Could not save delay notifs setting', e);
   }
@@ -148,9 +223,11 @@ export const requestDelayNotifsPermission = async (): Promise<{ granted: boolean
       await registerWebPushSubscription();
 
       // Notificació de confirmació al dispositiu
+      const threshMin = getDelayAlertThresholdMin();
+      const threshLabel = formatDelayThresholdFullLabel(threshMin);
       await sendSystemNotification({
         title: '🔔 Avisos de Retard Activats',
-        body: 'Rebràs alertes al mòbil quan una circulació superi els 4 minuts de retard, fins i tot amb l\'app tancada.',
+        body: `Rebràs alertes al mòbil quan una circulació superi ${threshLabel} de retard, fins i tot amb l'app tancada.`,
         tag: 'nexus-welcome-notif'
       });
       feedback.success();
@@ -178,6 +255,9 @@ export const sendTestNotification = async (): Promise<boolean> => {
   // Assegurar subscripció Push registrada
   await registerWebPushSubscription();
 
+  const threshMin = getDelayAlertThresholdMin();
+  const threshLabel = formatDelayThresholdLabel(threshMin);
+
   try {
     // Llançar test via Edge Function perquè viatgi a través del servidor Push
     const res = await fetch('https://hcpjthnhockfbefclycr.supabase.co/functions/v1/check-delays', {
@@ -186,7 +266,7 @@ export const sendTestNotification = async (): Promise<boolean> => {
       body: JSON.stringify({
         action: 'test_push',
         title: '⚠️ Prova d\'Alerta Push (NEXUS)',
-        body: 'Aquesta notificació funciona fins i tot amb l\'aplicació completament tancada al mòbil!'
+        body: `Aquesta notificació (${threshLabel}) funciona fins i tot amb l'aplicació completament tancada al mòbil!`
       })
     });
 
@@ -201,7 +281,7 @@ export const sendTestNotification = async (): Promise<boolean> => {
   // Fallback local si el servidor no respongués
   return sendSystemNotification({
     title: '⚠️ Prova d\'Avís de Retard (NEXUS)',
-    body: 'Circulació S11 (UT 112.04) amb +4m 30s de retard a Sant Cugat. Prova correcta!',
+    body: `Circulació S11 (UT 112.04) amb retard (${threshLabel}) a Sant Cugat. Prova correcta!`,
     tag: 'nexus-test-notif'
   });
 };
@@ -265,12 +345,12 @@ export interface DelayAlertInfo {
 }
 
 /**
- * Comprova si cal enviar un avís per retard superior a 4 minuts (240s)
+ * Comprova si cal enviar un avís per retard segons el llindar seleccionat (3m, 4m o >5m)
  */
 export const checkAndNotifyDelay = async (info: DelayAlertInfo): Promise<boolean> => {
   if (!isDelayNotifsEnabled()) return false;
   const normalizedDelay = normalizeTimeDiffSec(info.delaySec);
-  if (normalizedDelay < DELAY_ALERT_THRESHOLD_SEC) return false;
+  if (!isCirculationDelayedByThreshold(normalizedDelay)) return false;
 
   const circKey = info.circId.trim().toUpperCase();
   const now = Date.now();

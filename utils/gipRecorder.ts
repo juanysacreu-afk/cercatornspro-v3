@@ -5,8 +5,8 @@ import { decodeGeotrenUt } from '../views/incidencia/utils/decodeUt';
 import { decodeGeotrenCirculation } from '../views/incidencia/utils/decodeCirculation';
 import { getFgcMinutes } from './time';
 import { GipRegistrePas } from '../types';
-import { checkAndNotifyDelay, checkAndNotifyAdvance } from './delayNotifications';
 import { recordTrainKinematics, detectStationFusion } from './trainKinematics';
+import { checkAndNotifyDelay, checkAndNotifyAdvance, isCirculationDelayedByThreshold } from './delayNotifications';
 
 const GEOTREN_API = 'https://dadesobertes.fgc.cat/api/v2/catalog/datasets/posicionament-dels-trens/exports/json';
 
@@ -264,28 +264,27 @@ export const pollAndRecordGipPassages = async (): Promise<number> => {
         let estat: 'en_hora' | 'retard' | 'avanc' = 'en_hora';
         if (diffSec > 240) {
           estat = 'retard';
-          // Si és la posició en temps real i supera 4 minuts (240s - Roig), avisar al mòbil
-          if (i === currentStationIndex) {
-            checkAndNotifyDelay({
-              circId: circCode,
-              linia,
-              ut: decodedUt,
-              delaySec: diffSec,
-              stationName: stop.nom || stop.code
-            }).catch(() => {});
-          }
         } else if (diffSec < -20) {
           estat = 'avanc';
-          // Si és la posició en temps real i va avançat (Blau), avisar
-          if (i === currentStationIndex && diffSec < -45) {
-            checkAndNotifyAdvance({
-              circId: circCode,
-              linia,
-              ut: decodedUt,
-              delaySec: diffSec,
-              stationName: stop.nom || stop.code
-            }).catch(() => {});
-          }
+        }
+
+        // Si és la posició en temps real i supera el llindar seleccionat (3m, 4m o >5m), avisar al mòbil
+        if (i === currentStationIndex && isCirculationDelayedByThreshold(diffSec)) {
+          checkAndNotifyDelay({
+            circId: circCode,
+            linia,
+            ut: decodedUt,
+            delaySec: diffSec,
+            stationName: stop.nom || stop.code
+          }).catch(() => {});
+        } else if (i === currentStationIndex && diffSec < -45) {
+          checkAndNotifyAdvance({
+            circId: circCode,
+            linia,
+            ut: decodedUt,
+            delaySec: diffSec,
+            stationName: stop.nom || stop.code
+          }).catch(() => {});
         } else {
           estat = 'en_hora';
         }

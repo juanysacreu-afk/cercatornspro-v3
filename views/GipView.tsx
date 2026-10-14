@@ -11,7 +11,21 @@ import { decodeGeotrenCirculation } from './incidencia/utils/decodeCirculation';
 import { decodeGeotrenUt } from './incidencia/utils/decodeUt';
 import { GipRegistrePas } from '../types';
 import { useToast } from '../components/ToastProvider';
-import { isDelayNotifsEnabled, setDelayNotifsEnabled, requestDelayNotifsPermission, sendTestNotification, checkAndNotifyDelay, getPunctualityInfo } from '../utils/delayNotifications';
+import { feedback } from '../utils/feedback';
+import {
+  isDelayNotifsEnabled,
+  setDelayNotifsEnabled,
+  requestDelayNotifsPermission,
+  sendTestNotification,
+  checkAndNotifyDelay,
+  getPunctualityInfo,
+  getDelayAlertThresholdMin,
+  setDelayAlertThresholdMin,
+  formatDelayThresholdLabel,
+  formatDelayThresholdFullLabel,
+  isCirculationDelayedByThreshold,
+  DelayThresholdMinutes
+} from '../utils/delayNotifications';
 
 const resolveStationName = (codeOrName: string, linia: string = ''): string => {
   if (!codeOrName) return '';
@@ -80,8 +94,31 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [filterLine, setFilterLine] = useState<string>('Tots');
   const [delayedActiveCircs, setDelayedActiveCircs] = useState<ActiveDelayedCirc[]>([]);
+  const [delayThresholdMin, setDelayThresholdMin] = useState<DelayThresholdMinutes>(() => getDelayAlertThresholdMin());
   const [delayNotifsActive, setDelayNotifsActive] = useState<boolean>(() => isDelayNotifsEnabled());
   const { showToast } = useToast();
+
+  useEffect(() => {
+    const handleThresholdChange = (e: any) => {
+      if (e.detail?.threshold) setDelayThresholdMin(e.detail.threshold);
+    };
+    const handleNotifsChange = (e: any) => {
+      if (typeof e.detail?.enabled === 'boolean') setDelayNotifsActive(e.detail.enabled);
+    };
+    window.addEventListener('nexus_delay_threshold_changed', handleThresholdChange);
+    window.addEventListener('nexus_delay_notifs_changed', handleNotifsChange);
+    return () => {
+      window.removeEventListener('nexus_delay_threshold_changed', handleThresholdChange);
+      window.removeEventListener('nexus_delay_notifs_changed', handleNotifsChange);
+    };
+  }, []);
+
+  const handleSelectThreshold = (t: DelayThresholdMinutes) => {
+    setDelayThresholdMin(t);
+    setDelayAlertThresholdMin(t);
+    feedback.click();
+    showToast(`Llindar d'avisos i retards establert a ${formatDelayThresholdLabel(t)}`, 'info');
+  };
 
   const handleToggleDelayNotifs = async () => {
     if (delayNotifsActive) {
@@ -92,7 +129,7 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
       const res = await requestDelayNotifsPermission();
       if (res.granted) {
         setDelayNotifsActive(true);
-        showToast('Avisos al mòbil activats (> 4 min)', 'success');
+        showToast(`Avisos al mòbil activats (${formatDelayThresholdLabel(delayThresholdMin)})`, 'success');
       } else if (res.permission === 'denied') {
         showToast('El permís de notificació està bloquejat al navegador/mòbil', 'error');
       } else {
@@ -210,8 +247,8 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
             else if (normalizedDelaySec < -20) resolvedEstat = 'avanc';
             else resolvedEstat = 'en_hora';
 
-            // Filtre sol·licitat: només circulacions amb més de 3 minuts 30 segons (210 segons)
-            if (normalizedDelaySec > 210) {
+            // Filtre de retards: registrem circulacions amb retard (≥ 180s = 3 min)
+            if (normalizedDelaySec >= 180) {
               delayedList.push({
                 id: a.id,
                 linia: a.linia || p.linia || '',
@@ -226,8 +263,8 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
               });
             }
 
-            // Si el retard supera els 4 minuts (>= 240s), activar alerta mòbil si està activat
-            if (normalizedDelaySec >= 240) {
+            // Si el retard supera el llindar seleccionat (3m, 4m o >5m), activar alerta mòbil si està activat
+            if (isCirculationDelayedByThreshold(normalizedDelaySec, delayThresholdMin)) {
               checkAndNotifyDelay({
                 circId: a.id,
                 linia: a.linia || p.linia || '',
@@ -447,9 +484,12 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
   }, [activeCircsList, filterLine]);
 
   const filteredDelayedCircs = useMemo(() => {
-    if (filterLine === 'Tots') return delayedActiveCircs;
-    return delayedActiveCircs.filter(c => c.linia === filterLine);
-  }, [delayedActiveCircs, filterLine]);
+    return delayedActiveCircs.filter(c => {
+      const lineMatch = filterLine === 'Tots' || c.linia === filterLine;
+      const thresholdMatch = isCirculationDelayedByThreshold(c.delaySec, delayThresholdMin);
+      return lineMatch && thresholdMatch;
+    });
+  }, [delayedActiveCircs, filterLine, delayThresholdMin]);
 
   // Format de la xapa de diferència (Regla 4 colors: Blau <0s, Verd <=180s, Ambre 180-240s, Roig >240s)
   const renderDeviationBadge = (rawDiffSec: number | null, estat: 'en_hora' | 'retard' | 'avanc' | 'pendent') => {
@@ -642,13 +682,39 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
                 </span>
               </div>
               <p className="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-                Ordenades de major a menor retard (&gt; 3m 30s) en temps real {filterLine !== 'Tots' && `(Línia ${filterLine})`}
+                Ordenades de major a menor retard ({formatDelayThresholdLabel(delayThresholdMin)}) en temps real {filterLine !== 'Tots' && `(Línia ${filterLine})`}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Botó de control d'avisos al mòbil (> 4 min) */}
+            {/* Selector de Llindar (3, 4 o > 5 minuts) */}
+            <div className="flex items-center gap-1 bg-gray-100 dark:bg-white/5 p-1 rounded-xl border border-gray-200/50 dark:border-white/10">
+              <span className="text-[9px] font-black uppercase text-gray-400 dark:text-gray-500 px-1.5 hidden sm:inline">
+                Llindar:
+              </span>
+              {([3, 4, 5] as DelayThresholdMinutes[]).map((t) => {
+                const isActive = delayThresholdMin === t;
+                const label = t === 5 ? '> 5 min' : `${t} min`;
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => handleSelectThreshold(t)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all ${
+                      isActive
+                        ? 'bg-white dark:bg-fgc-green text-fgc-grey dark:text-fgc-grey shadow-sm border border-black/5 dark:border-white/10 scale-105'
+                        : 'text-gray-500 hover:text-fgc-grey dark:text-gray-400 dark:hover:text-white'
+                    }`}
+                    title={`Filtrar i notificar a partir de ${t === 5 ? 'més de 5 minuts' : `${t} minuts`} de retard`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Botó de control d'avisos al mòbil */}
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
@@ -658,17 +724,17 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
                     ? 'bg-fgc-green/15 text-fgc-green border-fgc-green/30 hover:bg-fgc-green/25'
                     : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300 border-gray-200/50 dark:border-white/10 hover:border-fgc-green/40'
                 }`}
-                title={delayNotifsActive ? 'Avisos al mòbil activats (> 4 min). Clic per desactivar.' : 'Activar avisos al mòbil quan un tren superi els 4 minuts de retard.'}
+                title={delayNotifsActive ? `Avisos al mòbil activats (${formatDelayThresholdLabel(delayThresholdMin)}). Clic per desactivar.` : `Activar avisos al mòbil quan un tren superi ${formatDelayThresholdFullLabel(delayThresholdMin)} de retard.`}
               >
                 {delayNotifsActive ? (
                   <>
                     <BellRing size={14} className="animate-pulse text-fgc-green" />
-                    <span>Avisos Mòbil (&gt; 4m): <strong>ON</strong></span>
+                    <span>Avisos Mòbil ({formatDelayThresholdLabel(delayThresholdMin)}): <strong>ON</strong></span>
                   </>
                 ) : (
                   <>
                     <Bell size={14} className="text-gray-400" />
-                    <span>Activar avisos mòbil (&gt; 4m)</span>
+                    <span>Activar avisos ({formatDelayThresholdLabel(delayThresholdMin)})</span>
                   </>
                 )}
               </button>
@@ -687,7 +753,7 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
 
             <span className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-white/5 rounded-xl border border-gray-200/50 dark:border-white/5 font-mono text-[11px] text-gray-500">
               <span className={`w-2 h-2 rounded-full ${filteredDelayedCircs.length > 0 ? 'bg-amber-500 animate-ping' : 'bg-fgc-green'}`} />
-              {filteredDelayedCircs.length > 0 ? 'Monitoritzant retards' : 'Sense retards > 3m 30s'}
+              {filteredDelayedCircs.length > 0 ? 'Monitoritzant retards' : `Sense retards ${formatDelayThresholdLabel(delayThresholdMin)}`}
             </span>
           </div>
         </div>
@@ -696,7 +762,7 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
           <div className="py-6 px-4 bg-fgc-green/5 dark:bg-fgc-green/10 border border-fgc-green/20 rounded-2xl flex items-center justify-center gap-3 text-center">
             <CheckCircle2 size={20} className="text-fgc-green shrink-0" />
             <span className="text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-200">
-              Cap circulació activa amb més de 3 minuts 30 segons de retard en aquest moment {filterLine !== 'Tots' ? `a la línia ${filterLine}` : 'a la xarxa'}.
+              Cap circulació activa amb {formatDelayThresholdFullLabel(delayThresholdMin)} de retard en aquest moment {filterLine !== 'Tots' ? `a la línia ${filterLine}` : 'a la xarxa'}.
             </span>
           </div>
         ) : (
