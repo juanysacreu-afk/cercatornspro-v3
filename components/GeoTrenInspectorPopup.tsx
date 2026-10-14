@@ -145,6 +145,11 @@ const GeoTrenInspectorPopup: React.FC<GeoTrenInspectorPopupProps> = ({ gt, onClo
                             <p className="text-xs font-black text-white uppercase">
                                 {gt.fusionState === 'EN_ANDANA' ? 'Aturat a andana' : gt.fusionState === 'APROXIMANT' ? 'Arribant a andana' : (gt.dir === 'A' ? 'Ascendent' : 'Descendent')}
                             </p>
+                            {gt.distanceToTrackMeters !== undefined && (
+                                <p className="text-[8px] font-mono text-gray-400 mt-0.5">
+                                    Via FGC · Snap ±{gt.distanceToTrackMeters}m
+                                </p>
+                            )}
                         </div>
                         <div className={`p-3 rounded-2xl border ${punct.bgClass} ${punct.borderClass}`}>
                             <p className="text-[8px] font-black text-gray-300 uppercase tracking-widest mb-1 flex items-center gap-1">

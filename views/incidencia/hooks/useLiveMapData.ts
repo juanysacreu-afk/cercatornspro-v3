@@ -7,6 +7,7 @@ import {
 import {
     STATION_GEO_MAP, interpolateBetweenStations, estimateEta, estimateEtaByPk, haversineKm
 } from '../../../utils/stationGeoData';
+import { snapToTrack, getRemainingRailKm } from '../../../utils/trackGeometry';
 import { MAP_STATIONS } from '../mapConstants';
 import { getFullPath } from '../mapUtils';
 import { decodeGeotrenUt } from '../utils/decodeUt';
@@ -40,6 +41,12 @@ export interface GeoTrenEnhanced extends GeoTrenPoint {
     fusionState?: 'EN_ANDANA' | 'APROXIMANT' | 'EN_MARXA';
     /** Estimated speed in km/h derived from GPS kinematics */
     speedKmh?: number;
+    /** Snapped railway track latitude */
+    snappedLat?: number;
+    /** Snapped railway track longitude */
+    snappedLon?: number;
+    /** Orthogonal distance to rail track in meters */
+    distanceToTrackMeters?: number;
 }
 
 const GEOTREN_API = 'https://dadesobertes.fgc.cat/api/v2/catalog/datasets/posicionament-dels-trens/exports/json';
@@ -164,6 +171,19 @@ export const useLiveMapData = ({
             nextStMapId
         );
 
+        // ── Snap-to-Track: project raw GPS onto official FGC rail geometry ──
+        let snappedLat = trainLat;
+        let snappedLon = trainLon;
+        let distanceToTrackMeters: number | undefined = undefined;
+        if (trainLat && trainLon) {
+            const snap = snapToTrack(trainLat, trainLon, mainLinia);
+            if (snap) {
+                snappedLat = snap.lat;
+                snappedLon = snap.lon;
+                distanceToTrackMeters = Math.round(snap.distanceMeters);
+            }
+        }
+
         if (fusion.state === 'EN_ANDANA' && fusion.stationCode) {
             // Definitively stopped at platform (either iSIC confirmed or GPS stopped <=75m + v<=7 km/h)
             const stNode = MAP_STATIONS.find(s => s.id === fusion.stationCode) || fromStMapNode;
@@ -176,8 +196,8 @@ export const useLiveMapData = ({
             }
             isMoving = false;
         } else if (trainLat && trainLon && fromGeo && toGeo && fromStMapNode && toStMapNode && !raw.estacionat_a) {
-            // GPS-based interpolation — with sensor fusion movement validation
-            const t = interpolateBetweenStations(trainLat, trainLon, fromGeo, toGeo);
+            // GPS-based interpolation along real track geometry (avoids straight line tunnel/curve distortion)
+            const t = interpolateBetweenStations(trainLat, trainLon, fromGeo, toGeo, mainLinia);
             mapX = fromStMapNode.x + t * (toStMapNode.x - fromStMapNode.x);
             mapY = fromStMapNode.y + t * (toStMapNode.y - fromStMapNode.y);
             isMoving = fusion.isMoving;
@@ -212,8 +232,8 @@ export const useLiveMapData = ({
 
         if (nextStMapId && toGeo) {
             if (trainLat && trainLon) {
-                // GPS available: remaining distance from train position to next stop
-                const remainingKm = haversineKm(trainLat, trainLon, toGeo.lat, toGeo.lon);
+                // GPS available: remaining distance along track curve (arc length) to next stop
+                const remainingKm = getRemainingRailKm(trainLat, trainLon, toGeo.lat, toGeo.lon, mainLinia);
                 if (fromGeo && fromGeo.pkSegment === toGeo.pkSegment) {
                     // Same PK segment: use PK-weighted speed for more accurate ETA
                     const isAscending = fromGeo.pk < toGeo.pk;
@@ -230,7 +250,7 @@ export const useLiveMapData = ({
                         etaNextMin = estimateEta(remainingKm, 60, delayMin, fusion.state);
                     }
                 } else {
-                    // Cross-segment or fromGeo unavailable: simple distance/speed
+                    // Cross-segment or fromGeo unavailable: distance along railway curve / speed
                     etaNextMin = estimateEta(remainingKm, 60, delayMin, fusion.state);
                 }
             } else if (nextStops.length > 0 && nextStops[0].hora_prevista) {
@@ -261,7 +281,10 @@ export const useLiveMapData = ({
             ...raw,
             mapX, mapY, isMoving, nextStMapId, delayMin, delaySec, punctuality, etaNextMin, trail,
             fusionState: fusion.state,
-            speedKmh
+            speedKmh,
+            snappedLat,
+            snappedLon,
+            distanceToTrackMeters
         };
         geoTrenEnhancedRef.current.set(raw.id, enhanced);
         return enhanced;

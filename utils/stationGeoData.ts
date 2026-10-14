@@ -20,6 +20,7 @@
  *   BT/UN  → Universitat Autònoma has its own sub-PK inside SC/PN segment (BT→UN = 1.300km)
  */
 import { avgSpeedKmhBetweenPks } from './speedLimits';
+import { interpolateOnTrack, getRemainingRailKm, getTrackArcDistanceKm, snapToTrack } from './trackGeometry';
 
 export interface StationGeoData {
     /** Short code used in GeoTren API (origen/desti/properes_parades/estacionat_a) */
@@ -104,11 +105,11 @@ export const STATION_GEO_DATA: StationGeoData[] = [
     { id: 'UN', name: 'Universitat Autònoma', lat: 41.50285282, lon: 2.102510441, pk: 5.700, pkSegment: 'SC/PN', distToNext: 3.900, declivToNext: 30 },
     // Note: UN pk=5.700 is approximated as BT(4.400) + 1.300(BT/UN distance)
     { id: 'SQ', name: 'Sant Quirze', lat: 41.52999155, lon: 2.088722533, pk: 7.760, pkSegment: 'SC/PN', distToNext: 1.721, declivToNext: -38 },
-    { id: 'CF', name: 'Can Feu | Gràcia', lat: 41.54120, lon: 2.08000, pk: 9.481, pkSegment: 'SC/PN', distToNext: 1.128, declivToNext: -38 },
-    { id: 'PJ', name: 'Sabadell Plaça Major', lat: 41.54844, lon: 2.07100, pk: 10.609, pkSegment: 'SC/PN', distToNext: 1.147, declivToNext: 38 },
-    { id: 'CT', name: 'La Creu Alta', lat: 41.55550, lon: 2.06680, pk: 11.756, pkSegment: 'SC/PN', distToNext: 0.779, declivToNext: 38 },
-    { id: 'NO', name: 'Sabadell Nord', lat: 41.56110, lon: 2.06250, pk: 12.535, pkSegment: 'SC/PN', distToNext: 1.380, declivToNext: 30 },
-    { id: 'PN', name: 'Sabadell Parc del Nord', lat: 41.57190, lon: 2.05930, pk: 13.918, pkSegment: 'SC/PN' },
+    { id: 'CF', name: 'Can Feu | Gràcia', lat: 41.543365, lon: 2.106296, pk: 9.481, pkSegment: 'SC/PN', distToNext: 1.128, declivToNext: -38 },
+    { id: 'PJ', name: 'Sabadell Plaça Major', lat: 41.548060, lon: 2.108758, pk: 10.609, pkSegment: 'SC/PN', distToNext: 1.147, declivToNext: 38 },
+    { id: 'CT', name: 'La Creu Alta', lat: 41.556256, lon: 2.098711, pk: 11.756, pkSegment: 'SC/PN', distToNext: 0.779, declivToNext: 38 },
+    { id: 'NO', name: 'Sabadell Nord', lat: 41.561707, lon: 2.096554, pk: 12.535, pkSegment: 'SC/PN', distToNext: 1.380, declivToNext: 30 },
+    { id: 'PN', name: 'Sabadell Parc del Nord', lat: 41.571207, lon: 2.090079, pk: 13.918, pkSegment: 'SC/PN' },
 ];
 
 /** Quick lookup map by station ID */
@@ -137,12 +138,10 @@ export function haversineKm(lat1: number, lon1: number, lat2: number, lon2: numb
  */
 export function interpolateBetweenStations(
     trainLat: number, trainLon: number,
-    fromSt: StationGeoData, toSt: StationGeoData
+    fromSt: StationGeoData, toSt: StationGeoData,
+    lineCode?: string
 ): number {
-    const totalDist = haversineKm(fromSt.lat, fromSt.lon, toSt.lat, toSt.lon);
-    if (totalDist < 0.01) return 0;
-    const distFromOrigin = haversineKm(fromSt.lat, fromSt.lon, trainLat, trainLon);
-    return Math.max(0, Math.min(1, distFromOrigin / totalDist));
+    return interpolateOnTrack(trainLat, trainLon, fromSt.lat, fromSt.lon, toSt.lat, toSt.lon, lineCode);
 }
 
 /**
@@ -208,12 +207,12 @@ export function estimateEtaByPk(
 ): number {
     // Only valid when both stations share the same PK segment
     if (fromSt.pkSegment !== toSt.pkSegment) {
-        // Cross-segment: fall back to haversine + max segment speed
-        const distKm = haversineKm(trainLat, trainLon, toSt.lat, toSt.lon);
+        // Cross-segment: fall back to railway track curve distance + max segment speed
+        const distKm = getRemainingRailKm(trainLat, trainLon, toSt.lat, toSt.lon);
         return estimateEta(distKm, 60, knownDelayMin, fusionState, intermediateStopsCount);
     }
 
-    // PK of the train inferred from GPS interpolation within the segment
+    // PK of the train inferred from GPS interpolation along track within the segment
     const t = interpolateBetweenStations(trainLat, trainLon, fromSt, toSt);
     const trainPk = fromSt.pk + t * (toSt.pk - fromSt.pk);
     const pkFrom = trainPk;
@@ -229,8 +228,8 @@ export function estimateEtaByPk(
         30  // integration steps
     );
 
-    // Remaining distance by GPS (more reliable than PK delta alone)
-    const remainingKm = haversineKm(trainLat, trainLon, toSt.lat, toSt.lon);
+    // Remaining distance along railway track curve (arc length, avoids straight line distortion)
+    const remainingKm = getRemainingRailKm(trainLat, trainLon, toSt.lat, toSt.lon);
     const pureTravelSec = (remainingKm / Math.max(10, avgSpeed)) * 3600;
 
     // Kinematics and dwell loss calculations
