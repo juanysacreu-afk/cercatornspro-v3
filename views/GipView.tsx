@@ -533,7 +533,7 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
     } else if (punct.category === 'EN_HORA') {
       labelText = `+${timeFormatted} En hora`;
     } else if (punct.category === 'AMBAR') {
-      labelText = `+${timeFormatted} Moderat (3-5m)`;
+      labelText = `+${timeFormatted} Moderat (3-4m)`;
     } else {
       labelText = `+${timeFormatted} Retard`;
     }
