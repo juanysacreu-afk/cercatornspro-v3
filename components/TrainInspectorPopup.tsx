@@ -1,6 +1,9 @@
-import React from 'react';
-import { X, User, ArrowRight, Phone, Activity, Clock } from 'lucide-react';
-import type { LivePersonnel } from '../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { X, User, ArrowRight, Phone, Activity, Clock, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
+import { supabase } from '../supabaseClient';
+import { getFgcServiceDate } from '../utils/gipRecorder';
+import { normalizeCircId, formatDelayMinSec, normalizeTimeDiffSec } from '../utils/stations';
+import type { LivePersonnel, GipRegistrePas } from '../types';
 
 interface TrainInspectorPopupProps {
     train: LivePersonnel;
@@ -15,6 +18,62 @@ const TrainInspectorPopup: React.FC<TrainInspectorPopupProps> = ({ train, onClos
     const liniaColor = train.color;
     const punct = train.punctuality;
 
+    const [liveUt, setLiveUt] = useState<string | null>(train.ut || null);
+    const [passages, setPassages] = useState<GipRegistrePas[]>([]);
+    const [showPassages, setShowPassages] = useState<boolean>(true);
+
+    const circCandidateIds = useMemo(() => {
+        const id = train.id || '';
+        const list = new Set<string>();
+        if (id) {
+            list.add(id.toUpperCase());
+            list.add(normalizeCircId(id));
+            const digits = id.replace(/\D/g, '');
+            if (digits) {
+                list.add(digits.padStart(3, '0'));
+                list.add(parseInt(digits, 10).toString());
+            }
+        }
+        return Array.from(list);
+    }, [train.id]);
+
+    useEffect(() => {
+        if (train.ut) {
+            setLiveUt(train.ut);
+        }
+        if (circCandidateIds.length === 0) return;
+
+        let isMounted = true;
+        const fetchGipPassages = async () => {
+            try {
+                const serviceDate = getFgcServiceDate();
+                const { data } = await supabase
+                    .from('gip_registre_pas')
+                    .select('*')
+                    .eq('data_servei', serviceDate)
+                    .in('circulacio_id', circCandidateIds)
+                    .order('id', { ascending: true });
+
+                if (isMounted && data && data.length > 0) {
+                    setPassages(data as GipRegistrePas[]);
+                    if (!train.ut && data[0]?.ut) {
+                        setLiveUt(data[0].ut);
+                    }
+                }
+            } catch (err) {
+                console.warn('[TrainInspectorPopup] Error carregant passos GIP:', err);
+            }
+        };
+
+        fetchGipPassages();
+        return () => {
+            isMounted = false;
+        };
+    }, [circCandidateIds, train.ut]);
+
+    const activeUt = train.ut || liveUt;
+    const isSynced = train.isGeoTrenSynced || passages.length > 0;
+
     return (
         <div className="z-[300] animate-in zoom-in-95 fade-in duration-300 pointer-events-auto my-auto">
             <div
@@ -26,6 +85,7 @@ const TrainInspectorPopup: React.FC<TrainInspectorPopupProps> = ({ train, onClos
                     border: '1px solid rgba(255, 255, 255, 0.15)',
                     borderRadius: '28px',
                     WebkitMaskImage: '-webkit-radial-gradient(white, black)',
+                    contain: 'paint',
                     isolation: 'isolate',
                     transform: 'translateZ(0)',
                     boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8), inset 0 0 0 1px rgba(255, 255, 255, 0.1)'
@@ -39,12 +99,12 @@ const TrainInspectorPopup: React.FC<TrainInspectorPopupProps> = ({ train, onClos
                     />
                 </div>
 
-                {/* Header (Pinned at top) */}
-                <div className="p-5 border-b border-white/10 flex justify-between items-start shrink-0 relative z-[10] bg-black/30 backdrop-blur-md rounded-t-[28px]">
+                {/* Header (Pinned at top with seamless corner clipping) */}
+                <div className="p-5 border-b border-white/10 flex justify-between items-start shrink-0 relative z-[10] bg-black/40 backdrop-blur-md rounded-t-[27px] overflow-hidden">
                     <div>
                         <div className="flex items-center gap-2 mb-1">
                             <span className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">Inspector d'Unitat</span>
-                            {train.isGeoTrenSynced && (
+                            {isSynced && (
                                 <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[8px] font-black px-1.5 py-0.5 rounded uppercase">
                                     GeoTren GPS
                                 </span>
@@ -57,9 +117,9 @@ const TrainInspectorPopup: React.FC<TrainInspectorPopupProps> = ({ train, onClos
                                 style={{ backgroundColor: punct ? punct.colorHex : '#22c55e' }}
                             />
                         </h3>
-                        {train.ut && (
-                            <p className="text-sm font-black text-white/80 font-mono mt-0.5">
-                                UT {train.ut}
+                        {activeUt && (
+                            <p className="text-sm font-black text-white/90 font-mono mt-0.5 flex items-center gap-1.5">
+                                <span className="text-fgc-green">UT</span> {activeUt}
                             </p>
                         )}
                     </div>
@@ -69,7 +129,7 @@ const TrainInspectorPopup: React.FC<TrainInspectorPopupProps> = ({ train, onClos
                             e.stopPropagation();
                             onClose();
                         }}
-                        className="p-2 hover:bg-white/10 rounded-full text-gray-400 hover:text-white transition-all transition-colors relative z-[10]"
+                        className="p-2 hover:bg-white/10 rounded-full text-gray-400 hover:text-white transition-all transition-colors relative z-[10] shrink-0"
                     >
                         <X size={20} />
                     </button>
@@ -165,6 +225,59 @@ const TrainInspectorPopup: React.FC<TrainInspectorPopupProps> = ({ train, onClos
                             </p>
                         </div>
                     </div>
+
+                    {/* GIP Passages Section (Real Recorded Passages) */}
+                    {passages.length > 0 && (
+                        <div className="p-3 bg-white/5 rounded-2xl border border-white/10 space-y-2">
+                            <button
+                                onClick={() => setShowPassages(!showPassages)}
+                                className="w-full flex items-center justify-between text-[9px] font-black uppercase text-gray-300 hover:text-white transition-colors"
+                            >
+                                <span className="flex items-center gap-1.5">
+                                    <Clock size={11} className="text-fgc-green" />
+                                    Registre de Pas GIP ({passages.length} estacions)
+                                </span>
+                                {showPassages ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                            </button>
+
+                            {showPassages && (
+                                <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                                    {passages.map((p, pIdx) => {
+                                        const diff = normalizeTimeDiffSec(p.diferencia_segons);
+                                        const isAdvanced = diff < 0;
+                                        const isLate = diff > 180;
+                                        const isAmber = diff > 180 && diff <= 300;
+                                        const isRed = diff > 300;
+                                        const diffColor = isAdvanced
+                                            ? 'text-blue-400'
+                                            : isRed
+                                            ? 'text-red-400'
+                                            : isAmber
+                                            ? 'text-amber-400'
+                                            : 'text-emerald-400';
+
+                                        return (
+                                            <div
+                                                key={pIdx}
+                                                className="flex items-center justify-between text-[10px] py-1 px-2 rounded-lg bg-black/20 border border-white/5 font-mono"
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-black text-white">{p.estacio_codi}</span>
+                                                    <span className="text-[9px] text-gray-400">Teòric: {p.hora_teorica?.substring(0, 5) || '--:--'}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-bold text-gray-200">Real: {p.hora_real?.substring(0, 5) || '--:--'}</span>
+                                                    <span className={`font-black text-[9px] ${diffColor}`}>
+                                                        {diff === 0 ? '0s' : `${diff > 0 ? '+' : ''}${formatDelayMinSec(diff)}`}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* Action Button */}
                     <button

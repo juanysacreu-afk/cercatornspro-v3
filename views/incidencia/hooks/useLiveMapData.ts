@@ -14,6 +14,7 @@ import { decodeGeotrenUt } from '../utils/decodeUt';
 import { decodeGeotrenCirculation } from '../utils/decodeCirculation';
 import { recordTrainKinematics, detectStationFusion } from '../../../utils/trainKinematics';
 import { getPunctualityInfo, PunctualityInfo } from '../../../utils/delayNotifications';
+import { pollAndRecordGipPassages } from '../../../utils/gipRecorder';
 import type { LivePersonnel, IncidenciaMode, GeoTrenPoint, Shift } from '../../../types';
 
 
@@ -349,6 +350,9 @@ export const useLiveMapData = ({
             });
 
             setRawGeoTrenData(Array.from(uniqueTrains.values()));
+
+            // Gravar en segon pla els passos per estació detectats en aquest cicle
+            pollAndRecordGipPassages().catch(() => {});
         } catch (err) {
             console.error('[GeoTren] fetch error:', err);
         }
@@ -356,12 +360,12 @@ export const useLiveMapData = ({
 
 
     useEffect(() => {
-        if (isGeoTrenEnabled && !isPaused) {
+        if (!isPaused) {
             fetchGeoTrenData();
             const interval = setInterval(fetchGeoTrenData, GEOTREN_POLL_INTERVAL);
             return () => clearInterval(interval);
         }
-    }, [isGeoTrenEnabled, isPaused, fetchGeoTrenData]);
+    }, [isPaused, fetchGeoTrenData]);
 
     // Live Map Data Fetching
     const fetchLiveMapData = async () => {
@@ -756,28 +760,81 @@ export const useLiveMapData = ({
 
     // ── Unificació Maquinista / Convoy ──────────────────────────────
     const { unifiedLiveData, unifiedGeoTren } = useMemo(() => {
-        // 1. Map of personnel by normalized circulation ID
+        // 1. Map of personnel by normalized circulation ID & variations
         const personnelByCirc = new Map<string, LivePersonnel>();
+        const registerPersonnel = (key: string, p: LivePersonnel) => {
+            if (!key) return;
+            personnelByCirc.set(key, p);
+            const digits = key.replace(/\D/g, '');
+            if (digits) {
+                personnelByCirc.set(digits.padStart(3, '0'), p);
+                personnelByCirc.set(parseInt(digits, 10).toString(), p);
+            }
+        };
+
         for (const p of rawLiveData) {
             if (p.type === 'TRAIN' && p.id) {
-                personnelByCirc.set(normalizeCircId(p.id), p);
+                registerPersonnel(normalizeCircId(p.id), p);
+                registerPersonnel(p.id.toUpperCase(), p);
             }
         }
 
-        // 2. Map of GeoTren trains by normalized circulation ID
+        // 2. Map of GeoTren trains by normalized circulation ID & variations
         const geoTrenByCirc = new Map<string, GeoTrenEnhanced>();
+        const registerGeoTren = (key: string, gt: GeoTrenEnhanced) => {
+            if (!key) return;
+            geoTrenByCirc.set(key, gt);
+            const digits = key.replace(/\D/g, '');
+            if (digits) {
+                geoTrenByCirc.set(digits.padStart(3, '0'), gt);
+                geoTrenByCirc.set(parseInt(digits, 10).toString(), gt);
+            }
+        };
+
         for (const gt of rawGeoTrenData) {
             const circId = gt.circulacioId || (decodeGeotrenCirculation(gt.id)?.fullName);
             if (circId) {
-                geoTrenByCirc.set(normalizeCircId(circId), gt);
+                registerGeoTren(normalizeCircId(circId), gt);
+                registerGeoTren(circId.toUpperCase(), gt);
             }
         }
+
+        const findGeoTrenForCirc = (id?: string | null): GeoTrenEnhanced | undefined => {
+            if (!id) return undefined;
+            const norm = normalizeCircId(id);
+            if (geoTrenByCirc.has(norm)) return geoTrenByCirc.get(norm);
+            const upper = id.toUpperCase();
+            if (geoTrenByCirc.has(upper)) return geoTrenByCirc.get(upper);
+            const digits = id.replace(/\D/g, '');
+            if (digits) {
+                const p3 = digits.padStart(3, '0');
+                if (geoTrenByCirc.has(p3)) return geoTrenByCirc.get(p3);
+                const num = parseInt(digits, 10).toString();
+                if (geoTrenByCirc.has(num)) return geoTrenByCirc.get(num);
+            }
+            return undefined;
+        };
+
+        const findPersonnelForCirc = (id?: string | null): LivePersonnel | undefined => {
+            if (!id) return undefined;
+            const norm = normalizeCircId(id);
+            if (personnelByCirc.has(norm)) return personnelByCirc.get(norm);
+            const upper = id.toUpperCase();
+            if (personnelByCirc.has(upper)) return personnelByCirc.get(upper);
+            const digits = id.replace(/\D/g, '');
+            if (digits) {
+                const p3 = digits.padStart(3, '0');
+                if (personnelByCirc.has(p3)) return personnelByCirc.get(p3);
+                const num = parseInt(digits, 10).toString();
+                if (personnelByCirc.has(num)) return personnelByCirc.get(num);
+            }
+            return undefined;
+        };
 
         // 3. Enrich GeoTren trains with Driver & Shift information
         const enrichedGeoTren: GeoTrenEnhanced[] = rawGeoTrenData.map(gt => {
             const circId = gt.circulacioId || (decodeGeotrenCirculation(gt.id)?.fullName);
-            const normCirc = circId ? normalizeCircId(circId) : '';
-            const driverInfo = normCirc ? personnelByCirc.get(normCirc) : undefined;
+            const driverInfo = findPersonnelForCirc(circId);
 
             if (driverInfo) {
                 const hasDriver = !!(driverInfo.driver && driverInfo.driver !== 'Sense assignar');
@@ -810,11 +867,12 @@ export const useLiveMapData = ({
                 return p;
             }
 
-            const normCirc = normalizeCircId(p.id);
-            const gt = geoTrenByCirc.get(normCirc);
+            const gt = findGeoTrenForCirc(p.id);
 
-            if (gt && isGeoTrenEnabled) {
+            if (gt) {
                 const decodedUt = decodeGeotrenUt(gt.ut, gt.tipus_unitat);
+                const shouldSnapToGps = isGeoTrenEnabled && (gt.mapX !== 0 || gt.mapY !== 0);
+
                 return {
                     ...p,
                     isGeoTrenSynced: true,
@@ -826,12 +884,12 @@ export const useLiveMapData = ({
                     etaNextMin: gt.etaNextMin,
                     fusionState: gt.fusionState,
                     distanceToTrackMeters: gt.distanceToTrackMeters,
-                    // Snap driver map coordinates directly to the real physical convoy location!
-                    x: gt.mapX,
-                    y: gt.mapY,
-                    isMoving: gt.isMoving,
+                    // Snap driver map coordinates directly to the real physical convoy location if GeoTren is active!
+                    x: shouldSnapToGps ? gt.mapX : p.x,
+                    y: shouldSnapToGps ? gt.mapY : p.y,
+                    isMoving: shouldSnapToGps ? gt.isMoving : p.isMoving,
                     stationId: gt.estacionat_a ? (resolveStationId(gt.estacionat_a, p.linia) || p.stationId) : p.stationId,
-                    nextStationId: gt.nextStMapId || p.nextStationId
+                    nextStationId: shouldSnapToGps ? (gt.nextStMapId || p.nextStationId) : p.nextStationId
                 };
             }
 

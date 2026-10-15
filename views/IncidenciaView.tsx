@@ -68,7 +68,7 @@ const IncidenciaViewComponent: React.FC<IncidenciaViewProps> = ({ showSecretMenu
   const [customTime, setCustomTime] = useState('');
   const [isPaused, setIsPaused] = useState(false);
   const [manualOverrides, setManualOverrides] = useState<Record<string, string>>({});
-  const [isGeoTrenEnabled, setIsGeoTrenEnabled] = useState(false);
+  const [isGeoTrenEnabled, setIsGeoTrenEnabled] = useState(true);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
   // Custom Hooks

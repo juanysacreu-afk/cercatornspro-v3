@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { BookOpen, RefreshCw, Clock } from 'lucide-react';
+import { BookOpen, RefreshCw, Clock, Train } from 'lucide-react';
 import { supabase } from '../supabaseClient';
-import { getFgcServiceDate } from '../utils/gipRecorder';
-import { resolveStationId, findGipPassageForPoint, formatDelayMinSec, normalizeTimeDiffSec } from '../utils/stations';
+import { getFgcServiceDate, pollAndRecordGipPassages } from '../utils/gipRecorder';
+import { resolveStationId, findGipPassageForPoint, formatDelayMinSec, normalizeTimeDiffSec, normalizeCircId } from '../utils/stations';
 import { ItineraryPoint } from './ItineraryPoint';
 import type { GipRegistrePas } from '../types';
 
@@ -19,6 +19,19 @@ export const ItineraryTimeline: React.FC<ItineraryTimelineProps> = ({ circ, nowM
     return (raw || '').trim().toUpperCase();
   }, [circ]);
 
+  const candidateCircIds = useMemo(() => {
+    if (!cleanCircId) return [];
+    const set = new Set<string>();
+    set.add(cleanCircId);
+    set.add(normalizeCircId(cleanCircId));
+    const digits = cleanCircId.replace(/\D/g, '');
+    if (digits) {
+      set.add(digits.padStart(3, '0'));
+      set.add(parseInt(digits, 10).toString());
+    }
+    return Array.from(set);
+  }, [cleanCircId]);
+
   const [gipPassages, setGipPassages] = useState<GipRegistrePas[]>([]);
   const [loadingGip, setLoadingGip] = useState(true);
   const [extraStations, setExtraStations] = useState<any[]>([]);
@@ -34,7 +47,7 @@ export const ItineraryTimeline: React.FC<ItineraryTimelineProps> = ({ circ, nowM
         const { data } = await supabase
           .from('circulations')
           .select('estacions')
-          .eq('id', cleanCircId)
+          .in('id', candidateCircIds)
           .limit(1);
         if (isMounted && data && data[0]?.estacions && Array.isArray(data[0].estacions)) {
           setExtraStations(data[0].estacions);
@@ -47,11 +60,11 @@ export const ItineraryTimeline: React.FC<ItineraryTimelineProps> = ({ circ, nowM
     return () => {
       isMounted = false;
     };
-  }, [cleanCircId, circ.estacions]);
+  }, [cleanCircId, candidateCircIds, circ.estacions]);
 
   // Load GIP passage data for today's service
   const loadGipData = useCallback(async (isSilent = false) => {
-    if (!cleanCircId) {
+    if (candidateCircIds.length === 0) {
       setLoadingGip(false);
       return;
     }
@@ -63,7 +76,7 @@ export const ItineraryTimeline: React.FC<ItineraryTimelineProps> = ({ circ, nowM
         .from('gip_registre_pas')
         .select('*')
         .eq('data_servei', serviceDate)
-        .eq('circulacio_id', cleanCircId)
+        .in('circulacio_id', candidateCircIds)
         .order('id', { ascending: true });
 
       if (!error && data) {
@@ -74,13 +87,15 @@ export const ItineraryTimeline: React.FC<ItineraryTimelineProps> = ({ circ, nowM
     } finally {
       if (!isSilent) setLoadingGip(false);
     }
-  }, [cleanCircId]);
+  }, [candidateCircIds]);
 
   useEffect(() => {
+    // Polling immediat de GeoTren per si la circulació està en marxa ara mateix
+    pollAndRecordGipPassages().then(() => loadGipData(true)).catch(() => {});
     loadGipData(false);
     const timer = setInterval(() => {
       loadGipData(true);
-    }, 15000);
+    }, 10000);
     return () => clearInterval(timer);
   }, [loadGipData]);
 
@@ -131,6 +146,15 @@ export const ItineraryTimeline: React.FC<ItineraryTimelineProps> = ({ circ, nowM
                   VIATGER
                 </span>
               )}
+              {(() => {
+                const detectedUt = circ.train || circ.ut || (gipPassages.find(p => p.ut)?.ut);
+                if (!detectedUt) return null;
+                return (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/40 text-[10px] font-mono font-black text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                    <Train size={10} /> UT {detectedUt}
+                  </span>
+                );
+              })()}
             </div>
             <p className="text-[11px] text-gray-400 dark:text-gray-500 font-medium">
               Horaris teòrics i dades reals de pas segons GIP

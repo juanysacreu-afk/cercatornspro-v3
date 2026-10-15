@@ -29,9 +29,10 @@ export const CirculationRow: React.FC<CirculationRowProps> = ({
     passengerInfo = [],
     onCycleClick
 }) => {
-    const trainPhone = getTrainPhone(circ.train);
+    const activeTrainUnit = circ.train || circ.ut || null;
+    const trainPhone = getTrainPhone(activeTrainUnit);
     const isActive = checkIfActive(circ.sortida, circ.arribada, nowMin);
-    const status = circ.train ? trainStatuses[circ.train] : null;
+    const status = activeTrainUnit ? trainStatuses[activeTrainUnit] : null;
     const isBroken = status?.is_broken;
     const needsImages = status?.needs_images;
     const needsRecords = status?.needs_records;
@@ -87,7 +88,7 @@ export const CirculationRow: React.FC<CirculationRowProps> = ({
                             </div>
                         )}
 
-                        {circ.train && trainPhone && (
+                        {activeTrainUnit && trainPhone && (
                             <a href={`tel:${trainPhone}`} onClick={(e) => e.stopPropagation()} className={`md:hidden p-[3px] rounded bg-white dark:bg-[#2d2d2d] border shadow-sm transition-all active:scale-90 ${isBroken ? 'bg-red-600 text-white border-red-700' : 'bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-green border-fgc-green/30 dark:border-fgc-green/20'}`}>
                                 <Radio size={10} />
                             </a>
@@ -97,9 +98,9 @@ export const CirculationRow: React.FC<CirculationRowProps> = ({
                     <span className={`hidden md:flex px-2 py-1 ${getLiniaColor(circ.linia)} text-white rounded-md font-black text-[9px] sm:text-[11px] shadow-sm flex-shrink-0`}>{circ.linia || '??'}</span>
                 </div>
                 {/* Mobile-only: train number centered below the badge, no icon */}
-                {circ.train && (
+                {activeTrainUnit && (
                     <span className="md:hidden text-[10px] font-black text-fgc-green dark:text-fgc-green tracking-tight w-full text-center">
-                        {circ.train}
+                        {activeTrainUnit}
                     </span>
                 )}
             </div>
@@ -119,7 +120,7 @@ export const CirculationRow: React.FC<CirculationRowProps> = ({
                             {isViatger && <span className="text-[7px] opacity-60 leading-none mb-0.5 uppercase font-black">Cicle Viatger</span>}
                             <span className="shrink-0 font-black tracking-tight">{circ.cicle}</span>
                         </div>
-                        {circ.train && (
+                        {activeTrainUnit && (
                             <div className={`flex items-center gap-1.5 pl-2 border-l ${isBroken ? 'border-white/30' : isViatger ? 'border-sky-200 dark:border-sky-800' : 'border-fgc-green/40 dark:border-fgc-green/20'}`}>
                                 <a 
                                     href={trainPhone ? `tel:${trainPhone}` : '#'} 
@@ -127,11 +128,16 @@ export const CirculationRow: React.FC<CirculationRowProps> = ({
                                     className={`${isBroken ? 'text-white' : isViatger ? 'text-sky-600 dark:text-sky-400' : 'text-fgc-green dark:text-fgc-green'} hover:text-blue-700 transition-colors flex items-center gap-1 ${!trainPhone && 'pointer-events-none'}`}
                                 >
                                     <Radio size={10} className="opacity-80" />
-                                    <span className="text-[10px] sm:text-xs">{circ.train}</span>
+                                    <span className="text-[10px] sm:text-xs">{activeTrainUnit}</span>
                                 </a>
                             </div>
                         )}
                     </button>
+                ) : activeTrainUnit ? (
+                    <div className="text-[10px] sm:text-xs font-black text-fgc-green px-3 py-1.5 rounded-lg bg-fgc-green/10 border border-fgc-green/20 flex items-center gap-1.5">
+                        <Radio size={10} className="opacity-80" />
+                        <span>UT {activeTrainUnit}</span>
+                    </div>
                 ) : (<span className="text-[10px] text-gray-300 dark:text-gray-600 font-bold uppercase tracking-widest italic opacity-40">Sense assignar</span>)}
             </div>
             {/* COL 3: Departure time + via_inici on mobile */}

@@ -31,9 +31,10 @@ export const StationRow: React.FC<StationRowProps> = ({
     isPrivacyMode,
     onCycleClick
 }) => {
-    const trainPhone = getTrainPhone(circ.train);
+    const activeTrainUnit = circ.train || circ.ut || null;
+    const trainPhone = getTrainPhone(activeTrainUnit);
     const isActive = checkIfActive(circ.sortida, circ.arribada, nowMin);
-    const status = circ.train ? trainStatuses[circ.train] : null;
+    const status = activeTrainUnit ? trainStatuses[activeTrainUnit] : null;
     const isBroken = status?.is_broken;
     const needsImages = status?.needs_images;
     const needsRecords = status?.needs_records;
@@ -67,7 +68,7 @@ export const StationRow: React.FC<StationRowProps> = ({
                 </div>
 
                 {/* Telèfon mòbil (opcional) */}
-                {circ.train && trainPhone && (
+                {activeTrainUnit && trainPhone && (
                     <a href={`tel:${trainPhone}`} onClick={(e) => e.stopPropagation()} className={`md:hidden p-1.5 rounded-lg border shadow-sm transition-all active:scale-90 ${isBroken ? 'bg-red-600 text-white border-red-700' : 'bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-green border-fgc-green/30 dark:border-fgc-green/20'}`}>
                         <Radio size={12} />
                     </a>
@@ -91,7 +92,7 @@ export const StationRow: React.FC<StationRowProps> = ({
                             {isViatger && <span className="text-[7px] opacity-60 leading-none mb-0.5 uppercase font-black">Cicle Viatger</span>}
                             <span className="shrink-0 font-black tracking-tight">{circ.cicle}</span>
                         </div>
-                        {circ.train && (
+                        {activeTrainUnit && (
                             <div className={`flex items-center gap-1.5 ml-1 pl-1.5 border-l ${isBroken ? 'border-white/30' : isViatger ? 'border-sky-200 dark:border-sky-800' : 'border-fgc-green/40 dark:border-fgc-green/20'}`}>
                                 <a 
                                     href={trainPhone ? `tel:${trainPhone}` : '#'} 
@@ -99,11 +100,16 @@ export const StationRow: React.FC<StationRowProps> = ({
                                     className={`${isBroken ? 'text-white' : isViatger ? 'text-sky-600 dark:text-sky-400' : 'text-fgc-green dark:text-fgc-green'} hover:text-blue-700 transition-colors flex items-center`}
                                 >
                                     <Radio size={8} className="opacity-80" />
-                                    <span className="text-[10px] ml-0.5">{circ.train}</span>
+                                    <span className="text-[10px] ml-0.5">{activeTrainUnit}</span>
                                 </a>
                             </div>
                         )}
                     </button>
+                ) : activeTrainUnit ? (
+                    <div className="text-[10px] sm:text-xs font-black text-fgc-green px-2.5 py-1 rounded-lg bg-fgc-green/10 border border-fgc-green/20 flex items-center gap-1">
+                        <Radio size={8} className="opacity-80" />
+                        <span>UT {activeTrainUnit}</span>
+                    </div>
                 ) : (<span className="text-[10px] text-gray-300 dark:text-gray-600 font-bold uppercase tracking-widest italic opacity-40">Sense assignar</span>)}
             </div>
 

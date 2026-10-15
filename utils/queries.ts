@@ -1,6 +1,7 @@
 
 import { supabase } from '../supabaseClient';
 import { getShortTornId, getFgcMinutes } from './stations';
+import { getFgcServiceDate } from './gipRecorder';
 
 export async function fetchFullTurns(turnIds: string[], selectedServei?: string) {
     if (!turnIds.length) return [];
@@ -57,10 +58,16 @@ export async function fetchFullTurns(turnIds: string[], selectedServei?: string)
 
     const orCondition = shortIds.map(id => `observacions.ilike.*${id}*`).join(',');
 
+    const serviceDate = getFgcServiceDate();
+    const gipQuery = allCircIds.size > 0
+        ? supabase.from('gip_registre_pas').select('circulacio_id, ut').eq('data_servei', serviceDate).in('circulacio_id', Array.from(allCircIds))
+        : Promise.resolve({ data: [] });
+
     const queries: any[] = [
         circQuery,
         supabase.from('circulations').select('*').in('id', Array.from(allCircIds)),
-        supabase.from('daily_assignments').select('*').in('torn', shortIds)
+        supabase.from('daily_assignments').select('*').in('torn', shortIds),
+        gipQuery
     ];
 
     // If we have Viatgers, we might need more data to resolve their cycle/train
@@ -76,7 +83,14 @@ export async function fetchFullTurns(turnIds: string[], selectedServei?: string)
         queries.push(Promise.resolve({ data: [] }));
     }
 
-    const [circv2Res, legacyCircRes, dailyRes, helperShiftsRes, coveringDailyRes] = await Promise.all(queries);
+    const [circv2Res, legacyCircRes, dailyRes, gipRes, helperShiftsRes, coveringDailyRes] = await Promise.all(queries);
+
+    const gipUtMap = new Map<string, string>();
+    (gipRes.data || []).forEach((row: any) => {
+        if (row.circulacio_id && row.ut) {
+            gipUtMap.set(row.circulacio_id.trim().toUpperCase(), row.ut);
+        }
+    });
 
     const normalizeEstacions = (stations: any[]) => {
         if (!Array.isArray(stations)) return [];
@@ -248,7 +262,7 @@ export async function fetchFullTurns(turnIds: string[], selectedServei?: string)
                 machinistInici,
                 machinistFinal,
                 cicle: cCicle,
-                train: cTrain || cycleInfo?.train_number,
+                train: cTrain || cycleInfo?.train_number || gipUtMap.get(realCodiId?.toUpperCase()) || gipUtMap.get(cRef.codi?.toUpperCase()) || undefined,
             };
         }).sort((a: any, b: any) => getFgcMinutes(a.sortida || '00:00') - getFgcMinutes(b.sortida || '00:00'));
 

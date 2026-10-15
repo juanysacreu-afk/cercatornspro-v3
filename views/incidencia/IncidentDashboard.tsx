@@ -94,7 +94,24 @@ const IncidentDashboard: React.FC<IncidentDashboardProps> = ({
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <div className="flex items-center gap-2 mt-1"><div className="w-2 h-2 bg-fgc-green rounded-full animate-pulse" /><span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Nom. {mainDriverInfo.drivers?.[0]?.nomina}</span>{mainDriverInfo.fullCirculations?.find((c: any) => c?.codi?.toUpperCase() === searchedCircData?.id?.toUpperCase())?.train && (<span className="bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-grey dark:text-fgc-green px-2 py-0.5 rounded text-[9px] font-black uppercase flex items-center gap-1"><Train size={10} /> {mainDriverInfo.fullCirculations?.find((c: any) => c?.codi?.toUpperCase() === searchedCircData?.id?.toUpperCase())?.train}</span>)}</div>
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <div className="w-2 h-2 bg-fgc-green rounded-full animate-pulse" />
+                                                        <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Nom. {mainDriverInfo.drivers?.[0]?.nomina}</span>
+                                                        {(() => {
+                                                            const matchedCirc = mainDriverInfo.fullCirculations?.find((c: any) => {
+                                                                const cCode = (c?.codi || c?.id || '').toUpperCase();
+                                                                const sCode = (searchedCircData?.id || '').toUpperCase();
+                                                                return cCode === sCode || (cCode.replace(/\D/g, '') && cCode.replace(/\D/g, '') === sCode.replace(/\D/g, ''));
+                                                            });
+                                                            const unitNumber = matchedCirc?.train || matchedCirc?.ut || searchedCircData?.train || searchedCircData?.ut;
+                                                            if (!unitNumber) return null;
+                                                            return (
+                                                                <span className="bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-grey dark:text-fgc-green px-2 py-0.5 rounded text-[9px] font-black uppercase flex items-center gap-1">
+                                                                    <Train size={10} /> UT {unitNumber.replace(/^UT\s*/i, '')}
+                                                                </span>
+                                                            );
+                                                        })()}
+                                                    </div>
                                                 </div>
                                             </div>
                                             <div className="flex gap-1">{mainDriverInfo.drivers?.[0]?.phones?.map((p: string, i: number) => (<a key={i} href={isPrivacyMode ? undefined : `tel:${p}`} className={`flex items-center justify-center gap-2 bg-fgc-grey dark:bg-black text-white px-5 py-2.5 rounded-xl font-black text-xs hover:bg-fgc-dark transition-all shadow-md active:scale-95 whitespace-nowrap ${isPrivacyMode ? 'cursor-default' : ''}`}><Phone size={14} /> {isPrivacyMode ? '*********' : p}</a>))}</div>
