@@ -9,7 +9,7 @@ import {
 } from '../../../utils/stationGeoData';
 import { snapToTrack, getRemainingRailKm } from '../../../utils/trackGeometry';
 import { MAP_STATIONS } from '../mapConstants';
-import { getFullPath } from '../mapUtils';
+import { getFullPath, projectGpsOntoMap, routeAlongTracks, pointAlongTracks } from '../mapUtils';
 import { decodeGeotrenUt } from '../utils/decodeUt';
 import { decodeGeotrenCirculation } from '../utils/decodeCirculation';
 import { recordTrainKinematics, detectStationFusion } from '../../../utils/trainKinematics';
@@ -72,7 +72,7 @@ export interface GeoTrenEnhanced extends GeoTrenPoint {
 
 const GEOTREN_API = 'https://dadesobertes.fgc.cat/api/v2/catalog/datasets/posicionament-dels-trens/exports/json';
 const GEOTREN_POLL_INTERVAL = 30000; // 30s as per audit spec
-const TRAIL_MAX = 8;               // max breadcrumb points per vehicle
+const TRAIL_MAX = 16;              // max breadcrumb points per vehicle
 
 interface UseLiveMapDataProps {
     isRealTime: boolean;
@@ -205,6 +205,8 @@ export const useLiveMapData = ({
             }
         }
 
+        const gpsOnMap = trainLat && trainLon ? projectGpsOntoMap(trainLat, trainLon, nextStMapId) : null;
+
         if (fusion.state === 'EN_ANDANA' && fusion.stationCode) {
             // Definitively stopped at platform (either iSIC confirmed or GPS stopped <=75m + v<=7 km/h)
             const stNode = MAP_STATIONS.find(s => s.id === fusion.stationCode) || fromStMapNode;
@@ -216,11 +218,18 @@ export const useLiveMapData = ({
                 mapY = fromStMapNode.y;
             }
             isMoving = false;
+        } else if (trainLat && trainLon && !raw.estacionat_a && gpsOnMap) {
+            // GPS projected onto the nearest DRAWN track segment (touching the next stop when possible).
+            // Never lerps between non-adjacent stations, so the dot always stays on the rails.
+            mapX = gpsOnMap.x;
+            mapY = gpsOnMap.y;
+            isMoving = fusion.isMoving;
         } else if (trainLat && trainLon && fromGeo && toGeo && fromStMapNode && toStMapNode && !raw.estacionat_a) {
-            // GPS-based interpolation along real track geometry (avoids straight line tunnel/curve distortion)
+            // Fallback: GPS interpolation between from/to, walking along the drawn tracks
             const t = interpolateBetweenStations(trainLat, trainLon, fromGeo, toGeo, mainLinia);
-            mapX = fromStMapNode.x + t * (toStMapNode.x - fromStMapNode.x);
-            mapY = fromStMapNode.y + t * (toStMapNode.y - fromStMapNode.y);
+            const pt = pointAlongTracks(fromStMapNode, toStMapNode, t);
+            mapX = pt.x;
+            mapY = pt.y;
             isMoving = fusion.isMoving;
         } else if (raw.estacionat_a && fromStMapNode) {
             // Stopped at a station
@@ -229,8 +238,9 @@ export const useLiveMapData = ({
             isMoving = false;
         } else if (!raw.estacionat_a && fromStMapNode && toStMapNode) {
             // Moving but no GPS — fallback to 50% interpolation
-            mapX = (fromStMapNode.x + toStMapNode.x) / 2;
-            mapY = (fromStMapNode.y + toStMapNode.y) / 2;
+            const mid = pointAlongTracks(fromStMapNode, toStMapNode, 0.5);
+            mapX = mid.x;
+            mapY = mid.y;
             isMoving = true;
         } else if (toStMapNode) {
             mapX = toStMapNode.x; mapY = toStMapNode.y;
@@ -293,8 +303,13 @@ export const useLiveMapData = ({
         if (mapX !== 0 || mapY !== 0) {
             const last = trail[trail.length - 1];
             if (!last || Math.abs(last.x - mapX) > 0.5 || Math.abs(last.y - mapY) > 0.5) {
-                trail.push({ x: mapX, y: mapY, ts: Date.now() });
-                if (trail.length > TRAIL_MAX) trail.shift();
+                const now = Date.now();
+                if (last) {
+                    // Insert station waypoints so the trail follows the drawn tracks, not a diagonal
+                    routeAlongTracks(last, { x: mapX, y: mapY }).forEach(wp => trail.push({ x: wp.x, y: wp.y, ts: now }));
+                }
+                trail.push({ x: mapX, y: mapY, ts: now });
+                while (trail.length > TRAIL_MAX) trail.shift();
             }
         }
 

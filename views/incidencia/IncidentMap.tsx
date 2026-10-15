@@ -10,7 +10,7 @@ import DepotModal from '../../components/DepotModal';
 import ConfirmModal from '../../components/common/ConfirmModal';
 import ListPersonnelRow from './ListPersonnelRow';
 import { MAP_STATIONS, MAP_SEGMENTS, MAP_CROSSOVERS } from './mapConstants';
-import { getFullPath, getConnectivityIslands } from './mapUtils';
+import { getFullPath, getConnectivityIslands, routeAlongTracks } from './mapUtils';
 import { resolveStationId, isServiceVisible, getLiniaColorHex, formatFgcTime, mainLiniaForFilter, LINE_COLORS } from '../../utils/stations';
 import { LivePersonnel, IncidenciaMode } from '../../types';
 import { getMapPositionForPk } from './mapUtils';
@@ -150,9 +150,14 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
             const history = positionHistoryRef.current[p.id];
             // Avoid duplicate points
             if (history.length === 0 || history[history.length - 1].x !== p.x || history[history.length - 1].y !== p.y) {
+                // Follow the drawn tracks between the previous and the new position (no diagonal shortcuts)
+                if (history.length > 0) {
+                    routeAlongTracks(history[history.length - 1], { x: p.x, y: p.y })
+                        .forEach(wp => history.push({ x: wp.x, y: wp.y, time: now }));
+                }
                 history.push({ x: p.x, y: p.y, time: now });
                 // Keep last 120 points (approx 2 minutes at 1s updates)
-                if (history.length > 120) history.shift();
+                while (history.length > 120) history.shift();
             }
         });
         // Clean up old trains
@@ -506,6 +511,9 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                             const nextStation = (p as any).nextStationId;
                                             const isHovered = hoveredTrain === p.id;
                                             const trailPoints = positionHistoryRef.current[p.id] || [];
+                                            // Big jumps (e.g. schedule -> GPS resync) must not glide diagonally across the map
+                                            const prevPt = trailPoints[trailPoints.length - 1];
+                                            const isJump = !!prevPt && Math.hypot(prevPt.x - p.x, prevPt.y - p.y) > 70;
                                             let arrowAngle = 0;
                                             if (isMoving && nextStation) {
                                                 const nextCoords = MAP_STATIONS.find(s => s.id === nextStation);
@@ -524,7 +532,7 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                             return (
                                                 <g
                                                     key={`${p.id}-${p.torn}-${idx}`}
-                                                    className="transition-all duration-1000 ease-linear cursor-pointer"
+                                                    className={`${isJump ? '' : 'transition-all duration-1000 ease-linear'} cursor-pointer`}
                                                     onClick={() => setSelectedTrain(p)}
                                                     onMouseEnter={() => setHoveredTrain(p.id)}
                                                     onMouseLeave={() => setHoveredTrain(null)}
@@ -539,12 +547,12 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                                         const r = 1.5 + (ti / trailPoints.length) * 1.5;
                                                         // Trail points are in absolute coordinates, so we need to offset back relative to the translated group
                                                         return (
-                                                            <circle key={`trail-${p.id}-${ti}`} cx={pt.x - effectiveX} cy={pt.y - effectiveY} r={r} fill={p.color} opacity={opacity} />
+                                                            <circle key={`trail-${p.id}-${ti}`} cx={pt.x - finalX} cy={pt.y - finalY} r={r} fill={p.color} opacity={opacity} />
                                                         );
                                                     })}
                                                     {isHovered && trailPoints.length > 1 && (
                                                         <polyline
-                                                            points={trailPoints.map(pt => `${pt.x - effectiveX},${pt.y - effectiveY}`).join(' ')}
+                                                            points={[...trailPoints.map(pt => `${pt.x - finalX},${pt.y - finalY}`), '0,0'].join(' ')}
                                                             fill="none" stroke={p.color} strokeWidth="1" strokeDasharray="3,2" opacity={0.3}
                                                         />
                                                     )}
@@ -631,7 +639,7 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                                                     <circle
                                                                         key={`gt-trail-${gt.id}-${ti}`}
                                                                         cx={pt.x - x}
-                                                                        cy={pt.y - (y + yOffset)}
+                                                                        cy={pt.y - y}
                                                                         r={r}
                                                                         fill={color}
                                                                         opacity={opacity}
@@ -640,7 +648,7 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                                             })}
                                                             {isHovered && gt.trail.length > 1 && (
                                                                 <polyline
-                                                                    points={gt.trail.map(pt => `${pt.x - x},${pt.y - (y + yOffset)}`).join(' ')}
+                                                                    points={[...gt.trail.map(pt => `${pt.x - x},${pt.y - y}`), '0,0'].join(' ')}
                                                                     fill="none"
                                                                     stroke={color}
                                                                     strokeWidth="1"
