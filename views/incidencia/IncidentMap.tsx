@@ -551,7 +551,7 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                                     {isMoving && (
                                                         <circle cx={0} cy={0} r={9} fill="none" stroke={p.color} strokeWidth="1.5" opacity={0.6} style={{ animation: 'train-pulse-ring 2s ease-out infinite', filter: `drop-shadow(0 0 4px ${p.color})` }} />
                                                     )}
-                                                    <circle cx={0} cy={0} r={5.5} fill={p.color} className={`${isAffected ? "stroke-red-500 stroke-2" : "stroke-white dark:stroke-black stroke-[1.5]"} hover:stroke-fgc-green transition-all`} style={{ filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.3))' }}>
+                                                    <circle cx={0} cy={0} r={5.5} fill={p.color} className={`${isAffected ? "stroke-red-500 stroke-2" : "stroke-white dark:stroke-black stroke-[1.5]"} transition-all`} style={{ filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.3))' }}>
                                                         <title>{p.id} - Torn {p.torn} (Via {isAsc ? '1' : '2'}){isMoving ? ' ▶ EN MOVIMENT' : ''}</title>
                                                     </circle>
                                                     {isMoving && (
@@ -651,21 +651,21 @@ const IncidentMap: React.FC<IncidentMapProps> = ({
                                                             {/* Movement pulse ring */}
                                                             {gt.isMoving && (
                                                                 <circle
-                                                                    cx={0} cy={0} r={12}
+                                                                    cx={0} cy={0} r={11}
                                                                     fill="none"
-                                                                    stroke={punct.colorHex}
+                                                                    stroke={color}
                                                                     strokeWidth="1.5"
-                                                                    opacity={0.5}
+                                                                    opacity={0.35}
                                                                     style={{ animation: 'train-pulse-ring 2.5s ease-out infinite' }}
                                                                 />
                                                             )}
-                                                            {/* Main dot with punctuality halo (Blau: avançat, Verd: ≤3m, Ambre: 3-4m, Roig: >4m) */}
+                                                            {/* Main dot (Clean white border, no green halo) */}
                                                             <circle
-                                                                cx={0} cy={0} r={8}
+                                                                cx={0} cy={0} r={7.5}
                                                                 fill={color}
-                                                                stroke={punct.colorHex}
-                                                                strokeWidth="2.5"
-                                                                className="drop-shadow-md group-hover/gt:r-10 transition-all"
+                                                                stroke="white"
+                                                                strokeWidth="1.5"
+                                                                className="drop-shadow-md group-hover/gt:r-9 transition-all"
                                                                 style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
                                                             />
                                                             {/* Direction arrow */}
