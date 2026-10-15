@@ -57,59 +57,59 @@ export type PkSegment =
  */
 export const STATION_GEO_DATA: StationGeoData[] = [
     // ── Segment PC/RE (Pl.Catalunya → Reina Elisenda) ──────────────────────
-    { id: 'PC', name: 'Plaça Catalunya', lat: 41.38563194, lon: 2.168720219, pk: 0.000, pkSegment: 'PC/RE', distToNext: 1.220, declivToNext: 29 },
-    { id: 'PR', name: 'Provença', lat: 41.39281434, lon: 2.158030869, pk: 1.220, pkSegment: 'PC/RE', distToNext: 0.830, declivToNext: 38 },
-    { id: 'GR', name: 'Gràcia', lat: 41.39943, lon: 2.15196, pk: 2.050, pkSegment: 'PC/RE', distToNext: 0.560, declivToNext: 24 },
-    { id: 'SG', name: 'Sant Gervasi', lat: 41.40106608, lon: 2.147133783, pk: 2.610, pkSegment: 'PC/RE', distToNext: 0.470, declivToNext: 36 },
-    { id: 'MN', name: 'Muntaner', lat: 41.39852644, lon: 2.142346041, pk: 3.080, pkSegment: 'PC/RE', distToNext: 0.530, declivToNext: 11 },
-    { id: 'BN', name: 'La Bonanova', lat: 41.39781569, lon: 2.136433966, pk: 3.610, pkSegment: 'PC/RE', distToNext: 0.470, declivToNext: 25 },
-    { id: 'TT', name: 'Les Tres Torres', lat: 41.39780042, lon: 2.130811822, pk: 4.080, pkSegment: 'PC/RE', distToNext: 0.530, declivToNext: 40 },
-    { id: 'SR', name: 'Sarrià', lat: 41.39849938, lon: 2.125574875, pk: 4.610, pkSegment: 'PC/RE', distToNext: 0.550, declivToNext: 6 },
-    { id: 'RE', name: 'Reina Elisenda', lat: 41.40028, lon: 2.119350, pk: 5.160, pkSegment: 'PC/RE' },
+    { id: 'PC', name: 'Plaça Catalunya', lat: 41.385684, lon: 2.169515, pk: 0.000, pkSegment: 'PC/RE', distToNext: 1.220, declivToNext: 29 },
+    { id: 'PR', name: 'Provença', lat: 41.39284054461246, lon: 2.158057764172554, pk: 1.220, pkSegment: 'PC/RE', distToNext: 0.830, declivToNext: 38 },
+    { id: 'GR', name: 'Gràcia', lat: 41.399772122369974, lon: 2.1519875898957253, pk: 2.050, pkSegment: 'PC/RE', distToNext: 0.560, declivToNext: 24 },
+    { id: 'SG', name: 'Sant Gervasi', lat: 41.40115960666528, lon: 2.146838754415512, pk: 2.610, pkSegment: 'PC/RE', distToNext: 0.470, declivToNext: 36 },
+    { id: 'MN', name: 'Muntaner', lat: 41.39841327951267, lon: 2.1421167254447937, pk: 3.080, pkSegment: 'PC/RE', distToNext: 0.530, declivToNext: 11 },
+    { id: 'BN', name: 'La Bonanova', lat: 41.397815711638636, lon: 2.13643379509449, pk: 3.610, pkSegment: 'PC/RE', distToNext: 0.470, declivToNext: 25 },
+    { id: 'TT', name: 'Les Tres Torres', lat: 41.39780036996682, lon: 2.131182700395584, pk: 4.080, pkSegment: 'PC/RE', distToNext: 0.530, declivToNext: 40 },
+    { id: 'SR', name: 'Sarrià', lat: 41.39849954411812, lon: 2.1255748718976974, pk: 4.610, pkSegment: 'PC/RE', distToNext: 0.550, declivToNext: 6 },
+    { id: 'RE', name: 'Reina Elisenda', lat: 41.39910817160831, lon: 2.119360528886318, pk: 5.160, pkSegment: 'PC/RE' },
 
     // ── Segment GR/TB (Gràcia → Av.Tibidabo) ───────────────────────────────
     // GR is shared with PC/RE but PK resets to 0 at GR for this branch
-    { id: 'PM', name: 'Pl. Molina', lat: 41.40262, lon: 2.14866, pk: 0.600, pkSegment: 'GR/TB', distToNext: 0.410, declivToNext: 25 },
-    { id: 'PD', name: 'Pàdua', lat: 41.40351065, lon: 2.142759094, pk: 1.010, pkSegment: 'GR/TB', distToNext: 0.400, declivToNext: 46 },
-    { id: 'EP', name: 'El Putxet', lat: 41.40582569, lon: 2.139151477, pk: 1.410, pkSegment: 'GR/TB', distToNext: 0.450, declivToNext: 40 },
-    { id: 'TB', name: 'Av. Tibidabo', lat: 41.40964799, lon: 2.137162791, pk: 1.860, pkSegment: 'GR/TB' },
+    { id: 'PM', name: 'Pl. Molina', lat: 41.40137789948557, lon: 2.1475492045283318, pk: 0.600, pkSegment: 'GR/TB', distToNext: 0.410, declivToNext: 25 },
+    { id: 'PD', name: 'Pàdua', lat: 41.403358848160295, lon: 2.142944857478142, pk: 1.010, pkSegment: 'GR/TB', distToNext: 0.400, declivToNext: 46 },
+    { id: 'EP', name: 'El Putxet', lat: 41.405802949296096, lon: 2.1391217038035393, pk: 1.410, pkSegment: 'GR/TB', distToNext: 0.450, declivToNext: 40 },
+    { id: 'TB', name: 'Av. Tibidabo', lat: 41.41000993758941, lon: 2.1370570734143257, pk: 1.860, pkSegment: 'GR/TB' },
 
     // ── Segment SR/LP (Sarrià → Les Planes, via Vallvidrera) ───────────────
     // PK resets at SR (0.000 not listed explicitly, SR itself is on PC/RE)
     // The PDF shows VL and LP with SR/LP reference
-    { id: 'PF', name: 'Peu del Funicular', lat: 41.40921616, lon: 2.111181541, pk: 3.110, pkSegment: 'SR/LP', distToNext: 0.650, declivToNext: 37 },
-    { id: 'VL', name: 'Baixador de Vallvidrera', lat: 41.42009441, lon: 2.096936777, pk: 3.760, pkSegment: 'SR/LP', distToNext: 0.950, declivToNext: -18 },
-    { id: 'LP', name: 'Les Planes', lat: 41.43282, lon: 2.08386, pk: 4.710, pkSegment: 'SR/LP' },
+    { id: 'PF', name: 'Peu del Funicular', lat: 41.40906621789071, lon: 2.1114349365234375, pk: 3.110, pkSegment: 'SR/LP', distToNext: 0.650, declivToNext: 37 },
+    { id: 'VL', name: 'Baixador de Vallvidrera', lat: 41.42009453571699, lon: 2.0969365909695625, pk: 3.760, pkSegment: 'SR/LP', distToNext: 0.950, declivToNext: -18 },
+    { id: 'LP', name: 'Les Planes', lat: 41.42739677045619, lon: 2.091561108827591, pk: 4.710, pkSegment: 'SR/LP' },
 
     // ── Segment LP/TR (Les Planes → Terrassa Rambla) ────────────────────────
-    { id: 'LF', name: 'La Floresta', lat: 41.44487408, lon: 2.073166144, pk: 2.850, pkSegment: 'LP/TR', distToNext: 1.690, declivToNext: -26 },
-    { id: 'VD', name: 'Valldoreix', lat: 41.45861, lon: 2.067450, pk: 4.540, pkSegment: 'LP/TR', distToNext: 1.450, declivToNext: -25 },
-    { id: 'SC', name: 'Sant Cugat Centre', lat: 41.46791038, lon: 2.078203288, pk: 5.990, pkSegment: 'LP/TR', distToNext: 1.520, declivToNext: -5 },
-    { id: 'MS', name: 'Mira-sol', lat: 41.47620923, lon: 2.046514894, pk: 7.510, pkSegment: 'LP/TR', distToNext: 1.540, declivToNext: -7 },
-    { id: 'HG', name: 'Hospital General', lat: 41.47620923, lon: 2.046514894, pk: 9.050, pkSegment: 'LP/TR', distToNext: 1.840, declivToNext: -5 },
-    { id: 'RB', name: 'Rubí Centre', lat: 41.48628798, lon: 2.031357969, pk: 10.890, pkSegment: 'LP/TR', distToNext: 4.920, declivToNext: 20 },
-    { id: 'FN', name: 'Les Fonts', lat: 41.52846982, lon: 2.033582202, pk: 15.810, pkSegment: 'LP/TR', distToNext: 4.340, declivToNext: 26 },
-    { id: 'TR', name: 'Terrassa Rambla', lat: 41.55974631, lon: 2.007525272, pk: 20.150, pkSegment: 'LP/TR', distToNext: 1.520, declivToNext: 9 },
+    { id: 'LF', name: 'La Floresta', lat: 41.444889027011854, lon: 2.0731329917907715, pk: 2.850, pkSegment: 'LP/TR', distToNext: 1.690, declivToNext: -26 },
+    { id: 'VD', name: 'Valldoreix', lat: 41.45787220385147, lon: 2.0682255551218987, pk: 4.540, pkSegment: 'LP/TR', distToNext: 1.450, declivToNext: -25 },
+    { id: 'SC', name: 'Sant Cugat Centre', lat: 41.467851890381816, lon: 2.078401856124401, pk: 5.990, pkSegment: 'LP/TR', distToNext: 1.520, declivToNext: -5 },
+    { id: 'MS', name: 'Mira-sol', lat: 41.4693142929502, lon: 2.061460353434086, pk: 7.510, pkSegment: 'LP/TR', distToNext: 1.540, declivToNext: -7 },
+    { id: 'HG', name: 'Hospital General', lat: 41.47616260098431, lon: 2.0465093851089478, pk: 9.050, pkSegment: 'LP/TR', distToNext: 1.840, declivToNext: -5 },
+    { id: 'RB', name: 'Rubí Centre', lat: 41.48628815932077, lon: 2.0313579216599464, pk: 10.890, pkSegment: 'LP/TR', distToNext: 4.920, declivToNext: 20 },
+    { id: 'FN', name: 'Les Fonts', lat: 41.52846982344765, lon: 2.033582143485546, pk: 15.810, pkSegment: 'LP/TR', distToNext: 4.340, declivToNext: 26 },
+    { id: 'TR', name: 'Terrassa Rambla', lat: 41.55974646958262, lon: 2.0075251534581184, pk: 20.150, pkSegment: 'LP/TR', distToNext: 1.520, declivToNext: 9 },
 
     // ── Segment LP/NA (continuation from TR → Terrassa Nacions Unides) ─────
-    { id: 'VP', name: 'Vallparadís Universitat', lat: 41.5633063, lon: 2.0190489, pk: 21.670, pkSegment: 'LP/NA', distToNext: 0.915, declivToNext: 40 },
-    { id: 'EN', name: 'Terrassa Estació del Nord', lat: 41.5701675, lon: 2.015487, pk: 22.585, pkSegment: 'LP/NA', distToNext: 1.267, declivToNext: 38 },
-    { id: 'NA', name: 'Terrassa Nacions Unides', lat: 41.5801339, lon: 2.0134592, pk: 23.852, pkSegment: 'LP/NA' },
+    { id: 'VP', name: 'Vallparadís Universitat', lat: 41.5633785382763, lon: 2.01901338994503, pk: 21.670, pkSegment: 'LP/NA', distToNext: 0.915, declivToNext: 40 },
+    { id: 'EN', name: 'Terrassa Estació del Nord', lat: 41.570166, lon: 2.015349, pk: 22.585, pkSegment: 'LP/NA', distToNext: 1.267, declivToNext: 38 },
+    { id: 'NA', name: 'Terrassa Nacions Unides', lat: 41.580123100787944, lon: 2.0134012028574944, pk: 23.852, pkSegment: 'LP/NA' },
 
     // ── Segment SC/PN (Sant Cugat → Sabadell Parc del Nord) ────────────────
     // PK resets at SC (0.000) for this branch direction
-    { id: 'VO', name: 'Volpelleres', lat: 41.481248, lon: 2.072928, pk: 1.532, pkSegment: 'SC/PN', distToNext: 1.198, declivToNext: 15 },
-    { id: 'SJ', name: 'Sant Joan', lat: 41.49015388, lon: 2.076498641, pk: 2.730, pkSegment: 'SC/PN', distToNext: 1.670, declivToNext: 7 },
-    { id: 'BT', name: 'Bellaterra', lat: 41.50197, lon: 2.09094, pk: 4.400, pkSegment: 'SC/PN', distToNext: 1.300, declivToNext: -38 },
+    { id: 'VO', name: 'Volpelleres', lat: 41.48125772891728, lon: 2.0727162435650826, pk: 1.532, pkSegment: 'SC/PN', distToNext: 1.198, declivToNext: 15 },
+    { id: 'SJ', name: 'Sant Joan', lat: 41.49043744300665, lon: 2.0769598335027695, pk: 2.730, pkSegment: 'SC/PN', distToNext: 1.670, declivToNext: 7 },
+    { id: 'BT', name: 'Bellaterra', lat: 41.50092888935837, lon: 2.0904506742954254, pk: 4.400, pkSegment: 'SC/PN', distToNext: 1.300, declivToNext: -38 },
     // UN has its own sub-segment BT/UN (pk=1.300 within BT/UN)
-    { id: 'UN', name: 'Universitat Autònoma', lat: 41.50285282, lon: 2.102510441, pk: 5.700, pkSegment: 'SC/PN', distToNext: 3.900, declivToNext: 30 },
+    { id: 'UN', name: 'Universitat Autònoma', lat: 41.50283749795864, lon: 2.1027063578367233, pk: 5.700, pkSegment: 'SC/PN', distToNext: 3.900, declivToNext: 30 },
     // Note: UN pk=5.700 is approximated as BT(4.400) + 1.300(BT/UN distance)
-    { id: 'SQ', name: 'Sant Quirze', lat: 41.52999155, lon: 2.088722533, pk: 7.760, pkSegment: 'SC/PN', distToNext: 1.721, declivToNext: -38 },
-    { id: 'CF', name: 'Can Feu | Gràcia', lat: 41.543365, lon: 2.106296, pk: 9.481, pkSegment: 'SC/PN', distToNext: 1.128, declivToNext: -38 },
-    { id: 'PJ', name: 'Sabadell Plaça Major', lat: 41.548060, lon: 2.108758, pk: 10.609, pkSegment: 'SC/PN', distToNext: 1.147, declivToNext: 38 },
-    { id: 'CT', name: 'La Creu Alta', lat: 41.556256, lon: 2.098711, pk: 11.756, pkSegment: 'SC/PN', distToNext: 0.779, declivToNext: 38 },
-    { id: 'NO', name: 'Sabadell Nord', lat: 41.561707, lon: 2.096554, pk: 12.535, pkSegment: 'SC/PN', distToNext: 1.380, declivToNext: 30 },
-    { id: 'PN', name: 'Sabadell Parc del Nord', lat: 41.571207, lon: 2.090079, pk: 13.918, pkSegment: 'SC/PN' },
+    { id: 'SQ', name: 'Sant Quirze', lat: 41.53008672303255, lon: 2.0885851979255676, pk: 7.760, pkSegment: 'SC/PN', distToNext: 1.721, declivToNext: -38 },
+    { id: 'CF', name: 'Can Feu | Gràcia', lat: 41.54264957436718, lon: 2.1008844673633575, pk: 9.481, pkSegment: 'SC/PN', distToNext: 1.128, declivToNext: -38 },
+    { id: 'PJ', name: 'Sabadell Plaça Major', lat: 41.54730813610192, lon: 2.108660191297531, pk: 10.609, pkSegment: 'SC/PN', distToNext: 1.147, declivToNext: 38 },
+    { id: 'CT', name: 'La Creu Alta', lat: 41.55495407433468, lon: 2.100384905934334, pk: 11.756, pkSegment: 'SC/PN', distToNext: 0.779, declivToNext: 38 },
+    { id: 'NO', name: 'Sabadell Nord', lat: 41.56196191026595, lon: 2.0962321758270264, pk: 12.535, pkSegment: 'SC/PN', distToNext: 1.380, declivToNext: 30 },
+    { id: 'PN', name: 'Sabadell Parc del Nord', lat: 41.57129121543971, lon: 2.0894988253712654, pk: 13.918, pkSegment: 'SC/PN' },
 ];
 
 /** Quick lookup map by station ID */
@@ -275,3 +275,62 @@ export function getTrainProgress(
 
     return { factor, remainingKm, travelledKm };
 }
+
+/**
+ * All active station coordinates defined officially in FGC GeoTren client (https://geotren.fgc.cat/js/geotren.min.js).
+ * Includes both Barcelona-Vallès (BV) and Llobregat-Anoia (LA) networks.
+ */
+export const GEOTREN_OFFICIAL_STATIONS: Record<string, { name: string; lat: number; lon: number; network: 'BV' | 'LA' }> = {
+    'PC': { name: 'Pl. Catalunya', lat: 41.385684, lon: 2.169515, network: 'BV' },
+    'PR': { name: 'Provença', lat: 41.39284054461246, lon: 2.158057764172554, network: 'BV' },
+    'GR': { name: 'Gràcia', lat: 41.399772122369974, lon: 2.1519875898957253, network: 'BV' },
+    'SG': { name: 'Sant Gervasi', lat: 41.40115960666528, lon: 2.146838754415512, network: 'BV' },
+    'MN': { name: 'Muntaner', lat: 41.39841327951267, lon: 2.1421167254447937, network: 'BV' },
+    'BN': { name: 'La Bonanova', lat: 41.397815711638636, lon: 2.13643379509449, network: 'BV' },
+    'TT': { name: 'Les Tres Torres', lat: 41.39780036996682, lon: 2.131182700395584, network: 'BV' },
+    'SR': { name: 'Sarrià', lat: 41.39849954411812, lon: 2.1255748718976974, network: 'BV' },
+    'RE': { name: 'Reina Elisenda', lat: 41.39910817160831, lon: 2.119360528886318, network: 'BV' },
+    'PM': { name: 'Pl. Molina', lat: 41.40137789948557, lon: 2.1475492045283318, network: 'BV' },
+    'PD': { name: 'Pàdua', lat: 41.403358848160295, lon: 2.142944857478142, network: 'BV' },
+    'EP': { name: 'El Putxet', lat: 41.405802949296096, lon: 2.1391217038035393, network: 'BV' },
+    'TB': { name: 'Av. Tibidabo', lat: 41.41000993758941, lon: 2.1370570734143257, network: 'BV' },
+    'PF': { name: 'Peu del Funicular', lat: 41.40906621789071, lon: 2.1114349365234375, network: 'BV' },
+    'VL': { name: 'Baixador de Vallvidrera', lat: 41.42009453571699, lon: 2.0969365909695625, network: 'BV' },
+    'LP': { name: 'Les Planes', lat: 41.42739677045619, lon: 2.091561108827591, network: 'BV' },
+    'LF': { name: 'La Floresta', lat: 41.444889027011854, lon: 2.0731329917907715, network: 'BV' },
+    'VD': { name: 'Valldoreix', lat: 41.45787220385147, lon: 2.0682255551218987, network: 'BV' },
+    'SC': { name: 'Sant Cugat', lat: 41.467851890381816, lon: 2.078401856124401, network: 'BV' },
+    'MS': { name: 'Mira-sol', lat: 41.4693142929502, lon: 2.061460353434086, network: 'BV' },
+    'HG': { name: 'Hospital General', lat: 41.47616260098431, lon: 2.0465093851089478, network: 'BV' },
+    'RB': { name: 'Rubí', lat: 41.48628815932077, lon: 2.0313579216599464, network: 'BV' },
+    'FN': { name: 'Les Fonts', lat: 41.52846982344765, lon: 2.033582143485546, network: 'BV' },
+    'TR': { name: 'Terrassa-Rambla', lat: 41.55974646958262, lon: 2.0075251534581184, network: 'BV' },
+    'SJ': { name: 'Sant Joan', lat: 41.49043744300665, lon: 2.0769598335027695, network: 'BV' },
+    'BT': { name: 'Bellaterra', lat: 41.50092888935837, lon: 2.0904506742954254, network: 'BV' },
+    'UN': { name: 'Universitat Autònoma', lat: 41.50283749795864, lon: 2.1027063578367233, network: 'BV' },
+    'SQ': { name: 'Sant Quirze', lat: 41.53008672303255, lon: 2.0885851979255676, network: 'BV' },
+    'CF': { name: 'Can Feu | Gràcia', lat: 41.54264957436718, lon: 2.1008844673633575, network: 'BV' },
+    'PJ': { name: 'Sabadell P.Major', lat: 41.54730813610192, lon: 2.108660191297531, network: 'BV' },
+    'VO': { name: 'Volpelleres', lat: 41.48125772891728, lon: 2.0727162435650826, network: 'BV' },
+    'VP': { name: 'Vallparadis Universitat', lat: 41.5633785382763, lon: 2.01901338994503, network: 'BV' },
+    'EN': { name: 'Terrassa Estació del Nord', lat: 41.570166, lon: 2.015349, network: 'BV' },
+    'NA': { name: 'Terrassa Nacions Unides', lat: 41.580123100787944, lon: 2.0134012028574944, network: 'BV' },
+    'CT': { name: 'La Creu Alta', lat: 41.55495407433468, lon: 2.100384905934334, network: 'BV' },
+    'NO': { name: 'Sabadell Nord', lat: 41.56196191026595, lon: 2.0962321758270264, network: 'BV' },
+    'PN': { name: 'Sabadell Parc N.', lat: 41.57129121543971, lon: 2.0894988253712654, network: 'BV' },
+    'PE': { name: 'Pl. Espanya', lat: 41.37451810409889, lon: 2.1484675258398056, network: 'LA' },
+    'MG': { name: 'Magòria', lat: 41.36807172253963, lon: 2.1395907551050186, network: 'LA' },
+    'IC': { name: 'Ildefons Cerdà', lat: 41.361153373572385, lon: 2.1301721781492233, network: 'LA' },
+    'EU': { name: 'Europa | Fira', lat: 41.35722558606671, lon: 2.12457574903965, network: 'LA' },
+    'GO': { name: 'Gornal', lat: 41.35510531778874, lon: 2.117231860756874, network: 'LA' },
+    'SP': { name: 'Sant Josep', lat: 41.360987539566885, lon: 2.1103429421782494, network: 'LA' },
+    'LH': { name: 'L´Hospitalet', lat: 41.35798081271976, lon: 2.102489434182644, network: 'LA' },
+    'AL': { name: 'Almeda', lat: 41.353083134083256, lon: 2.0847097411751747, network: 'LA' },
+    'CO': { name: 'Cornellà Riera', lat: 41.351595461384846, lon: 2.0707934349775314, network: 'LA' },
+    'BO': { name: 'Sant Boi', lat: 41.34859811669659, lon: 2.043052688241005, network: 'LA' },
+    'ML': { name: 'Molí Nou', lat: 41.35810664103389, lon: 2.034914866089821, network: 'LA' },
+    'QC': { name: 'Quatre Camins', lat: 41.40672307837789, lon: 2.00174767524004, network: 'LA' },
+    'MO': { name: 'Monistrol de M.', lat: 41.61033319379176, lon: 1.8491195887327194, network: 'LA' },
+    'MP': { name: 'Monistrol Vila', lat: 41.6153192693718, lon: 1.8429923160618777, network: 'LA' },
+    'MM': { name: 'Montserrat Monestir', lat: 41.59227842605783, lon: 1.8365905079702394, network: 'LA' },
+};
