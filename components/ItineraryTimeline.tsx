@@ -153,19 +153,30 @@ export const ItineraryTimeline: React.FC<ItineraryTimelineProps> = ({ circ, nowM
               </span>
               {latestPassage && (() => {
                 const diffSec = normalizeTimeDiffSec(latestPassage.diferencia_segons);
+                if (diffSec < 0) {
+                  return (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-900/50">
+                      Últim pas ({latestPassage.estacio_codi}): -{formatDelayMinSec(Math.abs(diffSec))} avanç
+                    </span>
+                  );
+                }
+                if (diffSec <= 180) {
+                  return (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/50">
+                      Últim pas ({latestPassage.estacio_codi}): En hora{diffSec > 0 ? ` (+${formatDelayMinSec(diffSec)})` : ''}
+                    </span>
+                  );
+                }
+                if (diffSec <= 300) {
+                  return (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/50">
+                      Últim pas ({latestPassage.estacio_codi}): +{formatDelayMinSec(diffSec)} retard
+                    </span>
+                  );
+                }
                 return (
-                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border ${
-                    diffSec >= 60 
-                      ? 'bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900/50' 
-                      : diffSec <= -60
-                        ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-900/50'
-                        : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/50'
-                  }`}>
-                    Últim pas ({latestPassage.estacio_codi}): {diffSec >= 60 
-                      ? `+${formatDelayMinSec(diffSec)} retard` 
-                      : diffSec <= -60 
-                        ? `-${formatDelayMinSec(Math.abs(diffSec))} avanç` 
-                        : 'En hora'}
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900/50">
+                    Últim pas ({latestPassage.estacio_codi}): +{formatDelayMinSec(diffSec)} retard
                   </span>
                 );
               })()}

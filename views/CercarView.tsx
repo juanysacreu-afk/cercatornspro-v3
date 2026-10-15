@@ -1213,7 +1213,7 @@ const CercarViewComponent: React.FC<{
               let timeStatus: 'retard' | 'avanc' | 'puntual' = 'puntual';
               let timeStatusLabel = 'En hora (Puntual)';
 
-              if (diffMinutes >= 4) {
+              if (diffMinutes > 3) {
                 timeStatus = 'retard';
                 timeStatusLabel = `+${diffMinutes} min retard`;
               } else if (diffMinutes > 0) {
@@ -2173,9 +2173,11 @@ const CercarViewComponent: React.FC<{
                 }
               }
 
-              // Llindar oficial de tolerància FGC:
-              // - Fins a 3 min i 59 segons (<= 239s): Retard lleu -> Groc, text "En hora"
-              // - Superior a 3 min i 59 segons (> 239s): Retard greu -> Vermell, text "Retard" (+X min retard)
+              // Llindar oficial de tolerància FGC segons especificació:
+              // - Blau: Avançat (totalDelaySeconds < 0 o timeStatus === 'avanc')
+              // - Verd: En hora fins a 3 minuts (totalDelaySeconds <= 180s)
+              // - Ambre: Entre 3 i 5 minuts (180s < totalDelaySeconds <= 300s)
+              // - Roig: Retard superior a 5 minuts (totalDelaySeconds > 300s)
               const hasLiveDelay = Boolean(liveDelayBadge);
               const totalDelaySeconds = liveDelaySec > 0
                 ? liveDelaySec
@@ -2183,8 +2185,10 @@ const CercarViewComponent: React.FC<{
                     ? u.delaySeconds
                     : ((u.scheduleComparison?.diffMinutes || 0) > 0 ? (u.scheduleComparison.diffMinutes * 60) : 0));
 
-              const isSevereDelay = totalDelaySeconds > 239;
-              const isMildDelay = totalDelaySeconds > 0 && !isSevereDelay;
+              const isAdvance = Boolean(isCountdownInAdvance || totalDelaySeconds < 0 || u.scheduleComparison?.timeStatus === 'avanc');
+              const isSevereDelay = !isAdvance && totalDelaySeconds > 300;
+              const isModerateDelay = !isAdvance && totalDelaySeconds > 180 && totalDelaySeconds <= 300;
+              const isOnTime = !isAdvance && totalDelaySeconds <= 180;
 
               let effectiveDelayMin = delayMin;
               if (hasLiveDelay && depTimeStr && typeof nowMin === 'number') {
@@ -2196,13 +2200,17 @@ const CercarViewComponent: React.FC<{
                 effectiveDelayMin = Math.max(1, Math.abs(u.scheduleComparison.diffMinutes));
               }
 
-              const headerStatusText = isSevereDelay
-                ? `+${effectiveDelayMin} min retard`
-                : (isMildDelay ? 'En hora' : (u.scheduleComparison?.timeStatusLabel || (u.isPunctual ? 'En hora (Puntual)' : `Retard +${effectiveDelayMin} min`)));
+              const headerStatusText = isAdvance
+                ? `${Math.abs(effectiveDelayMin || 1)} min avanç`
+                : (isSevereDelay || isModerateDelay)
+                  ? `+${effectiveDelayMin} min retard`
+                  : 'En hora';
 
-              const horarisStatusText = isSevereDelay
-                ? 'Retard'
-                : 'En hora';
+              const horarisStatusText = isAdvance
+                ? 'Avançat'
+                : (isSevereDelay || isModerateDelay)
+                  ? 'Retard'
+                  : 'En hora';
 
               return (
                 <GlassPanel key={idx} className="p-6 sm:p-10 !rounded-[40px] sm:!rounded-[56px] animate-in fade-in slide-in-from-bottom-12 duration-700 relative overflow-hidden group">
@@ -2219,15 +2227,15 @@ const CercarViewComponent: React.FC<{
                         <h2 className="text-2xl sm:text-3xl font-bold text-[#4D5358] dark:text-white tracking-tighter uppercase">Unitat {u.decodedUt}</h2>
                         <div className="flex items-center gap-3 mt-1 flex-wrap">
                           <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase ${
+                            isAdvance ? 'bg-blue-500/20 text-blue-400' :
                             isSevereDelay ? 'bg-red-500/20 text-red-500' :
-                            isMildDelay ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400' :
-                            u.scheduleComparison?.timeStatus === 'avanc' ? 'bg-blue-500/20 text-blue-400' :
+                            isModerateDelay ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400' :
                             'bg-fgc-green/20 text-fgc-green'
                           }`}>
                             <span className={`w-2 h-2 rounded-full ${
+                              isAdvance ? 'bg-blue-400' :
                               isSevereDelay ? 'bg-red-500' :
-                              isMildDelay ? 'bg-yellow-500 dark:bg-yellow-400' :
-                              u.scheduleComparison?.timeStatus === 'avanc' ? 'bg-blue-400' :
+                              isModerateDelay ? 'bg-amber-500 dark:bg-amber-400' :
                               'bg-fgc-green'
                             } animate-pulse`} />
                             {headerStatusText}
@@ -2309,10 +2317,10 @@ const CercarViewComponent: React.FC<{
                               Horaris
                             </span>
                             <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wide shrink-0 ${
+                              isAdvance ? 'bg-blue-600 text-white shadow-sm' :
                               isSevereDelay ? 'bg-red-500 text-white shadow-sm' :
-                              isMildDelay ? 'bg-yellow-400 text-[#4D5358] shadow-sm' :
-                              u.scheduleComparison?.timeStatus === 'avanc' ? 'bg-blue-600 text-white shadow-sm' :
-                              'bg-fgc-green text-[#4D5358] shadow-sm'
+                              isModerateDelay ? 'bg-amber-500 text-white shadow-sm' :
+                              'bg-fgc-green text-white shadow-sm'
                             }`}>
                               {horarisStatusText}
                             </span>
@@ -2333,9 +2341,10 @@ const CercarViewComponent: React.FC<{
                               </span>
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <span className={`text-base sm:text-lg font-black font-mono ${
-                                  u.scheduleComparison?.timeStatus === 'avanc' ? 'text-blue-400' :
-                                  (isSevereDelay || isMildDelay) ? 'text-[#4D5358] dark:text-gray-200' :
-                                  'text-fgc-green'
+                                  isAdvance ? 'text-blue-500 dark:text-blue-400' :
+                                  isSevereDelay ? 'text-red-500 dark:text-red-400' :
+                                  isModerateDelay ? 'text-amber-500 dark:text-amber-400' :
+                                  'text-fgc-green dark:text-emerald-400'
                                 }`}>
                                   {formatTimeToHHMMSS(u.scheduleComparison?.estimatedTime) || '---'}
                                 </span>

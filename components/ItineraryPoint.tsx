@@ -80,25 +80,34 @@ export const ItineraryPoint: React.FC<ItineraryPointProps> = ({
                             {/* Delay / Advance / On-time Badge */}
                             {(() => {
                                 const diffSec = normalizeTimeDiffSec(gipPassage.diferencia_segons);
-                                if (diffSec >= 60) {
+                                if (diffSec < 0) {
                                     return (
-                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-50 dark:bg-red-950/40 text-xs font-bold text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/50 shadow-xs animate-in fade-in">
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-xs font-bold text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900/50 shadow-xs animate-in fade-in">
+                                            <CheckCircle2 size={12} className="shrink-0" />
+                                            -{formatDelayMinSec(Math.abs(diffSec))} avanç
+                                        </span>
+                                    );
+                                }
+                                if (diffSec <= 180) {
+                                    return (
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-xs font-bold text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50 shadow-xs animate-in fade-in">
+                                            <CheckCircle2 size={12} className="shrink-0" />
+                                            En hora {diffSec > 0 ? `(+${formatDelayMinSec(diffSec)})` : ''}
+                                        </span>
+                                    );
+                                }
+                                if (diffSec <= 300) {
+                                    return (
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-xs font-bold text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50 shadow-xs animate-in fade-in">
                                             <AlertTriangle size={12} className="shrink-0" />
                                             +{formatDelayMinSec(diffSec)} retard
                                         </span>
                                     );
                                 }
-                                if (diffSec <= -60) {
-                                    return (
-                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-xs font-bold text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900/50 shadow-xs animate-in fade-in">
-                                            -{formatDelayMinSec(Math.abs(diffSec))} avanç
-                                        </span>
-                                    );
-                                }
                                 return (
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-xs font-bold text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50 shadow-xs animate-in fade-in">
-                                        <CheckCircle2 size={12} className="shrink-0" />
-                                        En hora {diffSec !== 0 ? `(${diffSec > 0 ? `+${diffSec}s` : `${diffSec}s`})` : ''}
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-50 dark:bg-red-950/40 text-xs font-bold text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/50 shadow-xs animate-in fade-in">
+                                        <AlertTriangle size={12} className="shrink-0" />
+                                        +{formatDelayMinSec(diffSec)} retard
                                     </span>
                                 );
                             })()}

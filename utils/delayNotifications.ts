@@ -427,10 +427,10 @@ export interface PunctualityInfo {
 
 /**
  * Classifica la desviació de puntualitat segons la regla de negoci sol·licitada:
- * - Blau: Adelantat (delaySec < 0s)
+ * - Blau: Avançat (delaySec < 0s)
  * - Verd: En hora fins a 3 minuts (0 <= delaySec <= 180s)
- * - Ambre: Entre 3 i 4 minuts (180s < delaySec <= 240s)
- * - Roig: Retard superior a 4 minuts (delaySec > 240s)
+ * - Ambre: Entre 3 i 5 minuts (180s < delaySec <= 300s)
+ * - Roig: Retard superior a 5 minuts (delaySec > 300s)
  */
 export const getPunctualityInfo = (rawDelaySec: number = 0): PunctualityInfo => {
   const delaySec = normalizeTimeDiffSec(rawDelaySec);
@@ -448,7 +448,7 @@ export const getPunctualityInfo = (rawDelaySec: number = 0): PunctualityInfo => 
       cardBgClass: 'bg-blue-50/40 dark:bg-blue-500/[0.04] hover:bg-blue-50/80 dark:hover:bg-blue-500/[0.08]',
       cardBorderClass: 'border-blue-200/70 dark:border-blue-500/25',
       badgeClass: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30',
-      label: 'Adelantat',
+      label: 'Avançat',
       badgeText,
       delaySec
     };
@@ -471,35 +471,35 @@ export const getPunctualityInfo = (rawDelaySec: number = 0): PunctualityInfo => 
     };
   }
 
-  if (delaySec <= 240) {
+  if (delaySec <= 300) {
     const m = Math.round(delaySec / 60);
     return {
       category: 'AMBAR',
-      colorHex: '#f59e0b', // Ambre (3 a 4 minuts)
+      colorHex: '#f59e0b', // Ambre (3 a 5 minuts)
       bgClass: 'bg-amber-500/15 dark:bg-amber-500/20',
       textClass: 'text-amber-600 dark:text-amber-400',
       borderClass: 'border-amber-500/30 dark:border-amber-500/40',
       cardBgClass: 'bg-amber-50/40 dark:bg-amber-500/[0.04] hover:bg-amber-50/80 dark:hover:bg-amber-500/[0.08]',
       cardBorderClass: 'border-amber-200/70 dark:border-amber-500/25',
-      badgeClass: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30',
-      label: 'Retard moderat (3-4 min)',
+      badgeClass: 'bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30',
+      label: 'Retard moderat (3-5 min)',
       badgeText: `+${m}'`,
       delaySec
     };
   }
 
-  // Superior a 4 minuts
+  // Superior a 5 minuts
   const m = Math.round(delaySec / 60);
   return {
     category: 'ROIG',
-    colorHex: '#ef4444', // Roig (> 4 minuts)
+    colorHex: '#ef4444', // Roig (> 5 minuts)
     bgClass: 'bg-red-500/15 dark:bg-red-500/20',
     textClass: 'text-red-600 dark:text-red-400',
     borderClass: 'border-red-500/30 dark:border-red-500/40',
     cardBgClass: 'bg-red-50/40 dark:bg-red-500/[0.04] hover:bg-red-50/80 dark:hover:bg-red-500/[0.08]',
     cardBorderClass: 'border-red-200/70 dark:border-red-500/25',
     badgeClass: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400 border border-red-200 dark:border-red-500/30',
-    label: 'Retard greu (>4 min)',
+    label: 'Retard greu (>5 min)',
     badgeText: `+${m}'`,
     delaySec
   };
