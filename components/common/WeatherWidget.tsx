@@ -82,6 +82,7 @@ export const WeatherWidget: React.FC = () => {
     const [open, setOpen] = useState(false);
     const [userCoords, setUserCoords] = useState<{ lat: number; lon: number }>(getInitialCoords);
     const [selectedStationId, setSelectedStationId] = useState<string>('auto');
+    const [activeTab, setActiveTab] = useState<'detail' | 'smp_map'>('detail');
     const modalRef = useRef<HTMLDivElement>(null);
 
     const loadData = async (lat: number, lon: number, explicitStation?: string) => {
@@ -351,204 +352,288 @@ export const WeatherWidget: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Scrollable Body: Alerts, Sensors & Forecast */}
+                        {/* ── Sub-Tab Navigation (Sensors i Previsió vs Mapa SMP Oficial) ── */}
+                        <div className="flex items-center gap-1.5 px-5 py-2 border-b border-gray-100 dark:border-white/5 bg-gray-50/70 dark:bg-white/[0.02] flex-none">
+                            <button
+                                onClick={() => setActiveTab('detail')}
+                                className={`flex-1 py-1.5 rounded-xl text-[11px] font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                                    activeTab === 'detail'
+                                        ? 'bg-white dark:bg-slate-800 text-gray-900 dark:text-white shadow-sm border border-gray-200/50 dark:border-white/10'
+                                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+                                }`}
+                            >
+                                <Activity size={13} className={activeTab === 'detail' ? 'text-[#75990F]' : ''} />
+                                Sensors i Previsió
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('smp_map')}
+                                className={`flex-1 py-1.5 rounded-xl text-[11px] font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                                    activeTab === 'smp_map'
+                                        ? 'bg-white dark:bg-slate-800 text-gray-900 dark:text-white shadow-sm border border-gray-200/50 dark:border-white/10'
+                                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+                                }`}
+                            >
+                                <MapPin size={13} className={activeTab === 'smp_map' ? 'text-amber-500' : ''} />
+                                <span>Mapa SMP Oficial</span>
+                                {weather.alerts && weather.alerts.length > 0 && (
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                )}
+                            </button>
+                        </div>
+
+                        {/* Scrollable Body: Alerts, Sensors & Forecast OR Mapa SMP */}
                         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 no-scrollbar">
-                            {/* Emergency Alerts Section */}
-                            {weather.alerts && weather.alerts.length > 0 ? (
-                                <div className="space-y-2">
-                                    <div className="text-[9px] font-black uppercase tracking-wider text-red-500 dark:text-red-400 flex items-center gap-1.5">
-                                        <AlertTriangle size={12} className="animate-pulse" />
-                                        Alertes i Avisos per a la Circulació
+                            {activeTab === 'smp_map' ? (
+                                <div className="flex flex-col items-center justify-center py-1 animate-in fade-in duration-200">
+                                    <div className="w-full flex items-center justify-between mb-2.5 px-0.5">
+                                        <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-gray-800 dark:text-gray-200">
+                                            <Radio size={13} className="text-[#75990F] animate-pulse" />
+                                            <span>Mapa d'Avisos de Perill (SMP)</span>
+                                        </div>
+                                        <span className="text-[9px] font-black tracking-wider uppercase text-[#75990F] bg-[#75990F]/15 px-2 py-0.5 rounded-full border border-[#75990F]/30">
+                                            Meteocat Oficial
+                                        </span>
                                     </div>
-                                    {weather.alerts.map((alert) => (
-                                        <div
-                                            key={alert.id}
-                                            className={`p-3 rounded-2xl border flex items-start gap-2.5 shadow-sm transition-all ${
-                                                alert.level === 'red'
-                                                    ? 'bg-red-50/80 dark:bg-red-500/10 border-red-200 dark:border-red-500/30 text-red-950 dark:text-red-200'
-                                                    : 'bg-amber-50/80 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30 text-amber-950 dark:text-amber-200'
-                                            }`}
+
+                                    {/* Embedded Meteocat Mapa Avisos SMP iframe */}
+                                    <div className="w-full rounded-2xl overflow-hidden border border-gray-200/80 dark:border-white/10 bg-slate-50 dark:bg-slate-900/60 flex justify-center items-center shadow-inner py-1">
+                                        <iframe
+                                            src="https://static-m.meteo.cat/ginys/mapaAvisos?language=ca&color=75990F&target=_blank"
+                                            title="Mapa d'avisos de perill Meteocat"
+                                            frameBorder="0"
+                                            scrolling="no"
+                                            className="w-[297px] h-[525px] border-0 rounded-xl"
+                                        />
+                                    </div>
+
+                                    <div className="flex items-center justify-between w-full mt-3 px-1 text-[10px] text-gray-400 dark:text-gray-500 font-medium">
+                                        <span>Giny oficial Servei Meteorològic de Catalunya</span>
+                                        <a
+                                            href="https://www.meteo.cat/prediccio/avisos"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-[#75990F] hover:underline font-bold"
                                         >
-                                            <AlertTriangle
-                                                size={18}
-                                                className={`flex-none mt-0.5 ${
-                                                    alert.level === 'red' ? 'text-red-500' : 'text-amber-500'
-                                                }`}
-                                            />
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center justify-between gap-1.5 flex-wrap">
-                                                    <span className="text-xs font-black uppercase tracking-tight">
-                                                        {alert.title}
-                                                    </span>
-                                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-white/70 dark:bg-white/10 border border-black/5 dark:border-white/5">
-                                                        {alert.source}
-                                                    </span>
+                                            meteo.cat ↗
+                                        </a>
+                                    </div>
+                                </div>
+                            ) : (
+                                <>
+                                    {/* Emergency Alerts Section */}
+                                    {weather.alerts && weather.alerts.length > 0 ? (
+                                        <div className="space-y-2">
+                                            <div className="text-[9px] font-black uppercase tracking-wider text-red-500 dark:text-red-400 flex items-center gap-1.5">
+                                                <AlertTriangle size={12} className="animate-pulse" />
+                                                Alertes i Avisos per a la Circulació
+                                            </div>
+                                            {weather.alerts.map((alert) => (
+                                                <div
+                                                    key={alert.id}
+                                                    className={`p-3 rounded-2xl border flex items-start gap-2.5 shadow-sm transition-all ${
+                                                        alert.level === 'red'
+                                                            ? 'bg-red-50/80 dark:bg-red-500/10 border-red-200 dark:border-red-500/30 text-red-950 dark:text-red-200'
+                                                            : 'bg-amber-50/80 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30 text-amber-950 dark:text-amber-200'
+                                                    }`}
+                                                >
+                                                    <AlertTriangle
+                                                        size={18}
+                                                        className={`flex-none mt-0.5 ${
+                                                            alert.level === 'red' ? 'text-red-500' : 'text-amber-500'
+                                                        }`}
+                                                    />
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                                                            <span className="text-xs font-black uppercase tracking-tight">
+                                                                {alert.title}
+                                                            </span>
+                                                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-white/70 dark:bg-white/10 border border-black/5 dark:border-white/5">
+                                                                {alert.source}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-[11px] font-medium mt-1 leading-snug opacity-90">
+                                                            {alert.description}
+                                                        </p>
+                                                        <div className="mt-2 flex items-center justify-between flex-wrap gap-1.5">
+                                                            <div className="text-[10px] font-bold flex items-center gap-1.5 text-gray-800 dark:text-gray-100 bg-white/80 dark:bg-white/10 px-2.5 py-1.5 rounded-xl border border-black/5 dark:border-white/5 flex-1 min-w-0">
+                                                                <Train size={12} className="flex-none text-[#75990F]" />
+                                                                <span className="truncate">Impacte FGC: {alert.impactFgc}</span>
+                                                            </div>
+                                                            <button
+                                                                onClick={() => setActiveTab('smp_map')}
+                                                                className="flex-none text-[10px] font-bold text-[#75990F] dark:text-[#A8D017] hover:underline px-1.5 py-1 cursor-pointer"
+                                                            >
+                                                                Veure Mapa SMP ↗
+                                                            </button>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <p className="text-[11px] font-medium mt-1 leading-snug opacity-90">
-                                                    {alert.description}
-                                                </p>
-                                                <div className="mt-2 text-[10px] font-bold flex items-center gap-1.5 text-gray-800 dark:text-gray-100 bg-white/80 dark:bg-white/10 px-2.5 py-1.5 rounded-xl border border-black/5 dark:border-white/5">
-                                                    <Train size={12} className="flex-none text-[#75990F]" />
-                                                    <span>Impacte FGC: {alert.impactFgc}</span>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center justify-between px-3.5 py-2.5 rounded-2xl bg-[#75990F]/10 border border-[#75990F]/20 text-[#547008] dark:text-[#A8D017]">
+                                            <div className="flex items-center gap-2">
+                                                <ShieldCheck size={16} className="flex-none text-[#75990F]" />
+                                                <span className="text-[11px] font-bold">
+                                                    Sense alertes meteorològiques a la zona · Condicions normals
+                                                </span>
+                                            </div>
+                                            <button
+                                                onClick={() => setActiveTab('smp_map')}
+                                                className="text-[10px] font-bold hover:underline flex items-center gap-1 text-[#75990F] dark:text-[#A8D017] flex-none cursor-pointer"
+                                            >
+                                                Mapa SMP ↗
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {/* Grid stats (6 items) */}
+                                    <div>
+                                        <div className="text-[9px] font-black uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">
+                                            Lectures de Sensors i Atmosfera
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-2.5">
+                                            <StatTile
+                                                icon={<Droplets size={14} className="text-blue-400" />}
+                                                label="Humitat"
+                                                value={`${w.humidity}%`}
+                                                sub={isMeteocat ? 'Sensor XEMA' : undefined}
+                                            />
+                                            <StatTile
+                                                icon={<Wind size={14} className="text-teal-400" />}
+                                                label="Vent"
+                                                value={`${w.windSpeed} km/h`}
+                                                sub={getWindDir(w.windDirection)}
+                                            />
+                                            <StatTile
+                                                icon={<Activity size={14} className="text-orange-400" />}
+                                                label="Ratxa Màx."
+                                                value={`${w.windGusts} km/h`}
+                                                alert={w.windGusts > 50}
+                                                sub={w.windGusts > 50 ? 'Alerta vent' : (isMeteocat ? 'Anemòmetre' : undefined)}
+                                            />
+                                            <StatTile
+                                                icon={<Gauge size={14} className="text-purple-400" />}
+                                                label="Pressió"
+                                                value={`${w.pressure} hPa`}
+                                            />
+                                            <StatTile
+                                                icon={<Eye size={14} className="text-indigo-400" />}
+                                                label="Visibilitat"
+                                                value={`${w.visibility} km`}
+                                                alert={w.visibility < 1}
+                                            />
+                                            <StatTile
+                                                icon={<Cloud size={14} className="text-gray-400" />}
+                                                label="Nuvols"
+                                                value={`${w.cloudCover}%`}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Precip & UV row */}
+                                    <div className="grid grid-cols-2 gap-2.5">
+                                        <div className="flex items-center gap-3 p-3 bg-blue-50/60 dark:bg-blue-500/10 rounded-2xl border border-blue-100/60 dark:border-blue-500/20">
+                                            <CloudRain size={16} className="text-blue-500 dark:text-blue-400 flex-none" />
+                                            <div>
+                                                <div className="text-[9px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">
+                                                    Precipitació
+                                                </div>
+                                                <div className="text-sm font-black text-gray-800 dark:text-white">
+                                                    {w.precipitationProbability}%
+                                                    <span className="text-[10px] font-normal text-gray-400 ml-1">prob.</span>
+                                                </div>
+                                                <div className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">
+                                                    {d.precipSum} mm acumulats avui
                                                 </div>
                                             </div>
                                         </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-[#75990F]/10 border border-[#75990F]/20 text-[#547008] dark:text-[#A8D017]">
-                                    <ShieldCheck size={16} className="flex-none text-[#75990F]" />
-                                    <span className="text-[11px] font-bold">
-                                        Sense alertes meteorològiques a la zona · Condicions normals de via
-                                    </span>
-                                </div>
-                            )}
 
-                            {/* Grid stats (6 items) */}
-                            <div>
-                                <div className="text-[9px] font-black uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">
-                                    Lectures de Sensors i Atmosfera
-                                </div>
-                                <div className="grid grid-cols-3 gap-2.5">
-                                    <StatTile
-                                        icon={<Droplets size={14} className="text-blue-400" />}
-                                        label="Humitat"
-                                        value={`${w.humidity}%`}
-                                        sub={isMeteocat ? 'Sensor XEMA' : undefined}
-                                    />
-                                    <StatTile
-                                        icon={<Wind size={14} className="text-teal-400" />}
-                                        label="Vent"
-                                        value={`${w.windSpeed} km/h`}
-                                        sub={getWindDir(w.windDirection)}
-                                    />
-                                    <StatTile
-                                        icon={<Activity size={14} className="text-orange-400" />}
-                                        label="Ratxa Màx."
-                                        value={`${w.windGusts} km/h`}
-                                        alert={w.windGusts > 50}
-                                        sub={w.windGusts > 50 ? 'Alerta vent' : (isMeteocat ? 'Anemòmetre' : undefined)}
-                                    />
-                                    <StatTile
-                                        icon={<Gauge size={14} className="text-purple-400" />}
-                                        label="Pressió"
-                                        value={`${w.pressure} hPa`}
-                                    />
-                                    <StatTile
-                                        icon={<Eye size={14} className="text-indigo-400" />}
-                                        label="Visibilitat"
-                                        value={`${w.visibility} km`}
-                                        alert={w.visibility < 1}
-                                    />
-                                    <StatTile
-                                        icon={<Cloud size={14} className="text-gray-400" />}
-                                        label="Nuvols"
-                                        value={`${w.cloudCover}%`}
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Precip & UV row */}
-                            <div className="grid grid-cols-2 gap-2.5">
-                                <div className="flex items-center gap-3 p-3 bg-blue-50/60 dark:bg-blue-500/10 rounded-2xl border border-blue-100/60 dark:border-blue-500/20">
-                                    <CloudRain size={16} className="text-blue-500 dark:text-blue-400 flex-none" />
-                                    <div>
-                                        <div className="text-[9px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">
-                                            Precipitació
-                                        </div>
-                                        <div className="text-sm font-black text-gray-800 dark:text-white">
-                                            {w.precipitationProbability}%
-                                            <span className="text-[10px] font-normal text-gray-400 ml-1">prob.</span>
-                                        </div>
-                                        <div className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">
-                                            {d.precipSum} mm acumulats avui
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className={`flex items-center gap-3 p-3 rounded-2xl border ${d.uvIndex >= 6
-                                    ? 'bg-orange-50/60 dark:bg-orange-500/10 border-orange-100/60 dark:border-orange-500/20'
-                                    : 'bg-gray-50/60 dark:bg-white/5 border-gray-100/60 dark:border-white/5'
-                                    }`}
-                                >
-                                    <Sun size={16} className="text-amber-500 dark:text-amber-400 flex-none" />
-                                    <div>
-                                        <div className="text-[9px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">
-                                            Índex UV
-                                        </div>
-                                        <div className={`text-sm font-black ${uv.color}`}>
-                                            {d.uvIndex}
-                                            <span className="text-[10px] font-semibold ml-1">{uv.label}</span>
-                                        </div>
-                                        <div className="text-[10px] text-gray-400 dark:text-gray-500">
-                                            Radiació màx. solar
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Sunrise / Sunset */}
-                            <div className="flex items-center gap-2">
-                                <div className="flex items-center gap-2.5 px-3 py-2 bg-amber-50/60 dark:bg-amber-500/10 rounded-2xl border border-amber-100/60 dark:border-amber-500/20 flex-1">
-                                    <Sunrise size={14} className="text-amber-500" />
-                                    <div>
-                                        <div className="text-[9px] text-gray-400 uppercase tracking-wider font-semibold">Sortida sol</div>
-                                        <div className="text-xs font-black text-gray-800 dark:text-white">{formatTime(d.sunrise)}</div>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2.5 px-3 py-2 bg-indigo-50/60 dark:bg-indigo-500/10 rounded-2xl border border-indigo-100/60 dark:border-indigo-500/20 flex-1">
-                                    <Sunset size={14} className="text-indigo-400" />
-                                    <div>
-                                        <div className="text-[9px] text-gray-400 uppercase tracking-wider font-semibold">Posta sol</div>
-                                        <div className="text-xs font-black text-gray-800 dark:text-white">{formatTime(d.sunset)}</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* 7-8 Days Official Forecast (SMC / Meteocat) */}
-                            {weather.forecast && weather.forecast.length > 0 && (
-                                <div>
-                                    <div className="flex items-center justify-between mb-2">
-                                        <span className="text-[9px] font-black uppercase tracking-wider text-gray-400 dark:text-gray-500">
-                                            Previsió Oficial · {weather.municipality} ({weather.forecast.length} dies)
-                                        </span>
-                                        {isMeteocat && (
-                                            <span className="text-[9px] font-bold text-[#75990F] dark:text-[#A8D017]">
-                                                SMC Oficial
-                                            </span>
-                                        )}
-                                    </div>
-                                    <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-                                        {weather.forecast.map((day, idx) => {
-                                            const dateObj = new Date(day.date);
-                                            const dayName = new Intl.DateTimeFormat('ca-ES', { weekday: 'short' }).format(dateObj).replace('.', '');
-                                            return (
-                                                <div
-                                                    key={idx}
-                                                    className="flex-none w-16 p-2 rounded-2xl bg-gray-50/70 dark:bg-white/[0.03] border border-gray-100/70 dark:border-white/5 flex flex-col items-center justify-center text-center transition-all hover:bg-gray-100/70 dark:hover:bg-white/[0.06]"
-                                                >
-                                                    <span className="text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase mb-1.5">
-                                                        {dayName}
-                                                    </span>
-                                                    <div className="my-0.5">
-                                                        {getWeatherIcon(day.weatherCode, true, 20, 'drop-shadow-sm')}
-                                                    </div>
-                                                    <div className="mt-1.5 text-[11px] font-black text-gray-800 dark:text-gray-200">
-                                                        {day.tempMax}°
-                                                    </div>
-                                                    <div className="text-[10px] font-medium text-gray-400 dark:text-gray-500">
-                                                        {day.tempMin}°
-                                                    </div>
-                                                    {day.precipProbability !== undefined && day.precipProbability > 0 && (
-                                                        <span className="text-[9px] font-bold text-blue-500 mt-1">
-                                                            {day.precipProbability}%
-                                                        </span>
-                                                    )}
+                                        <div className={`flex items-center gap-3 p-3 rounded-2xl border ${d.uvIndex >= 6
+                                            ? 'bg-orange-50/60 dark:bg-orange-500/10 border-orange-100/60 dark:border-orange-500/20'
+                                            : 'bg-gray-50/60 dark:bg-white/5 border-gray-100/60 dark:border-white/5'
+                                            }`}
+                                        >
+                                            <Sun size={16} className="text-amber-500 dark:text-amber-400 flex-none" />
+                                            <div>
+                                                <div className="text-[9px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">
+                                                    Índex UV
                                                 </div>
-                                            );
-                                        })}
+                                                <div className={`text-sm font-black ${uv.color}`}>
+                                                    {d.uvIndex}
+                                                    <span className="text-[10px] font-semibold ml-1">{uv.label}</span>
+                                                </div>
+                                                <div className="text-[10px] text-gray-400 dark:text-gray-500">
+                                                    Radiació màx. solar
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
+
+                                    {/* Sunrise / Sunset */}
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2.5 px-3 py-2 bg-amber-50/60 dark:bg-amber-500/10 rounded-2xl border border-amber-100/60 dark:border-amber-500/20 flex-1">
+                                            <Sunrise size={14} className="text-amber-500" />
+                                            <div>
+                                                <div className="text-[9px] text-gray-400 uppercase tracking-wider font-semibold">Sortida sol</div>
+                                                <div className="text-xs font-black text-gray-800 dark:text-white">{formatTime(d.sunrise)}</div>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2.5 px-3 py-2 bg-indigo-50/60 dark:bg-indigo-500/10 rounded-2xl border border-indigo-100/60 dark:border-indigo-500/20 flex-1">
+                                            <Sunset size={14} className="text-indigo-400" />
+                                            <div>
+                                                <div className="text-[9px] text-gray-400 uppercase tracking-wider font-semibold">Posta sol</div>
+                                                <div className="text-xs font-black text-gray-800 dark:text-white">{formatTime(d.sunset)}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* 7-8 Days Official Forecast (SMC / Meteocat) */}
+                                    {weather.forecast && weather.forecast.length > 0 && (
+                                        <div>
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className="text-[9px] font-black uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                                                    Previsió Oficial · {weather.municipality} ({weather.forecast.length} dies)
+                                                </span>
+                                                {isMeteocat && (
+                                                    <span className="text-[9px] font-bold text-[#75990F] dark:text-[#A8D017]">
+                                                        SMC Oficial
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+                                                {weather.forecast.map((day, idx) => {
+                                                    const dateObj = new Date(day.date);
+                                                    const dayName = new Intl.DateTimeFormat('ca-ES', { weekday: 'short' }).format(dateObj).replace('.', '');
+                                                    return (
+                                                        <div
+                                                            key={idx}
+                                                            className="flex-none w-16 p-2 rounded-2xl bg-gray-50/70 dark:bg-white/[0.03] border border-gray-100/70 dark:border-white/5 flex flex-col items-center justify-center text-center transition-all hover:bg-gray-100/70 dark:hover:bg-white/[0.06]"
+                                                        >
+                                                            <span className="text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase mb-1.5">
+                                                                {dayName}
+                                                            </span>
+                                                            <div className="my-0.5">
+                                                                {getWeatherIcon(day.weatherCode, true, 20, 'drop-shadow-sm')}
+                                                            </div>
+                                                            <div className="mt-1.5 text-[11px] font-black text-gray-800 dark:text-gray-200">
+                                                                {day.tempMax}°
+                                                            </div>
+                                                            <div className="text-[10px] font-medium text-gray-400 dark:text-gray-500">
+                                                                {day.tempMin}°
+                                                            </div>
+                                                            {day.precipProbability !== undefined && day.precipProbability > 0 && (
+                                                                <span className="text-[9px] font-bold text-blue-500 mt-1">
+                                                                    {day.precipProbability}%
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
                             )}
                         </div>
 
