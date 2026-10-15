@@ -7,6 +7,7 @@ import { getLiniaColor, getTrainPhone } from '../utils/fgc';
 import { STATION_GEO_MAP } from '../utils/stationGeoData';
 import { getFgcMinutes } from '../utils/time';
 import { getFgcServiceDate, pollAndRecordGipPassages } from '../utils/gipRecorder';
+import { fetchLiveGeoTrenTrains } from '../utils/geotrenApi';
 import { decodeGeotrenCirculation } from './incidencia/utils/decodeCirculation';
 import { decodeGeotrenUt } from './incidencia/utils/decodeUt';
 import { GipRegistrePas } from '../types';
@@ -180,21 +181,19 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
   // Carrega trens actius de GeoTren i calcula els retards en temps real
   const fetchActiveTrainsAndDelays = async () => {
     try {
-      const res = await fetch('https://dadesobertes.fgc.cat/api/v2/catalog/datasets/posicionament-dels-trens/exports/json');
-      if (!res.ok) return;
-      const data: any[] = await res.json();
-      if (!Array.isArray(data)) return;
+      const data = await fetchLiveGeoTrenTrains();
+      if (!Array.isArray(data) || data.length === 0) return;
 
       const activeList: Array<{ id: string; linia: string; ut: string; desti: string; currentSt: string | null }> = [];
       const seen = new Set<string>();
 
       data.forEach(gt => {
         const decodedCirc = decodeGeotrenCirculation(gt.id);
-        const circId = decodedCirc?.fullName?.toUpperCase() || (gt.id ? gt.id.split('|')[0]?.trim().toUpperCase() : null);
+        const circId = gt.circCode || decodedCirc?.fullName?.toUpperCase() || (gt.id ? gt.id.split('|')[0]?.trim().toUpperCase() : null);
         if (!circId || seen.has(circId)) return;
         seen.add(circId);
 
-        const ut = decodeGeotrenUt(gt.ut, gt.tipus_unitat) || gt.ut || '';
+        const ut = gt.decodedUt || decodeGeotrenUt(gt.ut, gt.tipus_unitat) || gt.ut || '';
         const currentSt = gt.estacionat_a ? resolveStationId(gt.estacionat_a.trim(), gt.lin) : null;
 
         activeList.push({
@@ -212,8 +211,7 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
       if (activeList.length > 0) {
         const activeCodes = activeList.map(a => a.id);
         const now = new Date();
-        const currentClock = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
-        const nowMin = getFgcMinutes(currentClock) || 0;
+        const nowSecs = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
 
         const { data: passages } = await supabase
           .from('gip_registre_pas')
@@ -235,11 +233,11 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
             const p = latestByCirc.get(a.id);
             if (!p) return;
 
-            // Filtre de temps: considerem que és el retard actiu d'ara si ha passat en els darrers 35 minuts (circular)
+            // Filtre de temps: la circulació és activa en xarxa; el seu darrer pas registrat
+            // és vàlid si ha ocorregut durant el trajecte actiu actual (fins a 90 minuts)
             const pSecs = timeStringToSeconds(p.hora_real);
-            const nowSecs = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
             const elapsedSec = pSecs !== null ? calculateTimeDiffSec(nowSecs, pSecs) : Infinity;
-            if (Math.abs(elapsedSec) > 35 * 60) return;
+            if (Math.abs(elapsedSec) > 90 * 60) return;
 
             const normalizedDelaySec = normalizeTimeDiffSec(p.diferencia_segons);
             let resolvedEstat: 'en_hora' | 'retard' | 'avanc' = p.estat;
@@ -247,7 +245,7 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
             else if (normalizedDelaySec < -20) resolvedEstat = 'avanc';
             else resolvedEstat = 'en_hora';
 
-            // Filtre de retards: registrem circulacions amb retard (≥ 180s = 3 min)
+            // Registrem circulacions amb retard (≥ 180s = 3 min)
             if (normalizedDelaySec >= 180) {
               delayedList.push({
                 id: a.id,
@@ -261,18 +259,6 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
                 delaySec: normalizedDelaySec,
                 estat: resolvedEstat
               });
-            }
-
-            // Si el retard supera el llindar seleccionat (3m, 4m o >5m), activar alerta mòbil si està activat
-            if (isCirculationDelayedByThreshold(normalizedDelaySec, delayThresholdMin)) {
-              checkAndNotifyDelay({
-                circId: a.id,
-                linia: a.linia || p.linia || '',
-                ut: a.ut || p.ut || '',
-                delaySec: normalizedDelaySec,
-                stationName: resolveStationName(p.estacio_nom || p.estacio_codi, a.linia || p.linia),
-                desti: a.desti || ''
-              }).catch(() => {});
             }
           });
 

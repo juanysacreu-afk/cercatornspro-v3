@@ -136,6 +136,79 @@ export const parseProperesParades = (raw?: string | null): string[] => {
   return matches.map(m => resolveStationId(m[1].trim(), ''));
 };
 
+export interface RealtimeDelayEvaluation {
+  delaySec: number;
+  isDelayed: boolean;
+  stationCode: string;
+  stationName: string;
+  isStoppedAtPlatform: boolean;
+  scheduledTime?: string;
+}
+
+/**
+ * Avalua el retard real d'un tren segons si està aturat a l'andana o en marxa entre estacions.
+ * Evita el fals positiu crític que comparava l'hora actual amb la parada que el tren ja havia deixat enrere.
+ */
+export const evaluateRealtimeDelay = (
+  nowSecs: number,
+  stops: Array<{ code: string; nom?: string; hora?: string }>,
+  currentStationIndex: number,
+  isStoppedAtPlatform: boolean,
+  nextStationIndex: number
+): RealtimeDelayEvaluation => {
+  const currentStop = stops[currentStationIndex];
+  let delaySec = 0;
+  let stationCode = currentStop?.code || '';
+  let stationName = currentStop?.nom || currentStop?.code || '';
+  let scheduledTime = currentStop?.hora;
+
+  if (isStoppedAtPlatform) {
+    // Cas A: El tren està físicament detingut a l'andana. El retard és respecte a l'hora oficial d'aquesta parada.
+    if (currentStop?.hora) {
+      delaySec = calculateTimeDiffSec(nowSecs, currentStop.hora);
+    }
+  } else if (nextStationIndex > 0) {
+    // Cas B: El tren està en marxa entre dues estacions (entre departedStop i nextStop).
+    const nextStop = stops[nextStationIndex];
+    const departedStop = stops[nextStationIndex - 1];
+    const nextStopSecs = nextStop?.hora ? timeStringToSeconds(nextStop.hora) : null;
+    const departedStopSecs = departedStop?.hora ? timeStringToSeconds(departedStop.hora) : null;
+
+    if (nextStopSecs !== null && nowSecs > nextStopSecs) {
+      // El tren ja hauria d'haver arribat a la propera estació i encara continua en marxa: retard real sobre l'arribada.
+      delaySec = calculateTimeDiffSec(nowSecs, nextStop.hora);
+      stationCode = nextStop.code;
+      stationName = nextStop.nom || nextStop.code;
+      scheduledTime = nextStop.hora;
+    } else if (departedStopSecs !== null && nextStopSecs !== null && nextStopSecs > departedStopSecs) {
+      // El tren està circulant dins del temps programat del tram.
+      const travelDurationTheo = nextStopSecs - departedStopSecs;
+      const timeSinceDeparted = calculateTimeDiffSec(nowSecs, departedStop.hora);
+      if (timeSinceDeparted > travelDurationTheo) {
+        delaySec = timeSinceDeparted - travelDurationTheo;
+      } else {
+        delaySec = 0;
+      }
+    } else {
+      delaySec = 0;
+    }
+  } else if (currentStop?.hora) {
+    // Cas C: A l'estació d'origen abans de sortir o a final de línia
+    delaySec = calculateTimeDiffSec(nowSecs, currentStop.hora);
+  }
+
+  delaySec = normalizeTimeDiffSec(delaySec);
+
+  return {
+    delaySec,
+    isDelayed: isCirculationDelayedByThreshold(delaySec),
+    stationCode,
+    stationName,
+    isStoppedAtPlatform,
+    scheduledTime
+  };
+};
+
 /**
  * Processa un cicle de GeoTren i grava a Supabase el pas per estació de totes les circulacions actives
  */
@@ -236,23 +309,26 @@ export const pollAndRecordGipPassages = async (): Promise<number> => {
 
       if (currentStationIndex === -1) continue;
 
-      // 5. Calcular el retard / avanç observat a la posició actual (amb gestió circular del canvi de mitjanit)
+      // 5. Calcular el retard / avanç observat a la posició actual amb l'avaluador exacte
+      const delayEval = evaluateRealtimeDelay(
+        nowSecs,
+        stops,
+        currentStationIndex,
+        isStoppedAtPlatform,
+        nextStationIndex
+      );
+      const currentDiffSec = delayEval.delaySec;
       const currentStop = stops[currentStationIndex];
-      let currentDiffSec = 0;
-      if (currentStop?.hora) {
-        currentDiffSec = calculateTimeDiffSec(nowSecs, currentStop.hora);
-      }
-      currentDiffSec = normalizeTimeDiffSec(currentDiffSec);
 
       // 6. AVÍS DE RETARD AL MÒBIL:
-      // Si el retard supera el llindar seleccionat (3m, 4m o >5m), avisar (tant si és a l'andana com en marxa)
-      if (isCirculationDelayedByThreshold(currentDiffSec)) {
+      // Només avisar si el retard REAL observat supera el llindar seleccionat (3m, 4m o >5m)
+      if (delayEval.isDelayed) {
         checkAndNotifyDelay({
           circId: circCode,
           linia,
           ut: decodedUt,
-          delaySec: currentDiffSec,
-          stationName: currentStop.nom || currentStop.code
+          delaySec: delayEval.delaySec,
+          stationName: delayEval.stationName
         }).catch(() => {});
       }
 
