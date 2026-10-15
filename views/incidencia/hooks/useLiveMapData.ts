@@ -736,6 +736,33 @@ export const useLiveMapData = ({
                 }
             });
 
+            // Same physical train, consecutive circulations (e.g. B193 -> B198 at Av. Tibidabo):
+            // once the successor circulation has started at the station where the previous one ended,
+            // keep a single dot (the successor) instead of two overlapping ones.
+            const activeTrains = currentPersonnel.filter(p => p.type === 'TRAIN');
+            const mergedGhostIds = new Set<LivePersonnel>();
+            activeTrains.forEach(prev => {
+                if (prev.endTimeMin === undefined || displayMin <= prev.endTimeMin) return; // not arrived yet
+                const prevDest = resolveStationId(prev.final || '', prev.linia);
+                if (!prevDest) return;
+                const hasSuccessor = activeTrains.some(next => {
+                    if (next === prev || next.id === prev.id) return false;
+                    if (next.startTimeMin === undefined || next.endTimeMin === undefined) return false;
+                    if (displayMin <= next.endTimeMin && displayMin < next.startTimeMin) return false; // not started yet
+                    if (next.isMoving) return false;
+                    const gap = next.startTimeMin - prev.endTimeMin!;
+                    if (gap < -2 || gap > 30) return false;
+                    const nextOrigin = resolveStationId(next.inici || '', next.linia);
+                    return nextOrigin === prevDest && next.stationId === prevDest;
+                });
+                if (hasSuccessor) mergedGhostIds.add(prev);
+            });
+            if (mergedGhostIds.size > 0) {
+                for (let i = currentPersonnel.length - 1; i >= 0; i--) {
+                    if (mergedGhostIds.has(currentPersonnel[i])) currentPersonnel.splice(i, 1);
+                }
+            }
+
             // Resolve overlaps
             const collisionMap: Record<string, number> = {};
             const offsetData = currentPersonnel.map(p => {
@@ -913,8 +940,26 @@ export const useLiveMapData = ({
             };
         });
 
+        // 5. One physical train = one dot. When a train parks at its terminus, GeoTren renames it to the
+        //    next circulation (e.g. B193 -> B198). The schedule may still show the old circulation
+        //    (not yet synced), so drop that stale duplicate.
+        const parkedGeoTren = rawGeoTrenData
+            .filter(gt => !!gt.estacionat_a)
+            .map(gt => ({
+                stationId: resolveStationId(gt.estacionat_a as string, gt.lin),
+                circId: normalizeCircId(gt.circulacioId || decodeGeotrenCirculation(gt.id)?.fullName || '')
+            }));
+        const dedupedLiveData = enrichedLiveData.filter(p => {
+            if (p.type !== 'TRAIN' || !p.id || p.isGeoTrenSynced) return true;
+            if (p.endTimeMin === undefined || p.progress === undefined || p.progress < 70) return true;
+            const dest = resolveStationId(p.final || '', p.linia);
+            if (!dest) return true;
+            const myCirc = normalizeCircId(p.id);
+            return !parkedGeoTren.some(g => g.stationId === dest && g.circId && g.circId !== myCirc);
+        });
+
         return {
-            unifiedLiveData: enrichedLiveData,
+            unifiedLiveData: dedupedLiveData,
             unifiedGeoTren: enrichedGeoTren
         };
     }, [rawLiveData, rawGeoTrenData, isGeoTrenEnabled]);
