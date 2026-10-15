@@ -60,7 +60,10 @@ serve(async (req: Request) => {
         title: body.title || "⚠️ Prova de Notificació (App Tancada)",
         body: body.body || "Aquesta alerta arriba fins i tot amb l'aplicació completament tancada!",
         tag: "test-push-" + Date.now(),
-        data: { url: "/?view=gip" }
+        data: {
+          url: body.url || "/?view=gip&circ=S11",
+          circId: body.circId || "S11"
+        }
       });
 
       const results = await sendPushToAll(subscriptions, payload);
@@ -102,7 +105,10 @@ serve(async (req: Request) => {
         title: `⚠️ Retard +${formattedDelay} · ${circId}${lineStr}`,
         body: `La circulació ${circId}${utStr} porta +${formattedDelay} de retard${stStr}.`,
         tag: `delay-${circId}`,
-        data: { url: `/?view=gip&circ=${encodeURIComponent(circId)}` }
+        data: {
+          url: `/?view=gip&circ=${encodeURIComponent(circId)}`,
+          circId
+        }
       });
 
       const results = await sendPushToAll(subscriptions, payload);
@@ -163,7 +169,10 @@ serve(async (req: Request) => {
           title: `⚠️ Retard +${formattedDelay} · ${circId}${lineStr}`,
           body: `La circulació ${circId}${utStr} porta +${formattedDelay} de retard${stStr}.`,
           tag: `delay-${circId}`,
-          data: { url: `/?view=gip&circ=${encodeURIComponent(circId)}` }
+          data: {
+            url: `/?view=gip&circ=${encodeURIComponent(circId)}`,
+            circId
+          }
         });
 
         await sendPushToAll(subscriptions, payload);

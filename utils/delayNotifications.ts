@@ -282,7 +282,9 @@ export const sendTestNotification = async (): Promise<boolean> => {
   return sendSystemNotification({
     title: '⚠️ Prova d\'Avís de Retard (NEXUS)',
     body: `Circulació S11 (UT 112.04) amb retard (${threshLabel}) a Sant Cugat. Prova correcta!`,
-    tag: 'nexus-test-notif'
+    tag: 'nexus-test-notif',
+    url: '/?view=gip&circ=S11',
+    circId: 'S11'
   });
 };
 
@@ -291,24 +293,46 @@ interface NotificationPayload {
   body: string;
   tag?: string;
   url?: string;
+  circId?: string;
 }
 
 /**
  * Envia la notificació del sistema operatiu (a través del Service Worker si està disponible)
  */
-const sendSystemNotification = async ({ title, body, tag, url = '/?view=gip' }: NotificationPayload): Promise<boolean> => {
+const sendSystemNotification = async ({ title, body, tag, url, circId }: NotificationPayload): Promise<boolean> => {
   if (!isDelayNotifsSupported() || Notification.permission !== 'granted') {
     return false;
   }
+
+  const effectiveCircId = circId || (() => {
+    try {
+      if (!url) return null;
+      const u = new URL(url, window.location.origin);
+      return u.searchParams.get('circ');
+    } catch (_) {
+      return null;
+    }
+  })();
+
+  const effectiveUrl = url || (effectiveCircId ? `/?view=gip&circ=${encodeURIComponent(effectiveCircId)}` : '/?view=gip');
 
   const options: any = {
     body,
     icon: '/logoNX.png',
     badge: '/logoNX.png',
     vibrate: [200, 100, 200, 100, 200],
-    tag: tag || 'nexus-delay-alert',
+    tag: tag || (effectiveCircId ? `delay-${effectiveCircId}` : 'nexus-delay-alert'),
     renotify: true,
-    data: { url }
+    data: {
+      url: effectiveUrl,
+      circId: effectiveCircId
+    }
+  };
+
+  const dispatchCircNavigation = () => {
+    if (effectiveCircId) {
+      window.dispatchEvent(new CustomEvent('nexus-open-gip-circ', { detail: { circId: effectiveCircId } }));
+    }
   };
 
   try {
@@ -321,13 +345,25 @@ const sendSystemNotification = async ({ title, body, tag, url = '/?view=gip' }: 
       }
     }
 
-    new Notification(title, options);
+    const n = new Notification(title, options);
+    n.onclick = (e) => {
+      e.preventDefault();
+      window.focus();
+      dispatchCircNavigation();
+      n.close();
+    };
     feedback.playNotification();
     return true;
   } catch (err) {
     console.warn('[Notification] Error dispatching notification:', err);
     try {
-      new Notification(title, { body: options.body, icon: options.icon });
+      const n = new Notification(title, { body: options.body, icon: options.icon });
+      n.onclick = (e) => {
+        e.preventDefault();
+        window.focus();
+        dispatchCircNavigation();
+        n.close();
+      };
       return true;
     } catch (e) {
       return false;
@@ -387,7 +423,8 @@ export const checkAndNotifyDelay = async (info: DelayAlertInfo): Promise<boolean
     title,
     body,
     tag: `delay-${circKey}`,
-    url: `/?view=gip&circ=${encodeURIComponent(info.circId)}`
+    url: `/?view=gip&circ=${encodeURIComponent(info.circId)}`,
+    circId: info.circId
   }).catch(() => {});
 
   // 2. Notificar al servidor Push perquè el servidor ho enviï a tots els telèfons amb l'app TANCADA
@@ -546,7 +583,8 @@ export const checkAndNotifyAdvance = async (info: DelayAlertInfo): Promise<boole
     title,
     body,
     tag: `adv-${circKey}`,
-    url: `/?view=gip&circ=${encodeURIComponent(info.circId)}`
+    url: `/?view=gip&circ=${encodeURIComponent(info.circId)}`,
+    circId: info.circId
   }).catch(() => {});
 
   return true;

@@ -85,10 +85,17 @@ export interface ActiveDelayedCirc {
   estat: 'en_hora' | 'retard' | 'avanc';
 }
 
-export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
+export interface GipViewProps {
+  isPrivacyMode?: boolean;
+  initialCircId?: string | null;
+  onCircHandled?: () => void;
+}
+
+export const GipView: React.FC<GipViewProps> = ({ isPrivacyMode, initialCircId, onCircHandled }) => {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [selectedCirc, setSelectedCirc] = useState<CircDetail | null>(null);
+  const selectedCircCardRef = useRef<HTMLDivElement | null>(null);
   const [activeCircsList, setActiveCircsList] = useState<Array<{ id: string; linia: string; ut: string; desti: string; currentSt: string | null }>>([]);
   const [todayPassagesCount, setTodayPassagesCount] = useState<number>(0);
   const [currentTimeStr, setCurrentTimeStr] = useState<string>('');
@@ -113,6 +120,56 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
       window.removeEventListener('nexus_delay_notifs_changed', handleNotifsChange);
     };
   }, []);
+
+  // 1. Obrir circulació inicial si ve via props (des d'App.tsx o notificació)
+  useEffect(() => {
+    if (initialCircId) {
+      const clean = initialCircId.trim().toUpperCase();
+      setQuery(clean);
+      loadCirculationData(clean);
+      onCircHandled?.();
+    }
+  }, [initialCircId]);
+
+  // 2. Escoltar esdeveniments en temps real per si GipView ja està obert i actiu
+  useEffect(() => {
+    const handleOpenCircEvent = (e: any) => {
+      const circId = e.detail?.circId;
+      if (circId) {
+        const clean = String(circId).trim().toUpperCase();
+        setQuery(clean);
+        loadCirculationData(clean);
+      }
+    };
+
+    window.addEventListener('nexus-open-gip-circ', handleOpenCircEvent);
+    return () => {
+      window.removeEventListener('nexus-open-gip-circ', handleOpenCircEvent);
+    };
+  }, []);
+
+  // 3. Fallback: comprovar paràmetres d'URL en arrencar
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const circParam = params.get('circ');
+      if (circParam && !initialCircId) {
+        const clean = circParam.trim().toUpperCase();
+        setQuery(clean);
+        loadCirculationData(clean);
+      }
+    } catch (_) {}
+  }, []);
+
+  // Auto-scroll suau a la targeta de circulació seleccionada
+  useEffect(() => {
+    if (selectedCirc) {
+      const timer = setTimeout(() => {
+        selectedCircCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [selectedCirc?.id]);
 
   const handleSelectThreshold = (t: DelayThresholdMinutes) => {
     setDelayThresholdMin(t);
@@ -862,7 +919,7 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
 
       {/* Targeta de la Circulació seleccionada */}
       {selectedCirc ? (
-        <div className="space-y-6">
+        <div ref={selectedCircCardRef} className="space-y-6">
           {/* Resum Circulació */}
           <GlassPanel className="p-6 sm:p-8 !rounded-[32px] sm:!rounded-[40px] space-y-4">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">

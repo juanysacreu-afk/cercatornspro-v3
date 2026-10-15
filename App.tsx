@@ -52,8 +52,7 @@ const App: React.FC = () => {
   const activeTabRef = useRef(activeTab);
   const { showToast } = useToast();
   const [focusLocation, setFocusLocation] = useState<{ lat: number; lon: number; label: string; x?: number; y?: number } | null>(null);
-
-
+  const [gipCircId, setGipCircId] = useState<string | null>(null);
 
   const handleTabChange = useCallback((tab: AppTab) => {
     setIsMobileMenuOpen(false);
@@ -71,6 +70,59 @@ const App: React.FC = () => {
   const handleLookOnMap = useCallback((loc: { lat: number; lon: number; label: string; x?: number; y?: number }) => {
     setFocusLocation(loc);
     handleTabChange(AppTab.Incidencia);
+  }, [handleTabChange]);
+
+  // Gestió de navegació des de notificacions o URLs directes (?view=gip&circ=...)
+  useEffect(() => {
+    const checkUrlNavigation = () => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const view = params.get('view');
+        const circ = params.get('circ');
+        if (view === 'gip') {
+          handleTabChange(AppTab.Gip);
+          if (circ) {
+            setGipCircId(circ.trim().toUpperCase());
+          }
+        }
+      } catch (err) {
+        console.warn('Error reading URL parameters:', err);
+      }
+    };
+
+    checkUrlNavigation();
+    window.addEventListener('popstate', checkUrlNavigation);
+
+    // Escolta de missatges del Service Worker en prémer notificacions al mòbil o PC
+    const handleSwMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'NEXUS_OPEN_GIP_CIRC') {
+        const circId = event.data.circId;
+        handleTabChange(AppTab.Gip);
+        if (circId) {
+          const clean = String(circId).trim().toUpperCase();
+          setGipCircId(clean);
+          window.dispatchEvent(new CustomEvent('nexus-open-gip-circ', { detail: { circId: clean } }));
+        }
+      }
+    };
+
+    // Escolta d'esdeveniments personalitzats disparats per notificacions locals
+    const handleCustomOpenCirc = (e: any) => {
+      const circId = e.detail?.circId;
+      handleTabChange(AppTab.Gip);
+      if (circId) {
+        setGipCircId(String(circId).trim().toUpperCase());
+      }
+    };
+
+    navigator.serviceWorker?.addEventListener('message', handleSwMessage);
+    window.addEventListener('nexus-open-gip-circ', handleCustomOpenCirc);
+
+    return () => {
+      window.removeEventListener('popstate', checkUrlNavigation);
+      navigator.serviceWorker?.removeEventListener('message', handleSwMessage);
+      window.removeEventListener('nexus-open-gip-circ', handleCustomOpenCirc);
+    };
   }, [handleTabChange]);
 
 
@@ -832,6 +884,8 @@ const App: React.FC = () => {
               {
                 id: AppTab.Gip, Component: <GipView
                   isPrivacyMode={isPrivacyMode}
+                  initialCircId={gipCircId}
+                  onCircHandled={() => setGipCircId(null)}
                 />
               },
               {
