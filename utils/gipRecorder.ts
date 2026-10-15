@@ -198,24 +198,33 @@ export const pollAndRecordGipPassages = async (): Promise<number> => {
       );
 
       let currentStationIndex = -1;
+      let isStoppedAtPlatform = false;
 
       // Cas 1: El tren està físicament DETINGUT a l'andana (per iSIC o per GPS<=75m + v<=7 km/h)
       if (fusion.state === 'EN_ANDANA' && fusion.stationCode) {
         const idx = stops.findIndex(s => s.code === fusion.stationCode);
         if (idx !== -1) {
           currentStationIndex = idx;
+          isStoppedAtPlatform = true;
         }
       }
 
       // Cas 2: Si no està detingut a l'andana però té pròximes parades definides
-      if (currentStationIndex === -1 && nextTargetCode) {
-        const nextIdx = stops.findIndex(s => s.code === nextTargetCode);
-        if (nextIdx > 0) {
+      let nextStationIndex = -1;
+      if (nextTargetCode) {
+        nextStationIndex = stops.findIndex(s => s.code === nextTargetCode);
+      }
+
+      if (currentStationIndex === -1 && nextStationIndex !== -1) {
+        if (nextStationIndex > 0) {
           // El tren és en aproximació o marxa; la darrera estació superada és la immediatament anterior
-          currentStationIndex = nextIdx - 1;
-        } else if (nextIdx === 0) {
+          currentStationIndex = nextStationIndex - 1;
+        } else if (nextStationIndex === 0) {
           // El tren encara és a l'estació d'origen
           currentStationIndex = 0;
+          if (speedKmh <= 7) {
+            isStoppedAtPlatform = true;
+          }
         }
       }
 
@@ -223,6 +232,7 @@ export const pollAndRecordGipPassages = async (): Promise<number> => {
       if (currentStationIndex === -1 && properes.length === 0) {
         if (fusion.state === 'EN_ANDANA' || (fusion.distanceMeters !== null && fusion.distanceMeters <= 100 && speedKmh <= 10)) {
           currentStationIndex = stops.length - 1;
+          isStoppedAtPlatform = true;
         } else {
           currentStationIndex = Math.max(0, stops.length - 2);
         }
@@ -236,8 +246,49 @@ export const pollAndRecordGipPassages = async (): Promise<number> => {
       if (currentStop?.hora) {
         currentDiffSec = calculateTimeDiffSec(nowSecs, currentStop.hora);
       }
+      currentDiffSec = normalizeTimeDiffSec(currentDiffSec);
 
-      // 6. Enregistrar totes les parades fins a currentStationIndex que no estiguin enregistrades
+      // 6. AVÍS DE RETARD AL MÒBIL:
+      // Si el retard supera el llindar seleccionat (3m, 4m o >5m), avisar (tant si és a l'andana com en marxa)
+      if (isCirculationDelayedByThreshold(currentDiffSec)) {
+        checkAndNotifyDelay({
+          circId: circCode,
+          linia,
+          ut: decodedUt,
+          delaySec: currentDiffSec,
+          stationName: currentStop.nom || currentStop.code
+        }).catch(() => {});
+      }
+
+      // 7. AVÍS DE TREN AVANÇAT (SORTIDA AVANÇADA D'ESTACIÓ):
+      // REGLA FGC: Només s'ha d'avisar si el tren HA SORTIT de l'estació abans de l'hora oficial
+      // i el GeoTren el detecta en marxa entre les dues estacions abans d'aquesta hora.
+      // Si el tren arriba abans a una estació i està a l'andana esperant sortida, NO s'ha d'avisar MAI.
+      if (!isStoppedAtPlatform && fusion.state !== 'EN_ANDANA' && !gt.estacionat_a && nextStationIndex > 0) {
+        const departedStationIndex = nextStationIndex - 1;
+        const departedStop = stops[departedStationIndex];
+        const nextStop = stops[nextStationIndex];
+
+        if (departedStop?.hora) {
+          const departedDiffSec = normalizeTimeDiffSec(calculateTimeDiffSec(nowSecs, departedStop.hora));
+          // Si el tren és detectat entre estacions havent sortit abans de l'hora oficial de la parada deixada
+          if (departedDiffSec <= -30) {
+            checkAndNotifyAdvance({
+              circId: circCode,
+              linia,
+              ut: decodedUt,
+              delaySec: departedDiffSec,
+              departedStationName: departedStop.nom || departedStop.code,
+              departedStationCode: departedStop.code,
+              nextStationName: nextStop?.nom || nextStop?.code,
+              nextStationCode: nextStop?.code,
+              scheduledTime: departedStop.hora
+            }).catch(() => {});
+          }
+        }
+      }
+
+      // 8. Enregistrar totes les parades fins a currentStationIndex que no estiguin enregistrades
       for (let i = 0; i <= currentStationIndex; i++) {
         const stop = stops[i];
         const key = `${serviceDate}:${circCode}:${stop.code}`;
@@ -266,27 +317,6 @@ export const pollAndRecordGipPassages = async (): Promise<number> => {
           estat = 'retard';
         } else if (diffSec < -20) {
           estat = 'avanc';
-        }
-
-        // Si és la posició en temps real i supera el llindar seleccionat (3m, 4m o >5m), avisar al mòbil
-        if (i === currentStationIndex && isCirculationDelayedByThreshold(diffSec)) {
-          checkAndNotifyDelay({
-            circId: circCode,
-            linia,
-            ut: decodedUt,
-            delaySec: diffSec,
-            stationName: stop.nom || stop.code
-          }).catch(() => {});
-        } else if (i === currentStationIndex && diffSec < -45) {
-          checkAndNotifyAdvance({
-            circId: circCode,
-            linia,
-            ut: decodedUt,
-            delaySec: diffSec,
-            stationName: stop.nom || stop.code
-          }).catch(() => {});
-        } else {
-          estat = 'en_hora';
         }
 
         const record: GipRegistrePas = {

@@ -342,6 +342,11 @@ export interface DelayAlertInfo {
   delaySec: number;
   stationName?: string;
   desti?: string;
+  departedStationName?: string;
+  departedStationCode?: string;
+  nextStationName?: string;
+  nextStationCode?: string;
+  scheduledTime?: string;
 }
 
 /**
@@ -501,14 +506,17 @@ export const getPunctualityInfo = (rawDelaySec: number = 0): PunctualityInfo => 
 };
 
 /**
- * Comprova si cal enviar un avís per marxa avançada (tren avançat més de 45 segons)
+ * Comprova si cal enviar un avís per sortida avançada d'estació (tren que ha sortit abans d'hora oficial)
+ * Segons la regla operativa FGC: només s'avisa si el tren surt d'estació abans d'hora i és detectat entre estacions.
  */
 export const checkAndNotifyAdvance = async (info: DelayAlertInfo): Promise<boolean> => {
   if (!isDelayNotifsEnabled()) return false;
   const normalizedDelay = normalizeTimeDiffSec(info.delaySec);
-  if (normalizedDelay > -45) return false;
+  // Llindar d'avís: avanç igual o superior a 30 segons respecte a l'hora oficial de sortida
+  if (normalizedDelay > -30) return false;
 
-  const circKey = `adv-${info.circId.trim().toUpperCase()}`;
+  const stationTagPart = (info.departedStationCode || info.stationName || '').trim().toUpperCase();
+  const circKey = `adv-${info.circId.trim().toUpperCase()}${stationTagPart ? `-${stationTagPart}` : ''}`;
   const now = Date.now();
   const last = notifiedDelays.get(circKey);
 
@@ -524,10 +532,15 @@ export const checkAndNotifyAdvance = async (info: DelayAlertInfo): Promise<boole
   const advStr = m > 0 ? `${m}m ${s}s` : `${s}s`;
   const lineStr = info.linia ? ` (${info.linia})` : '';
   const utStr = info.ut ? ` [UT ${info.ut}]` : '';
-  const stStr = info.stationName ? ` a ${info.stationName}` : '';
 
-  const title = `🔷 Tren Avançat -${advStr} · ${info.circId}${lineStr}`;
-  const body = `La circulació ${info.circId}${utStr} va ${advStr} avançada a l'horari oficial${stStr}. Cal regular marxa a l'andana.`;
+  const fromStation = info.departedStationName || info.stationName || '';
+  const toStation = info.nextStationName ? ` en direcció a ${info.nextStationName}` : '';
+  const schedStr = info.scheduledTime ? ` (hora oficial: ${info.scheduledTime.slice(0, 5)})` : '';
+
+  const title = `🔷 Sortida Avançada -${advStr} · ${info.circId}${lineStr}`;
+  const body = fromStation
+    ? `La circulació ${info.circId}${utStr} ha sortit de ${fromStation} ${advStr} abans de l'horari oficial${schedStr}${toStation}. Cal regular marxa.`
+    : `La circulació ${info.circId}${utStr} ha sortit ${advStr} abans d'hora${toStation}. Cal regular marxa.`;
 
   sendSystemNotification({
     title,
