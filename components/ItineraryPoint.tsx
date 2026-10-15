@@ -11,7 +11,12 @@ interface ItineraryPointProps {
     isFirst?: boolean;
     isLast?: boolean;
     nextPoint?: any;
-    nowMin: number;
+    nowMin?: number;
+    isNow?: boolean;
+    isTransit?: boolean;
+    isPassed?: boolean;
+    transitStatusText?: string;
+    isicStatusText?: string;
     gipPassage?: GipRegistrePas;
 }
 
@@ -20,15 +25,24 @@ export const ItineraryPoint: React.FC<ItineraryPointProps> = ({
     isFirst, 
     isLast, 
     nextPoint, 
-    nowMin,
+    nowMin = 0,
+    isNow: explicitIsNow,
+    isTransit: explicitIsTransit,
+    isPassed = false,
+    transitStatusText,
+    isicStatusText,
     gipPassage 
 }) => {
     const pTime = point.hora || point.sortida || point.arribada;
     const pMin = getFgcMinutes(pTime);
-    const isNow = pTime && nowMin === pMin;
+
+    // Si s'ha passat el càlcul real de posició (GeoTren/iSIC/GIP), té prioritat absoluta
+    const isNow = explicitIsNow !== undefined ? explicitIsNow : (pTime && nowMin === pMin);
 
     let isTransit = false;
-    if (nextPoint && pTime && nextPoint.hora) {
+    if (explicitIsTransit !== undefined) {
+        isTransit = explicitIsTransit;
+    } else if (nextPoint && pTime && nextPoint.hora) {
         const nextMin = getFgcMinutes(nextPoint.hora);
         if (nowMin > pMin && nowMin < nextMin) {
             isTransit = true;
@@ -43,16 +57,45 @@ export const ItineraryPoint: React.FC<ItineraryPointProps> = ({
     return (
         <React.Fragment>
             <div className="relative flex items-center gap-3 sm:gap-6 py-3.5 group/point">
-                <div className={`absolute left-[-30px] sm:left-[-50px] top-1/2 -translate-y-1/2 flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 bg-white dark:bg-gray-800 border-4 ${isFirst ? 'border-fgc-green' : isLast ? 'border-red-500/80 dark:border-red-600' : 'border-gray-300 dark:border-gray-700'} rounded-full z-10 shadow-sm`}>
-                    {isNow && <div className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.8)]" />}
+                {/* Station circle indicator */}
+                <div className={`absolute left-[-30px] sm:left-[-50px] top-1/2 -translate-y-1/2 flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 bg-white dark:bg-gray-800 border-4 ${
+                    isNow 
+                        ? 'border-red-500 shadow-[0_0_12px_rgba(239,68,68,0.6)]' 
+                        : isPassed 
+                            ? 'border-emerald-500 dark:border-emerald-600'
+                            : isFirst 
+                                ? 'border-fgc-green' 
+                                : isLast 
+                                    ? 'border-red-500/80 dark:border-red-600' 
+                                    : 'border-gray-300 dark:border-gray-700'
+                } rounded-full z-10 shadow-sm transition-all`}>
+                    {isNow ? (
+                        <div className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.9)]" />
+                    ) : isPassed ? (
+                        <div className="w-2 h-2 bg-emerald-500 rounded-full" />
+                    ) : null}
                 </div>
+
+                {/* Theoretical Time */}
                 <div className="w-16 sm:w-20 flex-shrink-0">
-                    <p className={`text-sm sm:text-base font-black ${isNow ? 'text-red-500' : 'text-fgc-grey dark:text-gray-200'}`}>{pTime || '--:--'}</p>
+                    <p className={`text-sm sm:text-base font-black ${isNow ? 'text-red-500' : 'text-fgc-grey dark:text-gray-200'}`}>
+                        {pTime || '--:--'}
+                    </p>
                     {isNow && <p className="text-[10px] font-black text-red-500 animate-pulse">ARA</p>}
                 </div>
-                <div className={`flex-1 p-2.5 sm:p-3.5 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-2 min-w-0 ${isFirst ? 'bg-fgc-green/5 dark:bg-fgc-green/10 border-fgc-green/20 dark:border-fgc-green/20' : isLast ? 'bg-red-50/50 dark:bg-red-950/20 border-red-100 dark:border-red-900/30' : 'border-gray-100 dark:border-white/5 bg-gray-50/40 dark:bg-white/[0.02] group-hover/point:bg-gray-100/60 dark:group-hover/point:bg-white/5'}`}>
+
+                {/* Station card */}
+                <div className={`flex-1 p-2.5 sm:p-3.5 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-2 min-w-0 ${
+                    isNow
+                        ? 'bg-red-50/70 dark:bg-red-950/30 border-red-300 dark:border-red-800 ring-2 ring-red-400/20'
+                        : isFirst 
+                            ? 'bg-fgc-green/5 dark:bg-fgc-green/10 border-fgc-green/20 dark:border-fgc-green/20' 
+                            : isLast 
+                                ? 'bg-red-50/50 dark:bg-red-950/20 border-red-100 dark:border-red-900/30' 
+                                : 'border-gray-100 dark:border-white/5 bg-gray-50/40 dark:bg-white/[0.02] group-hover/point:bg-gray-100/60 dark:group-hover/point:bg-white/5'
+                }`}>
                     {/* Station Name & Track */}
-                    <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0 flex-wrap">
                         <h5 className={`text-sm sm:text-base truncate ${isNow ? 'font-black text-red-600 dark:text-red-400' : 'font-bold text-fgc-grey dark:text-gray-200'}`}>
                             <span className="font-black">{point.nom}</span>
                             {isCodeOnly && stationFullName && (
@@ -66,6 +109,14 @@ export const ItineraryPoint: React.FC<ItineraryPointProps> = ({
                                 </span>
                             )}
                         </h5>
+
+                        {/* ISIC Aturat Badge if currently at platform */}
+                        {isNow && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-100 dark:bg-red-900/50 text-[10px] font-black text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800 uppercase tracking-tight shadow-xs">
+                                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping" />
+                                {isicStatusText || "Andana (iSIC Confirmat)"}
+                            </span>
+                        )}
                     </div>
 
                     {/* GIP Real Time & Delay badge beside station */}
@@ -115,12 +166,16 @@ export const ItineraryPoint: React.FC<ItineraryPointProps> = ({
                     )}
                 </div>
             </div>
+
+            {/* In-Transit Indicator (Positioned strictly in the real segment) */}
             {isTransit && (
                 <div className="relative h-12 flex items-center">
                     <div className="absolute left-[-30px] sm:left-[-50px] top-0 bottom-0 flex flex-col items-center justify-center w-6 h-6 sm:w-8 sm:h-8 z-20">
-                        <div className="w-3 h-3 bg-red-500 rounded-full animate-bounce shadow-[0_0_12px_rgba(239,68,68,1)] border-2 border-white dark:border-gray-800" />
+                        <div className="w-3.5 h-3.5 bg-red-500 rounded-full animate-bounce shadow-[0_0_14px_rgba(239,68,68,1)] border-2 border-white dark:border-gray-800" />
                     </div>
-                    <div className="pl-16 sm:pl-20 text-[10px] font-black text-red-500 uppercase tracking-widest animate-pulse">EN TRAJECTE...</div>
+                    <div className="pl-16 sm:pl-20 text-[10px] font-black text-red-500 uppercase tracking-widest animate-pulse flex items-center gap-1.5">
+                        <span>{transitStatusText || "EN TRAJECTE..."}</span>
+                    </div>
                 </div>
             )}
         </React.Fragment>

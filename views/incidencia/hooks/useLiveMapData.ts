@@ -15,6 +15,7 @@ import { decodeGeotrenCirculation } from '../utils/decodeCirculation';
 import { recordTrainKinematics, detectStationFusion } from '../../../utils/trainKinematics';
 import { getPunctualityInfo, PunctualityInfo } from '../../../utils/delayNotifications';
 import { pollAndRecordGipPassages } from '../../../utils/gipRecorder';
+import { fetchLiveGeoTrenTrains } from '../../../utils/geotrenApi';
 import type { LivePersonnel, IncidenciaMode, GeoTrenPoint, Shift } from '../../../types';
 
 
@@ -317,12 +318,10 @@ export const useLiveMapData = ({
 
     const fetchGeoTrenData = useCallback(async () => {
         try {
-            const resp = await fetch(GEOTREN_API);
-            if (!resp.ok) return;
-            const data: GeoTrenPoint[] = await resp.json();
+            const data = await fetchLiveGeoTrenTrains();
             // Only include Barcelona-Vallès lines (our map only has BV stations)
             const BV_LINES = new Set(['S1', 'S2', 'L6', 'L66', 'L7', 'L12', 'MS1', 'MS2', 'ML6', 'ML7', 'ES2']);
-            const bvData = data.filter(gt => BV_LINES.has(gt.lin?.toUpperCase?.() || ''));
+            const bvData = (data as any[]).filter(gt => BV_LINES.has(gt.lin?.toUpperCase?.() || ''));
             const enhanced = bvData.map(buildEnhanced).filter(gt => gt.mapX !== 0 || gt.mapY !== 0);
 
             // Deduplicate by decoded unit number

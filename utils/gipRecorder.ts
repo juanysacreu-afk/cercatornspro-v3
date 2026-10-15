@@ -7,8 +7,7 @@ import { getFgcMinutes } from './time';
 import { GipRegistrePas } from '../types';
 import { recordTrainKinematics, detectStationFusion } from './trainKinematics';
 import { checkAndNotifyDelay, checkAndNotifyAdvance, isCirculationDelayedByThreshold } from './delayNotifications';
-
-const GEOTREN_API = 'https://dadesobertes.fgc.cat/api/v2/catalog/datasets/posicionament-dels-trens/exports/json';
+import { fetchLiveGeoTrenTrains } from './geotrenApi';
 
 /**
  * Retorna la data de servei oficial FGC (format YYYY-MM-DD).
@@ -150,9 +149,7 @@ export const pollAndRecordGipPassages = async (): Promise<number> => {
   let insertedCount = 0;
 
   try {
-    const res = await fetch(GEOTREN_API);
-    if (!res.ok) return 0;
-    const trains: any[] = await res.json();
+    const trains = await fetchLiveGeoTrenTrains();
     if (!Array.isArray(trains) || trains.length === 0) return 0;
 
     const now = new Date();
@@ -168,18 +165,17 @@ export const pollAndRecordGipPassages = async (): Promise<number> => {
       if (!VALID_BV_LINES.has(linia)) continue;
 
       // 2. Decodificar circulació oficial
-      const decodedCirc = decodeGeotrenCirculation(gt.id);
-      const circCode = decodedCirc?.fullName?.toUpperCase();
+      const circCode = gt.circCode || decodeGeotrenCirculation(gt.id)?.fullName?.toUpperCase();
       if (!circCode) continue;
 
-      const decodedUt = decodeGeotrenUt(gt.ut, gt.tipus_unitat) || gt.ut || '';
+      const decodedUt = gt.decodedUt || decodeGeotrenUt(gt.ut, gt.tipus_unitat) || gt.ut || '';
 
       // 3. Obtenir el recorregut teòric complet d'aquesta circulació
       const stops = await getCirculationStops(circCode, linia);
       if (!stops || stops.length === 0) continue;
 
       // 4. Determinar la posició actual o la darrera estació superada via FUSIÓ SENSORIAL (iSIC + GPS + Cinemàtica)
-      const properes = parseProperesParades(gt.properes_parades);
+      const properes = Array.isArray(gt.properes_parades) ? gt.properes_parades : parseProperesParades(gt.raw_properes_parades || gt.properes_parades);
       const nextTargetCode = properes.length > 0 ? properes[0] : null;
       const candidateCodes = stops.map(s => s.code);
 

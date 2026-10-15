@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { X, User, ArrowRight, Phone, Activity, Clock, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
 import { supabase } from '../supabaseClient';
-import { getFgcServiceDate } from '../utils/gipRecorder';
+import { getFgcServiceDate, pollAndRecordGipPassages } from '../utils/gipRecorder';
 import { normalizeCircId, formatDelayMinSec, normalizeTimeDiffSec } from '../utils/stations';
 import type { LivePersonnel, GipRegistrePas } from '../types';
 
@@ -46,6 +46,7 @@ const TrainInspectorPopup: React.FC<TrainInspectorPopupProps> = ({ train, onClos
         let isMounted = true;
         const fetchGipPassages = async () => {
             try {
+                pollAndRecordGipPassages().catch(() => {});
                 const serviceDate = getFgcServiceDate();
                 const { data } = await supabase
                     .from('gip_registre_pas')
