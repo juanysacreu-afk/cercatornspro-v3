@@ -372,10 +372,37 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
         assignedUt = activeMatch.ut;
       }
 
-      // 5. Creuar cada parada teòrica amb la dada real
-      const computedStops: CircStopItem[] = stopsList.map(st => {
+      // 5. Determinar la posició en viu coherent (mai per darrere d'un pas ja registrat)
+      let lastRecordedIdx = -1;
+      stopsList.forEach((st, idx) => {
+        if (realMap.has(st.code)) {
+          lastRecordedIdx = idx;
+        }
+      });
+
+      let liveStationIdx = -1;
+      if (activeMatch) {
+        const geoTrenIdx = activeMatch.currentSt
+          ? stopsList.findIndex(st => st.code === activeMatch.currentSt)
+          : -1;
+
+        if (geoTrenIdx >= 0 && geoTrenIdx >= lastRecordedIdx) {
+          liveStationIdx = geoTrenIdx;
+        } else if (lastRecordedIdx >= 0) {
+          // Si el feed de GeoTren porta decalatge respecte al registre de passos de BD,
+          // la posició en viu no pot ser mai anterior a l'últim pas ja consolidat.
+          liveStationIdx = lastRecordedIdx;
+        } else if (geoTrenIdx >= 0) {
+          liveStationIdx = geoTrenIdx;
+        } else {
+          liveStationIdx = 0;
+        }
+      }
+
+      // 6. Creuar cada parada teòrica amb la dada real
+      const computedStops: CircStopItem[] = stopsList.map((st, idx) => {
         const recorded = realMap.get(st.code);
-        const isLiveHere = activeMatch?.currentSt === st.code;
+        const isLiveHere = (idx === liveStationIdx);
 
         if (recorded) {
           let diffSec = normalizeTimeDiffSec(recorded.diferencia_segons);
@@ -406,6 +433,10 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
         };
       });
 
+      const liveStationName = (liveStationIdx >= 0 && stopsList[liveStationIdx])
+        ? stopsList[liveStationIdx].nom
+        : (activeMatch?.currentSt ? resolveStationName(activeMatch.currentSt, line) : null);
+
       setSelectedCirc({
         id: activeRecord.id,
         linia: line,
@@ -414,7 +445,7 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
         sortida: formatTimeToHHMMSS(activeRecord.sortida),
         arribada: formatTimeToHHMMSS(activeRecord.arribada),
         ut: assignedUt,
-        currentLiveStation: activeMatch?.currentSt ? resolveStationName(activeMatch.currentSt, line) : null,
+        currentLiveStation: liveStationName,
         stops: computedStops
       });
     } catch (err) {
@@ -502,7 +533,7 @@ export const GipView: React.FC<{ isPrivacyMode?: boolean }> = () => {
     } else if (punct.category === 'EN_HORA') {
       labelText = `+${timeFormatted} En hora`;
     } else if (punct.category === 'AMBAR') {
-      labelText = `+${timeFormatted} Mod. (3-4m)`;
+      labelText = `+${timeFormatted} Moderat (3-5m)`;
     } else {
       labelText = `+${timeFormatted} Retard`;
     }
