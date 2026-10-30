@@ -16,7 +16,8 @@ export interface DependencyMeta {
   code: DependencyCode;
   name: string;
   fullName: string;
-  lines: string;
+  phone: string;
+  lines?: string;
   colorHex: string;
   tailwindBg: string;
   tailwindText: string;
@@ -29,6 +30,7 @@ export const DEPENDENCY_CONFIG: Record<DependencyCode, DependencyMeta> = {
     code: 'PC',
     name: 'Pl. Catalunya',
     fullName: 'Barcelona - Pl. Catalunya',
+    phone: '91013',
     lines: 'L6 · L7 · S1 · S2',
     colorHex: '#3b82f6',
     tailwindBg: 'bg-blue-500/10 dark:bg-blue-500/20',
@@ -40,6 +42,7 @@ export const DEPENDENCY_CONFIG: Record<DependencyCode, DependencyMeta> = {
     code: 'SR',
     name: 'Sarrià',
     fullName: 'Sarrià',
+    phone: '93636',
     lines: 'L6 · L12 · S1 · S2',
     colorHex: '#9333ea',
     tailwindBg: 'bg-purple-500/10 dark:bg-purple-500/20',
@@ -51,6 +54,7 @@ export const DEPENDENCY_CONFIG: Record<DependencyCode, DependencyMeta> = {
     code: 'NA',
     name: 'Nacions Unides',
     fullName: 'Terrassa Nacions Unides',
+    phone: '91446',
     lines: 'S1',
     colorHex: '#f97316',
     tailwindBg: 'bg-orange-500/10 dark:bg-orange-500/20',
@@ -62,6 +66,7 @@ export const DEPENDENCY_CONFIG: Record<DependencyCode, DependencyMeta> = {
     code: 'PN',
     name: 'Parc del Nord',
     fullName: 'Sabadell Parc del Nord',
+    phone: '91387',
     lines: 'S2',
     colorHex: '#84cc16',
     tailwindBg: 'bg-lime-500/10 dark:bg-lime-500/20',
@@ -73,6 +78,7 @@ export const DEPENDENCY_CONFIG: Record<DependencyCode, DependencyMeta> = {
     code: 'RB',
     name: 'Rubí',
     fullName: 'Rubí Centre / Dipòsit',
+    phone: '93295',
     lines: 'S1',
     colorHex: '#ec4899',
     tailwindBg: 'bg-pink-500/10 dark:bg-pink-500/20',
@@ -874,20 +880,31 @@ export const DescansosView: React.FC<DescansosViewProps> = ({
               {/* Capçalera de la Dependència */}
               <div className="space-y-3.5 pb-3 border-b border-gray-100 dark:border-white/5">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className={`w-11 h-11 rounded-2xl ${cfg.tailwindBg} ${cfg.tailwindText} flex items-center justify-center font-black text-base border ${cfg.tailwindBorder} shadow-sm shrink-0`}>
-                    {dep}
-                  </div>
+                  <a
+                    href={`tel:${cfg.phone}`}
+                    className={`relative w-11 h-11 rounded-2xl ${cfg.tailwindBg} ${cfg.tailwindText} flex items-center justify-center font-black text-base border ${cfg.tailwindBorder} shadow-sm shrink-0 hover:scale-105 active:scale-95 transition-all group cursor-pointer`}
+                    title={`Trucar al menjador de ${cfg.name} (Ext. ${cfg.phone})`}
+                    aria-label={`Trucar al menjador de ${cfg.name} al telèfon ${cfg.phone}`}
+                  >
+                    <span>{dep}</span>
+                    <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xs ring-2 ring-white dark:ring-[#1E232A] group-hover:scale-110 transition-transform">
+                      <Phone size={8} />
+                    </span>
+                  </a>
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="text-base sm:text-lg font-black text-[#4D5358] dark:text-white uppercase tracking-tight">
-                        {cfg.fullName}
-                      </h3>
-                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-gray-400 whitespace-nowrap shrink-0">
-                        {cfg.lines}
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
-                      Base d'estacionament i descans operatiu
+                    <h3 className="text-base sm:text-lg font-black text-[#4D5358] dark:text-white uppercase tracking-tight truncate">
+                      {cfg.fullName}
+                    </h3>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 truncate flex items-center gap-1.5">
+                      <span>Menjador i descans operatiu</span>
+                      <span className="text-gray-300 dark:text-gray-600">·</span>
+                      <a
+                        href={`tel:${cfg.phone}`}
+                        className="font-mono text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1 hover:underline"
+                        title={`Trucar al menjador (${cfg.phone})`}
+                      >
+                        <Phone size={10} /> Ext. {cfg.phone}
+                      </a>
                     </p>
                   </div>
                 </div>
