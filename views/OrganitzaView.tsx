@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { OrganizeType } from '../types.ts';
 import { Search, Phone, User, Clock, LayoutGrid, ArrowRight, Coffee, Info, X, Train, Hash, RefreshCcw, Mail, GanttChart, Loader2 } from 'lucide-react';
 import OrganitzaGantt from './organitza/OrganitzaGantt';
+import DescansosView from './organitza/DescansosView';
 import { supabase } from '../supabaseClient.ts';
 import { fetchFullTurns } from '../utils/queries.ts';
 import { getShortTornId, getFgcMinutes, formatFgcTime } from '../utils/stations';
@@ -207,6 +208,7 @@ const OrganitzaViewComponent: React.FC<{
         <div className="flex bg-white/20 dark:bg-black/20 p-1.5 rounded-[20px] backdrop-blur-md border border-white/20 shadow-inner">
           <button onClick={() => { feedback.deepClick(); setOrganizeType(OrganizeType.Comparador); }} className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${organizeType === OrganizeType.Comparador ? 'bg-fgc-grey dark:bg-fgc-green dark:text-[#4D5358] text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-white/10'}`}><RefreshCcw size={16} /><span className="truncate">Comparador</span></button>
           <button onClick={() => { feedback.deepClick(); setOrganizeType(OrganizeType.Malla); }} className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${organizeType === OrganizeType.Malla ? 'bg-fgc-grey dark:bg-fgc-green dark:text-[#4D5358] text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-white/10'}`}><GanttChart size={16} /><span className="truncate">Malla</span></button>
+          <button onClick={() => { feedback.deepClick(); setOrganizeType(OrganizeType.Descansos); }} className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${organizeType === OrganizeType.Descansos ? 'bg-fgc-grey dark:bg-fgc-green dark:text-[#4D5358] text-white shadow-lg' : 'text-gray-400 dark:text-gray-500 hover:bg-white/10'}`}><Coffee size={16} /><span className="truncate">Descansos</span></button>
         </div>
       </header>
 
@@ -354,11 +356,20 @@ const OrganitzaViewComponent: React.FC<{
               </div>
             )}
           </div>
-        ) : (
+        ) : organizeType === OrganizeType.Malla ? (
           <div key="malla-view" className="animate-in fade-in slide-in-from-right-8 duration-700 ease-out-expo">
             <OrganitzaGantt
               onNavigateToSearch={onNavigateToSearch}
               isPrivacyMode={isPrivacyMode}
+            />
+          </div>
+        ) : (
+          <div key="descansos-view" className="animate-in fade-in slide-in-from-right-8 duration-700 ease-out-expo">
+            <DescansosView
+              selectedServei={selectedServei}
+              onSelectServei={setSelectedServei}
+              isPrivacyMode={isPrivacyMode}
+              onNavigateToSearch={onNavigateToSearch}
             />
           </div>
         )}

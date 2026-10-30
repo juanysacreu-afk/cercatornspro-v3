@@ -141,7 +141,8 @@ export enum OrganizeType {
   Comparador = 'comparador',
   Maquinista = 'maquinista',
   Incidencia = 'incidencia',
-  Malla = 'malla'
+  Malla = 'malla',
+  Descansos = 'descansos'
 }
 
 // ──────────────────────────────────────────────
