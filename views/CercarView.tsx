@@ -217,7 +217,7 @@ const CercarViewComponent: React.FC<{
       // Map external type to internal SearchType enum if possible
       let internalSearchType = SearchType.Torn;
       if (type === 'maquinista') internalSearchType = SearchType.Maquinista;
-      if (type === 'circulacio') internalSearchType = SearchType.Circulacio;
+      if (type === 'circulacio' || type === 'circulation') internalSearchType = SearchType.Circulacio;
       if (type === 'estacio') {
         internalSearchType = SearchType.Estacio;
         setSelectedStation(q);

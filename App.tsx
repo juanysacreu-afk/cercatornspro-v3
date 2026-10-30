@@ -115,15 +115,24 @@ const App: React.FC = () => {
       }
     };
 
+    const handleNavigateSearchEvent = (e: any) => {
+      const { type, query } = e.detail || {};
+      if (type && query) {
+        handleNavigateToSearch(type, query);
+      }
+    };
+
     navigator.serviceWorker?.addEventListener('message', handleSwMessage);
     window.addEventListener('nexus-open-gip-circ', handleCustomOpenCirc);
+    window.addEventListener('nexus-navigate-search', handleNavigateSearchEvent);
 
     return () => {
       window.removeEventListener('popstate', checkUrlNavigation);
       navigator.serviceWorker?.removeEventListener('message', handleSwMessage);
       window.removeEventListener('nexus-open-gip-circ', handleCustomOpenCirc);
+      window.removeEventListener('nexus-navigate-search', handleNavigateSearchEvent);
     };
-  }, [handleTabChange]);
+  }, [handleTabChange, handleNavigateToSearch]);
 
 
   useEffect(() => {
@@ -886,6 +895,7 @@ const App: React.FC = () => {
                   isPrivacyMode={isPrivacyMode}
                   initialCircId={gipCircId}
                   onCircHandled={() => setGipCircId(null)}
+                  onNavigateToSearch={handleNavigateToSearch}
                 />
               },
               {

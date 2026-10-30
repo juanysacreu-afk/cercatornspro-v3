@@ -96,9 +96,10 @@ export interface GipViewProps {
   isPrivacyMode?: boolean;
   initialCircId?: string | null;
   onCircHandled?: () => void;
+  onNavigateToSearch?: (type: string, query: string) => void;
 }
 
-export const GipView: React.FC<GipViewProps> = ({ isPrivacyMode, initialCircId, onCircHandled }) => {
+export const GipView: React.FC<GipViewProps> = ({ isPrivacyMode, initialCircId, onCircHandled, onNavigateToSearch }) => {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [selectedCirc, setSelectedCirc] = useState<CircDetail | null>(null);
@@ -812,11 +813,6 @@ export const GipView: React.FC<GipViewProps> = ({ isPrivacyMode, initialCircId, 
       )
     : null;
 
-  const primaryDriverPhone = selectedCirc?.driverPhones?.find(p => {
-    const clean = p.replace(/[\s.-]/g, '');
-    return clean.startsWith('6') || clean.startsWith('7');
-  }) || selectedCirc?.driverPhones?.[0];
-
   return (
     <div className="space-y-6 sm:space-y-8 p-4 sm:p-8 animate-in fade-in duration-700 max-w-7xl mx-auto w-full">
       {/* Capçalera GIP */}
@@ -1135,10 +1131,25 @@ export const GipView: React.FC<GipViewProps> = ({ isPrivacyMode, initialCircId, 
           <GlassPanel className="p-6 sm:p-8 !rounded-[32px] sm:!rounded-[40px] space-y-4">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex items-center gap-4">
-                <div className="min-w-[4rem] min-h-[4rem] bg-fgc-grey dark:bg-black text-white rounded-2xl flex flex-col items-center justify-center shadow-lg px-3">
-                  <TrainFront size={20} className="mb-0.5 text-fgc-green" />
-                  <span className="text-base font-black tracking-tighter leading-none">{selectedCirc.id}</span>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    feedback.click();
+                    if (onNavigateToSearch) {
+                      onNavigateToSearch('circulacio', selectedCirc.id);
+                    } else {
+                      window.dispatchEvent(new CustomEvent('nexus-navigate-search', { detail: { type: 'circulacio', query: selectedCirc.id } }));
+                    }
+                  }}
+                  title={`Cercar la circulació ${selectedCirc.id} a la pestanya Cercar`}
+                  aria-label={`Cercar la circulació ${selectedCirc.id}`}
+                  className="min-w-[4rem] min-h-[4rem] bg-fgc-grey dark:bg-black text-white rounded-2xl flex flex-col items-center justify-center shadow-lg px-3 transition-all hover:scale-105 active:scale-95 hover:ring-2 hover:ring-fgc-green/60 cursor-pointer group shrink-0"
+                >
+                  <TrainFront size={20} className="mb-0.5 text-fgc-green group-hover:scale-110 transition-transform" />
+                  <span className="text-base font-black tracking-tighter leading-none group-hover:text-fgc-green transition-colors">
+                    {selectedCirc.id}
+                  </span>
+                </button>
                 <div>
                   <div className="flex items-center gap-2.5 flex-wrap">
                     <h2 className="text-xl sm:text-2xl font-black text-[#4D5358] dark:text-white uppercase tracking-tight">
@@ -1174,33 +1185,6 @@ export const GipView: React.FC<GipViewProps> = ({ isPrivacyMode, initialCircId, 
                           <span className="text-[10px] font-mono font-black text-gray-400 dark:text-gray-500">
                             ({selectedCirc.torn})
                           </span>
-                        )}
-                        {primaryDriverPhone && (
-                          <a
-                            href={isPrivacyMode ? undefined : `tel:${primaryDriverPhone.replace(/\s+/g, '')}`}
-                            onClick={(e) => {
-                              if (isPrivacyMode) e.preventDefault();
-                            }}
-                            className={`p-1 -mr-1 rounded hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 transition-colors ${
-                              isPrivacyMode ? 'cursor-default opacity-40' : 'active:scale-95'
-                            }`}
-                            title={
-                              isPrivacyMode
-                                ? 'Telèfon protegit pel mode de privacitat'
-                                : `Trucar al maquinista: ${primaryDriverPhone}${
-                                    selectedCirc.driverPhones && selectedCirc.driverPhones.length > 1
-                                      ? ` (${selectedCirc.driverPhones.join(' / ')})`
-                                      : ''
-                                  }`
-                            }
-                            aria-label={
-                              isPrivacyMode
-                                ? 'Telèfon protegit pel mode de privacitat'
-                                : `Trucar al maquinista: ${primaryDriverPhone}`
-                            }
-                          >
-                            <Phone size={11} className="stroke-[2.5]" />
-                          </a>
                         )}
                       </div>
                     ) : selectedCirc.torn ? (
