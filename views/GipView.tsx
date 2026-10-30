@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Search, MapPin, Clock, ArrowRight, RefreshCcw, Activity, Train, TrainFront, CheckCircle2, AlertCircle, AlertTriangle, ChevronRight, X, Calendar, Layers, Bell, BellRing, Sparkles } from 'lucide-react';
+import { Search, MapPin, Clock, ArrowRight, RefreshCcw, Activity, Train, TrainFront, CheckCircle2, AlertCircle, AlertTriangle, ChevronRight, X, Calendar, Layers, Bell, BellRing, Sparkles, Phone, User, UserX } from 'lucide-react';
 import { supabase } from '../supabaseClient';
+import { db } from '../utils/offlineDb';
 import GlassPanel from '../components/common/GlassPanel';
-import { resolveStationId, formatDelayMinSec, normalizeTimeDiffSec, calculateTimeDiffSec, timeStringToSeconds } from '../utils/stations';
+import { resolveStationId, formatDelayMinSec, normalizeTimeDiffSec, calculateTimeDiffSec, timeStringToSeconds, getShortTornId } from '../utils/stations';
 import { getLiniaColor, getTrainPhone } from '../utils/fgc';
 import { STATION_GEO_MAP } from '../utils/stationGeoData';
 import { getFgcMinutes } from '../utils/time';
 import { getFgcServiceDate, pollAndRecordGipPassages } from '../utils/gipRecorder';
+import { getServiceToday } from '../utils/serviceCalendar';
 import { fetchLiveGeoTrenTrains } from '../utils/geotrenApi';
 import { decodeGeotrenCirculation } from './incidencia/utils/decodeCirculation';
 import { decodeGeotrenUt } from './incidencia/utils/decodeUt';
@@ -70,7 +72,12 @@ interface CircDetail {
   ut?: string;
   currentLiveStation?: string | null;
   stops: CircStopItem[];
+  driverName?: string | null;
+  torn?: string | null;
+  driverPhones?: string[];
 }
+
+const circDriverCache = new Map<string, { driverName: string | null; torn: string | null; driverPhones: string[]; ut?: string }>();
 
 export interface ActiveDelayedCirc {
   id: string;
@@ -429,7 +436,193 @@ export const GipView: React.FC<GipViewProps> = ({ isPrivacyMode, initialCircId, 
         assignedUt = activeMatch.ut;
       }
 
-      // 5. Determinar la posició en viu coherent (mai per darrere d'un pas ja registrat)
+      // 5. Cercar maquinista, torn i unitat assignada (via shifts + daily_assignments)
+      let resolvedDriverName: string | null = null;
+      let resolvedTorn: string | null = null;
+      let resolvedDriverPhones: string[] = [];
+
+      const cacheKey = activeRecord.id.toUpperCase();
+      const cached = circDriverCache.get(cacheKey);
+
+      if (cached) {
+        resolvedDriverName = cached.driverName;
+        resolvedTorn = cached.torn;
+        resolvedDriverPhones = cached.driverPhones;
+        if (!assignedUt && cached.ut) {
+          assignedUt = cached.ut;
+        }
+      } else {
+        try {
+          const todayS = getServiceToday();
+          let matchedShift: any = null;
+
+          // 1. Cercar primer a la base local Dexie (instantani)
+          try {
+            const localShifts = await db.shifts.toArray();
+            if (localShifts && localShifts.length > 0) {
+              matchedShift = localShifts.find(s => 
+                (s.servei === todayS || todayS === 'Tots' || (todayS === '0' && (s.servei === '0' || s.servei === '000'))) &&
+                (s.circulations as any[])?.some((c: any) => {
+                  const codi = typeof c === 'string' ? c : (c?.codi || c?.id || '');
+                  return codi && codi.toUpperCase() === cacheKey;
+                })
+              ) || localShifts.find(s => 
+                (s.circulations as any[])?.some((c: any) => {
+                  const codi = typeof c === 'string' ? c : (c?.codi || c?.id || '');
+                  return codi && codi.toUpperCase() === cacheKey;
+                })
+              );
+            }
+          } catch (_) {}
+
+          // 2. Si no s'ha trobat en local, cercar a Supabase (optimitzat amb JSONB contains)
+          if (!matchedShift) {
+            const { data: remoteJsonb } = await supabase
+              .from('shifts')
+              .select('id, servei, circulations')
+              .contains('circulations', [{ codi: cacheKey }]);
+
+            if (remoteJsonb && remoteJsonb.length > 0) {
+              matchedShift = remoteJsonb.find(s => 
+                (s.servei === todayS || todayS === 'Tots' || (todayS === '0' && (s.servei === '0' || s.servei === '000')))
+              ) || remoteJsonb[0];
+            }
+
+            if (!matchedShift) {
+              const { data: remoteArray } = await supabase
+                .from('shifts')
+                .select('id, servei, circulations')
+                .contains('circulations', [cacheKey]);
+              if (remoteArray && remoteArray.length > 0) {
+                matchedShift = remoteArray.find(s => 
+                  (s.servei === todayS || todayS === 'Tots' || (todayS === '0' && (s.servei === '0' || s.servei === '000')))
+                ) || remoteArray[0];
+              }
+            }
+
+            if (!matchedShift) {
+              const sFilter = (todayS && todayS !== 'Tots') ? (todayS === '0' ? ['0', '000'] : [todayS]) : null;
+              let q = supabase.from('shifts').select('id, servei, circulations');
+              if (sFilter) q = q.in('servei', sFilter);
+
+              const { data: remoteShifts } = await q.limit(300);
+              if (remoteShifts && remoteShifts.length > 0) {
+                matchedShift = remoteShifts.find(s => 
+                  (s.circulations as any[])?.some((c: any) => {
+                    const codi = typeof c === 'string' ? c : (c?.codi || c?.id || '');
+                    return codi && codi.toUpperCase() === cacheKey;
+                  })
+                );
+              }
+            }
+          }
+
+          if (matchedShift) {
+            // Obtenir cicle i unitat si encara no en tenim cap
+            if (!assignedUt && matchedShift.circulations) {
+              const circRef = (matchedShift.circulations as any[])?.find((c: any) => {
+                const codi = typeof c === 'string' ? c : (c?.codi || c?.id || '');
+                return codi && codi.toUpperCase() === cacheKey;
+              });
+              const cicle = typeof circRef === 'object' ? circRef?.cicle : null;
+              if (cicle) {
+                try {
+                  const localAssig = await db.assignments.where('cycle_id').equals(cicle).first();
+                  if (localAssig?.train_number) {
+                    assignedUt = localAssig.train_number;
+                  } else {
+                    const { data: assignRow } = await supabase
+                      .from('assignments')
+                      .select('train_number')
+                      .eq('cycle_id', cicle)
+                      .maybeSingle();
+                    if (assignRow?.train_number) {
+                      assignedUt = assignRow.train_number;
+                    }
+                  }
+                } catch (_) {}
+              }
+            }
+
+            // Resoldre maquinista a partir del torn
+            const shortTorn = getShortTornId(matchedShift.id);
+            const candidateTorns = Array.from(new Set([
+              shortTorn,
+              `Q${shortTorn}`,
+              shortTorn.replace(/^Q/i, ''),
+              matchedShift.id
+            ]));
+
+            resolvedTorn = shortTorn.startsWith('Q') ? shortTorn : `Q${shortTorn}`;
+
+            let da: any = null;
+            try {
+              const localDa = await db.daily_assignments.where('torn').anyOf(candidateTorns).first();
+              if (localDa) da = localDa;
+            } catch (_) {}
+
+            if (!da) {
+              const { data: daRows } = await supabase
+                .from('daily_assignments')
+                .select('*')
+                .in('torn', candidateTorns)
+                .limit(1);
+              if (daRows && daRows.length > 0) {
+                da = daRows[0];
+              }
+            }
+
+            if (da) {
+              const nomClean = (da.nom || '').trim();
+              const cognomsClean = (da.cognoms || '').trim();
+              if (cognomsClean && nomClean) {
+                resolvedDriverName = `${cognomsClean}, ${nomClean}`;
+              } else {
+                resolvedDriverName = cognomsClean || nomClean || null;
+              }
+
+              if (da.torn) {
+                resolvedTorn = da.torn;
+              }
+
+              if (da.empleat_id) {
+                const { data: pb } = await supabase
+                  .from('phonebook')
+                  .select('phones')
+                  .eq('nomina', da.empleat_id)
+                  .maybeSingle();
+                if (pb?.phones && Array.isArray(pb.phones)) {
+                  resolvedDriverPhones = pb.phones;
+                }
+              }
+            }
+
+            circDriverCache.set(cacheKey, {
+              driverName: resolvedDriverName,
+              torn: resolvedTorn,
+              driverPhones: resolvedDriverPhones,
+              ut: assignedUt
+            });
+          }
+        } catch (errDriver) {
+          console.warn('Error resolving driver for circulation:', errDriver);
+        }
+      }
+
+      if (assignedUt && !assignedUt.includes('.') && assignedUt.length === 5) {
+        assignedUt = `${assignedUt.slice(0, 3)}.${assignedUt.slice(3)}`;
+      }
+
+      if (resolvedDriverName || resolvedTorn || assignedUt) {
+        circDriverCache.set(cacheKey, {
+          driverName: resolvedDriverName,
+          torn: resolvedTorn,
+          driverPhones: resolvedDriverPhones,
+          ut: assignedUt
+        });
+      }
+
+      // 6. Determinar la posició en viu coherent (mai per darrere d'un pas ja registrat)
       let lastRecordedIdx = -1;
       stopsList.forEach((st, idx) => {
         if (realMap.has(st.code)) {
@@ -456,7 +649,7 @@ export const GipView: React.FC<GipViewProps> = ({ isPrivacyMode, initialCircId, 
         }
       }
 
-      // 6. Creuar cada parada teòrica amb la dada real
+      // 7. Creuar cada parada teòrica amb la dada real
       const computedStops: CircStopItem[] = stopsList.map((st, idx) => {
         const recorded = realMap.get(st.code);
         const isLiveHere = (idx === liveStationIdx);
@@ -503,7 +696,10 @@ export const GipView: React.FC<GipViewProps> = ({ isPrivacyMode, initialCircId, 
         arribada: formatTimeToHHMMSS(activeRecord.arribada),
         ut: assignedUt,
         currentLiveStation: liveStationName,
-        stops: computedStops
+        stops: computedStops,
+        driverName: resolvedDriverName,
+        torn: resolvedTorn,
+        driverPhones: resolvedDriverPhones
       });
     } catch (err) {
       console.error('Error loading GIP circulation detail:', err);
@@ -605,6 +801,21 @@ export const GipView: React.FC<GipViewProps> = ({ isPrivacyMode, initialCircId, 
       </span>
     );
   };
+
+  const trainPhone = selectedCirc?.ut
+    ? getTrainPhone(
+        selectedCirc.ut.includes('.')
+          ? selectedCirc.ut
+          : selectedCirc.ut.length === 5
+          ? `${selectedCirc.ut.slice(0, 3)}.${selectedCirc.ut.slice(3)}`
+          : selectedCirc.ut
+      )
+    : null;
+
+  const primaryDriverPhone = selectedCirc?.driverPhones?.find(p => {
+    const clean = p.replace(/[\s.-]/g, '');
+    return clean.startsWith('6') || clean.startsWith('7');
+  }) || selectedCirc?.driverPhones?.[0];
 
   return (
     <div className="space-y-6 sm:space-y-8 p-4 sm:p-8 animate-in fade-in duration-700 max-w-7xl mx-auto w-full">
@@ -939,10 +1150,65 @@ export const GipView: React.FC<GipViewProps> = ({ isPrivacyMode, initialCircId, 
                       </span>
                     )}
                     {selectedCirc.ut && (
-                      <span className="px-2.5 py-0.5 rounded-md text-xs font-black font-mono bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-white/10">
-                        UT {selectedCirc.ut}
-                      </span>
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-black font-mono bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-white/10 shadow-xs">
+                        <span>UT {selectedCirc.ut}</span>
+                        {trainPhone && (
+                          <a
+                            href={`tel:${trainPhone}`}
+                            className="inline-flex items-center justify-center p-1 -mr-1 rounded-md bg-fgc-green text-[#4D5358] hover:bg-fgc-green/80 shadow-xs transition-all active:scale-95 shrink-0"
+                            title={`Trucar a la cabina de la UT ${selectedCirc.ut} (${trainPhone})`}
+                            aria-label={`Trucar a cabina ${selectedCirc.ut}`}
+                          >
+                            <Phone size={11} className="stroke-[2.5]" />
+                          </a>
+                        )}
+                      </div>
                     )}
+                    {selectedCirc.driverName ? (
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-bold bg-white/80 dark:bg-white/10 text-[#4D5358] dark:text-gray-200 border border-gray-200 dark:border-white/10 shadow-xs">
+                        <User size={12} className="text-fgc-green shrink-0" />
+                        <span className="uppercase tracking-tight max-w-[200px] sm:max-w-none truncate" title={selectedCirc.driverName}>
+                          {selectedCirc.driverName}
+                        </span>
+                        {selectedCirc.torn && (
+                          <span className="text-[10px] font-mono font-black text-gray-400 dark:text-gray-500">
+                            ({selectedCirc.torn})
+                          </span>
+                        )}
+                        {primaryDriverPhone && (
+                          <a
+                            href={isPrivacyMode ? undefined : `tel:${primaryDriverPhone.replace(/\s+/g, '')}`}
+                            onClick={(e) => {
+                              if (isPrivacyMode) e.preventDefault();
+                            }}
+                            className={`p-1 -mr-1 rounded hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 transition-colors ${
+                              isPrivacyMode ? 'cursor-default opacity-40' : 'active:scale-95'
+                            }`}
+                            title={
+                              isPrivacyMode
+                                ? 'Telèfon protegit pel mode de privacitat'
+                                : `Trucar al maquinista: ${primaryDriverPhone}${
+                                    selectedCirc.driverPhones && selectedCirc.driverPhones.length > 1
+                                      ? ` (${selectedCirc.driverPhones.join(' / ')})`
+                                      : ''
+                                  }`
+                            }
+                            aria-label={
+                              isPrivacyMode
+                                ? 'Telèfon protegit pel mode de privacitat'
+                                : `Trucar al maquinista: ${primaryDriverPhone}`
+                            }
+                          >
+                            <Phone size={11} className="stroke-[2.5]" />
+                          </a>
+                        )}
+                      </div>
+                    ) : selectedCirc.torn ? (
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-bold bg-gray-100/60 dark:bg-white/5 text-gray-400 dark:text-gray-500 border border-gray-200/60 dark:border-white/5">
+                        <UserX size={12} className="shrink-0" />
+                        <span className="uppercase tracking-tight">Torn {selectedCirc.torn}</span>
+                      </div>
+                    ) : null}
                   </div>
                   <div className="flex items-center gap-2 text-xs sm:text-sm font-bold text-gray-500 dark:text-gray-400 mt-1 uppercase">
                     <span>{selectedCirc.inici}</span>
