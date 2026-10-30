@@ -872,42 +872,46 @@ export const DescansosView: React.FC<DescansosViewProps> = ({
               }`}
             >
               {/* Capçalera de la Dependència */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-100 dark:border-white/5">
-                <div className="flex items-center gap-3">
+              <div className="space-y-3.5 pb-3 border-b border-gray-100 dark:border-white/5">
+                <div className="flex items-center gap-3 min-w-0">
                   <div className={`w-11 h-11 rounded-2xl ${cfg.tailwindBg} ${cfg.tailwindText} flex items-center justify-center font-black text-base border ${cfg.tailwindBorder} shadow-sm shrink-0`}>
                     {dep}
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-base sm:text-lg font-black text-[#4D5358] dark:text-white uppercase tracking-tight">
                         {cfg.fullName}
                       </h3>
-                      <span className="text-[10px] font-mono font-bold text-gray-400 dark:text-gray-500">
-                        ({cfg.lines})
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-gray-400 whitespace-nowrap shrink-0">
+                        {cfg.lines}
                       </span>
                     </div>
-                    <p className="text-xs text-gray-400 dark:text-gray-500">
+                    <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
                       Base d'estacionament i descans operatiu
                     </p>
                   </div>
                 </div>
 
-                {/* Sub-selector d'estat de la dependència */}
-                <div className="flex items-center gap-1 bg-gray-100/70 dark:bg-white/5 p-1 rounded-2xl border border-gray-200/60 dark:border-white/10 self-start sm:self-auto">
+                {/* Sub-selector d'estat de la dependència: Barra segmentada responsive */}
+                <div className="grid grid-cols-3 gap-1 bg-gray-100/70 dark:bg-white/5 p-1 rounded-2xl border border-gray-200/60 dark:border-white/10 w-full">
                   <button
                     type="button"
                     onClick={() => {
                       feedback.click();
                       setSubTabMap(prev => ({ ...prev, [dep]: 'actius' }));
                     }}
-                    className={`px-3 py-1 rounded-xl text-xs font-bold uppercase transition-all flex items-center gap-1.5 ${
+                    className={`py-1.5 px-2 rounded-xl text-xs font-bold uppercase transition-all flex items-center justify-center gap-1.5 min-w-0 ${
                       currentSubTab === 'actius'
                         ? 'bg-white dark:bg-white/20 text-[#4D5358] dark:text-white shadow-xs'
                         : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
                     }`}
                   >
-                    <span>Descansant</span>
-                    <span className="px-1.5 py-0.2 rounded-md bg-fgc-green/20 text-fgc-green text-[10px] font-mono font-black">
+                    <span className="truncate">Descansant</span>
+                    <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-mono font-black shrink-0 ${
+                      currentSubTab === 'actius'
+                        ? 'bg-fgc-green/20 text-fgc-green'
+                        : 'bg-gray-200/80 dark:bg-white/10 text-gray-500 dark:text-gray-400'
+                    }`}>
                       {data.activeSlots.length}
                     </span>
                   </button>
@@ -918,15 +922,19 @@ export const DescansosView: React.FC<DescansosViewProps> = ({
                       feedback.click();
                       setSubTabMap(prev => ({ ...prev, [dep]: 'sortides' }));
                     }}
-                    className={`px-3 py-1 rounded-xl text-xs font-bold uppercase transition-all flex items-center gap-1.5 ${
+                    className={`py-1.5 px-2 rounded-xl text-xs font-bold uppercase transition-all flex items-center justify-center gap-1.5 min-w-0 ${
                       currentSubTab === 'sortides'
                         ? 'bg-amber-500 text-white shadow-xs'
                         : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
                     }`}
                   >
-                    <span>Sortides</span>
-                    <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-mono font-black ${
-                      data.upcomingDepartures.length > 0 ? 'bg-amber-500/20 text-amber-500' : 'bg-gray-200 dark:bg-white/10'
+                    <span className="truncate">Sortides</span>
+                    <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-mono font-black shrink-0 ${
+                      currentSubTab === 'sortides'
+                        ? 'bg-black/20 text-white'
+                        : data.upcomingDepartures.length > 0
+                        ? 'bg-amber-500/20 text-amber-500'
+                        : 'bg-gray-200/80 dark:bg-white/10 text-gray-500 dark:text-gray-400'
                     }`}>
                       {data.upcomingDepartures.length}
                     </span>
@@ -938,15 +946,19 @@ export const DescansosView: React.FC<DescansosViewProps> = ({
                       feedback.click();
                       setSubTabMap(prev => ({ ...prev, [dep]: 'entrades' }));
                     }}
-                    className={`px-3 py-1 rounded-xl text-xs font-bold uppercase transition-all flex items-center gap-1.5 ${
+                    className={`py-1.5 px-2 rounded-xl text-xs font-bold uppercase transition-all flex items-center justify-center gap-1.5 min-w-0 ${
                       currentSubTab === 'entrades'
                         ? 'bg-blue-500 text-white shadow-xs'
                         : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
                     }`}
                   >
-                    <span>Entrades</span>
-                    <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-mono font-black ${
-                      data.upcomingEntries.length > 0 ? 'bg-blue-500/20 text-blue-500' : 'bg-gray-200 dark:bg-white/10'
+                    <span className="truncate">Entrades</span>
+                    <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-mono font-black shrink-0 ${
+                      currentSubTab === 'entrades'
+                        ? 'bg-black/20 text-white'
+                        : data.upcomingEntries.length > 0
+                        ? 'bg-blue-500/20 text-blue-500'
+                        : 'bg-gray-200/80 dark:bg-white/10 text-gray-500 dark:text-gray-400'
                     }`}>
                       {data.upcomingEntries.length}
                     </span>
@@ -999,14 +1011,14 @@ export const DescansosView: React.FC<DescansosViewProps> = ({
                               </div>
                               <div className="min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="text-xs sm:text-sm font-black text-[#4D5358] dark:text-white uppercase tracking-tight truncate max-w-[220px] sm:max-w-none">
+                                  <span className="text-xs sm:text-sm font-black text-[#4D5358] dark:text-white uppercase tracking-tight truncate max-w-[200px] sm:max-w-none">
                                     {slot.driverName || 'Sense assignar'}
                                   </span>
-                                  <span className="text-[10px] font-mono font-black px-1.5 py-0.5 rounded bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300">
+                                  <span className="text-[10px] font-mono font-black px-1.5 py-0.5 rounded bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300 shrink-0 whitespace-nowrap">
                                     Torn {slot.torn}
                                   </span>
                                   {slot.isReserve && (
-                                    <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-600 dark:text-purple-300">
+                                    <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-600 dark:text-purple-300 shrink-0 whitespace-nowrap">
                                       Reserva
                                     </span>
                                   )}
@@ -1126,15 +1138,15 @@ export const DescansosView: React.FC<DescansosViewProps> = ({
                           className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-2.5 shadow-xs"
                         >
                           <div className="flex items-center justify-between gap-2 flex-wrap">
-                            <div className="flex items-center gap-2">
-                              <span className="px-2 py-0.5 rounded-lg bg-amber-500 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="px-2 py-0.5 rounded-lg bg-amber-500 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shrink-0">
                                 <ArrowUpRight size={12} />
                                 Surt en {remMin}m
                               </span>
                               <span className="text-xs font-black text-[#4D5358] dark:text-white uppercase truncate">
                                 {slot.driverName || 'Sense assignar'}
                               </span>
-                              <span className="text-[10px] font-mono font-bold text-gray-500">
+                              <span className="text-[10px] font-mono font-bold text-gray-500 shrink-0 whitespace-nowrap">
                                 ({slot.torn})
                               </span>
                             </div>
@@ -1179,15 +1191,15 @@ export const DescansosView: React.FC<DescansosViewProps> = ({
                           className="p-4 rounded-2xl bg-blue-500/10 border border-blue-500/30 space-y-2 shadow-xs"
                         >
                           <div className="flex items-center justify-between gap-2 flex-wrap">
-                            <div className="flex items-center gap-2">
-                              <span className="px-2 py-0.5 rounded-lg bg-blue-500 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="px-2 py-0.5 rounded-lg bg-blue-500 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shrink-0">
                                 <ArrowDownLeft size={12} />
                                 Arriba en {minutesUntilArrival}m
                               </span>
                               <span className="text-xs font-black text-[#4D5358] dark:text-white uppercase truncate">
                                 {entry.driverName || 'Sense assignar'}
                               </span>
-                              <span className="text-[10px] font-mono font-bold text-gray-500">
+                              <span className="text-[10px] font-mono font-bold text-gray-500 shrink-0 whitespace-nowrap">
                                 ({entry.torn})
                               </span>
                             </div>
