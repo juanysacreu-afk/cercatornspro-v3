@@ -91,12 +91,63 @@ export const DEPENDENCY_CONFIG: Record<DependencyCode, DependencyMeta> = {
 export const normalizeDependency = (codeOrName: string | null | undefined): DependencyCode | null => {
   if (!codeOrName) return null;
   const clean = codeOrName.trim().toUpperCase();
-  if (clean === 'PC' || clean.includes('CATALUNYA')) return 'PC';
-  if (clean === 'SR' || clean.includes('SARRIA') || clean.includes('SARRIÀ')) return 'SR';
-  if (clean === 'NA' || clean === 'DNA' || clean.includes('NACIONS') || clean === 'TR' || clean.includes('RAMBLA')) return 'NA';
-  if (clean === 'PN' || clean === 'DPN' || clean.includes('PARC DEL NORD')) return 'PN';
-  if (clean === 'RB' || clean === 'RC' || clean === 'DRE' || clean.includes('RUBI') || clean.includes('RUBÍ')) return 'RB';
+  if (clean === 'PC' || clean.includes('CATALUNYA') || clean === 'TB' || clean.includes('TIBIDABO')) return 'PC';
+  if (clean === 'SR' || clean === 'RE' || clean.includes('SARRIA') || clean.includes('SARRIÀ') || clean.includes('ELISENDA')) return 'SR';
+  if (clean === 'NA' || clean === 'DNA' || clean === 'N2' || clean === 'N3' || clean.includes('NACIONS') || clean === 'TR' || clean.includes('RAMBLA')) return 'NA';
+  if (clean === 'PN' || clean === 'DPN' || clean === 'P1' || clean === 'P2' || clean === 'P3' || clean.includes('PARC DEL NORD')) return 'PN';
+  if (clean === 'RB' || clean === 'RC' || clean === 'COR' || clean.includes('RUBI') || clean.includes('RUBÍ')) return 'RB';
   return null;
+};
+
+/**
+ * Deducció heurística d'origen i destí per codi de circulació FGC (Metro del Vallès).
+ * Utilitzat com a fallback immediat si una circulació no és a circulationsv2.
+ */
+export const deduceCirculationEndpoints = (codi: string): { inici: string; final: string; linia: string } | null => {
+  if (!codi) return null;
+  const clean = codi.trim().toUpperCase();
+  const letter = clean.charAt(0);
+  const num = parseInt(clean.slice(1), 10);
+  if (isNaN(num)) return null;
+
+  // En FGC, els números senars són sentit ascendent (des de PC cap a l'exterior)
+  // Els parells són sentit descendent (cap a Barcelona - Pl. Catalunya)
+  const isAscendent = num % 2 !== 0;
+
+  switch (letter) {
+    case 'F': // Linia S2 (Pl. Catalunya <-> Sabadell Parc del Nord)
+      return {
+        linia: 'S2',
+        inici: isAscendent ? 'PC' : 'PN',
+        final: isAscendent ? 'PN' : 'PC'
+      };
+    case 'D': // Linia S1 (Pl. Catalunya <-> Terrassa Nacions Unides)
+      return {
+        linia: 'S1',
+        inici: isAscendent ? 'PC' : 'NA',
+        final: isAscendent ? 'NA' : 'PC'
+      };
+    case 'A': // Linia L6 (Pl. Catalunya <-> Sarrià)
+      return {
+        linia: 'L6',
+        inici: isAscendent ? 'PC' : 'SR',
+        final: isAscendent ? 'SR' : 'PC'
+      };
+    case 'B': // Linia L7 (Pl. Catalunya <-> Av. Tibidabo)
+      return {
+        linia: 'L7',
+        inici: isAscendent ? 'PC' : 'TB',
+        final: isAscendent ? 'TB' : 'PC'
+      };
+    case 'L': // Linia L12 (Sarrià <-> Reina Elisenda)
+      return {
+        linia: 'L12',
+        inici: isAscendent ? 'SR' : 'RE',
+        final: isAscendent ? 'RE' : 'SR'
+      };
+    default:
+      return null;
+  }
 };
 
 export interface RestSlot {
@@ -269,13 +320,13 @@ export const DescansosView: React.FC<DescansosViewProps> = ({
       }
       setPhonesMap(pMap);
 
-      // 4. Mapa d'orígens i destins de circulacions
+      // 4. Mapa complet d'orígens i destins de circulacions (circulationsv2)
       const cMap = new Map<string, { inici: string; final: string; linia: string }>();
 
-      // Primer mirem Dexie local
+      // Primer comprovem si Dexie ja té el catàleg complet sincronitzat (>= 3000 elements)
       try {
         const localCircs = await db.circulations.toArray();
-        if (localCircs && localCircs.length > 0) {
+        if (localCircs && localCircs.length >= 3000) {
           localCircs.forEach((c: any) => {
             if (c.id) {
               cMap.set(c.id.toUpperCase(), {
@@ -288,24 +339,33 @@ export const DescansosView: React.FC<DescansosViewProps> = ({
         }
       } catch (_) {}
 
-      // Si falta, consultar de circulationsv2 per a aquest servei
-      if (cMap.size < 50) {
-        const sCode = (selectedServei && selectedServei !== 'Tots')
-          ? (selectedServei === '0' ? '000' : selectedServei)
-          : undefined;
-        let q = supabase.from('circulationsv2').select('id, inici, final, linia');
-        if (sCode) q = q.eq('servei', sCode);
-        const { data: v2Circs } = await q.limit(2000);
-        if (v2Circs) {
-          v2Circs.forEach((c: any) => {
-            if (c.id) {
-              cMap.set(c.id.toUpperCase(), {
-                inici: c.inici || '',
-                final: c.final || '',
-                linia: c.linia || ''
-              });
-            }
-          });
+      // Si falta el catàleg a Dexie o és incomplet, consultar circulationsv2 en paral·lel
+      if (cMap.size < 3000) {
+        try {
+          const pages = await Promise.all([
+            supabase.from('circulationsv2').select('id, inici, final, linia').range(0, 999),
+            supabase.from('circulationsv2').select('id, inici, final, linia').range(1000, 1999),
+            supabase.from('circulationsv2').select('id, inici, final, linia').range(2000, 2999),
+            supabase.from('circulationsv2').select('id, inici, final, linia').range(3000, 3999),
+            supabase.from('circulationsv2').select('id, inici, final, linia').range(4000, 4999),
+            supabase.from('circulationsv2').select('id, inici, final, linia').range(5000, 5999)
+          ]);
+          const allV2 = pages.flatMap(p => p.data || []);
+          if (allV2.length > 0) {
+            allV2.forEach((c: any) => {
+              if (c.id) {
+                cMap.set(c.id.toUpperCase(), {
+                  inici: c.inici || '',
+                  final: c.final || '',
+                  linia: c.linia || ''
+                });
+              }
+            });
+            // Persistir a Dexie per a càrregues instantànies posteriors
+            db.circulations.bulkPut(allV2).catch(() => {});
+          }
+        } catch (v2Err) {
+          console.warn('Error fetching circulationsv2:', v2Err);
         }
       }
       setCircMap(cMap);
@@ -366,11 +426,21 @@ export const DescansosView: React.FC<DescansosViewProps> = ({
       if (Array.isArray(shift.circulations)) {
         shift.circulations.forEach((c: any) => {
           const codi = typeof c === 'string' ? c : (c?.codi || c?.id);
-          if (!codi || codi === '-' || codi.toUpperCase() === 'VIATGER') return;
+          if (!codi || codi === '-') return;
+          const isViatger = codi.toUpperCase() === 'VIATGER';
+          let vInici = '';
+          let vFinal = '';
+          if (isViatger && c?.observacions) {
+            const parts = String(c.observacions).split('-');
+            if (parts.length >= 3) {
+              vInici = parts[1];
+              vFinal = parts[2];
+            }
+          }
           const sMin = getFgcMinutes(c.sortida);
           const eMin = getFgcMinutes(c.arribada);
           if (sMin !== null && eMin !== null) {
-            const meta = circMap.get(codi.toUpperCase());
+            const meta = circMap.get(codi.toUpperCase()) || deduceCirculationEndpoints(codi.toUpperCase());
             circList.push({
               codi: codi.toUpperCase(),
               cicle: c.cicle || '',
@@ -378,9 +448,10 @@ export const DescansosView: React.FC<DescansosViewProps> = ({
               arribadaMin: eMin,
               sortidaStr: c.sortida,
               arribadaStr: c.arribada,
-              inici: meta?.inici || c.inici || '',
-              final: meta?.final || c.final || '',
-              linia: meta?.linia || c.linia || ''
+              inici: vInici || meta?.inici || c.inici || '',
+              final: vFinal || meta?.final || c.final || '',
+              linia: meta?.linia || c.linia || '',
+              isViatger
             });
           }
         });
@@ -416,8 +487,8 @@ export const DescansosView: React.FC<DescansosViewProps> = ({
       if (firstCirc.sortidaMin > startMin) {
         const gap = firstCirc.sortidaMin - startMin;
         if (gap >= minGapThreshold) {
-          const loc = firstCirc.inici || shift.dependencia;
-          const dep = normalizeDependency(loc);
+          const depFromFirst = normalizeDependency(firstCirc.inici);
+          const dep = depFromFirst || normalizeDependency(shift.dependencia);
           if (dep) {
             slots.push({
               id: `${shift.id}-gap-init`,
@@ -451,8 +522,13 @@ export const DescansosView: React.FC<DescansosViewProps> = ({
         if (next.sortidaMin > cur.arribadaMin) {
           const gap = next.sortidaMin - cur.arribadaMin;
           if (gap >= minGapThreshold) {
-            const loc = cur.final || next.inici || shift.dependencia;
-            const dep = normalizeDependency(loc);
+            // Ubicació real del descans:
+            // 1. Estació d'arribada del tren que s'acaba de finalitzar (cur.final)
+            // 2. Estació de sortida del proper tren que s'agafarà (next.inici)
+            // 3. Fallback: dependència base del torn
+            const depFromCur = normalizeDependency(cur.final);
+            const depFromNext = normalizeDependency(next.inici);
+            const dep = depFromCur || depFromNext || normalizeDependency(shift.dependencia);
             if (dep) {
               slots.push({
                 id: `${shift.id}-gap-${i}`,
@@ -492,8 +568,8 @@ export const DescansosView: React.FC<DescansosViewProps> = ({
       if (endMin > lastCirc.arribadaMin) {
         const gap = endMin - lastCirc.arribadaMin;
         if (gap >= minGapThreshold) {
-          const loc = lastCirc.final || shift.dependencia;
-          const dep = normalizeDependency(loc);
+          const depFromLast = normalizeDependency(lastCirc.final);
+          const dep = depFromLast || normalizeDependency(shift.dependencia);
           if (dep) {
             slots.push({
               id: `${shift.id}-gap-final`,
@@ -533,18 +609,29 @@ export const DescansosView: React.FC<DescansosViewProps> = ({
       if (Array.isArray(shift.circulations)) {
         shift.circulations.forEach((c: any) => {
           const codi = typeof c === 'string' ? c : (c?.codi || c?.id);
-          if (!codi || codi === '-' || codi.toUpperCase() === 'VIATGER') return;
+          if (!codi || codi === '-') return;
+          const isViatger = codi.toUpperCase() === 'VIATGER';
+          let vInici = '';
+          let vFinal = '';
+          if (isViatger && c?.observacions) {
+            const parts = String(c.observacions).split('-');
+            if (parts.length >= 3) {
+              vInici = parts[1];
+              vFinal = parts[2];
+            }
+          }
           const sMin = getFgcMinutes(c.sortida);
           const eMin = getFgcMinutes(c.arribada);
           if (sMin !== null && eMin !== null) {
-            const meta = circMap.get(codi.toUpperCase());
+            const meta = circMap.get(codi.toUpperCase()) || deduceCirculationEndpoints(codi.toUpperCase());
             circList.push({
               codi: codi.toUpperCase(),
               sortidaMin: sMin,
               arribadaMin: eMin,
               arribadaStr: c.arribada,
-              final: meta?.final || c.final || '',
-              inici: meta?.inici || c.inici || '',
+              sortidaStr: c.sortida,
+              final: vFinal || meta?.final || c.final || '',
+              inici: vInici || meta?.inici || c.inici || '',
               linia: meta?.linia || c.linia || ''
             });
           }
