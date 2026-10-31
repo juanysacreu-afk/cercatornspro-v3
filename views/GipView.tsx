@@ -213,7 +213,7 @@ export const GipView: React.FC<GipViewProps> = ({ isPrivacyMode, initialCircId, 
     }
   };
 
-  const serviceDate = useMemo(() => getFgcServiceDate(), []);
+  const [serviceDate, setServiceDate] = useState<string>(() => getFgcServiceDate());
 
   // Rellotge en temps real
   useEffect(() => {
@@ -222,6 +222,8 @@ export const GipView: React.FC<GipViewProps> = ({ isPrivacyMode, initialCircId, 
       setCurrentTimeStr(
         `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`
       );
+      const currSd = getFgcServiceDate();
+      setServiceDate(prev => prev !== currSd ? currSd : prev);
     };
     updateClock();
     const interval = setInterval(updateClock, 1000);
@@ -348,29 +350,59 @@ export const GipView: React.FC<GipViewProps> = ({ isPrivacyMode, initialCircId, 
 
     setLoading(true);
     try {
-      // 1. Cercar la circulació oficial a Supabase
-      const { data: circData } = await supabase
-        .from('circulations')
-        .select('id, linia, inici, sortida, final, arribada, estacions')
-        .eq('id', cleanId)
-        .maybeSingle();
+      // 1. Cercar la circulació oficial a Supabase (primer a circulationsv2, després fallback a circulations)
+      let activeRecord: any = null;
 
-      if (!circData) {
-        // Fallback: si no està amb codi directe, provar com a part
-        const { data: fallbackList } = await supabase
+      const { data: v2List } = await supabase
+        .from('circulationsv2')
+        .select('id, linia, inici, sortida, final, arribada, estacions, servei')
+        .eq('id', cleanId);
+
+      const todayS = getServiceToday();
+
+      if (v2List && v2List.length > 0) {
+        activeRecord = v2List.find((r: any) => 
+          r.servei === todayS || 
+          (todayS === '0' && (r.servei === '0' || r.servei === '000')) ||
+          (todayS === '000' && (r.servei === '0' || r.servei === '000'))
+        ) || v2List[0];
+      } else {
+        const { data: legacyDetail } = await supabase
           .from('circulations')
           .select('id, linia, inici, sortida, final, arribada, estacions')
-          .ilike('id', `%${cleanId}%`)
-          .limit(1);
+          .eq('id', cleanId)
+          .maybeSingle();
 
-        if (!fallbackList || fallbackList.length === 0) {
-          setSelectedCirc(null);
-          setLoading(false);
-          return;
+        if (legacyDetail) {
+          activeRecord = legacyDetail;
+        } else {
+          // Fallback cercant coincidència parcial a v2
+          const { data: v2Fallback } = await supabase
+            .from('circulationsv2')
+            .select('id, linia, inici, sortida, final, arribada, estacions, servei')
+            .ilike('id', `%${cleanId}%`);
+
+          if (v2Fallback && v2Fallback.length > 0) {
+            activeRecord = v2Fallback.find((r: any) => 
+              r.servei === todayS || 
+              (todayS === '0' && (r.servei === '0' || r.servei === '000')) ||
+              (todayS === '000' && (r.servei === '0' || r.servei === '000'))
+            ) || v2Fallback[0];
+          } else {
+            // Fallback cercant coincidència parcial a circulations legacy
+            const { data: legacyFallback } = await supabase
+              .from('circulations')
+              .select('id, linia, inici, sortida, final, arribada, estacions')
+              .ilike('id', `%${cleanId}%`)
+              .limit(1);
+
+            if (legacyFallback && legacyFallback.length > 0) {
+              activeRecord = legacyFallback[0];
+            }
+          }
         }
       }
 
-      const activeRecord = circData || (await supabase.from('circulations').select('*').ilike('id', `%${cleanId}%`).limit(1)).data?.[0];
       if (!activeRecord) {
         setSelectedCirc(null);
         setLoading(false);
@@ -394,11 +426,12 @@ export const GipView: React.FC<GipViewProps> = ({ isPrivacyMode, initialCircId, 
       if (Array.isArray(activeRecord.estacions)) {
         activeRecord.estacions.forEach((st: any) => {
           const h = st.sortida || st.hora || st.arribada;
-          if (st.nom && h) {
-            const code = resolveStationId(st.nom, line);
+          const nameOrCode = st.nom || st.codi;
+          if (nameOrCode && h) {
+            const code = resolveStationId(nameOrCode, line);
             stopsList.push({
               code,
-              nom: resolveStationName(code, line) || st.nom,
+              nom: resolveStationName(code, line) || st.nom || st.codi || code,
               horaTeorica: formatTimeToHHMMSS(h)
             });
           }

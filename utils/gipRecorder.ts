@@ -1,9 +1,10 @@
 import { supabase } from '../supabaseClient';
 import { resolveStationId, calculateTimeDiffSec, normalizeTimeDiffSec, timeStringToSeconds, secondsToTimeString } from './stations';
-import { STATION_GEO_DATA, haversineKm } from './stationGeoData';
+import { STATION_GEO_DATA, STATION_GEO_MAP, haversineKm } from './stationGeoData';
 import { decodeGeotrenUt } from '../views/incidencia/utils/decodeUt';
 import { decodeGeotrenCirculation } from '../views/incidencia/utils/decodeCirculation';
 import { getFgcMinutes } from './time';
+import { getServiceToday } from './serviceCalendar';
 import { GipRegistrePas } from '../types';
 import { recordTrainKinematics, detectStationFusion } from './trainKinematics';
 import { checkAndNotifyDelay, checkAndNotifyAdvance, isCirculationDelayedByThreshold } from './delayNotifications';
@@ -77,37 +78,61 @@ export const getCirculationStops = async (circCode: string, linia: string = ''):
   const stops: Array<{ code: string; hora: string; nom: string }> = [];
 
   try {
-    const { data: directDetail } = await supabase
-      .from('circulations')
-      .select('id, inici, final, linia, sortida, arribada, estacions')
-      .eq('id', normalizedCode)
-      .maybeSingle();
+    // 1. Cercar primer a circulationsv2 (taula canònica actualitzada amb totes les circulacions)
+    const { data: v2List } = await supabase
+      .from('circulationsv2')
+      .select('id, inici, final, linia, sortida, arribada, estacions, servei')
+      .eq('id', normalizedCode);
+
+    const todayS = getServiceToday();
+    let directDetail: any = v2List?.find((r: any) => 
+      r.servei === todayS || 
+      (todayS === '0' && (r.servei === '0' || r.servei === '000')) ||
+      (todayS === '000' && (r.servei === '0' || r.servei === '000'))
+    ) || v2List?.[0];
+
+    // Fallback a taula circulations històrica si no és a v2
+    if (!directDetail) {
+      const { data: legacyDetail } = await supabase
+        .from('circulations')
+        .select('id, inici, final, linia, sortida, arribada, estacions')
+        .eq('id', normalizedCode)
+        .maybeSingle();
+      directDetail = legacyDetail;
+    }
 
     if (directDetail) {
       const line = linia || directDetail.linia || '';
       if (directDetail.inici && directDetail.sortida) {
+        const c = resolveStationId(directDetail.inici, line);
+        const geoName = STATION_GEO_MAP.get(c)?.name;
         stops.push({
-          nom: directDetail.inici,
-          code: resolveStationId(directDetail.inici, line),
+          nom: geoName || directDetail.inici,
+          code: c,
           hora: formatTimeToHHMMSS(directDetail.sortida)
         });
       }
       if (Array.isArray(directDetail.estacions)) {
         directDetail.estacions.forEach((st: any) => {
           const h = st.sortida || st.hora || st.arribada;
-          if (st.nom && h) {
+          const nameOrCode = st.nom || st.codi;
+          if (nameOrCode && h) {
+            const c = resolveStationId(nameOrCode, line);
+            const geoName = STATION_GEO_MAP.get(c)?.name;
             stops.push({
-              nom: st.nom,
-              code: resolveStationId(st.nom, line),
+              nom: st.nom || geoName || nameOrCode,
+              code: c,
               hora: formatTimeToHHMMSS(h)
             });
           }
         });
       }
       if (directDetail.final && directDetail.arribada) {
+        const c = resolveStationId(directDetail.final, line);
+        const geoName = STATION_GEO_MAP.get(c)?.name;
         stops.push({
-          nom: directDetail.final,
-          code: resolveStationId(directDetail.final, line),
+          nom: geoName || directDetail.final,
+          code: c,
           hora: formatTimeToHHMMSS(directDetail.arribada)
         });
       }
@@ -116,7 +141,9 @@ export const getCirculationStops = async (circCode: string, linia: string = ''):
     console.warn(`[GIP Recorder] Error carregant horari per a ${normalizedCode}:`, err);
   }
 
-  circScheduleCache.set(normalizedCode, stops);
+  if (stops.length > 0) {
+    circScheduleCache.set(normalizedCode, stops);
+  }
   return stops;
 };
 
@@ -171,26 +198,27 @@ export const evaluateRealtimeDelay = (
     // Cas B: El tren està en marxa entre dues estacions (entre departedStop i nextStop).
     const nextStop = stops[nextStationIndex];
     const departedStop = stops[nextStationIndex - 1];
-    const nextStopSecs = nextStop?.hora ? timeStringToSeconds(nextStop.hora) : null;
-    const departedStopSecs = departedStop?.hora ? timeStringToSeconds(departedStop.hora) : null;
 
-    if (nextStopSecs !== null && nowSecs > nextStopSecs) {
-      // El tren ja hauria d'haver arribat a la propera estació i encara continua en marxa: retard real sobre l'arribada.
-      delaySec = calculateTimeDiffSec(nowSecs, nextStop.hora);
-      stationCode = nextStop.code;
-      stationName = nextStop.nom || nextStop.code;
-      scheduledTime = nextStop.hora;
-    } else if (departedStopSecs !== null && nextStopSecs !== null && nextStopSecs > departedStopSecs) {
-      // El tren està circulant dins del temps programat del tram.
-      const travelDurationTheo = nextStopSecs - departedStopSecs;
-      const timeSinceDeparted = calculateTimeDiffSec(nowSecs, departedStop.hora);
-      if (timeSinceDeparted > travelDurationTheo) {
-        delaySec = timeSinceDeparted - travelDurationTheo;
+    if (nextStop?.hora) {
+      const timeDiffToNext = calculateTimeDiffSec(nowSecs, nextStop.hora);
+      if (timeDiffToNext > 0) {
+        // El tren ja hauria d'haver arribat a la propera estació i encara continua en marxa: retard real sobre l'arribada.
+        delaySec = timeDiffToNext;
+        stationCode = nextStop.code;
+        stationName = nextStop.nom || nextStop.code;
+        scheduledTime = nextStop.hora;
+      } else if (departedStop?.hora) {
+        // El tren està circulant dins del temps programat del tram.
+        const travelDurationTheo = calculateTimeDiffSec(nextStop.hora, departedStop.hora);
+        const timeSinceDeparted = calculateTimeDiffSec(nowSecs, departedStop.hora);
+        if (travelDurationTheo > 0 && timeSinceDeparted > travelDurationTheo) {
+          delaySec = timeSinceDeparted - travelDurationTheo;
+        } else {
+          delaySec = 0;
+        }
       } else {
         delaySec = 0;
       }
-    } else {
-      delaySec = 0;
     }
   } else if (currentStop?.hora) {
     // Cas C: A l'estació d'origen abans de sortir o a final de línia
@@ -209,13 +237,20 @@ export const evaluateRealtimeDelay = (
   };
 };
 
+let lastKnownServiceDate: string = '';
+
 /**
  * Processa un cicle de GeoTren i grava a Supabase el pas per estació de totes les circulacions actives
  */
 export const pollAndRecordGipPassages = async (): Promise<number> => {
   const serviceDate = getFgcServiceDate();
 
-  if (!isCacheInitialized) {
+  if (!isCacheInitialized || lastKnownServiceDate !== serviceDate) {
+    if (lastKnownServiceDate !== '' && lastKnownServiceDate !== serviceDate) {
+      recordedKeys.clear();
+      circScheduleCache.clear();
+    }
+    lastKnownServiceDate = serviceDate;
     await initRecordedKeys(serviceDate);
   }
 

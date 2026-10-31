@@ -5,6 +5,7 @@ import { getFgcServiceDate, pollAndRecordGipPassages } from '../utils/gipRecorde
 import { resolveStationId, findGipPassageForPoint, formatDelayMinSec, normalizeTimeDiffSec, normalizeCircId, timeStringToSeconds } from '../utils/stations';
 import { fetchLiveGeoTrenTrains, findTrainInGeoTren, NormalizedGeoTrenTrain } from '../utils/geotrenApi';
 import { ItineraryPoint } from './ItineraryPoint';
+import { getServiceToday } from '../utils/serviceCalendar';
 import type { GipRegistrePas } from '../types';
 
 interface ItineraryTimelineProps {
@@ -46,13 +47,30 @@ export const ItineraryTimeline: React.FC<ItineraryTimelineProps> = ({ circ, nowM
     let isMounted = true;
     const fetchExtra = async () => {
       try {
-        const { data } = await supabase
-          .from('circulations')
-          .select('estacions')
-          .in('id', candidateCircIds)
-          .limit(1);
-        if (isMounted && data && data[0]?.estacions && Array.isArray(data[0].estacions)) {
-          setExtraStations(data[0].estacions);
+        const { data: v2Data } = await supabase
+          .from('circulationsv2')
+          .select('estacions, servei')
+          .in('id', candidateCircIds);
+
+        const todayS = getServiceToday();
+        const matched = v2Data?.find((r: any) => 
+          r.servei === todayS || 
+          (todayS === '0' && (r.servei === '0' || r.servei === '000')) ||
+          (todayS === '000' && (r.servei === '0' || r.servei === '000'))
+        ) || v2Data?.[0];
+
+        let foundStops = matched?.estacions;
+        if (!foundStops || !Array.isArray(foundStops)) {
+          const { data: legacyData } = await supabase
+            .from('circulations')
+            .select('estacions')
+            .in('id', candidateCircIds)
+            .limit(1);
+          foundStops = legacyData?.[0]?.estacions;
+        }
+
+        if (isMounted && foundStops && Array.isArray(foundStops)) {
+          setExtraStations(foundStops);
         }
       } catch (e) {
         // Silent fallback
@@ -120,11 +138,14 @@ export const ItineraryTimeline: React.FC<ItineraryTimelineProps> = ({ circ, nowM
     const rawStops = (circ.estacions && circ.estacions.length > 0) ? circ.estacions : extraStations;
     if (Array.isArray(rawStops)) {
       rawStops.forEach((st: any) => {
-        list.push({
-          nom: st.nom,
-          hora: st.hora || st.sortida || st.arribada,
-          via: st.via
-        });
+        const nameOrCode = st.nom || st.codi;
+        if (nameOrCode) {
+          list.push({
+            nom: nameOrCode,
+            hora: st.hora || st.sortida || st.arribada,
+            via: st.via
+          });
+        }
       });
     }
     if (circ.final && (list.length === 0 || list[list.length - 1].nom !== circ.final)) {
