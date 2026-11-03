@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Search, MapPin, Clock, ArrowRight, RefreshCcw, Activity, Train, TrainFront, CheckCircle2, AlertCircle, AlertTriangle, ChevronRight, X, Calendar, Layers, Bell, BellRing, Sparkles, Phone, User, UserX } from 'lucide-react';
+import { Search, MapPin, Clock, ArrowRight, RefreshCcw, Activity, Train, TrainFront, CheckCircle2, AlertCircle, AlertTriangle, ChevronRight, X, Calendar, Layers, Bell, BellRing, Sparkles, Phone, User, UserX, History } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { db } from '../utils/offlineDb';
 import GlassPanel from '../components/common/GlassPanel';
+import GipHistoryPanel from '../components/GipHistoryPanel';
 import { resolveStationId, formatDelayMinSec, normalizeTimeDiffSec, calculateTimeDiffSec, timeStringToSeconds, getShortTornId } from '../utils/stations';
 import { getLiniaColor, getTrainPhone } from '../utils/fgc';
 import { STATION_GEO_MAP } from '../utils/stationGeoData';
@@ -100,6 +101,7 @@ export interface GipViewProps {
 }
 
 export const GipView: React.FC<GipViewProps> = ({ isPrivacyMode, initialCircId, onCircHandled, onNavigateToSearch }) => {
+  const [gipTab, setGipTab] = useState<'live' | 'history'>('live');
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [selectedCirc, setSelectedCirc] = useState<CircDetail | null>(null);
@@ -866,8 +868,41 @@ export const GipView: React.FC<GipViewProps> = ({ isPrivacyMode, initialCircId, 
           </div>
         </div>
 
-        {/* Indicadors en viu */}
+        {/* Indicadors en viu + Selector Històric */}
         <div className="flex items-center gap-3 flex-wrap self-start xl:self-auto">
+          <div className="inline-flex items-center p-1 rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200/70 dark:border-white/10">
+            <button
+              type="button"
+              onClick={() => {
+                feedback.click();
+                setGipTab('live');
+              }}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
+                gipTab === 'live'
+                  ? 'bg-fgc-green text-[#4D5358] shadow-sm'
+                  : 'text-gray-500 hover:text-[#4D5358] dark:text-gray-400 dark:hover:text-white'
+              }`}
+            >
+              <Activity size={14} />
+              <span>En Viu</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                feedback.click();
+                setGipTab('history');
+              }}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
+                gipTab === 'history'
+                  ? 'bg-fgc-green text-[#4D5358] shadow-sm'
+                  : 'text-gray-500 hover:text-[#4D5358] dark:text-gray-400 dark:hover:text-white'
+              }`}
+            >
+              <History size={14} />
+              <span>Històric</span>
+            </button>
+          </div>
+
           <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-white/5 border border-gray-200/60 dark:border-white/10 text-xs font-bold font-mono text-gray-500 dark:text-gray-300">
             <Calendar size={13} className="text-fgc-green" />
             Servei: {serviceDate}
@@ -886,8 +921,15 @@ export const GipView: React.FC<GipViewProps> = ({ isPrivacyMode, initialCircId, 
         </div>
       </header>
 
-      {/* Barra de cerca de circulació */}
-      <GlassPanel className="p-6 sm:p-8 !rounded-[32px] sm:!rounded-[40px] space-y-5">
+      {gipTab === 'history' ? (
+        <GipHistoryPanel
+          isPrivacyMode={isPrivacyMode}
+          onNavigateToSearch={onNavigateToSearch}
+        />
+      ) : (
+        <>
+          {/* Barra de cerca de circulació */}
+          <GlassPanel className="p-6 sm:p-8 !rounded-[32px] sm:!rounded-[40px] space-y-5">
         <form onSubmit={handleSearchSubmit} className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -1371,6 +1413,8 @@ export const GipView: React.FC<GipViewProps> = ({ isPrivacyMode, initialCircId, 
           </p>
         </GlassPanel>
       ) : null}
+        </>
+      )}
     </div>
   );
 };
