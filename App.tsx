@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, RefreshCcw, Train, Menu, X, Download, BookOpen, Settings, Moon, Sun, ShieldAlert, Eye, Layers, Volume2, VolumeX, MessageCircle, HelpCircle, Calendar, Activity, Users, Bell, BellRing } from 'lucide-react';
+import { Search, RefreshCcw, Train, Menu, X, Download, BookOpen, Settings, Moon, Sun, ShieldAlert, Eye, Layers, Volume2, VolumeX, MessageCircle, HelpCircle, Calendar, Activity, Users, Bell, BellRing, LogOut } from 'lucide-react';
 import { AppTab } from './types.ts';
 import { CercarView } from './views/CercarView.tsx';
 import OrganitzaView from './views/OrganitzaView.tsx';
@@ -31,6 +31,8 @@ import { OnboardingTour } from './components/common/OnboardingTour.tsx';
 import { useToast } from './components/ToastProvider';
 import { CalendarManager } from './components/CalendarManager';
 import ProfileModal from './components/ProfileModal.tsx';
+import LoginScreen from './components/LoginScreen.tsx';
+import { initAuditListeners, logLopdAccess } from './utils/auditLogger';
 import { syncOfflineData } from './utils/offlineSync';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -237,33 +239,99 @@ const App: React.FC = () => {
     }
   }, [isInitializing]);
 
-  useEffect(() => {
-    const fetchProfile = async () => {
-      const saved = localStorage.getItem('user_profile');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.id) {
-          const { data, error } = await supabase.from('supervisor_profiles').select('*').eq('id', parsed.id).single();
-          if (data && !error) {
-            const profile = {
-              id: data.id,
-              firstName: data.first_name,
-              lastName: data.last_name,
-              email: data.email || '',
-              role: data.role
-            };
-            setUserProfile(profile);
-            localStorage.setItem('user_profile', JSON.stringify(profile));
-          }
-        } else if (!parsed.email) {
-          setIsProfileModalOpen(true);
-        }
+  const [session, setSession] = useState<any>(null);
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
+
+  const syncSupervisorProfile = useCallback(async (email: string) => {
+    try {
+      const cleanEmail = email.toLowerCase().trim();
+      const { data, error } = await supabase
+        .from('supervisor_profiles')
+        .select('*')
+        .eq('email', cleanEmail)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (data && !error) {
+        const profile = {
+          id: data.id,
+          firstName: data.first_name,
+          lastName: data.last_name,
+          email: data.email || cleanEmail,
+          role: data.role || 'Supervisor de Grup'
+        };
+        setUserProfile(profile);
+        localStorage.setItem('user_profile', JSON.stringify(profile));
+        return profile;
       } else {
-        setIsProfileModalOpen(true);
+        const fallback = {
+          firstName: cleanEmail.split('@')[0],
+          lastName: '',
+          email: cleanEmail,
+          role: 'Supervisor de Grup'
+        };
+        setUserProfile(fallback);
+        localStorage.setItem('user_profile', JSON.stringify(fallback));
+        return fallback;
       }
-    };
-    fetchProfile();
+    } catch (e) {
+      console.warn('Error loading supervisor profile:', e);
+    }
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    initAuditListeners();
+
+    // 1. Check existing session
+    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
+      if (!isMounted) return;
+      setSession(initialSession);
+      if (initialSession?.user?.email) {
+        syncSupervisorProfile(initialSession.user.email);
+      }
+      setIsAuthChecking(false);
+    }).catch(err => {
+      console.warn('Auth session check failed:', err);
+      if (isMounted) setIsAuthChecking(false);
+    });
+
+    // 2. Listen to auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+      if (!isMounted) return;
+      setSession(newSession);
+      if (newSession?.user?.email) {
+        await syncSupervisorProfile(newSession.user.email);
+        if (event === 'SIGNED_IN') {
+          logLopdAccess('AUTH_LOGIN', undefined, { email: newSession.user.email });
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setUserProfile({ firstName: '', lastName: '', email: '', role: '' });
+        localStorage.removeItem('user_profile');
+      }
+      setIsAuthChecking(false);
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, [syncSupervisorProfile]);
+
+  const handleSignOut = async () => {
+    try {
+      await logLopdAccess('AUTH_LOGOUT', undefined, { email: session?.user?.email });
+      await supabase.auth.signOut();
+      setSession(null);
+      setUserProfile({ firstName: '', lastName: '', email: '', role: '' });
+      localStorage.removeItem('user_profile');
+      showToast('Sessió tancada correctament', 'info');
+      feedback.click();
+    } catch (err: any) {
+      console.error('Sign out error:', err);
+    }
+  };
 
   const handleProfileUpdate = async (newProfile: { id?: string, firstName: string, lastName: string, email: string, role: string }) => {
     const payload = {
@@ -855,6 +923,23 @@ const App: React.FC = () => {
                     </div>
                   </div>
                 </div>
+
+                <div className="h-px bg-gray-100 dark:bg-white/5 mx-3 my-2" />
+                <button
+                  onClick={() => {
+                    setIsSettingsOpen(false);
+                    handleSignOut();
+                  }}
+                  className="w-full flex items-center gap-3 p-4 rounded-2xl hover:bg-red-50 dark:hover:bg-red-950/20 text-red-600 dark:text-red-400 transition-colors group"
+                >
+                  <div className="p-2 rounded-xl bg-red-100/60 dark:bg-red-950/40 group-hover:scale-110 transition-transform">
+                    <LogOut size={18} />
+                  </div>
+                  <div className="flex-1 text-left">
+                    <span className="text-sm font-bold block">Tancar Sessió</span>
+                    <span className="text-[10px] text-gray-400 block">Sortir del compte de supervisor</span>
+                  </div>
+                </button>
               </div>
             </div>
           )}
@@ -963,11 +1048,16 @@ const App: React.FC = () => {
         onClose={() => setIsProfileModalOpen(false)}
         currentProfile={userProfile}
         onSave={handleProfileUpdate}
-        isMandatory={!userProfile.email}
+        onSignOut={handleSignOut}
+        isMandatory={false}
       />
 
+      {!session && !isAuthChecking && (
+        <LoginScreen onLoginSuccess={(newSession) => setSession(newSession)} />
+      )}
+
       <OnboardingTour />
-    </div >
+    </div>
   );
 };
 

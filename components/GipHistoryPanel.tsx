@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { db } from '../utils/offlineDb';
+import { decryptAgentRows } from '../utils/crypto';
 import GlassPanel from './common/GlassPanel';
 import {
   resolveStationId,
@@ -222,7 +223,8 @@ export const GipHistoryPanel: React.FC<GipHistoryPanelProps> = ({
         }
 
         // 3. Phonebook / Agents phones
-        const { data: agentsData } = await supabase.from('agents').select('nomina, phone');
+        const { data: rawAgentsData } = await supabase.from('agents').select('nomina, phone');
+        const agentsData = await decryptAgentRows(rawAgentsData);
         if (isMounted && agentsData) {
           const pm = new Map<string, string[]>();
           agentsData.forEach((a: any) => {

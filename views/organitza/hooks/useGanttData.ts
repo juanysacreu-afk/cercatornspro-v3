@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '../../../supabaseClient';
+import { decryptAgentRows } from '../../../utils/crypto';
 import { getServiceToday } from '../../../utils/serviceCalendar';
 import { getShortTornId } from '../../../utils/fgc';
 import { getFgcMinutes, isServiceVisible } from '../../../utils/stations';
@@ -147,7 +148,7 @@ export function useGanttData() {
             // Filter shifts by selected service (client-side filtering as 'isServiceVisible' logic is complex)
             const shifts = rawShifts.filter(s => isServiceVisible(s.servei, selectedService));
             const assignments = assignRes.data || [];
-            const agents = agentsRes.data || [];
+            const agents = await decryptAgentRows(agentsRes.data || []);
 
             // Map agent phone numbers by nomina
             const agentPhones: Record<string, string> = {};

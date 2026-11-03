@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { supabase } from '../../../supabaseClient';
+import { decryptPhonebookRows } from '../../../utils/crypto';
 import {
     getFgcMinutes, formatFgcTime, isServiceVisible, resolveStationId,
     getLiniaColorHex, getShortTornId, normalizeCircId
@@ -420,7 +421,8 @@ export const useLiveMapData = ({
             });
 
             const { data: allDaily } = await supabase.from('daily_assignments').select('*');
-            const { data: allPhones } = await supabase.from('phonebook').select('nomina, phones');
+            const { data: rawPhones } = await supabase.from('phonebook').select('nomina, phones');
+            const allPhones = await decryptPhonebookRows(rawPhones);
 
             const stationCoords = MAP_STATIONS.reduce((acc, st) => {
                 acc[st.id.toUpperCase()] = { x: st.x, y: st.y };

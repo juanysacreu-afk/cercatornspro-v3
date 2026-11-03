@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Search, MapPin, Clock, ArrowRight, RefreshCcw, Activity, Train, TrainFront, CheckCircle2, AlertCircle, AlertTriangle, ChevronRight, X, Calendar, Layers, Bell, BellRing, Sparkles, Phone, User, UserX, History } from 'lucide-react';
 import { supabase } from '../supabaseClient';
+import { decryptPhoneArray } from '../utils/crypto';
 import { db } from '../utils/offlineDb';
 import GlassPanel from '../components/common/GlassPanel';
 import GipHistoryPanel from '../components/GipHistoryPanel';
@@ -628,7 +629,7 @@ export const GipView: React.FC<GipViewProps> = ({ isPrivacyMode, initialCircId, 
                   .eq('nomina', da.empleat_id)
                   .maybeSingle();
                 if (pb?.phones && Array.isArray(pb.phones)) {
-                  resolvedDriverPhones = pb.phones;
+                  resolvedDriverPhones = await decryptPhoneArray(pb.phones);
                 }
               }
             }

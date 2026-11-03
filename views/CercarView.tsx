@@ -7,6 +7,7 @@ import { decodeGeotrenUt } from '../views/incidencia/utils/decodeUt';
 import { decodeGeotrenCirculation } from '../views/incidencia/utils/decodeCirculation';
 
 import { supabase } from '../supabaseClient.ts';
+import { decryptPhoneArray } from '../utils/crypto.ts';
 
 import { getFgcMinutes, checkIfActive, calculateGap } from '../utils/time';
 import { getFgcServiceDate } from '../utils/gipRecorder';
@@ -1056,7 +1057,8 @@ const CercarViewComponent: React.FC<{
                   const da = driverAssignment[0];
                   const { data: phoneData } = await supabase.from('phonebook')
                     .select('phones').eq('nomina', da.empleat_id).single();
-                  driverData = { ...da, phones: phoneData?.phones || [] };
+                  const decPhones = await decryptPhoneArray(phoneData?.phones || []);
+                  driverData = { ...da, phones: decPhones };
                 }
               }
 

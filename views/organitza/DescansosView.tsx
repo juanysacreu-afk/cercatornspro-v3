@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { db } from '../../utils/offlineDb';
+import { decryptPhonebookRows } from '../../utils/crypto';
 import GlassPanel from '../../components/common/GlassPanel';
 import { getShortTornId, getFgcMinutes, formatFgcTime, isServiceVisible } from '../../utils/stations';
 import { feedback } from '../../utils/feedback';
@@ -303,9 +304,10 @@ export const DescansosView: React.FC<DescansosViewProps> = ({
       setAssignments(daList);
 
       // 3. Telèfons
-      const { data: pbData } = await supabase
+      const { data: rawPbData } = await supabase
         .from('phonebook')
         .select('nomina, phones');
+      const pbData = await decryptPhonebookRows(rawPbData);
       const pMap = new Map<string, string>();
       if (pbData) {
         pbData.forEach((row: any) => {

@@ -23,6 +23,7 @@ import { STATION_GEO_MAP } from '../utils/stationGeoData';
 import { useServiceToday } from '../utils/useServiceToday';
 import { feedback } from '../utils/feedback';
 import { saveAgentPerformanceRecord, getAgentPerformanceHistory } from '../utils/agentPerformanceService';
+import { logLopdAccess } from '../utils/auditLogger';
 import type { GipRegistrePas, AgentPerformanceHistory } from '../types';
 
 interface AgentDetailModalProps {
@@ -98,6 +99,17 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
+
+  // LOPD Audit Trail: Record supervisor access to agent profile and contact
+  useEffect(() => {
+    if (agent?.empleat_id) {
+      logLopdAccess('VIEW_AGENT_CONTACT', String(agent.empleat_id), {
+        nom: agent.nom,
+        cognoms: agent.cognoms,
+        torn: agent.torn
+      });
+    }
+  }, [agent?.empleat_id]);
 
   // Load shift and GIP data
   const loadAgentShiftAndGip = useCallback(async (isSilent = false) => {

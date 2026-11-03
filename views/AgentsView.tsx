@@ -6,6 +6,8 @@ import {
   X, Activity, ArrowRight, Database, RotateCcw, Sun, Moon, Calendar 
 } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
+import { decryptAgentRows } from '../utils/crypto.ts';
+import { logLopdAccess } from '../utils/auditLogger';
 import { feedback } from '../utils/feedback';
 import { useServiceToday } from '../utils/useServiceToday';
 import { useToast } from '../components/ToastProvider';
@@ -292,6 +294,17 @@ const AgentsViewComponent: React.FC<AgentsViewProps> = ({ isPrivacyMode, onNavig
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // LOPD Audit Trail: Record search access when supervisor filters by agent
+  useEffect(() => {
+    const q = maquinistaQuery.trim();
+    if (q.length >= 3) {
+      const timer = setTimeout(() => {
+        logLopdAccess('SEARCH_AGENTS', undefined, { query: q });
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [maquinistaQuery]);
+
   const fetchMaquinistes = async () => {
     setLoadingMaquinistes(true);
     try {
@@ -304,10 +317,11 @@ const AgentsViewComponent: React.FC<AgentsViewProps> = ({ isPrivacyMode, onNavig
       if (assigRes.data) setAllAssignments(assigRes.data);
       if (perfRes) setDailyPerfMap(perfRes);
       if (contactsRes.data) {
-        setAllAgents(contactsRes.data);
+        const decryptedAgents = await decryptAgentRows(contactsRes.data);
+        setAllAgents(decryptedAgents);
         const contactMap: Record<string, { phones: string[], email: string | null }> = {};
 
-        contactsRes.data.forEach((a: any) => {
+        decryptedAgents.forEach((a: any) => {
           const nominaStr = String(a.nomina || '').trim();
           if (!nominaStr) return;
 

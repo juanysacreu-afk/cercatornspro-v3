@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Search, Loader2, Clock, Phone, Info, Users, RotateCcw, ArrowRight, MapPin, Coffee, CheckCircle2, AlertTriangle, TrainFront, Footprints, ShieldAlert, UserX, UserCheck, X, ArrowRightLeft, Target, Zap, ArrowUpRight, History, MessageSquareQuote, Scale } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
+import { decryptPhonebookRows } from '../utils/crypto.ts';
 import {
   resolveStationId, getTravelTime, getShortTornId, formatFgcTime,
 } from '../utils/stations';
@@ -121,7 +122,8 @@ const IncidenciaPerTorn: React.FC<Props> = ({ selectedServei, showSecretMenu, is
       const { data: allCircDetails } = await supabase.from('circulations').select('*').in('id', Array.from(allOtherCircIds));
       const otherShortIds = filteredShifts.map(s => getShortTornId(s.id));
       const { data: allDaily } = await supabase.from('daily_assignments').select('*').in('torn', otherShortIds);
-      const { data: allPhones } = await supabase.from('phonebook').select('nomina, phones');
+      const { data: rawPhones } = await supabase.from('phonebook').select('nomina, phones');
+      const allPhones = await decryptPhonebookRows(rawPhones);
 
       const plan = target.fullCirculations.map((circ: any) => {
         const cStart = getFgcMinutes(circ.sortida);

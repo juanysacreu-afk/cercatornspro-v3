@@ -1,5 +1,6 @@
 
 import { supabase } from '../supabaseClient';
+import { decryptAgentRows } from './crypto';
 import { getShortTornId, getFgcMinutes } from './stations';
 import { getFgcServiceDate } from './gipRecorder';
 
@@ -160,7 +161,7 @@ export async function fetchFullTurns(turnIds: string[], selectedServei?: string)
     const phonesRes = employeeIds.length > 0
         ? await supabase.from('agents').select('nomina, phone, email').in('nomina', employeeIds)
         : { data: [] };
-    const agents = phonesRes.data || [];
+    const agents = await decryptAgentRows(phonesRes.data || []);
 
     // 6. Enrichment helpers
     const guessStation = (id: string, obs: string) => {
