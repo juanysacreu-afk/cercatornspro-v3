@@ -61,14 +61,16 @@ export const ItineraryPoint: React.FC<ItineraryPointProps> = ({
                 <div className={`absolute left-[-30px] sm:left-[-50px] top-1/2 -translate-y-1/2 flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 bg-white dark:bg-gray-800 border-4 ${
                     isNow 
                         ? 'border-red-500 shadow-[0_0_12px_rgba(239,68,68,0.6)]' 
-                        : isLast 
-                            ? 'border-red-500/80 dark:border-red-600' 
-                            : 'border-gray-300 dark:border-gray-700'
+                        : isPassed
+                            ? 'border-emerald-500/70 dark:border-emerald-600'
+                            : isLast 
+                                ? 'border-gray-400 dark:border-gray-600' 
+                                : 'border-gray-300 dark:border-gray-700'
                 } rounded-full z-10 shadow-sm transition-all`}>
                     {isNow ? (
                         <div className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.9)]" />
                     ) : isPassed ? (
-                        <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full" />
+                        <div className="w-2 h-2 bg-emerald-500 dark:bg-emerald-400 rounded-full" />
                     ) : null}
                 </div>
 
@@ -86,8 +88,8 @@ export const ItineraryPoint: React.FC<ItineraryPointProps> = ({
                         ? 'bg-red-50/70 dark:bg-red-950/30 border-red-300 dark:border-red-800 ring-2 ring-red-400/20'
                         : isFirst 
                             ? 'bg-fgc-green/5 dark:bg-fgc-green/10 border-fgc-green/20 dark:border-fgc-green/20' 
-                            : isLast 
-                                ? 'bg-red-50/50 dark:bg-red-950/20 border-red-100 dark:border-red-900/30' 
+                            : (isLast && !isPassed) 
+                                ? 'bg-amber-50/40 dark:bg-amber-950/20 border-amber-200/50 dark:border-amber-900/30' 
                                 : 'border-gray-100 dark:border-white/5 bg-gray-50/40 dark:bg-white/[0.02] group-hover/point:bg-gray-100/60 dark:group-hover/point:bg-white/5'
                 }`}>
                     {/* Station Name & Track */}

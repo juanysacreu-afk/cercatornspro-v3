@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { BookOpen, RefreshCw, Clock, Train } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { getFgcServiceDate, pollAndRecordGipPassages } from '../utils/gipRecorder';
-import { resolveStationId, findGipPassageForPoint, formatDelayMinSec, normalizeTimeDiffSec, normalizeCircId, timeStringToSeconds } from '../utils/stations';
+import { resolveStationId, findGipPassageForPoint, formatDelayMinSec, normalizeTimeDiffSec, normalizeCircId, timeStringToSeconds, secondsToTimeString, getFgcMinutes } from '../utils/stations';
 import { fetchLiveGeoTrenTrains, findTrainInGeoTren, NormalizedGeoTrenTrain } from '../utils/geotrenApi';
 import { ItineraryPoint } from './ItineraryPoint';
 import { getServiceToday } from '../utils/serviceCalendar';
@@ -168,6 +168,10 @@ export const ItineraryTimeline: React.FC<ItineraryTimelineProps> = ({ circ, nowM
         isLiveSynced: false,
         isicStatusText: '',
         transitStatusText: '',
+        isCirculationPast: false,
+        lastGipIdx: -1,
+        lastPassage: null,
+        lastDelaySec: 0,
         passedIndices: new Set<number>()
       };
     }
@@ -221,41 +225,73 @@ export const ItineraryTimeline: React.FC<ItineraryTimelineProps> = ({ circ, nowM
       }
     }
 
-    // Prioritat 2: Si GeoTren no és actiu en aquest instant, deduir per l'últim pas GIP i el retard observat
-    if (currentStationIdx === -1 && transitFromIdx === -1 && gipPassages.length > 0) {
-      let lastGipIdx = -1;
-      let lastPassage: GipRegistrePas | null = null;
-      points.forEach((p, idx) => {
-        const passage = findGipPassageForPoint(gipPassages, p);
-        if (passage) {
-          lastGipIdx = idx;
-          lastPassage = passage;
-        }
-      });
+    // Prioritat 2: Avaluació temporal FGC per a trens que no són a GeoTren en viu
+    const firstPoint = points[0];
+    const lastPoint = points[points.length - 1];
+    const startMin = getFgcMinutes(firstPoint?.hora);
+    let endMin = getFgcMinutes(lastPoint?.hora);
+    if (startMin !== null && endMin !== null && endMin < startMin) {
+      endMin += 24 * 60; // Operació passant per mitjanit
+    }
 
+    const now = new Date();
+    const clockStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+    const currentFgcMin = (typeof nowMin === 'number' && nowMin > 0) ? nowMin : (getFgcMinutes(clockStr) ?? 0);
+
+    let lastGipIdx = -1;
+    let lastPassage: GipRegistrePas | null = null;
+    points.forEach((p, idx) => {
+      const passage = findGipPassageForPoint(gipPassages, p);
+      if (passage) {
+        lastGipIdx = idx;
+        lastPassage = passage;
+      }
+    });
+
+    const lastDelaySec = lastPassage ? normalizeTimeDiffSec(lastPassage.diferencia_segons) : 0;
+    const lastDelayMin = Math.round(lastDelaySec / 60);
+    const effectiveEndMin = endMin !== null ? (endMin + Math.max(0, lastDelayMin)) : null;
+
+    // Una circulació ha finalitzat si no és a GeoTren i ja ha superat l'hora prevista d'arribada (o ha arribat a l'última estació)
+    const isCirculationPast = !liveGeoTrain && (
+      (effectiveEndMin !== null && currentFgcMin > effectiveEndMin + 6) ||
+      (lastGipIdx === points.length - 1)
+    );
+
+    if (isCirculationPast) {
+      // Circulació completada en el passat
+      currentStationIdx = -1;
+      transitFromIdx = -1;
+      transitStatusText = '';
+      isicStatusText = `Finalitzat a ${lastPoint?.nom || 'destinació'}`;
+      if (gipPassages.length > 0) {
+        for (let i = 0; i < points.length; i++) passedIndices.add(i);
+      }
+    } else if (!liveGeoTrain && currentStationIdx === -1 && transitFromIdx === -1 && gipPassages.length > 0) {
+      // Només si estem DINS de la finestra temporal activa de la circulació i GeoTren perd cobertura momentània
       if (lastGipIdx !== -1 && lastPassage) {
-        const delaySec = normalizeTimeDiffSec(lastPassage.diferencia_segons);
-        const now = new Date();
-        const nowSecs = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
-        // L'hora teòrica a la qual es troba realment el tren segons el seu retard
-        const effectiveClockSecs = nowSecs - delaySec;
-
         if (lastGipIdx < points.length - 1) {
           const nextPoint = points[lastGipIdx + 1];
-          const nextTheoSecs = timeStringToSeconds(nextPoint.hora);
+          let nextTheoMin = getFgcMinutes(nextPoint.hora);
+          if (nextTheoMin !== null && startMin !== null && nextTheoMin < startMin) {
+            nextTheoMin += 24 * 60;
+          }
+          const effectiveNextMin = nextTheoMin !== null ? (nextTheoMin + lastDelayMin) : null;
 
-          if (nextTheoSecs !== null && effectiveClockSecs >= nextTheoSecs) {
+          if (effectiveNextMin !== null && currentFgcMin >= effectiveNextMin) {
             currentStationIdx = lastGipIdx + 1;
-            isicStatusText = `Arribant a ${nextPoint.nom} (Retard ${formatDelayMinSec(delaySec)})`;
+            isicStatusText = `Arribant a ${nextPoint.nom} (Retard ${formatDelayMinSec(lastDelaySec)})`;
+            for (let i = 0; i <= lastGipIdx; i++) passedIndices.add(i);
           } else {
             transitFromIdx = lastGipIdx;
             const fromName = points[lastGipIdx].nom;
             const toName = nextPoint.nom;
-            transitStatusText = `EN TRAJECTE ENTRE ${fromName} I ${toName} (+${formatDelayMinSec(delaySec)})`;
+            transitStatusText = `EN TRAJECTE ENTRE ${fromName} I ${toName} (+${formatDelayMinSec(lastDelaySec)})`;
+            for (let i = 0; i <= lastGipIdx; i++) passedIndices.add(i);
           }
         } else {
-          currentStationIdx = lastGipIdx;
           isicStatusText = `Finalitzat a ${points[lastGipIdx].nom}`;
+          for (let i = 0; i < points.length; i++) passedIndices.add(i);
         }
       }
     }
@@ -266,9 +302,13 @@ export const ItineraryTimeline: React.FC<ItineraryTimelineProps> = ({ circ, nowM
       isLiveSynced,
       isicStatusText,
       transitStatusText,
+      isCirculationPast,
+      lastGipIdx,
+      lastPassage,
+      lastDelaySec,
       passedIndices
     };
-  }, [points, gipPassages, liveGeoTrain]);
+  }, [points, gipPassages, liveGeoTrain, nowMin]);
 
   return (
     <div className="p-4 sm:p-8 bg-white dark:bg-fgc-grey border-t border-gray-100 dark:border-white/5 animate-in slide-in-from-top-4 duration-500 overflow-hidden">
@@ -301,8 +341,14 @@ export const ItineraryTimeline: React.FC<ItineraryTimelineProps> = ({ circ, nowM
                 );
               })()}
               {realTrainState.isicStatusText && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/50 text-[10px] font-bold text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 animate-in fade-in">
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold border animate-in fade-in ${
+                  realTrainState.isCirculationPast
+                    ? 'bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-white/10'
+                    : 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
+                }`}>
+                  {!realTrainState.isCirculationPast && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                  )}
                   {realTrainState.isicStatusText}
                 </span>
               )}
@@ -369,7 +415,34 @@ export const ItineraryTimeline: React.FC<ItineraryTimelineProps> = ({ circ, nowM
       <div className="relative flex flex-col pl-8 sm:pl-16 pr-2 sm:pr-6 py-2 space-y-0">
         <div className="absolute left-[15px] sm:left-[29px] top-6 bottom-6 w-0.5 sm:w-1 bg-gray-100 dark:bg-gray-800 rounded-full" />
         {points.map((point, pIdx, arr) => {
-          const passage = findGipPassageForPoint(gipPassages, point);
+          let passage = findGipPassageForPoint(gipPassages, point);
+
+          // Si la circulació és passada i falta el registre de l'estació terminal (per canvi de cicle al buffer),
+          // calculem l'hora real estimada a partir del darrer retard confirmat
+          if (!passage && realTrainState.isCirculationPast && realTrainState.lastPassage && pIdx > realTrainState.lastGipIdx) {
+            const theoSecs = timeStringToSeconds(point.hora);
+            if (theoSecs !== null) {
+              const estRealSecs = theoSecs + realTrainState.lastDelaySec;
+              let diffSec = realTrainState.lastDelaySec;
+              let estat: 'en_hora' | 'retard' | 'avanc' = 'en_hora';
+              if (diffSec > 240) estat = 'retard';
+              else if (diffSec < -20) estat = 'avanc';
+
+              passage = {
+                data_servei: realTrainState.lastPassage.data_servei,
+                circulacio_id: realTrainState.lastPassage.circulacio_id,
+                linia: realTrainState.lastPassage.linia,
+                ut: realTrainState.lastPassage.ut,
+                estacio_codi: resolveStationId(point.nom || point.codi || ''),
+                estacio_nom: point.nom,
+                hora_teorica: point.hora,
+                hora_real: secondsToTimeString(estRealSecs),
+                diferencia_segons: diffSec,
+                estat
+              };
+            }
+          }
+
           const isNow = pIdx === realTrainState.currentStationIdx;
           const isTransit = pIdx === realTrainState.transitFromIdx;
           const isPassed = realTrainState.passedIndices.has(pIdx);
@@ -387,7 +460,7 @@ export const ItineraryTimeline: React.FC<ItineraryTimelineProps> = ({ circ, nowM
               transitStatusText={realTrainState.transitStatusText}
               isicStatusText={realTrainState.isicStatusText}
               nowMin={nowMin}
-              gipPassage={passage}
+              gipPassage={passage || undefined}
             />
           );
         })}

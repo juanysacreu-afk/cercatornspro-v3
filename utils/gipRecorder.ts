@@ -334,11 +334,9 @@ export const pollAndRecordGipPassages = async (): Promise<number> => {
 
       // Cas 3: No hi ha properes_parades (tren arribant o ja al final de trajecte)
       if (currentStationIndex === -1 && properes.length === 0) {
+        currentStationIndex = stops.length - 1;
         if (fusion.state === 'EN_ANDANA' || (fusion.distanceMeters !== null && fusion.distanceMeters <= 100 && speedKmh <= 10)) {
-          currentStationIndex = stops.length - 1;
           isStoppedAtPlatform = true;
-        } else {
-          currentStationIndex = Math.max(0, stops.length - 2);
         }
       }
 
