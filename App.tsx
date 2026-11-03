@@ -51,6 +51,8 @@ const App: React.FC = () => {
   const [initProgress, setInitProgress] = useState(0);
   const [initMessage, setInitMessage] = useState('Sincronitzant dades...');
   const [unreadMessages, setUnreadMessages] = useState(0);
+  const [session, setSession] = useState<any>(null);
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
   const activeTabRef = useRef(activeTab);
   const { showToast } = useToast();
   const [focusLocation, setFocusLocation] = useState<{ lat: number; lon: number; label: string; x?: number; y?: number } | null>(null);
@@ -138,6 +140,7 @@ const App: React.FC = () => {
 
 
   useEffect(() => {
+    if (!session) return;
     const doSync = async () => {
       await syncOfflineData((msg, progressValue) => {
         setInitMessage(msg);
@@ -150,25 +153,27 @@ const App: React.FC = () => {
 
     const timer = setTimeout(doSync, 500);
     return () => clearTimeout(timer);
-  }, []);
+  }, [session]);
 
   // Enregistrador en segon pla del GIP (registre de passos per estació a Supabase)
   useEffect(() => {
+    if (!session) return;
     const stopRecorder = startGipRecorder(10000);
     return () => {
       stopRecorder();
     };
-  }, []);
+  }, [session]);
 
   // Sincronització automàtica de les unitats de GeoTren cada 10 minuts amb l'app oberta
   useEffect(() => {
+    if (!session) return;
     const stopGeoTrenSync = startGeoTrenAutoSync(10 * 60 * 1000, ({ count }) => {
       showToast(`S'han sincronitzat ${count} unitats amb GeoTren (automàtic)`, 'info');
     });
     return () => {
       stopGeoTrenSync();
     };
-  }, [showToast]);
+  }, [session, showToast]);
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -199,6 +204,7 @@ const App: React.FC = () => {
   }, [activeTab]);
 
   useEffect(() => {
+    if (!session) return;
     const initUnread = async () => {
       const lastRead = localStorage.getItem('mensajeriaLastRead') || new Date(0).toISOString();
       const { count, error } = await supabase
@@ -223,9 +229,10 @@ const App: React.FC = () => {
       .subscribe();
 
     return () => { subs.unsubscribe(); };
-  }, []);
+  }, [session]);
 
   useEffect(() => {
+    if (!session) return;
     const triggerBriefing = async () => {
       try {
         await supabase.functions.invoke('daily-briefing');
@@ -237,10 +244,7 @@ const App: React.FC = () => {
     if (!isInitializing) {
       triggerBriefing();
     }
-  }, [isInitializing]);
-
-  const [session, setSession] = useState<any>(null);
-  const [isAuthChecking, setIsAuthChecking] = useState(true);
+  }, [isInitializing, session]);
 
   const syncSupervisorProfile = useCallback(async (email: string) => {
     try {
@@ -550,8 +554,20 @@ const App: React.FC = () => {
     feedback.success();
   };
 
+  if (isAuthChecking) {
+    return (
+      <div className="min-h-screen bg-[#4D5358] flex items-center justify-center">
+        <SplashScreen progress={initProgress} message="Verificant sessió..." onComplete={() => setIsInitializing(false)} />
+      </div>
+    );
+  }
+
+  if (!session) {
+    return <LoginScreen onLoginSuccess={(newSession) => setSession(newSession)} />;
+  }
+
   return (
-    <div className="min-h-screen bg-transparent flex flex-col transition-colors duration-300">
+    <div key={session?.user?.id || 'nexus-authenticated'} className="min-h-screen bg-transparent flex flex-col transition-colors duration-300">
       <SplashScreen progress={initProgress} message={initMessage} onComplete={() => setIsInitializing(false)} />
 
       <div className="mesh-bg">
@@ -1051,10 +1067,6 @@ const App: React.FC = () => {
         onSignOut={handleSignOut}
         isMandatory={false}
       />
-
-      {!session && !isAuthChecking && (
-        <LoginScreen onLoginSuccess={(newSession) => setSession(newSession)} />
-      )}
 
       <OnboardingTour />
     </div>
