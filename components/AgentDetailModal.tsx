@@ -29,6 +29,7 @@ interface AgentDetailModalProps {
   agent: any;
   contact: { phones: string[]; email: string | null };
   isPrivacyMode: boolean;
+  initialHistoryDate?: string;
   onClose: () => void;
   onNavigateToSearch?: (type: string, query: string) => void;
 }
@@ -47,10 +48,13 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
   agent,
   contact,
   isPrivacyMode,
+  initialHistoryDate,
   onClose,
   onNavigateToSearch
 }) => {
   const [shiftData, setShiftData] = useState<any | null>(null);
+  const [cycleToTrainMap, setCycleToTrainMap] = useState<Map<string, string>>(new Map());
+  const [historyUtMap, setHistoryUtMap] = useState<Record<string, string>>({});
   const [gipPassages, setGipPassages] = useState<GipRegistrePas[]>([]);
   const [loadingShift, setLoadingShift] = useState(true);
   const [loadingGip, setLoadingGip] = useState(false);
@@ -61,9 +65,9 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
   const [historyRecords, setHistoryRecords] = useState<AgentPerformanceHistory[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [isHistorySaved, setIsHistorySaved] = useState(false);
-  const [showHistorySection, setShowHistorySection] = useState(false);
+  const [showHistorySection, setShowHistorySection] = useState(Boolean(initialHistoryDate));
   const [expandedHistoryId, setExpandedHistoryId] = useState<number | null>(null);
-  const [selectedHistoryDate, setSelectedHistoryDate] = useState<string>('');
+  const [selectedHistoryDate, setSelectedHistoryDate] = useState<string>(initialHistoryDate || '');
   const dateInputRef = useRef<HTMLInputElement>(null);
   const lastSavedKeyRef = useRef<string>('');
 
@@ -195,6 +199,20 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
       }
 
       setShiftData(resolvedShift);
+
+      // Load assignments for cicle -> train mapping
+      try {
+        const { data: dbAssignments } = await supabase.from('assignments').select('cycle_id, train_number');
+        if (dbAssignments) {
+          const m = new Map<string, string>();
+          dbAssignments.forEach((a: any) => {
+            if (a.cycle_id && a.train_number) {
+              m.set(String(a.cycle_id).trim().toUpperCase(), String(a.train_number).trim());
+            }
+          });
+          setCycleToTrainMap(m);
+        }
+      } catch (_) {}
 
       // Load GIP passages for all circulations in this shift
       const circCodes: string[] = Array.from(new Set(
@@ -464,6 +482,11 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
         ? Math.max(...delayedStops.map(p => normalizeTimeDiffSec(p.diferencia_segons))) 
         : 0;
 
+      // Resolució del tren (UT): primer del registre real de pas GIP, després de la circulació o cicle
+      const passageUt = cPassages.find(p => p.ut)?.ut;
+      const fallbackUt = c.cicle ? cycleToTrainMap.get(String(c.cicle).trim().toUpperCase()) : null;
+      const resolvedUt = passageUt || fallbackUt || c.train || c.ut || null;
+
       return {
         circulation: c,
         codi,
@@ -473,7 +496,8 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
         sortida: c.sortida,
         arribada: c.arribada,
         cicle: c.cicle,
-        train: c.train,
+        train: resolvedUt,
+        ut: resolvedUt,
         status,
         totalStops,
         onTimeStops,
@@ -483,7 +507,7 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
         maxDelaySec
       };
     });
-  }, [shiftData, gipPassages, nowMin]);
+  }, [shiftData, gipPassages, nowMin, cycleToTrainMap]);
 
   // 3. Shift Global Punctuality Summary
   const overallPunctuality = useMemo(() => {
@@ -598,6 +622,90 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
     return dateStr;
   };
 
+  // Auto-desplegar el registre si s'ha passat una data inicial
+  useEffect(() => {
+    if (initialHistoryDate && uniqueHistoryRecords.length > 0) {
+      const match = uniqueHistoryRecords.find(r => r.data_servei === initialHistoryDate);
+      if (match && match.id) {
+        setExpandedHistoryId(match.id);
+      }
+    }
+  }, [initialHistoryDate, uniqueHistoryRecords]);
+
+  // Recupera i memoritza retroactivament les UTs dels registres històrics que no les tinguessin guardades
+  useEffect(() => {
+    if (!displayedHistoryRecords || displayedHistoryRecords.length === 0) return;
+
+    const missingRequests: Array<{ dataServei: string; circId: string }> = [];
+    displayedHistoryRecords.forEach(rec => {
+      if (Array.isArray(rec.detall_circulacions)) {
+        rec.detall_circulacions.forEach((c: any) => {
+          if (!c.ut && !c.train && c.codi) {
+            const key = `${rec.data_servei}:${c.codi}`;
+            if (!historyUtMap[key]) {
+              missingRequests.push({ dataServei: rec.data_servei, circId: c.codi });
+            }
+          }
+        });
+      }
+    });
+
+    if (missingRequests.length === 0) return;
+
+    let isMounted = true;
+    (async () => {
+      try {
+        const dates = Array.from(new Set(missingRequests.map(r => r.dataServei)));
+        const circIds = Array.from(new Set(missingRequests.map(r => r.circId)));
+
+        const { data: passages } = await supabase
+          .from('gip_registre_pas')
+          .select('data_servei, circulacio_id, ut')
+          .in('data_servei', dates)
+          .in('circulacio_id', circIds)
+          .not('ut', 'is', null);
+
+        if (isMounted && passages && passages.length > 0) {
+          const newMap: Record<string, string> = {};
+          passages.forEach(p => {
+            if (p.ut) {
+              newMap[`${p.data_servei}:${p.circulacio_id}`] = p.ut;
+            }
+          });
+          setHistoryUtMap(prev => ({ ...prev, ...newMap }));
+
+          // Actualitzar a agent_performance_history a Supabase perquè quedi memoritzat per sempre amb la UT
+          displayedHistoryRecords.forEach(rec => {
+            let hasNewUt = false;
+            if (Array.isArray(rec.detall_circulacions)) {
+              const enrichedCircs = rec.detall_circulacions.map((c: any) => {
+                const foundUt = newMap[`${rec.data_servei}:${c.codi}`];
+                if (foundUt && !c.ut) {
+                  hasNewUt = true;
+                  return { ...c, ut: foundUt, train: foundUt };
+                }
+                return c;
+              });
+
+              if (hasNewUt && rec.empleat_id && rec.data_servei) {
+                supabase
+                  .from('agent_performance_history')
+                  .update({ detall_circulacions: enrichedCircs, actualitzat_el: new Date().toISOString() })
+                  .eq('data_servei', rec.data_servei)
+                  .eq('empleat_id', rec.empleat_id)
+                  .then(() => {});
+              }
+            }
+          });
+        }
+      } catch (err) {
+        console.warn('Error fetching missing historical UTs:', err);
+      }
+    })();
+
+    return () => { isMounted = false; };
+  }, [displayedHistoryRecords]);
+
   // 5. Desa automàticament el rendiment i puntualitat a la taula 'agent_performance_history' de Supabase només quan canvia
   useEffect(() => {
     if (loadingShift || loadingGip || !agent?.empleat_id) return;
@@ -611,8 +719,8 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
 
     const serviceDate = getFgcServiceDate();
 
-    // Clau única per evitar re-desats innecessaris en bucle
-    const saveKey = `${serviceDate}-${agent.empleat_id}-${currentTorn}-${overallPunctuality.rate}-${overallPunctuality.completedCircs}-${overallPunctuality.totalPassages}-${overallPunctuality.delayedCount}`;
+    // Clau única per evitar re-desats innecessaris en bucle (incloent les unitats de tren per si s'actualitzen)
+    const saveKey = `${serviceDate}-${agent.empleat_id}-${currentTorn}-${overallPunctuality.rate}-${overallPunctuality.completedCircs}-${overallPunctuality.totalPassages}-${overallPunctuality.delayedCount}-${circPunctualityList.map(c => c.ut || '').join(',')}`;
     if (lastSavedKeyRef.current === saveKey) return;
 
     const timeout = setTimeout(() => {
@@ -645,6 +753,9 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
           final: c.final,
           sortida: c.sortida,
           arribada: c.arribada,
+          cicle: c.cicle,
+          ut: c.ut || c.train || null,
+          train: c.ut || c.train || null,
           status: c.status,
           totalStops: c.totalStops,
           onTimeStops: c.onTimeStops,
@@ -1281,7 +1392,7 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
                                             className="p-3 rounded-xl bg-gray-50 dark:bg-white/[0.02] border border-gray-100 dark:border-white/5 flex flex-col gap-2 text-xs"
                                           >
                                             <div className="flex items-center justify-between gap-2 flex-wrap">
-                                              <div className="flex items-center gap-2">
+                                              <div className="flex items-center gap-2 flex-wrap">
                                                 <span className="font-mono font-black text-sm text-[#4D5358] dark:text-white">
                                                   {c.codi}
                                                 </span>
@@ -1293,6 +1404,19 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
                                                     {c.linia}
                                                   </span>
                                                 )}
+                                                {(() => {
+                                                  const trainUt = c.ut || c.train || historyUtMap[`${rec.data_servei}:${c.codi}`];
+                                                  if (!trainUt) return null;
+                                                  return (
+                                                    <span 
+                                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-mono font-black bg-gray-100 text-gray-700 border border-gray-200 dark:bg-white/10 dark:text-gray-200 dark:border-white/10 shadow-xs"
+                                                      title={`Circulació realitzada amb la unitat UT ${trainUt}`}
+                                                    >
+                                                      <Train size={11} className="text-fgc-green shrink-0" />
+                                                      <span>UT {trainUt}</span>
+                                                    </span>
+                                                  );
+                                                })()}
                                                 <span className="text-gray-500 dark:text-gray-400 text-[11px] font-medium">
                                                   {resolveStationName(c.sortida || c.inici, c.linia)} → {resolveStationName(c.arribada || c.final, c.linia)}
                                                 </span>
@@ -1440,9 +1564,13 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
                                 </span>
                               )}
 
-                              {item.train && (
-                                <span className="hidden sm:inline font-mono text-[10px] text-gray-400 dark:text-gray-500 font-bold">
-                                  UT {item.train}
+                              {(item.train || item.ut) && (
+                                <span 
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-[10px] font-mono font-black bg-gray-100 text-gray-700 border border-gray-200 dark:bg-white/10 dark:text-gray-200 dark:border-white/10 shadow-xs"
+                                  title={`Unitat de tren assignada: UT ${item.train || item.ut}`}
+                                >
+                                  <Train size={11} className="text-fgc-green shrink-0" />
+                                  <span>UT {item.train || item.ut}</span>
                                 </span>
                               )}
                             </div>

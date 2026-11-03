@@ -3,13 +3,14 @@ import { DailyAssignment, AgentPerformanceHistory } from '../types.ts';
 import { 
   Search, Phone, User, Loader2, Clock, CheckCircle2, Info, 
   Filter, UserCircle, ChevronDown, Mail, Users, RefreshCw, 
-  X, Activity, ArrowRight, Database, RotateCcw, Sun, Moon 
+  X, Activity, ArrowRight, Database, RotateCcw, Sun, Moon, Calendar 
 } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
 import { feedback } from '../utils/feedback';
 import { useServiceToday } from '../utils/useServiceToday';
 import { useToast } from '../components/ToastProvider';
 import { getDailyPerformanceSummary, syncAllAgentsPerformance } from '../utils/agentPerformanceService';
+import { getFgcServiceDate } from '../utils/gipRecorder';
 import { getFgcMinutes } from '../utils/stations';
 import ErrorBoundary from '../components/common/ErrorBoundary';
 import AgentDetailModal from '../components/AgentDetailModal';
@@ -265,6 +266,9 @@ const AgentsViewComponent: React.FC<AgentsViewProps> = ({ isPrivacyMode, onNavig
   const [isPunctualityMenuOpen, setIsPunctualityMenuOpen] = useState(false);
   const punctualityRef = useRef<HTMLDivElement>(null);
 
+  const [selectedPerfDate, setSelectedPerfDate] = useState<string>(() => getFgcServiceDate());
+  const perfDateInputRef = useRef<HTMLInputElement>(null);
+
   const [loadingMaquinistes, setLoadingMaquinistes] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<{ maquinista: any; contact: { phones: string[]; email: string | null } } | null>(null);
 
@@ -294,7 +298,7 @@ const AgentsViewComponent: React.FC<AgentsViewProps> = ({ isPrivacyMode, onNavig
       const [assigRes, contactsRes, perfRes] = await Promise.all([
         supabase.from('daily_assignments').select('*').order('cognoms', { ascending: true }),
         supabase.from('agents').select('nomina, name, surname, phone, email, area').eq('area', 'bv'),
-        getDailyPerformanceSummary()
+        getDailyPerformanceSummary(selectedPerfDate)
       ]);
 
       if (assigRes.data) setAllAssignments(assigRes.data);
@@ -322,7 +326,7 @@ const AgentsViewComponent: React.FC<AgentsViewProps> = ({ isPrivacyMode, onNavig
 
       // Sincronització automàtica en segon pla de la puntualitat de tots els agents actius
       if (assigRes.data && assigRes.data.length > 0) {
-        syncAllAgentsPerformance(assigRes.data, todayService).then(res => {
+        syncAllAgentsPerformance(assigRes.data, todayService, selectedPerfDate).then(res => {
           if (res.success && res.perfMap) {
             setDailyPerfMap(prev => ({
               ...prev,
@@ -342,7 +346,7 @@ const AgentsViewComponent: React.FC<AgentsViewProps> = ({ isPrivacyMode, onNavig
     setIsSyncingHistory(true);
     feedback.click();
     try {
-      const res = await syncAllAgentsPerformance(allAssignments, todayService);
+      const res = await syncAllAgentsPerformance(allAssignments, todayService, selectedPerfDate);
       if (res.success) {
         if (res.perfMap) {
           setDailyPerfMap(prev => ({ ...prev, ...res.perfMap }));
@@ -361,6 +365,19 @@ const AgentsViewComponent: React.FC<AgentsViewProps> = ({ isPrivacyMode, onNavig
   useEffect(() => {
     fetchMaquinistes();
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        const perf = await getDailyPerformanceSummary(selectedPerfDate);
+        if (isMounted) setDailyPerfMap(perf);
+      } catch (e) {
+        console.error('[AgentsView] Error carregant rendiment per data:', e);
+      }
+    })();
+    return () => { isMounted = false; };
+  }, [selectedPerfDate]);
 
   const filteredMaquinistes = useMemo(() => {
     const bvAgentIds = new Set(allAgents.map(a => normalizeId(a.nomina)));
@@ -681,8 +698,55 @@ const AgentsViewComponent: React.FC<AgentsViewProps> = ({ isPrivacyMode, onNavig
                 )}
               </div>
 
+              {/* Selector 4: Data de Puntualitat */}
+              <div className="relative flex-1 sm:flex-initial">
+                <input
+                  ref={perfDateInputRef}
+                  type="date"
+                  value={selectedPerfDate}
+                  max={getFgcServiceDate()}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      setSelectedPerfDate(e.target.value);
+                    }
+                  }}
+                  className="sr-only"
+                />
+                <button
+                  onClick={() => {
+                    perfDateInputRef.current?.showPicker?.();
+                    perfDateInputRef.current?.focus();
+                  }}
+                  className={`w-full sm:w-auto flex items-center justify-between gap-2.5 px-4 py-3.5 bg-gray-50 dark:bg-black/20 border rounded-[22px] font-bold text-xs sm:text-sm transition-all shadow-sm ${
+                    selectedPerfDate !== getFgcServiceDate()
+                      ? 'border-fgc-green/50 bg-fgc-green/10 text-fgc-green dark:text-fgc-green'
+                      : 'border-gray-100 dark:border-white/5 text-[#4D5358] dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10'
+                  }`}
+                  title="Triar data per consultar la puntualitat memoritzada"
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <Calendar size={15} className={selectedPerfDate !== getFgcServiceDate() ? 'text-fgc-green shrink-0' : 'text-gray-400 shrink-0'} />
+                    <span className="truncate">
+                      {selectedPerfDate === getFgcServiceDate() ? 'Data: Avui' : selectedPerfDate}
+                    </span>
+                  </div>
+                  {selectedPerfDate !== getFgcServiceDate() && (
+                    <span
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedPerfDate(getFgcServiceDate());
+                      }}
+                      className="p-0.5 rounded-full hover:bg-black/10 dark:hover:bg-white/10 text-gray-400 hover:text-red-500"
+                      title="Tornar a la data d'avui"
+                    >
+                      <X size={12} />
+                    </span>
+                  )}
+                </button>
+              </div>
+
               {/* Botó de reinici si hi ha algun filtre actiu */}
-              {(disDesFilter !== 'ALL' || shiftTimeFilter !== 'ALL' || punctualityFilter !== 'ALL' || maquinistaQuery) && (
+              {(disDesFilter !== 'ALL' || shiftTimeFilter !== 'ALL' || punctualityFilter !== 'ALL' || maquinistaQuery || selectedPerfDate !== getFgcServiceDate()) && (
                 <button
                   onClick={() => {
                     feedback.click();
@@ -690,6 +754,7 @@ const AgentsViewComponent: React.FC<AgentsViewProps> = ({ isPrivacyMode, onNavig
                     setDisDesFilter('ALL');
                     setShiftTimeFilter('ALL');
                     setPunctualityFilter('ALL');
+                    setSelectedPerfDate(getFgcServiceDate());
                   }}
                   title="Restablir tots els filtres"
                   className="p-3.5 rounded-[22px] bg-gray-100 hover:bg-gray-200 dark:bg-white/5 dark:hover:bg-white/10 text-gray-400 hover:text-red-500 transition-all shadow-sm"
@@ -754,9 +819,10 @@ const AgentsViewComponent: React.FC<AgentsViewProps> = ({ isPrivacyMode, onNavig
           agent={selectedAgent.maquinista}
           contact={selectedAgent.contact}
           isPrivacyMode={isPrivacyMode}
+          initialHistoryDate={selectedPerfDate !== getFgcServiceDate() ? selectedPerfDate : undefined}
           onClose={async () => {
             setSelectedAgent(null);
-            const updated = await getDailyPerformanceSummary();
+            const updated = await getDailyPerformanceSummary(selectedPerfDate);
             setDailyPerfMap(updated);
           }}
           onNavigateToSearch={onNavigateToSearch}

@@ -128,13 +128,14 @@ export const getCandidateShiftIdsForAgent = (clean: string, todayService: string
  */
 export const syncAllAgentsPerformance = async (
   assignments: any[],
-  todayService: string
+  todayService: string,
+  targetDate: string = getFgcServiceDate()
 ): Promise<{ success: boolean; savedCount: number; perfMap?: Record<string, AgentPerformanceHistory>; error?: any }> => {
   if (!assignments || assignments.length === 0) {
     return { success: true, savedCount: 0, perfMap: {} };
   }
 
-  const serviceDate = getFgcServiceDate();
+  const serviceDate = targetDate;
   const now = new Date();
   const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
   const nowMin = getFgcMinutes(timeStr) || 0;
@@ -149,12 +150,25 @@ export const syncAllAgentsPerformance = async (
       return { success: true, savedCount: 0, perfMap: {} };
     }
 
-    const { data: dbShifts } = await supabase.from('shifts').select('*');
-    const shiftsList = dbShifts || [];
+    const [shiftsRes, assignmentsRes] = await Promise.all([
+      supabase.from('shifts').select('*'),
+      supabase.from('assignments').select('cycle_id, train_number')
+    ]);
+
+    const shiftsList = shiftsRes.data || [];
     const shiftsMap = new Map<string, any>();
     shiftsList.forEach(s => {
       shiftsMap.set(s.id.toUpperCase(), s);
     });
+
+    const cycleToTrainMap = new Map<string, string>();
+    if (assignmentsRes.data) {
+      assignmentsRes.data.forEach((a: any) => {
+        if (a.cycle_id && a.train_number) {
+          cycleToTrainMap.set(String(a.cycle_id).trim().toUpperCase(), String(a.train_number).trim());
+        }
+      });
+    }
 
     const allCircCodes = new Set<string>();
     const agentShiftPairs: { agent: any; shift: any }[] = [];
@@ -231,6 +245,11 @@ export const syncAllAgentsPerformance = async (
         const codi = typeof c === 'string' ? c : (c.codi || c.realCodi || c.id);
         const sortida = typeof c === 'object' ? c.sortida : undefined;
         const arribada = typeof c === 'object' ? c.arribada : undefined;
+        const linia = typeof c === 'object' ? (c.linia || (codi?.startsWith('F') ? 'S2' : (codi?.startsWith('D') ? 'S1' : 'FGC'))) : undefined;
+        const inici = typeof c === 'object' ? c.inici : undefined;
+        const final = typeof c === 'object' ? c.final : undefined;
+        const cicle = typeof c === 'object' ? c.cicle : undefined;
+
         const sMin = getFgcMinutes(sortida);
         const eMin = getFgcMinutes(arribada);
 
@@ -250,6 +269,11 @@ export const syncAllAgentsPerformance = async (
         const onTimeStops = cPassages.filter(p => p.estat === 'en_hora' || p.estat === 'avanc').length;
         const delayedStops = cPassages.filter(p => p.estat === 'retard');
 
+        // Resolució del tren (UT) emprat a la circulació
+        const passageUt = cPassages.find(p => p.ut)?.ut;
+        const fallbackUt = cicle ? cycleToTrainMap.get(String(cicle).trim().toUpperCase()) : null;
+        const resolvedUt = passageUt || fallbackUt || (typeof c === 'object' ? (c.ut || c.train) : null) || null;
+
         if (status !== 'PENDING' && isShiftStarted) {
           totalShiftPassages += totalStops;
           onTimeShiftPassages += onTimeStops;
@@ -262,6 +286,12 @@ export const syncAllAgentsPerformance = async (
 
         circDetails.push({
           codi,
+          linia,
+          inici,
+          final,
+          cicle,
+          ut: resolvedUt,
+          train: resolvedUt,
           sortida,
           arribada,
           status,
