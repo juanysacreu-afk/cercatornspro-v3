@@ -14,9 +14,11 @@ import { getServiceToday } from '../utils/serviceCalendar';
 import { fetchLiveGeoTrenTrains } from '../utils/geotrenApi';
 import { decodeGeotrenCirculation } from './incidencia/utils/decodeCirculation';
 import { decodeGeotrenUt } from './incidencia/utils/decodeUt';
-import { GipRegistrePas } from '../types';
+import { GipRegistrePas, TrunkConflictAlert } from '../types';
 import { useToast } from '../components/ToastProvider';
 import { feedback } from '../utils/feedback';
+import { detectTrunkConflicts } from '../utils/accordionPredictor';
+import { PredictiveConflictBanner } from '../components/PredictiveConflictBanner';
 import {
   isDelayNotifsEnabled,
   setDelayNotifsEnabled,
@@ -113,6 +115,7 @@ export const GipView: React.FC<GipViewProps> = ({ isPrivacyMode, initialCircId, 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [filterLine, setFilterLine] = useState<string>('Tots');
   const [delayedActiveCircs, setDelayedActiveCircs] = useState<ActiveDelayedCirc[]>([]);
+  const [trunkConflicts, setTrunkConflicts] = useState<TrunkConflictAlert[]>([]);
   const [delayThresholdMin, setDelayThresholdMin] = useState<DelayThresholdMinutes>(() => getDelayAlertThresholdMin());
   const [delayNotifsActive, setDelayNotifsActive] = useState<boolean>(() => isDelayNotifsEnabled());
   const { showToast } = useToast();
@@ -298,6 +301,10 @@ export const GipView: React.FC<GipViewProps> = ({ isPrivacyMode, initialCircId, 
             }
           });
 
+          // Detecció predictiva d'efecte acordió i colls d'ampolla al tronc comú
+          const detected = detectTrunkConflicts(data, latestByCirc);
+          setTrunkConflicts(detected);
+
           const delayedList: ActiveDelayedCirc[] = [];
           activeList.forEach(a => {
             const p = latestByCirc.get(a.id);
@@ -337,9 +344,12 @@ export const GipView: React.FC<GipViewProps> = ({ isPrivacyMode, initialCircId, 
           setDelayedActiveCircs(delayedList);
         } else {
           setDelayedActiveCircs([]);
+          const detected = detectTrunkConflicts(data);
+          setTrunkConflicts(detected);
         }
       } else {
         setDelayedActiveCircs([]);
+        setTrunkConflicts([]);
       }
     } catch (err) {
       console.warn('Error fetching active trains and delays for GIP:', err);
@@ -1017,6 +1027,14 @@ export const GipView: React.FC<GipViewProps> = ({ isPrivacyMode, initialCircId, 
           </div>
         </div>
       </GlassPanel>
+
+      {/* Alertes Predictives de Tronc Comú i Bifurcacions */}
+      {trunkConflicts.length > 0 && (
+        <PredictiveConflictBanner
+          conflicts={trunkConflicts}
+          onNavigateToSearch={onNavigateToSearch}
+        />
+      )}
 
       {/* Panell de Circulacions Actives amb Retard (Ordenades de Major a Menor) */}
       <GlassPanel className="p-6 sm:p-7 !rounded-[32px] sm:!rounded-[40px] space-y-4">

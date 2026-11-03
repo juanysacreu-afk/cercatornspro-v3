@@ -22,6 +22,9 @@ import { CoverageBarChart } from './components/CoverageBarChart';
 import { WeatherWidget } from '../../components/common/WeatherWidget';
 import { MonitorView } from './MonitorView';
 import { PunctualitySection } from './components/PunctualitySection';
+import { useTrunkConflicts } from './hooks/useTrunkConflicts';
+import { PredictiveConflictBanner } from '../../components/PredictiveConflictBanner';
+import type { PersonnelAlert } from './hooks/useDashboardData';
 
 // ── V1 – Live clock that ticks every second ────────────
 const LiveClock: React.FC = () => {
@@ -116,6 +119,8 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
         nowMin, serviceToday, refresh, sparklines
     } = useDashboardData(handleThresholdAlert);
 
+    const { conflicts: trunkConflicts, refresh: refreshConflicts } = useTrunkConflicts();
+
     const [isRefreshing, setIsRefreshing] = useState(false);
 
     /**
@@ -123,13 +128,17 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
      * 1. Haptic / Click feedback
      * 2. Traditional dashboard metrics refresh
      * 3. TRIGGER SYNC: Reset unit cicles from GeoTren (as requested by user)
+     * 4. Predictive conflict detector refresh
      */
     const handleRefresh = async () => {
         feedback.click();
         setIsRefreshing(true);
         try {
-            // Traditional Dashboard refresh
-            await refresh();
+            // Traditional Dashboard refresh + Predictive conflict refresh
+            await Promise.all([
+                refresh(),
+                refreshConflicts()
+            ]);
 
             // SYNC SYNC: Reset units assigned to cycles from live GeoTren map
             // This streamlines operational synchronization between CCO and real-time fleet state.
@@ -146,6 +155,37 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
             setTimeout(() => setIsRefreshing(false), 600);
         }
     };
+
+    // Merged predictive conflicts with personnel alerts for the Alerts Panel
+    const mergedCriticalAlerts = useMemo(() => {
+        const predictiveList: PersonnelAlert[] = trunkConflicts
+            .filter(c => c.severity === 'critical')
+            .map(c => ({
+                id: c.id,
+                type: 'conflict',
+                severity: 'critical',
+                title: c.title,
+                subtitle: `${c.trailingCircId} (${c.trailingLine}) afectat per ${c.leadingCircId} (+${Math.round(c.leadingDelaySec / 60)}m a ${c.leadingStation})`,
+                circId: c.trailingCircId
+            }));
+        return [...predictiveList, ...criticalAlerts];
+    }, [trunkConflicts, criticalAlerts]);
+
+    const mergedWarningAlerts = useMemo(() => {
+        const predictiveList: PersonnelAlert[] = trunkConflicts
+            .filter(c => c.severity === 'warning')
+            .map(c => ({
+                id: c.id,
+                type: 'conflict',
+                severity: 'warning',
+                title: c.title,
+                subtitle: `${c.trailingCircId} (${c.trailingLine}) afectat per ${c.leadingCircId} (+${Math.round(c.leadingDelaySec / 60)}m a ${c.leadingStation})`,
+                circId: c.trailingCircId
+            }));
+        return [...predictiveList, ...warningAlerts];
+    }, [trunkConflicts, warningAlerts]);
+
+    const totalAlertsCount = alerts.length + trunkConflicts.length;
 
     // F5 – export handler (delegates to utils/export.ts)
     const handleExportCSV = useCallback(() => {
@@ -258,6 +298,16 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                 </div>
             </header>
 
+            {/* Predictive Conflict Banner (Tronc Comú & Bifurcacions) */}
+            {trunkConflicts.length > 0 && (
+                <div className="flex-none">
+                    <PredictiveConflictBanner
+                        conflicts={trunkConflicts}
+                        onNavigateToSearch={onNavigateToSearch}
+                    />
+                </div>
+            )}
+
             {/* F2 – Upcoming uncovered shifts widget (only shows when relevant) */}
             {upcomingAlerts.length > 0 && (
                 <UpcomingCoveragePanel
@@ -360,23 +410,23 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                                     <div className="w-2.5 h-2.5 bg-gray-900/95 dark:bg-gray-800/95 border-b border-r border-gray-700 dark:border-gray-600 transform rotate-45 absolute -bottom-1.5 right-4" />
                                 </div>
                             </div>
-                            {alerts.length > 0 && (
-                                <span className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${criticalAlerts.length > 0
+                            {totalAlertsCount > 0 && (
+                                <span className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${mergedCriticalAlerts.length > 0
                                     ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'
                                     : 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400'
                                     }`}>
                                     <Zap size={11} />
-                                    {alerts.length}
+                                    {totalAlertsCount}
                                 </span>
                             )}
                         </div>
                     </div>
 
                     <div className="flex-1 min-h-0 overflow-y-auto pr-1 custom-scrollbar space-y-1.5">
-                        {criticalAlerts.map(a => <AlertRow key={a.id} alert={a} onNavigate={onNavigateToSearch} />)}
-                        {warningAlerts.map(a => <AlertRow key={a.id} alert={a} onNavigate={onNavigateToSearch} />)}
+                        {mergedCriticalAlerts.map(a => <AlertRow key={a.id} alert={a} onNavigate={onNavigateToSearch} />)}
+                        {mergedWarningAlerts.map(a => <AlertRow key={a.id} alert={a} onNavigate={onNavigateToSearch} />)}
 
-                        {alerts.length === 0 && (
+                        {totalAlertsCount === 0 && (
                             <div className="flex flex-col items-center justify-center py-6 text-gray-400">
                                 <Activity size={28} className="mb-1 opacity-40" />
                                 <p className="text-xs font-medium">Tot correcte</p>

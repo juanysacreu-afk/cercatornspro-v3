@@ -34,6 +34,7 @@ export interface PersonnelAlert {
     title: string;
     subtitle: string;
     tornId?: string;
+    circId?: string;
     nomina?: string;
     startsInMin?: number; // F2: minutes until shift starts
 }

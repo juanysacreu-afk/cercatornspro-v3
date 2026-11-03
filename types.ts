@@ -457,3 +457,24 @@ export interface AdjacentResults {
   anterior: EnrichedShift[];
   posterior: EnrichedShift[];
 }
+
+/** Predictive bottleneck alert for common trunk, junctions, and terminals */
+export interface TrunkConflictAlert {
+  id: string;
+  type: 'accordion_trunk' | 'junction_convergence' | 'terminal_congestion';
+  severity: 'critical' | 'warning' | 'info';
+  title: string; // Format: "Posible retraso en [Estació / Tram]"
+  stationCode: string;
+  stationName: string;
+  leadingCircId: string;
+  leadingLine: string;
+  leadingDelaySec: number;
+  leadingStation: string;
+  trailingCircId: string;
+  trailingLine: string;
+  trailingStation: string;
+  estimatedImpactSec: number;
+  reason: string;
+  recommendation: string;
+  timestamp: number;
+}
