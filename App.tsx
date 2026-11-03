@@ -288,37 +288,56 @@ const App: React.FC = () => {
     let isMounted = true;
     initAuditListeners();
 
-    // 1. Check existing session
+    // Timeout de seguretat absolut (1.8 segons): MAI quedar-se bloquejat a "Verificant sessió..."
+    const authTimeout = setTimeout(() => {
+      if (isMounted) {
+        console.warn('[Auth] Verificació de sessió superada per timeout, alliberant interfície...');
+        setIsAuthChecking(false);
+      }
+    }, 1800);
+
+    // 1. Comprovar sessió existent
     supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
       if (!isMounted) return;
+      clearTimeout(authTimeout);
       setSession(initialSession);
-      if (initialSession?.user?.email) {
-        syncSupervisorProfile(initialSession.user.email);
-      }
       setIsAuthChecking(false);
+      if (initialSession?.user?.email) {
+        setTimeout(() => {
+          syncSupervisorProfile(initialSession.user.email);
+        }, 0);
+      }
     }).catch(err => {
       console.warn('Auth session check failed:', err);
-      if (isMounted) setIsAuthChecking(false);
+      if (isMounted) {
+        clearTimeout(authTimeout);
+        setIsAuthChecking(false);
+      }
     });
 
-    // 2. Listen to auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+    // 2. Escoltar canvis d'auth (sense bloquejar ni fer deadlock amb el lock intern de Supabase)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
       if (!isMounted) return;
+      clearTimeout(authTimeout);
       setSession(newSession);
+      setIsAuthChecking(false);
+
       if (newSession?.user?.email) {
-        await syncSupervisorProfile(newSession.user.email);
-        if (event === 'SIGNED_IN') {
-          logLopdAccess('AUTH_LOGIN', undefined, { email: newSession.user.email });
-        }
+        setTimeout(() => {
+          syncSupervisorProfile(newSession.user.email);
+          if (event === 'SIGNED_IN') {
+            logLopdAccess('AUTH_LOGIN', undefined, { email: newSession.user.email });
+          }
+        }, 0);
       } else if (event === 'SIGNED_OUT') {
         setUserProfile({ firstName: '', lastName: '', email: '', role: '' });
         localStorage.removeItem('user_profile');
       }
-      setIsAuthChecking(false);
     });
 
     return () => {
       isMounted = false;
+      clearTimeout(authTimeout);
       subscription.unsubscribe();
     };
   }, [syncSupervisorProfile]);

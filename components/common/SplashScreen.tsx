@@ -24,6 +24,15 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ progress, message, onComple
             }, 800);
             return () => clearTimeout(timer);
         }
+
+        // Safety fallback: si el progrés arriba al 100%, forçar tancament en 2.5s encara que el vídeo estigui en pausa
+        if (progress >= 100) {
+            const forceTimer = setTimeout(() => {
+                setIsVisible(false);
+                onComplete();
+            }, 2500);
+            return () => clearTimeout(forceTimer);
+        }
     }, [progress, videoFinished, onComplete]);
 
     const handleVideoEnded = () => {
