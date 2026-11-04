@@ -204,15 +204,18 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
 
         const reliefList: PersonnelAlert[] = compromisedReliefs
             .filter(r => r.severity === 'critical')
-            .map(r => ({
-                id: r.id,
-                type: 'relief',
-                severity: 'critical',
-                title: `Relleu Crític: ${r.driverName} (${r.shortTorn})`,
-                subtitle: `Tren viatger ${r.travelCircId} (+${r.currentDelayMin}m): no arribarà a temps per agafar el tren ${r.reliefCircId} a ${r.reliefStationName} (${r.reliefScheduledDeparture})`,
-                circId: r.reliefCircId,
-                tornId: r.shiftId
-            }));
+            .map(r => {
+                const depDelay = r.currentDelayMin - r.scheduledMarginMin;
+                return {
+                    id: r.id,
+                    type: 'relief',
+                    severity: 'critical',
+                    title: `Relleu Crític: ${r.driverName} (${r.shortTorn})`,
+                    subtitle: `El tren ${r.reliefCircId} sortirà amb +${depDelay}m de demora a ${r.reliefStationName} (viatger ${r.travelCircId} amb +${r.currentDelayMin}m)`,
+                    circId: r.reliefCircId,
+                    tornId: r.shiftId
+                };
+            });
 
         return [...predictiveList, ...reliefList, ...criticalAlerts];
     }, [trunkConflicts, compromisedReliefs, criticalAlerts]);
@@ -231,15 +234,18 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
 
         const reliefList: PersonnelAlert[] = compromisedReliefs
             .filter(r => r.severity === 'warning')
-            .map(r => ({
-                id: r.id,
-                type: 'relief',
-                severity: 'warning',
-                title: `Relleu en Risc: ${r.driverName} (${r.shortTorn})`,
-                subtitle: `Tren viatger ${r.travelCircId} (+${r.currentDelayMin}m): marge ajustat (${r.realMarginMin}m) per agafar el tren ${r.reliefCircId} a ${r.reliefStationName}`,
-                circId: r.reliefCircId,
-                tornId: r.shiftId
-            }));
+            .map(r => {
+                const depDelay = r.currentDelayMin - r.scheduledMarginMin;
+                return {
+                    id: r.id,
+                    type: 'relief',
+                    severity: 'warning',
+                    title: `Relleu en Risc: ${r.driverName} (${r.shortTorn})`,
+                    subtitle: `El tren ${r.reliefCircId} sortirà amb +${depDelay}m de demora a ${r.reliefStationName} (viatger ${r.travelCircId} amb +${r.currentDelayMin}m)`,
+                    circId: r.reliefCircId,
+                    tornId: r.shiftId
+                };
+            });
 
         return [...predictiveList, ...reliefList, ...warningAlerts];
     }, [trunkConflicts, compromisedReliefs, warningAlerts]);

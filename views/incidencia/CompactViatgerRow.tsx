@@ -1,5 +1,6 @@
-import React from 'react';
-import { Phone, ArrowRight } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { Phone, ArrowRight, ShieldCheck, ShieldAlert, AlertTriangle } from 'lucide-react';
+import { auditLabourCompliance } from '../../utils/labourComplianceEngine';
 
 interface CompactViatgerRowProps {
     torn: any;
@@ -23,14 +24,20 @@ const CompactViatgerRow: React.FC<CompactViatgerRowProps> = ({
     const btnBg = isBlue ? 'bg-blue-500 hover:bg-blue-600' : (isPurple ? 'bg-purple-500 hover:bg-purple-600' : 'bg-fgc-grey hover:bg-fgc-dark');
     const arrowColor = isBlue ? 'text-blue-300' : (isPurple ? 'text-purple-300' : 'text-gray-300');
 
+    const audit = useMemo(() => auditLabourCompliance(torn), [torn]);
+
     return (
         <div className={`bg-white dark:bg-gray-800 rounded-2xl p-3 border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-md transition-all flex items-center gap-4 border-l-4 ${colorClass}`}>
             <div className={`h-10 min-w-[2.5rem] px-2 ${bgClass} ${textClass} rounded-xl flex items-center justify-center font-black text-xs shadow-sm shrink-0 whitespace-nowrap`}>{torn.id}</div>
             <div className="flex-1 min-w-0 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-6">
                 <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-sm font-black text-fgc-grey dark:text-gray-200 truncate">{torn.drivers?.[0]?.cognoms}, {torn.drivers?.[0]?.nom}</p>
                         {label}
+                        <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase border shrink-0 flex items-center gap-1 ${audit.badgeClass}`} title={audit.recommendation}>
+                            {audit.score === 'compliant' ? <ShieldCheck size={10} /> : audit.score === 'violation' ? <ShieldAlert size={10} /> : <AlertTriangle size={10} />}
+                            {audit.label}
+                        </span>
                     </div>
                     <p className="text-[8px] font-black text-gray-300 dark:text-gray-600 uppercase tracking-widest whitespace-nowrap">Nom. {torn.drivers?.[0]?.nomina} {torn.drivers?.[0]?.tipus_torn ? `(${torn.drivers?.[0].tipus_torn})` : ''}</p>
                 </div>

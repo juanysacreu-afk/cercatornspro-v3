@@ -305,12 +305,12 @@ export async function evaluatePassengerRelief(
     }
   }
 
-  // Relief Watchdog Criteria:
-  // CRITICAL: Driver arrives at or AFTER the scheduled departure of next train (realMargin <= 0)
-  // WARNING: Driver arrives with 3 or fewer minutes of buffer (realMargin <= 3 and delay >= 2)
-  const isCritical = effectiveDelayMin > 0 && realMargin <= 0;
-  const isWarning = !isCritical && effectiveDelayMin >= 2 && realMargin <= 3;
-  const isCompromised = isCritical || isWarning;
+  // User Rule: Only alert if the subsequent circulation will depart with MORE than 3 minutes of delay.
+  // Next circulation departure delay = arrival time of driver - scheduled departure = delayMin - schedMargin.
+  const projectedDepartureDelayMin = effectiveDelayMin - schedMargin;
+  const isCompromised = projectedDepartureDelayMin > 3;
+  const isCritical = projectedDepartureDelayMin >= 5;
+  const isWarning = isCompromised && !isCritical;
 
   let availableReserves: ActiveReserveDriver[] = [];
   if (isCompromised) {
@@ -321,10 +321,8 @@ export async function evaluatePassengerRelief(
   }
 
   let message = '';
-  if (isCritical) {
-    message = `Relleu fallit! L'agent té una demora estimada de ${Math.abs(realMargin)} min respecte a la sortida del tren ${nextCirc.codi} (${nextCirc.sortida} a ${nextCirc.iniciName}).`;
-  } else if (isWarning) {
-    message = `Relleu en risc extrem! Marge reduït a només ${realMargin} min (sortida tren ${nextCirc.codi} a les ${nextCirc.sortida} a ${nextCirc.iniciName}).`;
+  if (isCompromised) {
+    message = `Sortida compromesa! El tren ${nextCirc.codi} sortirà amb +${projectedDepartureDelayMin} min de retard a ${nextCirc.iniciName} (arribada maquinista: ${estArrival}, sortida teòrica: ${nextCirc.sortida}).`;
   }
 
   return {
@@ -486,10 +484,16 @@ export async function fetchGlobalCompromisedReliefs(
       if (vArrMin === null || nextDepMin === null) continue;
 
       const schedMargin = nextDepMin >= vArrMin ? (nextDepMin - vArrMin) : (nextDepMin + 1440 - vArrMin);
+      const departureDelayMin = delayMin - schedMargin;
       const realMargin = schedMargin - delayMin;
 
-      const isCritical = delayMin > 0 && realMargin <= 0;
-      const isWarning = !isCritical && delayMin >= 2 && realMargin <= 3;
+      // User Rule: Only alert if the next circulation departs with MORE than 3 minutes of delay
+      if (departureDelayMin <= 3) {
+        continue;
+      }
+
+      const isCritical = departureDelayMin >= 5;
+      const isWarning = !isCritical;
 
       if (isCritical || isWarning) {
         const shortTorn = getShortTornId(cand.shiftId);
@@ -514,9 +518,7 @@ export async function fetchGlobalCompromisedReliefs(
         }
 
         const alertId = `RELIEF-${cand.shiftId}-${cand.travelCircId}-${cand.nextCirc.codi}`;
-        const statusMessage = isCritical
-          ? `L'agent #nom arribarà ${Math.abs(realMargin)} min tard per agafar el tren ${cand.nextCirc.codi} a les ${cand.nextCirc.sortida} a ${nextIniciName}.`
-          : `Relleu en risc extrem! Marge restant reduït a ${realMargin} min per agafar el tren ${cand.nextCirc.codi} a ${nextIniciName}.`;
+        const statusMessage = `El tren ${cand.nextCirc.codi} sortirà amb +${departureDelayMin} min de retard a ${nextIniciName} perquè l'agent #nom té arribada estimada a les ${estArrival} (sortida prevista: ${cand.nextCirc.sortida}).`;
 
         alerts.push({
           id: alertId,

@@ -1,12 +1,15 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
     Search, Loader2, UserCheck, Train, Phone, Users, Rewind, FastForward,
-    Coffee, MapPin, CheckCircle2, X, ShieldAlert, Info, ArrowRight, Timer, Repeat, User, Flag, Mail
+    Coffee, MapPin, CheckCircle2, X, ShieldAlert, Info, ArrowRight, Timer, Repeat, User, Flag, Mail,
+    ShieldCheck, AlertTriangle
 } from 'lucide-react';
 import GlassPanel from '../../components/common/GlassPanel';
 import { CardSkeleton, ListSkeleton } from '../../components/common/Skeleton';
 import CompactViatgerRow from './CompactViatgerRow';
 import { getFgcMinutes, formatFgcTime } from '../../utils/stations';
+import RadarReservesPanel from './components/RadarReservesPanel';
+import { auditLabourCompliance } from '../../utils/labourComplianceEngine';
 
 interface IncidentDashboardProps {
     query: string;
@@ -74,56 +77,78 @@ const IncidentDashboard: React.FC<IncidentDashboardProps> = ({
             ) : searchedCircData && (
                 <div className="grid grid-cols-1 gap-8">
                     <div className="space-y-10">
-                        {mainDriverInfo && (
-                            <div className="space-y-4">
-                                <div className="flex items-center gap-2 px-2"><UserCheck className="text-fgc-green" size={16} /><h3 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Maquinista titular</h3></div>
-                                <div className="bg-white dark:bg-gray-800 rounded-[24px] p-5 sm:p-6 border-2 border-fgc-green shadow-lg shadow-fgc-green/5 relative overflow-hidden group transition-colors">
-                                    <div className="flex flex-col">
-                                        <div className="flex items-center justify-between mb-3">
-                                            <div className="flex items-center gap-4">
-                                                <div className="h-12 min-w-[3.5rem] px-3 bg-fgc-grey dark:bg-black text-white rounded-xl flex items-center justify-center font-black text-xl shadow-md shrink-0 whitespace-nowrap">{mainDriverInfo.id}</div>
-                                                <div className="min-w-0">
-                                                    <div className="flex items-center gap-2">
-                                                        <p className="text-xl font-black text-fgc-grey dark:text-white tracking-tight leading-none truncate">{mainDriverInfo.drivers?.[0]?.cognoms}, {mainDriverInfo.drivers?.[0]?.nom}</p>
-                                                        {mainDriverInfo.drivers?.[0]?.tipus_torn && (
-                                                            <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border shrink-0 ${mainDriverInfo.drivers?.[0]?.tipus_torn === 'Reducció'
-                                                                ? 'bg-purple-600 text-white border-purple-700'
-                                                                : 'bg-blue-600 text-white border-blue-700'
-                                                                }`}>
-                                                                {mainDriverInfo.drivers?.[0]?.tipus_torn}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <div className="flex items-center gap-2 mt-1">
-                                                        <div className="w-2 h-2 bg-fgc-green rounded-full animate-pulse" />
-                                                        <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Nom. {mainDriverInfo.drivers?.[0]?.nomina}</span>
-                                                        {(() => {
-                                                            const matchedCirc = mainDriverInfo.fullCirculations?.find((c: any) => {
-                                                                const cCode = (c?.codi || c?.id || '').toUpperCase();
-                                                                const sCode = (searchedCircData?.id || '').toUpperCase();
-                                                                return cCode === sCode || (cCode.replace(/\D/g, '') && cCode.replace(/\D/g, '') === sCode.replace(/\D/g, ''));
-                                                            });
-                                                            const unitNumber = matchedCirc?.train || matchedCirc?.ut || searchedCircData?.train || searchedCircData?.ut;
-                                                            if (!unitNumber) return null;
-                                                            return (
-                                                                <span className="bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-grey dark:text-fgc-green px-2 py-0.5 rounded text-[9px] font-black uppercase flex items-center gap-1">
-                                                                    <Train size={10} /> UT {unitNumber.replace(/^UT\s*/i, '')}
+                        {mainDriverInfo && (() => {
+                            const mainDriverAudit = auditLabourCompliance(mainDriverInfo);
+                            return (
+                                <div className="space-y-4">
+                                    <div className="flex items-center gap-2 px-2"><UserCheck className="text-fgc-green" size={16} /><h3 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Maquinista titular</h3></div>
+                                    <div className="bg-white dark:bg-gray-800 rounded-[24px] p-5 sm:p-6 border-2 border-fgc-green shadow-lg shadow-fgc-green/5 relative overflow-hidden group transition-colors">
+                                        <div className="flex flex-col">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="h-12 min-w-[3.5rem] px-3 bg-fgc-grey dark:bg-black text-white rounded-xl flex items-center justify-center font-black text-xl shadow-md shrink-0 whitespace-nowrap">{mainDriverInfo.id}</div>
+                                                    <div className="min-w-0">
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <p className="text-xl font-black text-fgc-grey dark:text-white tracking-tight leading-none truncate">{mainDriverInfo.drivers?.[0]?.cognoms}, {mainDriverInfo.drivers?.[0]?.nom}</p>
+                                                            {mainDriverInfo.drivers?.[0]?.tipus_torn && (
+                                                                <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border shrink-0 ${mainDriverInfo.drivers?.[0]?.tipus_torn === 'Reducció'
+                                                                    ? 'bg-purple-600 text-white border-purple-700'
+                                                                    : 'bg-blue-600 text-white border-blue-700'
+                                                                    }`}>
+                                                                    {mainDriverInfo.drivers?.[0]?.tipus_torn}
                                                                 </span>
-                                                            );
-                                                        })()}
+                                                            )}
+                                                            {mainDriverAudit && (
+                                                                <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border shrink-0 flex items-center gap-1 ${mainDriverAudit.badgeClass}`} title={mainDriverAudit.recommendation}>
+                                                                    {mainDriverAudit.score === 'compliant' ? <ShieldCheck size={10} /> : mainDriverAudit.score === 'violation' ? <ShieldAlert size={10} /> : <AlertTriangle size={10} />}
+                                                                    {mainDriverAudit.label}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex items-center gap-2 mt-1">
+                                                            <div className="w-2 h-2 bg-fgc-green rounded-full animate-pulse" />
+                                                            <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Nom. {mainDriverInfo.drivers?.[0]?.nomina}</span>
+                                                            {(() => {
+                                                                const matchedCirc = mainDriverInfo.fullCirculations?.find((c: any) => {
+                                                                    const cCode = (c?.codi || c?.id || '').toUpperCase();
+                                                                    const sCode = (searchedCircData?.id || '').toUpperCase();
+                                                                    return cCode === sCode || (cCode.replace(/\D/g, '') && cCode.replace(/\D/g, '') === sCode.replace(/\D/g, ''));
+                                                                });
+                                                                const unitNumber = matchedCirc?.train || matchedCirc?.ut || searchedCircData?.train || searchedCircData?.ut;
+                                                                if (!unitNumber) return null;
+                                                                return (
+                                                                    <span className="bg-fgc-green/20 dark:bg-fgc-green/10 text-fgc-grey dark:text-fgc-green px-2 py-0.5 rounded text-[9px] font-black uppercase flex items-center gap-1">
+                                                                        <Train size={10} /> UT {unitNumber.replace(/^UT\s*/i, '')}
+                                                                    </span>
+                                                                );
+                                                            })()}
+                                                        </div>
                                                     </div>
                                                 </div>
+                                                <div className="flex gap-1">{mainDriverInfo.drivers?.[0]?.phones?.map((p: string, i: number) => (<a key={i} href={isPrivacyMode ? undefined : `tel:${p}`} className={`flex items-center justify-center gap-2 bg-fgc-grey dark:bg-black text-white px-5 py-2.5 rounded-xl font-black text-xs hover:bg-fgc-dark transition-all shadow-md active:scale-95 whitespace-nowrap ${isPrivacyMode ? 'cursor-default' : ''}`}><Phone size={14} /> {isPrivacyMode ? '*********' : p}</a>))}</div>
                                             </div>
-                                            <div className="flex gap-1">{mainDriverInfo.drivers?.[0]?.phones?.map((p: string, i: number) => (<a key={i} href={isPrivacyMode ? undefined : `tel:${p}`} className={`flex items-center justify-center gap-2 bg-fgc-grey dark:bg-black text-white px-5 py-2.5 rounded-xl font-black text-xs hover:bg-fgc-dark transition-all shadow-md active:scale-95 whitespace-nowrap ${isPrivacyMode ? 'cursor-default' : ''}`}><Phone size={14} /> {isPrivacyMode ? '*********' : p}</a>))}</div>
-                                        </div>
-                                        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pt-3 border-t border-gray-100 dark:border-white/5 transition-colors">
-                                            <div className="flex items-center gap-2"><span className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-tighter">TORN:</span><span className="text-base sm:text-lg font-black text-fgc-grey dark:text-gray-200 whitespace-nowrap">{mainDriverInfo.inici_torn} — {mainDriverInfo.final_torn} <span className="text-xs font-bold text-gray-400 dark:text-gray-500 ml-2">({mainDriverInfo.duracio})</span></span></div>
-                                            {searchedCircData && (<div className="flex items-center gap-2"><span className="text-[9px] font-black text-fgc-green uppercase tracking-tighter">CIRCULACIÓ:</span><span className="text-base sm:text-lg font-black text-fgc-grey dark:text-gray-200 whitespace-nowrap">{searchedCircData.id} │ {searchedCircData.sortida} — {searchedCircData.arribada} <span className="text-xs font-bold text-gray-400 dark:text-gray-500 ml-1">({(getFgcMinutes(searchedCircData.arribada) || 0) - (getFgcMinutes(searchedCircData.sortida) || 0)} min)</span></span></div>)}
-                                            {searchedCircData && (<div className="flex items-center gap-2"><span className="text-[9px] font-black text-blue-500 uppercase tracking-tighter">VIES:</span><span className="text-base sm:text-lg font-black text-fgc-grey dark:text-gray-200 whitespace-nowrap">V{searchedCircData.via_inici || '?'} → V{searchedCircData.via_final || '?'}</span></div>)}
+                                            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pt-3 border-t border-gray-100 dark:border-white/5 transition-colors">
+                                                <div className="flex items-center gap-2"><span className="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-tighter">TORN:</span><span className="text-base sm:text-lg font-black text-fgc-grey dark:text-gray-200 whitespace-nowrap">{mainDriverInfo.inici_torn} — {mainDriverInfo.final_torn} <span className="text-xs font-bold text-gray-400 dark:text-gray-500 ml-2">({mainDriverInfo.duracio})</span></span></div>
+                                                {searchedCircData && (<div className="flex items-center gap-2"><span className="text-[9px] font-black text-fgc-green uppercase tracking-tighter">CIRCULACIÓ:</span><span className="text-base sm:text-lg font-black text-fgc-grey dark:text-gray-200 whitespace-nowrap">{searchedCircData.id} │ {searchedCircData.sortida} — {searchedCircData.arribada} <span className="text-xs font-bold text-gray-400 dark:text-gray-500 ml-1">({(getFgcMinutes(searchedCircData.arribada) || 0) - (getFgcMinutes(searchedCircData.sortida) || 0)} min)</span></span></div>)}
+                                                {searchedCircData && (<div className="flex items-center gap-2"><span className="text-[9px] font-black text-blue-500 uppercase tracking-tighter">VIES:</span><span className="text-base sm:text-lg font-black text-fgc-grey dark:text-gray-200 whitespace-nowrap">V{searchedCircData.via_inici || '?'} → V{searchedCircData.via_final || '?'}</span></div>)}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
+                            );
+                        })()}
+
+                        {/* ── 📡 RADAR DE RESERVES I PROXIMITAT (Bloque B: Proposta 6 & 7) ── */}
+                        {searchedCircData && (
+                            <RadarReservesPanel
+                                targetStationCode={searchedCircData?.inici || 'PC'}
+                                targetTimeStr={searchedCircData?.sortida || '--:--'}
+                                circId={searchedCircData?.id}
+                                passengerResults={passengerResults}
+                                restingResults={restingResults}
+                                extensibleResults={extensibleResults}
+                                isPrivacyMode={isPrivacyMode}
+                            />
                         )}
 
                         <div className="space-y-4">
@@ -148,7 +173,18 @@ const IncidentDashboard: React.FC<IncidentDashboardProps> = ({
                                         <div className="flex items-center gap-3">
                                             <div className="h-10 w-12 bg-fgc-grey/10 dark:bg-black text-fgc-grey dark:text-gray-300 rounded-xl flex items-center justify-center font-black text-xs shadow-sm shrink-0 whitespace-nowrap">{torn.id}</div>
                                             <div className="flex flex-col min-w-[120px] sm:w-[180px]">
-                                                <p className="text-sm font-black text-fgc-grey dark:text-gray-200 truncate">{torn.drivers?.[0]?.cognoms}, {torn.drivers?.[0]?.nom}</p>
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <p className="text-sm font-black text-fgc-grey dark:text-gray-200 truncate">{torn.drivers?.[0]?.cognoms}, {torn.drivers?.[0]?.nom}</p>
+                                                    {(() => {
+                                                        const audit = auditLabourCompliance(torn);
+                                                        return (
+                                                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase border shrink-0 flex items-center gap-1 ${audit.badgeClass}`} title={audit.recommendation}>
+                                                                {audit.score === 'compliant' ? <ShieldCheck size={9} /> : audit.score === 'violation' ? <ShieldAlert size={9} /> : <AlertTriangle size={9} />}
+                                                                {audit.label}
+                                                            </span>
+                                                        );
+                                                    })()}
+                                                </div>
                                                 <div className="flex items-center gap-2">
                                                     <span className="flex items-center gap-1 text-[8px] text-fgc-green font-black uppercase tracking-widest"><MapPin size={8} /> {torn.restSeg?.codi}</span>
                                                     <span className="text-[8px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Nom. {torn.drivers?.[0]?.nomina}</span>
@@ -230,8 +266,17 @@ const IncidentDashboard: React.FC<IncidentDashboardProps> = ({
                                         <div className="flex items-center gap-3">
                                             <div className="h-10 w-12 bg-orange-50 dark:bg-orange-950/20 text-orange-600 rounded-xl flex items-center justify-center font-black text-xs shadow-sm shrink-0 whitespace-nowrap">{torn.id}</div>
                                             <div className="flex flex-col min-w-[120px] sm:w-[180px]">
-                                                <div className="flex items-center gap-2">
+                                                <div className="flex items-center gap-2 flex-wrap">
                                                     <p className="text-sm font-black text-fgc-grey dark:text-gray-200 truncate">{torn.drivers?.[0]?.cognoms}, {torn.drivers?.[0]?.nom}</p>
+                                                    {(() => {
+                                                        const audit = auditLabourCompliance(torn, 0, torn.extData?.extraNeeded || 0);
+                                                        return (
+                                                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase border shrink-0 flex items-center gap-1 ${audit.badgeClass}`} title={audit.recommendation}>
+                                                                {audit.score === 'compliant' ? <ShieldCheck size={9} /> : audit.score === 'violation' ? <ShieldAlert size={9} /> : <AlertTriangle size={9} />}
+                                                                {audit.label}
+                                                            </span>
+                                                        );
+                                                    })()}
                                                 </div>
                                                 <div className="flex items-center gap-2 mt-0.5">
                                                     <span className="flex items-center gap-1 text-[8px] text-orange-500 font-black uppercase tracking-widest"><Timer size={8} /> Extensible</span>
@@ -277,13 +322,19 @@ const IncidentDashboard: React.FC<IncidentDashboardProps> = ({
                             <div className="flex items-center gap-2 px-2"><Repeat className="text-indigo-500" size={16} /><h3 className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Perllongament + Reserva ({reserveInterceptResults.length})</h3></div>
                             {reserveInterceptResults.length > 0 ? (
                                 <div className="flex flex-col gap-2">
-                                    {reserveInterceptResults.map((torn, idx) => (
+                                    {reserveInterceptResults.map((torn, idx) => {
+                                        const audit = auditLabourCompliance(torn, 0, 45);
+                                        return (
                                         <div key={idx} className="bg-white dark:bg-gray-800 rounded-2xl p-3 border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-md transition-all flex flex-col gap-3 border-l-4 border-l-indigo-500">
                                             <div className="flex items-center gap-4">
                                                 <div className="h-10 min-w-[2.5rem] px-2 bg-indigo-50 dark:bg-indigo-950/20 text-indigo-600 rounded-xl flex items-center justify-center font-black text-xs shadow-sm shrink-0 whitespace-nowrap">{torn.id}</div>
                                                 <div className="flex-1">
-                                                    <div className="flex items-center gap-2">
+                                                    <div className="flex items-center gap-2 flex-wrap">
                                                         <p className="text-xs sm:text-sm font-black text-fgc-grey dark:text-gray-200 truncate">{torn.drivers?.[0]?.cognoms}, {torn.drivers?.[0]?.nom}</p>
+                                                        <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase border shrink-0 flex items-center gap-1 ${audit.badgeClass}`} title={audit.recommendation}>
+                                                            {audit.score === 'compliant' ? <ShieldCheck size={9} /> : audit.score === 'violation' ? <ShieldAlert size={9} /> : <AlertTriangle size={9} />}
+                                                            {audit.label}
+                                                        </span>
                                                     </div>
                                                     <p className="text-[9px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mt-0.5">Nom. {torn.drivers?.[0]?.nomina} {torn.drivers?.[0]?.tipus_torn ? `(${torn.drivers?.[0].tipus_torn})` : ''}</p>
                                                 </div>
@@ -367,7 +418,8 @@ const IncidentDashboard: React.FC<IncidentDashboardProps> = ({
                                                 ))}
                                             </div>
                                         </div>
-                                    ))}
+                                    );
+                                })}
                                 </div>
                             ) : (
                                 <div className="bg-gray-50/50 dark:bg-black/20 rounded-2xl p-6 text-center border border-dashed border-gray-200 dark:border-white/10 transition-colors">
