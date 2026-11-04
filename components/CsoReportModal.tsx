@@ -43,7 +43,7 @@ export const CsoReportModal: React.FC<CsoReportModalProps> = ({
       if (error) throw error;
       if (data?.emailSent) {
         feedback.success();
-        showToast("Correu de tancament enviat correctament a mlopezj@fgc.cat!", "success");
+        showToast(data.message || "Correu de tancament enviat correctament!", "success");
       } else if (!data?.hasResendKey) {
         showToast("Mètriques generades. Configura RESEND_API_KEY a Supabase per enviar el correu real.", "info");
       } else {
