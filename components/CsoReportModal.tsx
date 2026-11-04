@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { X, FileText, Printer, Download, Clock, Train, Shield, Activity, Package } from 'lucide-react';
+import { X, FileText, Printer, Download, Clock, Train, Shield, Activity, Package, Mail, Loader2 } from 'lucide-react';
 import { feedback } from '../utils/feedback';
 import { generateGlobalReportPrint, generateGlobalReportExcel } from '../utils/officialReports';
 import { FGC_ICON_BASE64 } from '../utils/fgcLogoBase64';
 import { BulkReportModal } from './BulkReportModal';
+import { useToast } from './ToastProvider';
+import { supabase } from '../supabaseClient';
 
 interface CsoReportModalProps {
   isOpen: boolean;
@@ -27,6 +29,33 @@ export const CsoReportModal: React.FC<CsoReportModalProps> = ({
   onExportLegacyCSV
 }) => {
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const { showToast } = useToast();
+
+  const handleSendEmail = async () => {
+    feedback.click();
+    setIsSendingEmail(true);
+    showToast("Enviant informe de tancament a mlopezj@fgc.cat...", "info");
+    try {
+      const { data, error } = await supabase.functions.invoke('daily-closing-report', {
+        body: { targetEmail: 'mlopezj@fgc.cat', serviceDate, manual: true }
+      });
+      if (error) throw error;
+      if (data?.emailSent) {
+        feedback.success();
+        showToast("Correu de tancament enviat correctament a mlopezj@fgc.cat!", "success");
+      } else if (!data?.hasResendKey) {
+        showToast("Mètriques generades. Configura RESEND_API_KEY a Supabase per enviar el correu real.", "info");
+      } else {
+        showToast(data?.message || "Correu processat pel servidor", "info");
+      }
+    } catch (err: any) {
+      console.error("[CsoReportModal] Error enviant correu:", err);
+      showToast("Error en connectar amb la funció d'enviament", "error");
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
 
   // Escape key listener
   useEffect(() => {
@@ -225,7 +254,30 @@ export const CsoReportModal: React.FC<CsoReportModalProps> = ({
               </span>
             </button>
 
-            {/* Option 4: Legacy CSV */}
+            {/* Option 4: Enviar per Email a mlopezj@fgc.cat */}
+            <button
+              disabled={isSendingEmail}
+              onClick={handleSendEmail}
+              className="w-full flex items-center justify-between p-4 rounded-2xl bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 text-left hover:border-emerald-500/50 hover:bg-emerald-50/20 dark:hover:bg-emerald-500/10 transition-all active:scale-[0.98] group disabled:opacity-50"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                  {isSendingEmail ? <Loader2 size={20} className="animate-spin" /> : <Mail size={20} />}
+                </div>
+                <div>
+                  <div className="text-sm font-bold text-[#4D5358] dark:text-white flex items-center gap-2">
+                    <span>Enviar Tancament per Email</span>
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">FASE 2</span>
+                  </div>
+                  <div className="text-xs text-gray-400 font-medium">Destinatari: <strong className="text-[#4D5358] dark:text-gray-200">mlopezj@fgc.cat</strong> amb adjunt Excel</div>
+                </div>
+              </div>
+              <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 shrink-0">
+                {isSendingEmail ? 'Enviant...' : 'Enviar Ara'}
+              </span>
+            </button>
+
+            {/* Option 5: Legacy CSV */}
             {onExportLegacyCSV && (
               <button
                 onClick={handleLegacyCSV}
