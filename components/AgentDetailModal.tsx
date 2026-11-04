@@ -25,6 +25,7 @@ import { feedback } from '../utils/feedback';
 import { saveAgentPerformanceRecord, getAgentPerformanceHistory } from '../utils/agentPerformanceService';
 import { logLopdAccess } from '../utils/auditLogger';
 import { generateAgentReportPrint, generateAgentReportExcel } from '../utils/officialReports';
+import { AgentReportModal } from './AgentReportModal';
 import type { GipRegistrePas, AgentPerformanceHistory } from '../types';
 
 interface AgentDetailModalProps {
@@ -70,8 +71,7 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
   const [showHistorySection, setShowHistorySection] = useState(Boolean(initialHistoryDate));
   const [expandedHistoryId, setExpandedHistoryId] = useState<number | null>(null);
   const [selectedHistoryDate, setSelectedHistoryDate] = useState<string>(initialHistoryDate || '');
-  const [showReportMenu, setShowReportMenu] = useState<boolean>(false);
-  const reportMenuRef = useRef<HTMLDivElement>(null);
+  const [isAgentReportModalOpen, setIsAgentReportModalOpen] = useState<boolean>(false);
   const dateInputRef = useRef<HTMLInputElement>(null);
   const lastSavedKeyRef = useRef<string>('');
 
@@ -103,18 +103,7 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
-  // Click outside to close report menu
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (reportMenuRef.current && !reportMenuRef.current.contains(e.target as Node)) {
-        setShowReportMenu(false);
-      }
-    };
-    if (showReportMenu) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showReportMenu]);
+
 
   // LOPD Audit Trail: Record supervisor access to agent profile and contact
   useEffect(() => {
@@ -923,74 +912,17 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
           {/* Action buttons */}
           <div className="flex items-center gap-2 sm:self-start">
             {/* Informe Oficial FGC */}
-            <div className="relative" ref={reportMenuRef}>
-              <button
-                onClick={() => {
-                  feedback.click();
-                  setShowReportMenu(prev => !prev);
-                }}
-                title="Generar informe oficial d'aquest agent (PDF / Excel)"
-                className="flex items-center gap-1.5 px-3 py-2.5 rounded-2xl bg-white dark:bg-white/5 hover:bg-fgc-green/15 border border-gray-200 dark:border-white/10 text-[#4D5358] dark:text-gray-200 font-bold text-xs shadow-xs transition-all active:scale-95 group"
-              >
-                <FileText size={15} className="text-fgc-green group-hover:scale-110 transition-transform" />
-                <span className="hidden sm:inline">Informe Oficial</span>
-                <ChevronDown size={13} className={`transition-transform duration-200 text-gray-400 ${showReportMenu ? 'rotate-180' : ''}`} />
-              </button>
-
-              {showReportMenu && (
-                <div className="absolute right-0 top-full mt-2 w-60 bg-white dark:bg-[#25292D] rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 p-2 z-[250] animate-in fade-in zoom-in-95 duration-150">
-                  <div className="px-3 py-1.5 text-[10px] font-black uppercase text-gray-400 dark:text-gray-500 tracking-wider">
-                    Exportar Informe FGC
-                  </div>
-                  <button
-                    onClick={() => {
-                      feedback.click();
-                      setShowReportMenu(false);
-                      generateAgentReportPrint({
-                        agent,
-                        shiftData,
-                        overallPunctuality,
-                        circulationsList: circPunctualityList,
-                        serviceDate: selectedHistoryDate || getFgcServiceDate(),
-                        contact,
-                        isPrivacyMode
-                      });
-                    }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left text-xs font-bold text-[#4D5358] dark:text-white hover:bg-fgc-green/15 hover:text-fgc-green transition-colors"
-                  >
-                    <div className="p-1.5 rounded-lg bg-fgc-green/15 text-fgc-green shrink-0">
-                      <Printer size={15} />
-                    </div>
-                    <div>
-                      <div className="font-bold">Imprimir / PDF Oficial</div>
-                      <div className="text-[10px] font-normal text-gray-400">Format A4 oficial FGC</div>
-                    </div>
-                  </button>
-                  <button
-                    onClick={() => {
-                      feedback.click();
-                      setShowReportMenu(false);
-                      generateAgentReportExcel({
-                        agent,
-                        shiftData,
-                        overallPunctuality,
-                        circulationsList: circPunctualityList,
-                        serviceDate: selectedHistoryDate || getFgcServiceDate()
-                      });
-                    }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left text-xs font-bold text-[#4D5358] dark:text-white hover:bg-blue-500/15 hover:text-blue-600 dark:hover:text-blue-400 transition-colors mt-1"
-                  >
-                    <div className="p-1.5 rounded-lg bg-blue-500/15 text-blue-500 shrink-0">
-                      <Download size={15} />
-                    </div>
-                    <div>
-                      <div className="font-bold">Exportar a Excel / CSV</div>
-                      <div className="text-[10px] font-normal text-gray-400">Full de dades amb BOM UTF-8</div>
-                    </div>
-                  </button>
-                </div>
-              )}
-            </div>
+            <button
+              onClick={() => {
+                feedback.click();
+                setIsAgentReportModalOpen(true);
+              }}
+              title="Generar informe oficial d'aquest agent (Dia en concret o Genèric / PDF o Excel)"
+              className="flex items-center gap-1.5 px-3 py-2.5 rounded-2xl bg-white dark:bg-white/5 hover:bg-fgc-green/15 border border-gray-200 dark:border-white/10 text-[#4D5358] dark:text-gray-200 font-bold text-xs shadow-xs transition-all active:scale-95 group"
+            >
+              <FileText size={15} className="text-fgc-green group-hover:scale-110 transition-transform" />
+              <span className="hidden sm:inline">Informe Oficial</span>
+            </button>
 
             <button
               onClick={() => {
@@ -1878,6 +1810,21 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
 
         </div>
       </div>
+
+      {isAgentReportModalOpen && (
+        <AgentReportModal
+          isOpen={isAgentReportModalOpen}
+          onClose={() => setIsAgentReportModalOpen(false)}
+          agent={agent}
+          shiftData={shiftData}
+          overallPunctuality={overallPunctuality}
+          circulationsList={circPunctualityList}
+          historyRecords={uniqueHistoryRecords}
+          contact={contact}
+          isPrivacyMode={isPrivacyMode}
+          initialDate={selectedHistoryDate || getFgcServiceDate()}
+        />
+      )}
     </div>
   );
 };

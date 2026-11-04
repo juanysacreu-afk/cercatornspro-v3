@@ -18,6 +18,7 @@ import { getFgcMinutes } from '../utils/stations';
 import { generateAgentReportDirectly } from '../utils/officialReports';
 import ErrorBoundary from '../components/common/ErrorBoundary';
 import AgentDetailModal from '../components/AgentDetailModal';
+import { AgentReportModal } from '../components/AgentReportModal';
 
 type DisDesFilterType = 'ALL' | 'SERVEI' | 'DIS' | 'DES' | 'DIS_DES' | 'FOR' | 'VAC' | 'DAG' | 'AJN';
 type ShiftTimeFilterType = 'ALL' | 'MATI' | 'TARDA' | 'NIT';
@@ -293,22 +294,15 @@ const AgentsViewComponent: React.FC<AgentsViewProps> = ({ isPrivacyMode, onNavig
 
   const [loadingMaquinistes, setLoadingMaquinistes] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<{ maquinista: any; contact: { phones: string[]; email: string | null } } | null>(null);
+  const [reportAgent, setReportAgent] = useState<any | null>(null);
 
   const todayService = useServiceToday();
   const { showToast } = useToast();
 
-  const handleQuickAgentReport = useCallback(async (maquinista: any) => {
+  const handleQuickAgentReport = useCallback((maquinista: any) => {
     feedback.click();
-    showToast(`Generant informe oficial FGC per a ${maquinista.nom || ''} ${maquinista.cognoms || ''}...`, 'info');
-    try {
-      const contact = contacts[normalizeId(maquinista.empleat_id)] || { phones: [], email: null };
-      await generateAgentReportDirectly(maquinista, 'pdf', selectedPerfDate, contact, isPrivacyMode);
-      showToast('Informe oficial obert correctament', 'success');
-    } catch (e) {
-      console.error('[AgentsView] Error generant informe ràpid:', e);
-      showToast("Error en generar l'informe oficial", 'error');
-    }
-  }, [contacts, selectedPerfDate, isPrivacyMode, showToast]);
+    setReportAgent(maquinista);
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -874,6 +868,18 @@ const AgentsViewComponent: React.FC<AgentsViewProps> = ({ isPrivacyMode, onNavig
             setDailyPerfMap(updated);
           }}
           onNavigateToSearch={onNavigateToSearch}
+        />
+      )}
+
+      {/* MODAL INFORME OFICIAL DE L'AGENT (DIA EN CONCRET O GENÈRIC) */}
+      {reportAgent && (
+        <AgentReportModal
+          isOpen={Boolean(reportAgent)}
+          onClose={() => setReportAgent(null)}
+          agent={reportAgent}
+          contact={contacts[normalizeId(reportAgent.empleat_id)] || { phones: [], email: null }}
+          isPrivacyMode={isPrivacyMode}
+          initialDate={selectedPerfDate}
         />
       )}
     </div>

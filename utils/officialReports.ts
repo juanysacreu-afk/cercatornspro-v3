@@ -13,6 +13,8 @@ import { STATION_GEO_MAP } from './stationGeoData';
 import { supabase } from '../supabaseClient';
 import { fetchFullTurns } from './queries';
 import { getFgcServiceDate } from './gipRecorder';
+import { getAgentPerformanceHistory } from './agentPerformanceService';
+import type { AgentPerformanceHistory } from '../types';
 
 import { FGC_ICON_BASE64 } from './fgcLogoBase64';
 
@@ -82,6 +84,26 @@ export interface AgentReportData {
     maxDelaySec?: number;
   }>;
   serviceDate?: string;
+  contact?: { phones: string[]; email: string | null };
+  isPrivacyMode?: boolean;
+}
+
+export interface AgentGenericReportData {
+  agent: {
+    empleat_id: string | number;
+    nom: string;
+    cognoms: string;
+    torn?: string;
+    dependencia?: string;
+    hora_inici?: string;
+    hora_fi?: string;
+    tipus_torn?: string;
+    observacions?: string;
+    abs_parc_c?: string;
+    dta?: string;
+    dpa?: string;
+  };
+  historyRecords: AgentPerformanceHistory[];
   contact?: { phones: string[]; email: string | null };
   isPrivacyMode?: boolean;
 }
@@ -658,6 +680,569 @@ export function generateAgentReportExcel(data: AgentReportData): void {
   const link = document.createElement('a');
   link.href = url;
   link.download = `nexus-informe-agent-${agent.empleat_id}-${dateStr}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * ────────────────────────────────────────────────────────────────
+ * 2B. DOSSIER GENÈRIC CONSOLIDAT D'AGENT (PDF / IMPRESSIÓ A4)
+ * ────────────────────────────────────────────────────────────────
+ */
+export function generateAgentGenericReportPrint(data: AgentGenericReportData): void {
+  const { agent, historyRecords = [], contact, isPrivacyMode } = data;
+  const now = new Date();
+  const dateFormatted = now.toISOString().slice(0, 10);
+  const timeFormatted = now.toLocaleTimeString('ca-ES', { hour: '2-digit', minute: '2-digit' });
+  const refCode = `FGC-OP-GEN-${agent.empleat_id}-${dateFormatted.replace(/-/g, '')}`;
+
+  // Ordenar cronològicament descendent (més recent a més antic)
+  const sortedDesc = [...historyRecords].sort((a, b) => (b.data_servei || '').localeCompare(a.data_servei || ''));
+  
+  // Període cobert
+  const sortedAsc = [...historyRecords].sort((a, b) => (a.data_servei || '').localeCompare(b.data_servei || ''));
+  const firstDate = sortedAsc[0]?.data_servei || 'N/D';
+  const lastDate = sortedAsc[sortedAsc.length - 1]?.data_servei || 'N/D';
+
+  const totalShifts = sortedDesc.length;
+  const totalPassages = sortedDesc.reduce((acc, r) => acc + (r.passos_totals || 0), 0);
+  const onTimePassages = sortedDesc.reduce((acc, r) => acc + (r.passos_en_hora || 0), 0);
+  const delayedPassages = sortedDesc.reduce((acc, r) => acc + (r.passos_retard || 0), 0);
+  
+  let rate: number | null = null;
+  if (totalPassages > 0) {
+    rate = Number(((onTimePassages / totalPassages) * 100).toFixed(1));
+  } else {
+    const validRates = sortedDesc
+      .map(r => r.puntualitat_percentatge !== null ? Number(r.puntualitat_percentatge) : null)
+      .filter((r): r is number => r !== null);
+    if (validRates.length > 0) {
+      rate = Number((validRates.reduce((a, b) => a + b, 0) / validRates.length).toFixed(1));
+    }
+  }
+
+  const rateClass = rate === null ? '#888' : rate >= 95 ? '#059669' : rate >= 85 ? '#d97706' : '#dc2626';
+
+  const totalCircs = sortedDesc.reduce((acc, r) => acc + (r.circulacions_totals || (r.detall_circulacions?.length || 0)), 0);
+  const completedCircs = sortedDesc.reduce((acc, r) => acc + (r.circulacions_completades || 0), 0);
+  const maxDelaySec = sortedDesc.length > 0 ? Math.max(...sortedDesc.map(r => r.retard_maxim_segons || 0)) : 0;
+
+  const html = `<!DOCTYPE html>
+<html lang="ca">
+<head>
+  <meta charset="UTF-8">
+  <title>Dossier Genèric Consolidat Agent ${agent.cognoms}, ${agent.nom} (${agent.empleat_id}) — FGC</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 12mm 14mm 12mm 14mm;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+      color: #2D3134;
+      background: #FFFFFF;
+      margin: 0;
+      padding: 0;
+      font-size: 10pt;
+      line-height: 1.4;
+    }
+    .no-print-bar {
+      background: #1E2124;
+      color: #FFFFFF;
+      padding: 12px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    .no-print-bar button {
+      background: ${FGC_GREEN};
+      color: ${FGC_GRAY};
+      border: none;
+      padding: 8px 18px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: opacity 0.2s;
+    }
+    .no-print-bar button.close-btn {
+      background: #3E4347;
+      color: #FFF;
+      margin-left: 10px;
+    }
+    .sheet {
+      max-width: 210mm;
+      margin: 0 auto;
+      padding: 24px 20px;
+    }
+    @media print {
+      .no-print-bar { display: none !important; }
+      .sheet { padding: 0 !important; max-width: 100% !important; }
+      body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    }
+
+    /* HEADER OFICIAL FGC */
+    .fgc-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 3px solid ${FGC_GREEN};
+      padding-bottom: 14px;
+      margin-bottom: 16px;
+    }
+    .fgc-brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .fgc-titles h1 {
+      font-family: 'Montserrat', sans-serif;
+      font-size: 18pt;
+      font-weight: 800;
+      color: ${FGC_GRAY};
+      margin: 0;
+      text-transform: uppercase;
+      letter-spacing: -0.5px;
+    }
+    .fgc-titles p {
+      margin: 2px 0 0;
+      font-size: 9pt;
+      color: #6C7378;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .fgc-meta {
+      text-align: right;
+      font-size: 8.5pt;
+      color: #6C7378;
+    }
+    .fgc-meta .ref {
+      font-family: monospace;
+      font-weight: 700;
+      color: ${FGC_GRAY};
+    }
+
+    /* DOSSIER AGENT */
+    .agent-card {
+      background: #F9FAFB;
+      border: 1px solid #E5E7EB;
+      border-left: 5px solid ${FGC_GREEN};
+      border-radius: 8px;
+      padding: 14px 18px;
+      margin-bottom: 18px;
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr;
+      gap: 16px;
+    }
+    .agent-name h2 {
+      font-family: 'Montserrat', sans-serif;
+      font-size: 14pt;
+      font-weight: 800;
+      color: ${FGC_GRAY};
+      margin: 0 0 6px 0;
+      text-transform: uppercase;
+    }
+    .agent-sub {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+    .data-pill {
+      display: inline-block;
+      font-size: 7.5pt;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: #E5E7EB;
+      color: ${FGC_GRAY};
+      letter-spacing: 0.3px;
+    }
+
+    /* KPI TILES */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .kpi-box {
+      border: 1px solid #E5E7EB;
+      background: #F9FAFB;
+      border-radius: 8px;
+      padding: 12px 14px;
+      text-align: center;
+    }
+    .kpi-box .val {
+      font-family: 'Montserrat', sans-serif;
+      font-size: 17pt;
+      font-weight: 800;
+      line-height: 1.1;
+      margin-top: 3px;
+    }
+    .kpi-box .lbl {
+      font-size: 7.5pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #6C7378;
+      letter-spacing: 0.5px;
+    }
+
+    /* TAULA HISTÒRICA */
+    .section-title {
+      font-family: 'Montserrat', sans-serif;
+      font-size: 11pt;
+      font-weight: 800;
+      color: ${FGC_GRAY};
+      text-transform: uppercase;
+      margin: 20px 0 10px 0;
+      padding-bottom: 4px;
+      border-bottom: 1.5px solid #E5E7EB;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 8.5pt;
+      margin-bottom: 22px;
+    }
+    .data-table th {
+      background: #F3F4F6;
+      color: ${FGC_GRAY};
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: 7pt;
+      letter-spacing: 0.5px;
+      padding: 7px 8px;
+      border-bottom: 2px solid #D1D5DB;
+      text-align: left;
+    }
+    .data-table td {
+      padding: 7px 8px;
+      border-bottom: 1px solid #E5E7EB;
+      color: #374151;
+    }
+    .data-table tr:nth-child(even) td {
+      background: #FAFAFA;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 7pt;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .badge-ontime { background: #DCFCE7; color: #15803D; }
+    .badge-delayed { background: #FEE2E2; color: #B91C1C; }
+    .badge-pending { background: #F3F4F6; color: #6B7280; }
+
+    /* SIGNATURES I DILIGÈNCIA */
+    .signatures-box {
+      margin-top: 24px;
+      border-top: 1.5px dashed #D1D5DB;
+      padding-top: 16px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 30px;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .signature-slot {
+      border: 1px solid #E5E7EB;
+      background: #FBFBFC;
+      border-radius: 6px;
+      padding: 12px;
+      min-height: 85px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .signature-title {
+      font-size: 8pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #6C7378;
+    }
+    .signature-footer {
+      font-size: 7.5pt;
+      color: #9CA3AF;
+      border-top: 1px solid #E5E7EB;
+      padding-top: 4px;
+      margin-top: 36px;
+    }
+
+    .legal-notice {
+      margin-top: 16px;
+      font-size: 7pt;
+      color: #9CA3AF;
+      text-align: justify;
+      line-height: 1.3;
+    }
+  </style>
+</head>
+<body>
+  <div class="no-print-bar">
+    <div style="font-weight:700; font-size:14px; display:flex; align-items:center; gap:10px;">
+      <span style="color:${FGC_GREEN};">●</span>
+      Dossier Genèric FGC · Visualització Prèvia / Impressió en PDF
+    </div>
+    <div>
+      <button onclick="window.print()">
+        🖨️ Imprimir / Guardar en PDF
+      </button>
+      <button class="close-btn" onclick="window.close()">
+        ✕ Tancar
+      </button>
+    </div>
+  </div>
+
+  <div class="sheet">
+    <!-- CAPÇALERA OFICIAL FGC -->
+    <div class="fgc-header">
+      <div class="fgc-brand">
+        ${FGC_OFFICIAL_LOGO}
+        <div class="fgc-titles">
+          <h1>FGC Operacions</h1>
+          <p>Centre de Supervisió Operativa (CSO) · Dossier Històric i Consolidat</p>
+        </div>
+      </div>
+      <div class="fgc-meta">
+        <div>Ref: <span class="ref">${refCode}</span></div>
+        <div>Període: <strong>${firstDate} — ${lastDate}</strong></div>
+        <div>Emès: ${dateFormatted} a les ${timeFormatted}</div>
+      </div>
+    </div>
+
+    <!-- DOSSIER DE L'AGENT -->
+    <div class="agent-card">
+      <div class="agent-name">
+        <h2>${agent.cognoms}, ${agent.nom}</h2>
+        <div class="agent-sub">
+          <span class="data-pill">NÒMINA #${agent.empleat_id}</span>
+          <span class="data-pill">TORN HABITUAL: ${agent.torn || 'S/A'}</span>
+          ${agent.tipus_torn ? `<span class="data-pill">${agent.tipus_torn.toUpperCase()}</span>` : ''}
+          ${agent.dependencia ? `<span class="data-pill">DEP: ${agent.dependencia}</span>` : ''}
+        </div>
+        ${agent.observacions ? `<div style="margin-top:6px; font-size:7.5pt; color:#4B5563;"><strong>Obs:</strong> ${agent.observacions}</div>` : ''}
+      </div>
+      <div>
+        <div style="font-size:7.5pt; font-weight:700; color:#6C7378; text-transform:uppercase;">Àmbit Temporal</div>
+        <div style="font-size:10.5pt; font-weight:700; color:${FGC_GRAY}; margin-top:2px;">
+          ${totalShifts} Jornades
+        </div>
+        <div style="font-size:7.5pt; color:#6C7378;">
+          Auditoria GIP Registrada
+        </div>
+      </div>
+      <div>
+        <div style="font-size:7.5pt; font-weight:700; color:#6C7378; text-transform:uppercase;">Estat del Servei</div>
+        <div style="font-size:8pt; color:#374151; margin-top:2px;">
+          ${agent.abs_parc_c === 'S' ? '<span class="data-pill" style="color:#b91c1c; background:#fee2e2;">ABS PARCIAL</span>' : ''}
+          ${agent.dta === 'S' ? '<span class="data-pill" style="color:#1d4ed8; background:#dbeafe;">DTA</span>' : ''}
+          ${agent.dpa === 'S' ? '<span class="data-pill" style="color:#6d28d9; background:#ede9fe;">DPA</span>' : ''}
+          <span class="data-pill" style="background:#e0f2fe; color:#0369a1;">OPERATIU CSO</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- INDICADORS HISTÒRICS ACUMULATS (KPIs) -->
+    <div class="kpi-grid">
+      <div class="kpi-box">
+        <div class="lbl">Puntualitat Mitjana Ponderada</div>
+        <div class="val" style="color:${rateClass};">
+          ${rate !== null ? `${rate}%` : '--%'}
+        </div>
+        <div style="font-size:7pt; color:#6C7378; margin-top:2px;">Criteri FGC &lt; 4 min</div>
+      </div>
+      <div class="kpi-box">
+        <div class="lbl">Torns / Jornades Auditades</div>
+        <div class="val" style="color:${FGC_GRAY};">
+          ${totalShifts}
+        </div>
+        <div style="font-size:7pt; color:#6C7378; margin-top:2px;">Dies de servei arxivats</div>
+      </div>
+      <div class="kpi-box">
+        <div class="lbl">Passos GIP Totals</div>
+        <div class="val" style="color:${FGC_GRAY};">
+          ${totalPassages}
+        </div>
+        <div style="font-size:7pt; color:#6C7378; margin-top:2px;">${onTimePassages} a temps · ${delayedPassages} retard</div>
+      </div>
+      <div class="kpi-box">
+        <div class="lbl">Circulacions Conduïdes</div>
+        <div class="val" style="color:${FGC_GRAY};">
+          ${completedCircs} / ${totalCircs}
+        </div>
+        <div style="font-size:7pt; color:#6C7378; margin-top:2px;">Demora màx: ${maxDelaySec ? `+${Math.round(maxDelaySec / 60)}m` : '0m'}</div>
+      </div>
+    </div>
+
+    <!-- TAULA HISTÒRICA DE JORNADES -->
+    <h3 class="section-title">
+      <span>Històric Cronològic de Torn i Puntualitat</span>
+      <span style="font-size:8pt; font-weight:600; color:#6C7378;">Total: ${totalShifts} jornades</span>
+    </h3>
+
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th style="width: 80px;">Data Servei</th>
+          <th style="width: 65px;">Torn</th>
+          <th style="width: 95px;">Horari</th>
+          <th style="width: 80px;">Dependència</th>
+          <th style="width: 80px; text-align:right;">Puntualitat</th>
+          <th style="width: 100px; text-align:center;">Passos GIP</th>
+          <th style="width: 90px; text-align:center;">Circulacions</th>
+          <th style="width: 80px; text-align:right;">Demora Màx</th>
+          <th style="width: 85px; text-align:center;">Estat</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${sortedDesc.length === 0 ? `
+          <tr>
+            <td colspan="9" style="text-align:center; padding:18px; color:#9CA3AF;">
+              No hi ha registres històrics arxivats per a aquest agent a la base de dades.
+            </td>
+          </tr>
+        ` : sortedDesc.map(r => {
+          const pRate = r.puntualitat_percentatge !== null && r.puntualitat_percentatge !== undefined ? Number(r.puntualitat_percentatge) : null;
+          const pColor = pRate === null ? '#9CA3AF' : pRate >= 95 ? '#059669' : pRate >= 85 ? '#d97706' : '#dc2626';
+          const maxD = r.retard_maxim_segons ? Math.round(r.retard_maxim_segons / 60) : 0;
+          const statusBadge = r.estat_torn === 'COMPLETAT'
+            ? '<span class="badge badge-ontime">Completat</span>'
+            : r.estat_torn === 'EN_CURS'
+              ? '<span class="badge" style="background:#fef3c7; color:#92400e;">En curs</span>'
+              : '<span class="badge badge-pending">Arxivat</span>';
+
+          return `
+            <tr>
+              <td><strong>${r.data_servei || '—'}</strong></td>
+              <td><span style="font-weight:700; color:${FGC_GRAY};">${r.torn || '—'}</span></td>
+              <td>${r.hora_inici || '--:--'} — ${r.hora_fi || '--:--'}</td>
+              <td>${r.dependencia || '—'}</td>
+              <td style="text-align:right; font-weight:700; color:${pColor};">
+                ${pRate !== null ? `${pRate}%` : '—'}
+              </td>
+              <td style="text-align:center;">
+                ${r.passos_totals || 0} <span style="font-size:7pt; color:#6B7280;">(${r.passos_en_hora || 0} / ${r.passos_retard || 0})</span>
+              </td>
+              <td style="text-align:center;">
+                ${r.circulacions_completades || 0} / ${r.circulacions_totals || (r.detall_circulacions?.length || 0)}
+              </td>
+              <td style="text-align:right; font-family:monospace; color:${maxD >= 4 ? '#b91c1c' : '#374151'};">
+                ${maxD > 0 ? `+${maxD}m` : '0m'}
+              </td>
+              <td style="text-align:center;">${statusBadge}</td>
+            </tr>
+          `;
+        }).join('')}
+      </tbody>
+    </table>
+
+    <!-- VALIDACIÓ I SIGNATURES -->
+    <div class="signatures-box">
+      <div class="signature-slot">
+        <div class="signature-title">Conformitat de l'Agent Maquinista</div>
+        <div class="signature-footer">Signat: ${agent.cognoms}, ${agent.nom} · Nòmina #${agent.empleat_id}</div>
+      </div>
+      <div class="signature-slot">
+        <div class="signature-title">Validació Supervisor de Servei CSO</div>
+        <div class="signature-footer">Centre de Supervisió Operativa (CSO) · Data: ${dateFormatted}</div>
+      </div>
+    </div>
+
+    <!-- NOTA LEGAL RGPD -->
+    <div class="legal-notice">
+      Aquest document és un dossier històric oficial d'operacions generat per NEXUS Supervisors per a ús exclusiu de gestió i auditoria operativa de Ferrocarrils de la Generalitat de Catalunya (FGC). Conté dades laborals i de rendiment subjectes al Reglament (UE) 2016/679 (RGPD) i la Llei Orgànica 3/2018 (LOPDGDD). Queda prohibida la seva reproducció, distribució o cessió a tercers sense autorització expressa de la Direcció d'Operacions d'FGC.
+    </div>
+  </div>
+</body>
+</html>`;
+
+  openPrintWindow(html, `Dossier_Generic_${agent.empleat_id}_FGC`);
+}
+
+/**
+ * ────────────────────────────────────────────────────────────────
+ * 2C. DOSSIER GENÈRIC CONSOLIDAT D'AGENT (EXCEL / CSV)
+ * ────────────────────────────────────────────────────────────────
+ */
+export function generateAgentGenericReportExcel(data: AgentGenericReportData): void {
+  const { agent, historyRecords = [] } = data;
+  const now = new Date();
+
+  // Ordenar cronològicament descendent
+  const sortedDesc = [...historyRecords].sort((a, b) => (b.data_servei || '').localeCompare(a.data_servei || ''));
+  const sortedAsc = [...historyRecords].sort((a, b) => (a.data_servei || '').localeCompare(b.data_servei || ''));
+  const firstDate = sortedAsc[0]?.data_servei || 'N/D';
+  const lastDate = sortedAsc[sortedAsc.length - 1]?.data_servei || 'N/D';
+
+  const totalShifts = sortedDesc.length;
+  const totalPassages = sortedDesc.reduce((acc, r) => acc + (r.passos_totals || 0), 0);
+  const onTimePassages = sortedDesc.reduce((acc, r) => acc + (r.passos_en_hora || 0), 0);
+  const delayedPassages = sortedDesc.reduce((acc, r) => acc + (r.passos_retard || 0), 0);
+
+  let rate: number | null = null;
+  if (totalPassages > 0) {
+    rate = Number(((onTimePassages / totalPassages) * 100).toFixed(1));
+  } else {
+    const validRates = sortedDesc
+      .map(r => r.puntualitat_percentatge !== null ? Number(r.puntualitat_percentatge) : null)
+      .filter((r): r is number => r !== null);
+    if (validRates.length > 0) {
+      rate = Number((validRates.reduce((a, b) => a + b, 0) / validRates.length).toFixed(1));
+    }
+  }
+
+  const totalCircs = sortedDesc.reduce((acc, r) => acc + (r.circulacions_totals || (r.detall_circulacions?.length || 0)), 0);
+  const completedCircs = sortedDesc.reduce((acc, r) => acc + (r.circulacions_completades || 0), 0);
+  const maxDelaySec = sortedDesc.length > 0 ? Math.max(...sortedDesc.map(r => r.retard_maxim_segons || 0)) : 0;
+
+  const lines: string[] = [
+    'FERROCARRILS DE LA GENERALITAT DE CATALUNYA — NEXUS SUPERVISORS',
+    'DOSSIER CONSOLIDAT I HISTÒRIC DE RENDIMENT PER AGENT',
+    `Data d'emissió,${now.toLocaleDateString('ca-ES')} ${now.toLocaleTimeString('ca-ES')}`,
+    `Període auditat,Des de ${firstDate} fins a ${lastDate}`,
+    `Total jornades registrades,${totalShifts}`,
+    '',
+    '--- DADES DE L\'AGENT ---',
+    'Nòmina,Cognoms,Nom,Torn Habitual,Dependència,Tipus Torn,Observacions',
+    `"${agent.empleat_id}","${agent.cognoms}","${agent.nom}","${agent.torn || 'S/A'}","${agent.dependencia || ''}","${agent.tipus_torn || 'Ordinari'}","${(agent.observacions || '').replace(/"/g, '""')}"`,
+    '',
+    '--- INDICADORS HISTÒRICS ACUMULATS (GIP) ---',
+    'Puntualitat Mitjana Ponderada (%),Passos Totals,Passos a l\'hora,Passos amb Retard,Circulacions Conduïdes,Circulacions Programades,Demora Màxima (segons)',
+    `"${rate !== null ? rate : 'N/D'}","${totalPassages}","${onTimePassages}","${delayedPassages}","${completedCircs}","${totalCircs}","${maxDelaySec}"`,
+    '',
+    '--- HISTÒRIC DETALLAT PER JORNADA ---',
+    'Data Servei,Torn,Servei,Horari Inici,Horari Fi,Dependència,Puntualitat (%),Passos Totals,Passos a temps,Passos retard,Demora Màxima (s),Demora Mitjana (s),Circulacions Totals,Circulacions Fetes,Estat Torn',
+    ...sortedDesc.map(r => {
+      return `"${r.data_servei || ''}","${r.torn || ''}","${r.servei || ''}","${r.hora_inici || ''}","${r.hora_fi || ''}","${r.dependencia || ''}","${r.puntualitat_percentatge !== null && r.puntualitat_percentatge !== undefined ? r.puntualitat_percentatge : ''}","${r.passos_totals || 0}","${r.passos_en_hora || 0}","${r.passos_retard || 0}","${r.retard_maxim_segons || 0}","${r.retard_mitja_segons || 0}","${r.circulacions_totals || 0}","${r.circulacions_completades || 0}","${r.estat_torn || ''}"`;
+    }),
+    '',
+    '--- DILIGÈNCIA DE VALIDACIÓ ---',
+    'Supervisió Operativa CSO,Validat i auditat amb dades històriques oficials del pas de trens GIP (FGC)'
+  ];
+
+  const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `nexus-dossier-generic-agent-${agent.empleat_id}.csv`;
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -1267,6 +1852,42 @@ export async function generateAgentReportDirectly(
     generateAgentReportExcel(reportPayload);
   } else {
     generateAgentReportPrint(reportPayload);
+  }
+
+  return true;
+}
+
+/**
+ * ────────────────────────────────────────────────────────────────
+ * 6. CARREGA DIRECTA I GENERACIÓ DEL DOSSIER GENÈRIC PER A QUALSEVOL AGENT
+ * ────────────────────────────────────────────────────────────────
+ */
+export async function generateAgentGenericReportDirectly(
+  agent: any,
+  format: 'pdf' | 'excel' = 'pdf',
+  contact?: { phones: string[]; email: string | null },
+  isPrivacyMode: boolean = false
+): Promise<boolean> {
+  let records: AgentPerformanceHistory[] = [];
+  try {
+    if (agent?.empleat_id) {
+      records = await getAgentPerformanceHistory(String(agent.empleat_id), 100);
+    }
+  } catch (e) {
+    console.warn('[officialReports] Error fetching history for generic report:', e);
+  }
+
+  const payload: AgentGenericReportData = {
+    agent,
+    historyRecords: records,
+    contact,
+    isPrivacyMode
+  };
+
+  if (format === 'excel') {
+    generateAgentGenericReportExcel(payload);
+  } else {
+    generateAgentGenericReportPrint(payload);
   }
 
   return true;
