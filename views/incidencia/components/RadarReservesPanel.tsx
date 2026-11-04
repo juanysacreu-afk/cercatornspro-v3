@@ -190,15 +190,32 @@ export const RadarReservesPanel: React.FC<RadarReservesPanelProps> = ({
       });
     });
 
+    // Deduplicate by driver (nomina, driverName, or shortTorn)
+    const uniqueList: RadarResourceItem[] = [];
+    const seenDriverKeys = new Set<string>();
+
+    for (const item of list) {
+      const key = item.nomina 
+        ? `NOM-${item.nomina}` 
+        : item.driverName && item.driverName !== item.shortTorn 
+        ? `NAME-${item.driverName.toLowerCase().trim()}`
+        : `TORN-${item.shortTorn}`;
+
+      if (!seenDriverKeys.has(key)) {
+        seenDriverKeys.add(key);
+        uniqueList.push(item);
+      }
+    }
+
     // Sort strictly by ETA minutes ascending, then compliant first
-    list.sort((a, b) => {
+    uniqueList.sort((a, b) => {
       if (a.etaMinutes !== b.etaMinutes) return a.etaMinutes - b.etaMinutes;
       if (a.audit.score === 'compliant' && b.audit.score !== 'compliant') return -1;
       if (a.audit.score !== 'compliant' && b.audit.score === 'compliant') return 1;
       return a.shortTorn.localeCompare(b.shortTorn);
     });
 
-    return list;
+    return uniqueList;
   }, [activeReserves, passengerResults, restingResults, extensibleResults, cleanTargetSt]);
 
   // Filtered radar items

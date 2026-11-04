@@ -130,7 +130,7 @@ export async function fetchActiveReserveDrivers(
           }
         }
 
-        allReserves = candidateReserveShifts.map(s => {
+        const rawReserves = candidateReserveShifts.map(s => {
           const shortId = getShortTornId(s.id);
           const assign = (assignments || []).find(a => a.torn === s.id || a.torn === shortId);
           const dep = (s.dependencia || 'PC').trim().toUpperCase();
@@ -150,6 +150,17 @@ export async function fetchActiveReserveDrivers(
             isExactStation: false
           };
         });
+
+        // Deduplicate reserves by nomina or shortTorn (shifts table contains duplicate rows across servei codes)
+        const seenResKeys = new Set<string>();
+        allReserves = [];
+        for (const r of rawReserves) {
+          const key = r.nomina ? `NOM-${r.nomina}` : `TORN-${r.shortTorn}`;
+          if (!seenResKeys.has(key)) {
+            seenResKeys.add(key);
+            allReserves.push(r);
+          }
+        }
 
         reservesCache = { timestamp: now, data: allReserves };
       }
