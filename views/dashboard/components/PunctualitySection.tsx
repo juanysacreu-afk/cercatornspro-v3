@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { 
   Clock, RefreshCw, AlertTriangle, CheckCircle2, TrendingUp, 
-  Train, ChevronRight, ChevronDown, ChevronUp, Filter, Activity, Timer, Search, ArrowUpRight, BarChart3, X
+  Train, ChevronRight, ChevronDown, ChevronUp, Filter, Activity, Timer, Search, ArrowUpRight, BarChart3, X, Calendar
 } from 'lucide-react';
 import GlassPanel from '../../../components/common/GlassPanel';
 import { usePunctualityData, DelayedCirculation } from '../hooks/usePunctualityData';
@@ -33,7 +33,19 @@ interface PunctualitySectionProps {
 }
 
 export const PunctualitySection: React.FC<PunctualitySectionProps> = ({ onNavigateToSearch }) => {
-  const { stats, loading, isRefreshing, lastRefreshLabel, refresh } = usePunctualityData();
+  const { 
+    stats, 
+    loading, 
+    isRefreshing, 
+    lastRefreshLabel, 
+    selectedDate, 
+    setSelectedDate, 
+    todayServiceDate, 
+    isLive, 
+    recentDates, 
+    refresh 
+  } = usePunctualityData();
+  const dateInputRef = useRef<HTMLInputElement>(null);
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
   const [selectedLineFilter, setSelectedLineFilter] = useState<string>('Tots');
   const [selectedHourFilter, setSelectedHourFilter] = useState<number | null>(null);
@@ -118,10 +130,17 @@ export const PunctualitySection: React.FC<PunctualitySectionProps> = ({ onNaviga
               <h2 className="text-sm sm:text-base font-bold text-[#4D5358] dark:text-white uppercase tracking-wider">
                 Puntualitat del Servei (GIP)
               </h2>
-              <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-fgc-green/10 text-fgc-green border border-fgc-green/20">
-                <span className="w-1.5 h-1.5 rounded-full bg-fgc-green animate-pulse" />
-                En directe
-              </span>
+              {isLive ? (
+                <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-fgc-green/10 text-fgc-green border border-fgc-green/20">
+                  <span className="w-1.5 h-1.5 rounded-full bg-fgc-green animate-pulse" />
+                  En directe
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-purple-500/15 text-purple-600 dark:text-purple-300 border border-purple-500/30">
+                  <Calendar size={11} />
+                  Auditoria ({selectedDate})
+                </span>
+              )}
             </div>
             <p className="text-[10px] sm:text-[11px] text-gray-500 dark:text-gray-400 font-medium">
               Criteri oficial FGC: pas en hora &lt; 4 minuts (≤ 239s de retard)
@@ -131,7 +150,7 @@ export const PunctualitySection: React.FC<PunctualitySectionProps> = ({ onNaviga
 
         <div className="flex items-center gap-2 self-end sm:self-center">
           <span className="text-[10px] sm:text-[11px] text-gray-400 dark:text-gray-500 font-medium">
-            Actualitzat {lastRefreshLabel}
+            {isLive ? `Actualitzat ${lastRefreshLabel}` : `Data: ${selectedDate}`}
           </span>
           <button
             onClick={handleRefresh}
@@ -155,6 +174,96 @@ export const PunctualitySection: React.FC<PunctualitySectionProps> = ({ onNaviga
           </button>
         </div>
       </div>
+
+      {/* ── Selector de Data de Servei / Històric ──────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 rounded-2xl bg-gray-50/70 dark:bg-black/20 border border-gray-100 dark:border-white/5">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+          <span className="text-[10px] font-black uppercase text-gray-400 dark:text-gray-500 px-1 flex items-center gap-1 shrink-0">
+            <Calendar size={12} className="text-fgc-green" />
+            Servei:
+          </span>
+          {recentDates.map(d => {
+            const isSelected = selectedDate === d.dateStr;
+            return (
+              <button
+                key={d.dateStr}
+                type="button"
+                onClick={() => {
+                  feedback.click();
+                  setSelectedDate(d.dateStr);
+                }}
+                className={`px-2.5 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition-all border shrink-0 ${
+                  isSelected
+                    ? isLive
+                      ? 'bg-fgc-green text-[#4D5358] border-fgc-green font-black shadow-xs'
+                      : 'bg-purple-600 text-white border-purple-600 font-black shadow-xs'
+                    : 'bg-white dark:bg-white/5 text-gray-600 dark:text-gray-400 border-gray-200/60 dark:border-white/10 hover:border-fgc-green/50'
+                }`}
+              >
+                {d.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+          <div className="relative">
+            <input
+              ref={dateInputRef}
+              type="date"
+              max={todayServiceDate}
+              value={selectedDate}
+              onChange={(e) => {
+                if (e.target.value) {
+                  feedback.click();
+                  setSelectedDate(e.target.value);
+                }
+              }}
+              className="sr-only"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                dateInputRef.current?.showPicker?.();
+                dateInputRef.current?.focus();
+              }}
+              className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white dark:bg-white/5 border border-gray-200/60 dark:border-white/10 text-xs font-bold text-[#4D5358] dark:text-white hover:border-fgc-green/50 transition-all"
+              title="Seleccionar una altra data al calendari"
+            >
+              <Calendar size={13} className="text-gray-400" />
+              <span>{isLive ? 'Altre dia' : selectedDate}</span>
+            </button>
+          </div>
+
+          {!isLive && (
+            <button
+              type="button"
+              onClick={() => {
+                feedback.click();
+                setSelectedDate(todayServiceDate);
+              }}
+              className="px-2.5 py-1 rounded-xl bg-fgc-green text-[#4D5358] text-xs font-black uppercase tracking-wider hover:brightness-110 active:scale-95 transition-all shadow-xs"
+              title="Tornar al servei en directe d'avui"
+            >
+              Tornar a Avui
+            </button>
+          )}
+        </div>
+      </div>
+
+      {!isLive && (
+        <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-700 dark:text-purple-300 text-xs">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 size={14} className="text-purple-500 shrink-0" />
+            <span>
+              Auditoria de servei anterior: Registre complet del <strong>{selectedDate}</strong> ({stats?.totalPassages.toLocaleString('ca-ES')} passos totals registrats al GIP).
+            </span>
+          </div>
+          <span className="font-mono font-bold text-[11px] opacity-80 shrink-0">
+            {stats?.globalRate}% puntualitat
+          </span>
+        </div>
+      )}
 
       {/* ── KPIs Principals ─────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">

@@ -898,6 +898,13 @@ export const GipHistoryPanel: React.FC<GipHistoryPanelProps> = ({
     };
   };
 
+  // Daily global punctuality rate for selected historical day
+  const dayPunctualityPct = useMemo(() => {
+    if (dayPassages.length === 0) return null;
+    const onTime = dayPassages.filter(p => normalizeTimeDiffSec(p.diferencia_segons) <= 239).length;
+    return Number(((onTime / dayPassages.length) * 100).toFixed(1));
+  }, [dayPassages]);
+
   // Filtered pills / options based on searchQuery
   const filteredUnits = useMemo(() => {
     const q = searchQuery.trim().toUpperCase().replace(/^UT\s*/i, '');
@@ -1434,6 +1441,17 @@ export const GipHistoryPanel: React.FC<GipHistoryPanelProps> = ({
           </div>
 
           <div className="flex items-center gap-2 flex-wrap text-xs font-mono">
+            {dayPunctualityPct !== null && (
+              <span className={`px-2.5 py-1 rounded-xl font-black border ${
+                dayPunctualityPct >= 95 
+                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' 
+                  : dayPunctualityPct >= 85 
+                  ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' 
+                  : 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20'
+              }`}>
+                Puntualitat: {dayPunctualityPct}%
+              </span>
+            )}
             <span className="px-2.5 py-1 rounded-xl bg-fgc-green/10 text-fgc-green border border-fgc-green/20 font-bold">
               {dayPassages.length.toLocaleString('ca-ES')} passos GeoTren
             </span>

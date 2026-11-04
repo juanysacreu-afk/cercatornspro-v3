@@ -914,10 +914,18 @@ export const GipView: React.FC<GipViewProps> = ({ isPrivacyMode, initialCircId, 
             </button>
           </div>
 
-          <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-white/5 border border-gray-200/60 dark:border-white/10 text-xs font-bold font-mono text-gray-500 dark:text-gray-300">
+          <button
+            type="button"
+            onClick={() => {
+              feedback.click();
+              setGipTab('history');
+            }}
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-white/5 dark:hover:bg-white/10 border border-gray-200/60 dark:border-white/10 text-xs font-bold font-mono text-gray-500 hover:text-[#4D5358] dark:text-gray-300 dark:hover:text-white transition-all cursor-pointer"
+            title="Clic per auditar dies de servei anteriors a l'Històric"
+          >
             <Calendar size={13} className="text-fgc-green" />
-            Servei: {serviceDate}
-          </span>
+            <span>Servei: {serviceDate}</span>
+          </button>
           <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-white/5 border border-gray-200/60 dark:border-white/10 text-xs font-black font-mono text-[#4D5358] dark:text-white">
             <Clock size={13} className="text-blue-400" />
             {currentTimeStr || '--:--:--'}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { supabase } from '../../../supabaseClient';
 import { getFgcServiceDate } from '../../../utils/gipRecorder';
 import { resolveStationId, normalizeTimeDiffSec, getFgcOperationalHour } from '../../../utils/stations';
@@ -72,19 +72,42 @@ const resolveStationLabel = (codeOrName: string, linia: string = ''): string => 
   return trimmed;
 };
 
-export const usePunctualityData = () => {
+export const usePunctualityData = (initialDate?: string) => {
+  const todayServiceDate = useMemo(() => getFgcServiceDate(), []);
+  const [selectedDate, setSelectedDate] = useState<string>(initialDate || todayServiceDate);
   const [stats, setStats] = useState<PunctualityStats | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [lastRefreshLabel, setLastRefreshLabel] = useState<string>('fa pocs segons');
   const lastRefreshTimeRef = useRef<number>(Date.now());
 
-  const fetchPunctuality = useCallback(async (isManual: boolean = false) => {
+  const isLive = selectedDate === todayServiceDate;
+
+  // Recent 7 dates for quick selector pills
+  const recentDates = useMemo(() => {
+    const list: Array<{ dateStr: string; label: string; shortLabel: string }> = [];
+    const base = new Date(todayServiceDate + 'T12:00:00');
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(base);
+      d.setDate(d.getDate() - i);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const dateStr = `${yyyy}-${mm}-${dd}`;
+      const dayName = d.toLocaleDateString('ca-ES', { weekday: 'short' }).replace('.', '');
+      const label = i === 0 ? 'Avui' : i === 1 ? 'Ahir' : `${dayName} ${dd}/${mm}`;
+      list.push({ dateStr, label, shortLabel: `${dd}/${mm}` });
+    }
+    return list;
+  }, [todayServiceDate]);
+
+  const fetchPunctuality = useCallback(async (isManual: boolean = false, targetDate?: string) => {
     if (isManual) setIsRefreshing(true);
-    const serviceDate = getFgcServiceDate();
+    const serviceDate = targetDate || selectedDate;
+    setLoading(true);
 
     try {
-      // 1. Recompte total de passos d'avui
+      // 1. Recompte total de passos del dia de servei objectiu
       const { count, error: countErr } = await supabase
         .from('gip_registre_pas')
         .select('*', { count: 'exact', head: true })
@@ -261,16 +284,21 @@ export const usePunctualityData = () => {
       setLoading(false);
       setIsRefreshing(false);
     }
-  }, []);
+  }, [selectedDate]);
 
-  // Cicle inicial i refresc automàtic cada 30 segons
+  // Cicle inicial i en canvi de data de servei seleccionada
   useEffect(() => {
-    fetchPunctuality();
+    fetchPunctuality(false, selectedDate);
+  }, [selectedDate, fetchPunctuality]);
+
+  // Refresc automàtic cada 30 segons només quan s'audita el servei en viu (avui)
+  useEffect(() => {
+    if (!isLive) return;
     const interval = setInterval(() => {
-      fetchPunctuality();
+      fetchPunctuality(false, selectedDate);
     }, 30000);
     return () => clearInterval(interval);
-  }, [fetchPunctuality]);
+  }, [isLive, selectedDate, fetchPunctuality]);
 
   // Rellotge d'etiqueta "fa Xs"
   useEffect(() => {
@@ -293,6 +321,11 @@ export const usePunctualityData = () => {
     loading,
     isRefreshing,
     lastRefreshLabel,
-    refresh: () => fetchPunctuality(true)
+    selectedDate,
+    setSelectedDate,
+    todayServiceDate,
+    isLive,
+    recentDates,
+    refresh: () => fetchPunctuality(true, selectedDate)
   };
 };
