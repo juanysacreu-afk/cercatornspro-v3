@@ -181,7 +181,7 @@ const openPrintWindow = (htmlContent: string, title: string) => {
  * 1. INFORME OFICIAL INDIVIDUAL D'AGENT (PDF / IMPRESSIÓ A4)
  * ────────────────────────────────────────────────────────────────
  */
-export function generateAgentReportPrint(data: AgentReportData): void {
+export function buildAgentReportHtml(data: AgentReportData): string {
   const { agent, shiftData, overallPunctuality, circulationsList = [], serviceDate, contact, isPrivacyMode } = data;
   const now = new Date();
   const dateFormatted = serviceDate || now.toISOString().slice(0, 10);
@@ -635,7 +635,13 @@ export function generateAgentReportPrint(data: AgentReportData): void {
 </body>
 </html>`;
 
-  openPrintWindow(html, `Informe_Agent_${agent.empleat_id}_${dateFormatted}`);
+  return html;
+}
+
+export function generateAgentReportPrint(data: AgentReportData): void {
+  const html = buildAgentReportHtml(data);
+  const dateFormatted = data.serviceDate || new Date().toISOString().slice(0, 10);
+  openPrintWindow(html, `Informe_Agent_${data.agent.empleat_id}_${dateFormatted}`);
 }
 
 /**
@@ -643,7 +649,7 @@ export function generateAgentReportPrint(data: AgentReportData): void {
  * 2. INFORME OFICIAL INDIVIDUAL D'AGENT (EXCEL / CSV)
  * ────────────────────────────────────────────────────────────────
  */
-export function generateAgentReportExcel(data: AgentReportData): void {
+export function buildAgentReportCsv(data: AgentReportData): string {
   const { agent, shiftData, overallPunctuality, circulationsList = [], serviceDate } = data;
   const now = new Date();
   const dateStr = serviceDate || now.toISOString().slice(0, 10);
@@ -674,12 +680,17 @@ export function generateAgentReportExcel(data: AgentReportData): void {
     'Supervisió Operativa CSO,Validat i auditat amb dades oficials del pas de trens GIP (FGC)'
   ];
 
-  // Afegir UTF-8 BOM (\uFEFF) per a compatibilitat transparent amb Microsoft Excel
-  const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  return lines.join('\n');
+}
+
+export function generateAgentReportExcel(data: AgentReportData): void {
+  const dateStr = data.serviceDate || new Date().toISOString().slice(0, 10);
+  const csv = buildAgentReportCsv(data);
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `nexus-informe-agent-${agent.empleat_id}-${dateStr}.csv`;
+  link.download = `nexus-informe-agent-${data.agent.empleat_id}-${dateStr}.csv`;
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -1252,7 +1263,7 @@ export function generateAgentGenericReportExcel(data: AgentGenericReportData): v
  * 3. INFORME GENÈRIC GLOBAL D'OPERACIONS CSO (PDF / IMPRESSIÓ A4)
  * ────────────────────────────────────────────────────────────────
  */
-export function generateGlobalReportPrint(data: GlobalReportData): void {
+export function buildGlobalReportHtml(data: GlobalReportData): string {
   const { serviceDate, stats, kpis, alerts = [], reserves = [] } = data;
   const now = new Date();
   const dateFormatted = serviceDate || now.toISOString().slice(0, 10);
@@ -1639,6 +1650,12 @@ export function generateGlobalReportPrint(data: GlobalReportData): void {
 </body>
 </html>`;
 
+  return html;
+}
+
+export function generateGlobalReportPrint(data: GlobalReportData): void {
+  const html = buildGlobalReportHtml(data);
+  const dateFormatted = data.serviceDate || new Date().toISOString().slice(0, 10);
   openPrintWindow(html, `Informe_Global_CSO_${dateFormatted}`);
 }
 
@@ -1647,7 +1664,7 @@ export function generateGlobalReportPrint(data: GlobalReportData): void {
  * 4. INFORME GENÈRIC GLOBAL D'OPERACIONS CSO (EXCEL / CSV)
  * ────────────────────────────────────────────────────────────────
  */
-export function generateGlobalReportExcel(data: GlobalReportData): void {
+export function buildGlobalReportCsv(data: GlobalReportData): string {
   const { serviceDate, stats, kpis, alerts = [], reserves = [] } = data;
   const now = new Date();
   const dateStr = serviceDate || now.toISOString().slice(0, 10);
@@ -1681,7 +1698,13 @@ export function generateGlobalReportExcel(data: GlobalReportData): void {
     )
   ];
 
-  const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  return lines.join('\n');
+}
+
+export function generateGlobalReportExcel(data: GlobalReportData): void {
+  const dateStr = data.serviceDate || new Date().toISOString().slice(0, 10);
+  const csv = buildGlobalReportCsv(data);
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;

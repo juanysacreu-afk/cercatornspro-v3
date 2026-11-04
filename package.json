@@ -11,10 +11,12 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.97.0",
+    "@types/jszip": "^3.4.0",
     "dexie": "^4.3.0",
     "dexie-react-hooks": "^4.2.0",
     "framer-motion": "^12.34.3",
     "html2canvas": "^1.4.1",
+    "jszip": "^3.10.2",
     "lucide-react": "^0.475.0",
     "node-fetch": "^3.3.2",
     "pdfjs-dist": "^5.4.530",

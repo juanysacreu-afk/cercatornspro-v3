@@ -4,7 +4,7 @@ import {
   Search, Phone, User, Loader2, Clock, CheckCircle2, Info, 
   Filter, UserCircle, ChevronDown, Mail, Users, RefreshCw, 
   X, Activity, ArrowRight, Database, RotateCcw, Sun, Moon, Calendar,
-  FileText, Printer, Download
+  FileText, Printer, Download, Package
 } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
 import { decryptAgentRows } from '../utils/crypto.ts';
@@ -19,6 +19,7 @@ import { generateAgentReportDirectly } from '../utils/officialReports';
 import ErrorBoundary from '../components/common/ErrorBoundary';
 import AgentDetailModal from '../components/AgentDetailModal';
 import { AgentReportModal } from '../components/AgentReportModal';
+import { BulkReportModal } from '../components/BulkReportModal';
 
 type DisDesFilterType = 'ALL' | 'SERVEI' | 'DIS' | 'DES' | 'DIS_DES' | 'FOR' | 'VAC' | 'DAG' | 'AJN';
 type ShiftTimeFilterType = 'ALL' | 'MATI' | 'TARDA' | 'NIT';
@@ -295,6 +296,7 @@ const AgentsViewComponent: React.FC<AgentsViewProps> = ({ isPrivacyMode, onNavig
   const [loadingMaquinistes, setLoadingMaquinistes] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<{ maquinista: any; contact: { phones: string[]; email: string | null } } | null>(null);
   const [reportAgent, setReportAgent] = useState<any | null>(null);
+  const [isBulkZipModalOpen, setIsBulkZipModalOpen] = useState(false);
 
   const todayService = useServiceToday();
   const { showToast } = useToast();
@@ -786,6 +788,19 @@ const AgentsViewComponent: React.FC<AgentsViewProps> = ({ isPrivacyMode, onNavig
                 </button>
               </div>
 
+              {/* Botó per exportar el tancament de la jornada en lot (.ZIP) */}
+              <button
+                onClick={() => {
+                  feedback.click();
+                  setIsBulkZipModalOpen(true);
+                }}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-3.5 py-3.5 bg-white dark:bg-white/5 border border-purple-500/30 text-purple-600 dark:text-purple-400 hover:bg-purple-50/20 dark:hover:bg-purple-500/10 rounded-[22px] font-bold text-xs sm:text-sm transition-all shadow-sm active:scale-95"
+                title="Descarregar el paquet complet de tancament (.ZIP) d'aquesta jornada"
+              >
+                <Package size={15} />
+                <span className="hidden md:inline">Tancament .ZIP</span>
+              </button>
+
               {/* Botó de reinici si hi ha algun filtre actiu */}
               {(disDesFilter !== 'ALL' || shiftTimeFilter !== 'ALL' || punctualityFilter !== 'ALL' || maquinistaQuery || selectedPerfDate !== getFgcServiceDate()) && (
                 <button
@@ -880,6 +895,15 @@ const AgentsViewComponent: React.FC<AgentsViewProps> = ({ isPrivacyMode, onNavig
           contact={contacts[normalizeId(reportAgent.empleat_id)] || { phones: [], email: null }}
           isPrivacyMode={isPrivacyMode}
           initialDate={selectedPerfDate}
+        />
+      )}
+
+      {/* MODAL EXPORTACIÓ TANCAMENT EN LOT (.ZIP) */}
+      {isBulkZipModalOpen && (
+        <BulkReportModal
+          isOpen={isBulkZipModalOpen}
+          onClose={() => setIsBulkZipModalOpen(false)}
+          defaultDate={selectedPerfDate}
         />
       )}
     </div>

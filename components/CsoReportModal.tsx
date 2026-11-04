@@ -1,8 +1,9 @@
-import React, { useEffect } from 'react';
-import { X, FileText, Printer, Download, Clock, Train, Shield, Activity } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, FileText, Printer, Download, Clock, Train, Shield, Activity, Package } from 'lucide-react';
 import { feedback } from '../utils/feedback';
 import { generateGlobalReportPrint, generateGlobalReportExcel } from '../utils/officialReports';
 import { FGC_ICON_BASE64 } from '../utils/fgcLogoBase64';
+import { BulkReportModal } from './BulkReportModal';
 
 interface CsoReportModalProps {
   isOpen: boolean;
@@ -25,6 +26,8 @@ export const CsoReportModal: React.FC<CsoReportModalProps> = ({
   reserves = [],
   onExportLegacyCSV
 }) => {
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+
   // Escape key listener
   useEffect(() => {
     if (!isOpen) return;
@@ -197,7 +200,32 @@ export const CsoReportModal: React.FC<CsoReportModalProps> = ({
               </span>
             </button>
 
-            {/* Option 3: Legacy CSV */}
+            {/* Option 3: Paquet ZIP en Lot */}
+            <button
+              onClick={() => {
+                feedback.click();
+                setIsBulkModalOpen(true);
+              }}
+              className="w-full flex items-center justify-between p-4 rounded-2xl bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 text-left hover:border-purple-500/50 hover:bg-purple-50/20 dark:hover:bg-purple-500/10 transition-all active:scale-[0.98] group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400">
+                  <Package size={20} />
+                </div>
+                <div>
+                  <div className="text-sm font-bold text-[#4D5358] dark:text-white flex items-center gap-2">
+                    <span>Exportar Tancament en Lot (.ZIP)</span>
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-500/15 text-purple-600 dark:text-purple-400">0 MB NÚVOL</span>
+                  </div>
+                  <div className="text-xs text-gray-400 font-medium">Informe CSO + Excel + Informes individuals de tots els maquinistes</div>
+                </div>
+              </div>
+              <span className="text-xs font-bold text-purple-600 dark:text-purple-400 shrink-0">
+                Configurar .ZIP
+              </span>
+            </button>
+
+            {/* Option 4: Legacy CSV */}
             {onExportLegacyCSV && (
               <button
                 onClick={handleLegacyCSV}
@@ -210,6 +238,14 @@ export const CsoReportModal: React.FC<CsoReportModalProps> = ({
           </div>
         </div>
       </div>
+
+      {isBulkModalOpen && (
+        <BulkReportModal
+          isOpen={isBulkModalOpen}
+          onClose={() => setIsBulkModalOpen(false)}
+          defaultDate={serviceDate}
+        />
+      )}
     </div>
   );
 };
