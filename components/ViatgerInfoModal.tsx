@@ -1,9 +1,8 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   X, User, Clock, ArrowRight, Phone, Search, 
-  Shield, CheckCircle2, Info, Users, ExternalLink,
-  ChevronRight
+  Shield, CheckCircle2, Info, Users, ChevronDown
 } from 'lucide-react';
 import { feedback } from '../utils/feedback';
 import { resolveStationName } from '../utils/stations';
@@ -50,17 +49,38 @@ export const ViatgerInfoModal: React.FC<ViatgerInfoModalProps> = ({
   onSelectTurn,
   isPrivacyMode = false
 }) => {
+  // Swipe down to dismiss states and refs for mobile
+  const [translateY, setTranslateY] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
+
+  const touchStartY = useRef(0);
+  const touchStartTime = useRef(0);
+  const currentTranslateY = useRef(0);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isDragInitiated = useRef(false);
+
+  // Tanca amb animació suau cap avall
+  const triggerClose = () => {
+    if (isClosing) return;
+    setIsClosing(true);
+    setTranslateY(window.innerHeight || 800);
+    feedback.click();
+    setTimeout(() => {
+      onClose();
+    }, 220);
+  };
+
   // Tanca amb la tecla Escape
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        feedback.click();
-        onClose();
+        triggerClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  }, []);
 
   if (typeof document === 'undefined') return null;
 
@@ -69,8 +89,64 @@ export const ViatgerInfoModal: React.FC<ViatgerInfoModalProps> = ({
   const circStartName = resolveStationName(circStart, circ?.linia);
   const circEndName = resolveStationName(circEnd, circ?.linia);
 
+  // Touch gesture handlers per lliscar cap avall (swipe down to dismiss)
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    const target = e.target as HTMLElement;
+    const isHandleZone = target.closest('.drag-handle-zone') !== null;
+    const isScrollAtTop = scrollContainerRef.current ? scrollContainerRef.current.scrollTop <= 2 : true;
+
+    if (isHandleZone || isScrollAtTop) {
+      touchStartY.current = touch.clientY;
+      touchStartTime.current = Date.now();
+      isDragInitiated.current = true;
+      setIsDragging(true);
+    } else {
+      isDragInitiated.current = false;
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isDragInitiated.current) return;
+
+    const touch = e.touches[0];
+    const deltaY = touch.clientY - touchStartY.current;
+
+    // Si el contingut té scroll i està més avall, no arrosseguem la finestra
+    if (scrollContainerRef.current && scrollContainerRef.current.scrollTop > 2) {
+      touchStartY.current = touch.clientY;
+      return;
+    }
+
+    if (deltaY > 0) {
+      currentTranslateY.current = deltaY;
+      setTranslateY(deltaY);
+    } else {
+      currentTranslateY.current = 0;
+      setTranslateY(0);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (!isDragInitiated.current) return;
+    isDragInitiated.current = false;
+    setIsDragging(false);
+
+    const deltaY = currentTranslateY.current;
+    const duration = Date.now() - touchStartTime.current;
+    const velocity = duration > 0 ? deltaY / duration : 0;
+
+    // Si ha arrossegat més de 85px o amb velocitat ràpida cap avall, tanquem
+    if (deltaY > 85 || (deltaY > 35 && velocity > 0.35)) {
+      triggerClose();
+    } else {
+      currentTranslateY.current = 0;
+      setTranslateY(0);
+    }
+  };
+
   const handlePhoneClick = (nomina?: string, phone?: string) => {
-    if (isPrivacyMode || !phone) return;
+    if (!phone) return;
     if (nomina) {
       logLopdAccess('CALL_DISPATCH', nomina, { 
         context: 'viatger_modal', 
@@ -81,8 +157,7 @@ export const ViatgerInfoModal: React.FC<ViatgerInfoModalProps> = ({
   };
 
   const handleSelectTurn = (turnId: string) => {
-    feedback.click();
-    onClose();
+    triggerClose();
     if (onSelectTurn && turnId) {
       onSelectTurn(turnId);
     }
@@ -90,25 +165,41 @@ export const ViatgerInfoModal: React.FC<ViatgerInfoModalProps> = ({
 
   return createPortal(
     <div 
-      className="fixed inset-0 z-[160] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in"
+      className="fixed inset-0 z-[160] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md transition-opacity duration-200"
+      style={{
+        opacity: isClosing ? 0 : Math.max(0, 1 - translateY / 500)
+      }}
       onClick={(e) => {
         if (e.target === e.currentTarget) {
-          feedback.click();
-          onClose();
+          triggerClose();
         }
       }}
     >
       <div 
-        className="w-full sm:max-w-xl bg-[#181a1b] text-white rounded-t-[32px] sm:rounded-[32px] border-t sm:border border-white/10 shadow-2xl overflow-hidden flex flex-col max-h-[90dvh] animate-in zoom-in-95 duration-200"
+        className="w-full sm:max-w-xl bg-[#181a1b] text-white rounded-t-[32px] sm:rounded-[32px] border-t sm:border border-white/10 shadow-2xl overflow-hidden flex flex-col max-h-[90dvh] touch-pan-y"
         role="dialog"
         aria-modal="true"
         aria-labelledby="viatger-modal-title"
+        style={{
+          transform: `translateY(${translateY}px)`,
+          transition: isDragging ? 'none' : 'transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1)',
+          willChange: 'transform'
+        }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
       >
-        {/* Barra superior de grab per a mòbil */}
-        <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto my-2.5 sm:hidden shrink-0" />
+        {/* Zona de tirador superior per a mòbil amb gest de lliscar cap avall */}
+        <div className="drag-handle-zone w-full pt-3 pb-2 flex flex-col items-center justify-center cursor-grab active:cursor-grabbing shrink-0 select-none touch-none bg-black/20 sm:hidden">
+          <div className="w-16 h-1.5 bg-white/40 hover:bg-white/60 active:bg-fgc-green rounded-full transition-colors shadow-sm" />
+          <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-1.5 flex items-center gap-1">
+            <ChevronDown size={12} className="text-gray-400 animate-bounce" />
+            Deslisa cap avall per tancar
+          </span>
+        </div>
 
         {/* Capçalera del modal */}
-        <div className="p-4 sm:p-6 border-b border-white/10 bg-black/30 flex items-start justify-between gap-4 shrink-0">
+        <div className="drag-handle-zone p-4 sm:p-6 border-b border-white/10 bg-black/30 flex items-start justify-between gap-4 shrink-0 select-none">
           <div className="space-y-1.5 min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider bg-orange-500/20 text-orange-400 border border-orange-500/30">
@@ -149,10 +240,7 @@ export const ViatgerInfoModal: React.FC<ViatgerInfoModalProps> = ({
           </div>
 
           <button
-            onClick={() => {
-              feedback.click();
-              onClose();
-            }}
+            onClick={() => triggerClose()}
             className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white transition-all active:scale-95 shrink-0"
             aria-label="Tancar finestra"
           >
@@ -160,21 +248,30 @@ export const ViatgerInfoModal: React.FC<ViatgerInfoModalProps> = ({
           </button>
         </div>
 
-        {/* Llista de viatgers amb scroll */}
-        <div className="p-4 sm:p-6 overflow-y-auto space-y-4 divide-y divide-white/5">
+        {/* Llista de viatgers amb scroll independent */}
+        <div 
+          ref={scrollContainerRef}
+          className="p-4 sm:p-6 overflow-y-auto space-y-4 divide-y divide-white/5 overscroll-contain"
+        >
           {passengers && passengers.length > 0 ? (
             passengers.map((p, idx) => {
               const pStart = (p.from || '').trim().toUpperCase();
               const pEnd = (p.to || '').trim().toUpperCase();
               const isFull = circStart && circEnd && pStart === circStart && pEnd === circEnd;
-              const displayDriverName = isPrivacyMode
-                ? `AGENT #${p.nomina || '---'}`
-                : (p.driverCognoms ? `${p.driverCognoms}, ${p.driverNom}` : (p.driverName || 'Sense assignar'));
+
+              // Mostra SEMPRE el nom real del maquinista
+              const driverFullName = (p.driverCognoms && p.driverNom)
+                ? `${p.driverCognoms}, ${p.driverNom}`
+                : (p.driverName && !p.driverName.startsWith('Q') ? p.driverName : '');
+
+              const displayDriverName = driverFullName
+                || (p.driverName && p.driverName !== p.shiftId ? p.driverName : '')
+                || (p.nomina ? `Maquinista (Nòmina #${p.nomina})` : 'Sense assignar');
 
               return (
                 <div key={idx} className={`${idx > 0 ? 'pt-4' : ''} space-y-3.5`}>
                   {/* Targeta del torn i cobertura */}
-                  <div className="bg-white/5 dark:bg-black/40 rounded-2xl p-4 border border-white/10 space-y-3">
+                  <div className="bg-white/5 dark:bg-black/40 rounded-2xl p-4 border border-white/10 space-y-3 shadow-inner">
                     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-3">
                       <div className="flex items-center gap-2">
                         <div className="px-3 py-1.5 bg-fgc-green text-emerald-950 rounded-xl font-black text-sm tracking-tight shadow-sm flex items-center gap-1.5">
@@ -206,22 +303,22 @@ export const ViatgerInfoModal: React.FC<ViatgerInfoModalProps> = ({
                       </div>
                     </div>
 
-                    {/* Dades del Maquinista */}
+                    {/* Dades del Maquinista (NOM SEMPRE VISIBLE) */}
                     <div className="flex items-center gap-3.5">
-                      <div className="w-11 h-11 rounded-full bg-fgc-green/20 border border-fgc-green/40 text-fgc-green flex items-center justify-center shrink-0">
-                        <User size={20} strokeWidth={2.5} />
+                      <div className="w-12 h-12 rounded-2xl bg-fgc-green/20 border border-fgc-green/40 text-fgc-green flex items-center justify-center shrink-0 shadow-sm">
+                        <User size={24} strokeWidth={2.5} />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-base font-black text-white uppercase tracking-tight truncate">
+                        <p className="text-base sm:text-lg font-black text-white uppercase tracking-tight leading-snug">
                           {displayDriverName}
                         </p>
-                        <div className="flex flex-wrap items-center gap-2 mt-0.5">
-                          <span className="text-[10px] font-black uppercase text-gray-400 bg-black/40 px-2 py-0.5 rounded border border-white/5">
-                            Nòmina #{p.nomina || '---'}
+                        <div className="flex flex-wrap items-center gap-2 mt-1">
+                          <span className="text-[10px] font-black uppercase text-gray-300 bg-white/10 px-2 py-0.5 rounded border border-white/10">
+                            NÒMINA #{p.nomina || '---'}
                           </span>
                           {(p.inici_torn || p.final_torn) && (
-                            <span className="text-[10px] font-bold text-gray-400 flex items-center gap-1">
-                              <Clock size={11} className="text-gray-400" />
+                            <span className="text-[10px] font-bold text-gray-300 flex items-center gap-1">
+                              <Clock size={11} className="text-fgc-green" />
                               Jornada: {p.inici_torn || '--:--'} — {p.final_torn || '--:--'}
                             </span>
                           )}
@@ -230,11 +327,11 @@ export const ViatgerInfoModal: React.FC<ViatgerInfoModalProps> = ({
                     </div>
 
                     {/* Tram com a viatger */}
-                    <div className="p-3 bg-black/30 rounded-xl border border-white/5 space-y-1.5">
+                    <div className="p-3 bg-black/40 rounded-xl border border-white/5 space-y-1.5">
                       <div className="text-[9px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-1">
                         <span>Tram assignat de viatger</span>
                         {(p.sortida || p.arribada) && (
-                          <span className="text-fgc-green font-mono">
+                          <span className="text-fgc-green font-mono font-bold">
                             ({p.sortida || '--:--'} — {p.arribada || '--:--'})
                           </span>
                         )}
@@ -261,19 +358,17 @@ export const ViatgerInfoModal: React.FC<ViatgerInfoModalProps> = ({
 
                     {/* Botons d'acció: Trucar + Cercar torn */}
                     <div className="pt-2 flex flex-wrap items-center gap-2">
-                      {/* Botons de telèfon si n'hi ha */}
+                      {/* Botons de telèfon */}
                       {p.phones && p.phones.length > 0 ? (
                         p.phones.map((phone, phIdx) => (
                           <a
                             key={phIdx}
-                            href={isPrivacyMode ? undefined : `tel:${phone}`}
+                            href={`tel:${phone}`}
                             onClick={() => handlePhoneClick(p.nomina, phone)}
-                            className={`flex items-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md transition-all active:scale-95 ${
-                              isPrivacyMode ? 'cursor-default opacity-80' : ''
-                            }`}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md transition-all active:scale-95"
                           >
-                            <Phone size={13} />
-                            <span>{isPrivacyMode ? '*** ** ** **' : phone}</span>
+                            <Phone size={14} />
+                            <span>{phone}</span>
                           </a>
                         ))
                       ) : (
@@ -285,9 +380,9 @@ export const ViatgerInfoModal: React.FC<ViatgerInfoModalProps> = ({
                       {/* Botó directe per cercar el torn */}
                       <button
                         onClick={() => handleSelectTurn(p.shortTorn || p.shiftId)}
-                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-white/10 hover:bg-fgc-green hover:text-emerald-950 text-white rounded-xl text-xs font-black border border-white/10 transition-all active:scale-95 ml-auto"
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-fgc-green hover:text-emerald-950 text-white rounded-xl text-xs font-black border border-white/10 transition-all active:scale-95 ml-auto"
                       >
-                        <Search size={13} />
+                        <Search size={14} />
                         <span>Veure Torn {p.shortTorn || p.shiftId}</span>
                       </button>
                     </div>
@@ -309,10 +404,7 @@ export const ViatgerInfoModal: React.FC<ViatgerInfoModalProps> = ({
             <span>Dades d'assignació d'operacions FGC</span>
           </span>
           <button
-            onClick={() => {
-              feedback.click();
-              onClose();
-            }}
+            onClick={() => triggerClose()}
             className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs transition-all active:scale-95 shrink-0 ml-2"
           >
             Tancar
