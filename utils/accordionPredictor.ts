@@ -30,6 +30,21 @@ const TRUNK_INDEX_MAP = new Map<string, number>(
 );
 
 /**
+ * Llindar mínim de retard per a alertes de coll d'ampolla / efecte acordió al tronc comú.
+ * Configurat a 3 minuts i mig (210 segons) a petició expressa de supervisió CSO.
+ */
+export const BOTTLENECK_DELAY_THRESHOLD_SEC = 210; // 3.5 min (3 min 30 s)
+
+/**
+ * Formata segons en minuts amb decimals nets (ex: 210s -> "3.5m", 240s -> "4m")
+ */
+export function formatDelayMinutes(sec: number): string {
+  if (!sec || sec <= 0) return '0m';
+  const mins = sec / 60;
+  return Number.isInteger(mins) ? `${mins}m` : `${mins.toFixed(1)}m`;
+}
+
+/**
  * Returns human-readable name of a station code
  */
 export function getStationDisplayName(code: string): string {
@@ -184,9 +199,9 @@ export function detectTrunkConflicts(
         ? lead.trunkIndex - trail.trunkIndex
         : trail.trunkIndex - lead.trunkIndex;
 
-      // Condition: leading train has noticeable delay (>= 120s = 2 min)
-      // and trailing train is within 1 to 3 stations behind in same track direction
-      if (lead.delaySec >= 120 && stationGap >= 1 && stationGap <= 3) {
+      // Condició: el tren capdavanter porta un retard de més de 3 minuts i mig (>= 210s)
+      // i el tren posterior es troba a una distància d'1 a 3 estacions en el mateix sentit de via
+      if (lead.delaySec >= BOTTLENECK_DELAY_THRESHOLD_SEC && stationGap >= 1 && stationGap <= 3) {
         const bottleneckStationCode = lead.stationCode;
         const bottleneckStationName = getStationDisplayName(bottleneckStationCode);
 
@@ -213,7 +228,7 @@ export function detectTrunkConflicts(
           trailingLine: trail.line,
           trailingStation: getStationDisplayName(trail.stationCode),
           estimatedImpactSec: estImpactSec,
-          reason: `Efecte acordió al tronc comú: ${lead.circId} (${lead.line}) circula amb +${Math.round(lead.delaySec / 60)}m retard a ${bottleneckStationName}. ${trail.circId} (${trail.line}) s'aproxima a ${stationGap} estacions i trobarà senyals en precaució.`,
+          reason: `Efecte acordió al tronc comú: ${lead.circId} (${lead.line}) circula amb +${formatDelayMinutes(lead.delaySec)} de retard a ${bottleneckStationName}. ${trail.circId} (${trail.line}) s'aproxima a ${stationGap} estacions i trobarà senyals en precaució.`,
           recommendation: `Avisar maquinista de ${trail.circId} de senyals en precaució o modular interval a ${getStationDisplayName(trail.stationCode)}.`,
           timestamp: now
         });
@@ -289,8 +304,8 @@ export function detectTrunkConflicts(
   }
 
   // ── RULE 3: Saturació de Capçalera a Plaça Catalunya (PC) ──
-  // Train stopped or arriving at PC with delay >= 120s while another train is already between PR and PC
-  const pcTrain = trunkTrains.find(t => t.direction === 'to_pc' && t.stationCode === 'PC' && t.delaySec >= 120);
+  // Tren aturat o arribant a PC amb retard >= 210s (3m 30s) mentre un altre tren ja és entre PR i PC
+  const pcTrain = trunkTrains.find(t => t.direction === 'to_pc' && t.stationCode === 'PC' && t.delaySec >= BOTTLENECK_DELAY_THRESHOLD_SEC);
   const prTrain = trunkTrains.find(t => t.direction === 'to_pc' && t.stationCode === 'PR');
 
   if (pcTrain && prTrain && pcTrain.circId !== prTrain.circId) {
@@ -310,7 +325,7 @@ export function detectTrunkConflicts(
       trailingLine: prTrain.line,
       trailingStation: getStationDisplayName('PR'),
       estimatedImpactSec: 180,
-      reason: `Saturació a vies de capçalera de Plaça Catalunya: ${pcTrain.circId} (${pcTrain.line}) retarda la maniobra de rotació (+${Math.round(pcTrain.delaySec / 60)}m). ${prTrain.circId} quedarà retingut a Provença.`,
+      reason: `Saturació a vies de capçalera de Plaça Catalunya: ${pcTrain.circId} (${pcTrain.line}) retarda la maniobra de rotació (+${formatDelayMinutes(pcTrain.delaySec)}). ${prTrain.circId} quedarà retingut a Provença.`,
       recommendation: `Coordinar amb CCO assignació de via alternativa a Plaça Catalunya si està disponible.`,
       timestamp: now
     });

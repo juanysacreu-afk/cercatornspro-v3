@@ -28,6 +28,7 @@ import { MonitorView } from './MonitorView';
 import { PunctualitySection } from './components/PunctualitySection';
 import { useTrunkConflicts } from './hooks/useTrunkConflicts';
 import { PredictiveConflictBanner } from '../../components/PredictiveConflictBanner';
+import { formatDelayMinutes } from '../../utils/accordionPredictor';
 import type { PersonnelAlert } from './hooks/useDashboardData';
 
 // ── V1 – Live clock that ticks every second ────────────
@@ -171,7 +172,7 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                 type: 'conflict',
                 severity: 'critical',
                 title: c.title,
-                subtitle: `${c.trailingCircId} (${c.trailingLine}) afectat per ${c.leadingCircId} (+${Math.round(c.leadingDelaySec / 60)}m a ${c.leadingStation})`,
+                subtitle: `${c.trailingCircId} (${c.trailingLine}) afectat per ${c.leadingCircId} (+${formatDelayMinutes(c.leadingDelaySec)} a ${c.leadingStation})`,
                 circId: c.trailingCircId
             }));
         return [...predictiveList, ...criticalAlerts];
@@ -185,7 +186,7 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                 type: 'conflict',
                 severity: 'warning',
                 title: c.title,
-                subtitle: `${c.trailingCircId} (${c.trailingLine}) afectat per ${c.leadingCircId} (+${Math.round(c.leadingDelaySec / 60)}m a ${c.leadingStation})`,
+                subtitle: `${c.trailingCircId} (${c.trailingLine}) afectat per ${c.leadingCircId} (+${formatDelayMinutes(c.leadingDelaySec)} a ${c.leadingStation})`,
                 circId: c.trailingCircId
             }));
         return [...predictiveList, ...warningAlerts];

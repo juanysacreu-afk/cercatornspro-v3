@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { TrunkConflictAlert } from '../types';
 import { feedback } from '../utils/feedback';
+import { formatDelayMinutes } from '../utils/accordionPredictor';
 import GlassPanel from './common/GlassPanel';
 
 interface PredictiveConflictBannerProps {
@@ -126,7 +127,7 @@ export const PredictiveConflictBanner: React.FC<PredictiveConflictBannerProps> =
                       ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300' 
                       : 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'
                   }`}>
-                    Impacte estimat: +{Math.round(conflict.estimatedImpactSec / 60)}m
+                    Impacte estimat: +{formatDelayMinutes(conflict.estimatedImpactSec)}
                   </span>
                 </div>
 
@@ -145,7 +146,7 @@ export const PredictiveConflictBanner: React.FC<PredictiveConflictBannerProps> =
                       </span>
                     </button>
                     <span className="text-[11px] font-mono text-gray-500">
-                      (+{Math.round(conflict.leadingDelaySec / 60)}m a {conflict.leadingStation})
+                      (+{formatDelayMinutes(conflict.leadingDelaySec)} a {conflict.leadingStation})
                     </span>
                   </div>
 
