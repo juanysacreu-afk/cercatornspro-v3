@@ -51,7 +51,12 @@ export const CsoReportModal: React.FC<CsoReportModalProps> = ({
       }
     } catch (err: any) {
       console.error("[CsoReportModal] Error enviant correu:", err);
-      showToast("Error en connectar amb la funció d'enviament", "error");
+      let detail = err?.message || '';
+      try {
+        const body = await err?.context?.json?.();
+        if (body?.error) detail = body.error;
+      } catch { /* sense cos JSON */ }
+      showToast(`Error en connectar amb la funció d'enviament${detail ? `: ${detail}` : ''}`, "error");
     } finally {
       setIsSendingEmail(false);
     }

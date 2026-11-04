@@ -7,10 +7,14 @@ const resendApiKey = Deno.env.get('RESEND_API_KEY') || ''
 
 // Adreça de destinació per defecte sol·licitada
 const DEFAULT_RECIPIENT = 'mlopezj@fgc.cat'
+// Llista blanca de destinataris: l'endpoint és públic (verify_jwt=false),
+// així que mai s'envia a adreces arbitràries rebudes per la petició.
+const ALLOWED_RECIPIENTS = new Set([DEFAULT_RECIPIENT])
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  // supabase-js (functions.invoke) envia també apikey i x-client-info
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
 }
 
@@ -62,6 +66,10 @@ serve(async (req) => {
       if (url.searchParams.get('date')) requestedDate = url.searchParams.get('date')!
     }
 
+    if (!ALLOWED_RECIPIENTS.has(targetEmail.toLowerCase())) {
+      targetEmail = DEFAULT_RECIPIENT
+    }
+
     // Calcular data del servei a analitzar (horari de Madrid / FGC)
     let serviceDate = requestedDate
     if (!serviceDate) {
@@ -88,13 +96,21 @@ serve(async (req) => {
     const now = new Date()
     const nowFormatted = now.toLocaleString('ca-ES', { timeZone: 'Europe/Madrid' })
 
-    // 1. Obtenir registres GIP de la jornada
-    const { data: passages, error: gipErr } = await supabase
-      .from('gip_registre_pas')
-      .select('*')
-      .eq('data_servei', serviceDate)
-
-    if (gipErr) throw gipErr
+    // 1. Obtenir registres GIP de la jornada (paginat: PostgREST limita a 1000 files per petició)
+    const PAGE = 1000
+    const passages: any[] = []
+    for (let from = 0; ; from += PAGE) {
+      const { data: page, error: gipErr } = await supabase
+        .from('gip_registre_pas')
+        .select('linia, circulacio_id, estat, diferencia_segons')
+        .eq('data_servei', serviceDate)
+        .order('id', { ascending: true })
+        .range(from, from + PAGE - 1)
+      if (gipErr) throw gipErr
+      if (!page || page.length === 0) break
+      passages.push(...page)
+      if (page.length < PAGE) break
+    }
 
     // 2. Obtenir rendiment dels agents de la jornada
     const { data: perfRows } = await supabase
