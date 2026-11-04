@@ -16,6 +16,7 @@ import { formatFgcTime } from '../../utils/stations';
 import { resetAssignmentsFromGeoTren } from '../../utils/assignmentService';
 import { generateGlobalReportPrint, generateGlobalReportExcel } from '../../utils/officialReports';
 import { usePunctualityData } from './hooks/usePunctualityData';
+import { CsoReportModal } from '../../components/CsoReportModal';
 
 // ── Sub-components (C1 extractions) ────────────────────
 import { KpiCard } from './components/KpiCard';
@@ -124,21 +125,7 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
 
     const { conflicts: trunkConflicts, refresh: refreshConflicts } = useTrunkConflicts();
     const { stats: punctualityStats, selectedDate: punctualitySelectedDate } = usePunctualityData();
-    const [showExportMenu, setShowExportMenu] = useState(false);
-    const exportMenuRef = useRef<HTMLDivElement>(null);
-
-    // Click outside listener for export dropdown
-    useEffect(() => {
-        const handleClickOutside = (e: MouseEvent) => {
-            if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
-                setShowExportMenu(false);
-            }
-        };
-        if (showExportMenu) {
-            document.addEventListener('mousedown', handleClickOutside);
-        }
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [showExportMenu]);
+    const [isCsoModalOpen, setIsCsoModalOpen] = useState(false);
 
     const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -285,100 +272,18 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                     </div>
 
                     <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 sm:pb-0 w-full sm:w-auto justify-center sm:justify-end no-scrollbar">
-                        {/* Informe Oficial CSO / Export Menu */}
-                        <div className="relative" ref={exportMenuRef}>
-                            <button
-                                onClick={() => {
-                                    feedback.click();
-                                    setShowExportMenu(prev => !prev);
-                                }}
-                                className="flex-none flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/60 dark:bg-white/[0.04] border border-gray-100 dark:border-white/5 text-xs font-bold text-[#4D5358] dark:text-gray-300 hover:bg-fgc-green/15 hover:text-fgc-green transition-all active:scale-95 group shadow-xs"
-                                title="Generar informe oficial CSO o exportar dades"
-                            >
-                                <FileText size={13} className="text-fgc-green group-hover:scale-110 transition-transform" />
-                                <span>Informe CSO</span>
-                                <ChevronDown size={12} className={`transition-transform duration-200 text-gray-400 ${showExportMenu ? 'rotate-180' : ''}`} />
-                            </button>
-
-                            {showExportMenu && (
-                                <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-[#25292D] rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 p-2 z-[250] animate-in fade-in zoom-in-95 duration-150">
-                                    <div className="px-3 py-1.5 text-[10px] font-black uppercase text-gray-400 dark:text-gray-500 tracking-wider">
-                                        Informes Oficials FGC
-                                    </div>
-                                    <button
-                                        onClick={() => {
-                                            feedback.click();
-                                            setShowExportMenu(false);
-                                            generateGlobalReportPrint({
-                                                serviceDate: punctualitySelectedDate || serviceToday,
-                                                stats: punctualityStats || {
-                                                    totalPassages: 0,
-                                                    onTimeCount: 0,
-                                                    delayedCount: 0,
-                                                    globalRate: 100,
-                                                    avgDelayFormatted: '0s',
-                                                    lineStats: [],
-                                                    recentDelays: []
-                                                },
-                                                kpis,
-                                                alerts,
-                                                reserves
-                                            });
-                                        }}
-                                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs font-bold text-[#4D5358] dark:text-white hover:bg-fgc-green/15 hover:text-fgc-green transition-colors"
-                                    >
-                                        <div className="p-1.5 rounded-lg bg-fgc-green/15 text-fgc-green shrink-0">
-                                            <Printer size={14} />
-                                        </div>
-                                        <div>
-                                            <div className="font-bold">Informe Diari PDF (A4)</div>
-                                            <div className="text-[10px] font-normal text-gray-400">Model oficial CSO imprimible</div>
-                                        </div>
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            feedback.click();
-                                            setShowExportMenu(false);
-                                            generateGlobalReportExcel({
-                                                serviceDate: punctualitySelectedDate || serviceToday,
-                                                stats: punctualityStats || {
-                                                    totalPassages: 0,
-                                                    onTimeCount: 0,
-                                                    delayedCount: 0,
-                                                    globalRate: 100,
-                                                    avgDelayFormatted: '0s',
-                                                    lineStats: [],
-                                                    recentDelays: []
-                                                },
-                                                kpis,
-                                                alerts,
-                                                reserves
-                                            });
-                                        }}
-                                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs font-bold text-[#4D5358] dark:text-white hover:bg-blue-500/15 hover:text-blue-600 dark:hover:text-blue-400 transition-colors mt-1"
-                                    >
-                                        <div className="p-1.5 rounded-lg bg-blue-500/15 text-blue-500 shrink-0">
-                                            <Download size={14} />
-                                        </div>
-                                        <div>
-                                            <div className="font-bold">Resum Executiu Excel</div>
-                                            <div className="text-[10px] font-normal text-gray-400">Full de càlcul amb BOM UTF-8</div>
-                                        </div>
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            feedback.click();
-                                            setShowExportMenu(false);
-                                            handleExportCSV();
-                                        }}
-                                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs font-semibold text-gray-500 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors mt-1 border-t border-gray-100 dark:border-white/5 pt-2"
-                                    >
-                                        <Download size={13} className="text-gray-400 shrink-0" />
-                                        <span className="text-[11px]">CSV Tradicional</span>
-                                    </button>
-                                </div>
-                            )}
-                        </div>
+                        {/* Informe Oficial CSO Button */}
+                        <button
+                            onClick={() => {
+                                feedback.click();
+                                setIsCsoModalOpen(true);
+                            }}
+                            className="flex-none flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/60 dark:bg-white/[0.04] border border-gray-100 dark:border-white/5 text-xs font-bold text-[#4D5358] dark:text-gray-300 hover:bg-fgc-green/15 hover:text-fgc-green transition-all active:scale-95 group shadow-xs cursor-pointer"
+                            title="Generar informe oficial CSO o exportar dades"
+                        >
+                            <FileText size={13} className="text-fgc-green group-hover:scale-110 transition-transform" />
+                            <span>Informe CSO</span>
+                        </button>
                         {/* N4 - Monitor Mode */}
                         {setIsMonitorMode && (
                             <button
@@ -583,6 +488,18 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
             <div className="flex-none animate-fade-up-premium stagger-6">
                 <PunctualitySection onNavigateToSearch={onNavigateToSearch} />
             </div>
+
+            {/* CsoReportModal Modal */}
+            <CsoReportModal
+                isOpen={isCsoModalOpen}
+                onClose={() => setIsCsoModalOpen(false)}
+                serviceDate={punctualitySelectedDate || serviceToday}
+                stats={punctualityStats}
+                kpis={kpis}
+                alerts={alerts}
+                reserves={reserves}
+                onExportLegacyCSV={handleExportCSV}
+            />
         </div>
     );
 };

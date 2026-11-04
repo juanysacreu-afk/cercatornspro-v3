@@ -14,6 +14,8 @@ import { supabase } from '../supabaseClient';
 import { fetchFullTurns } from './queries';
 import { getFgcServiceDate } from './gipRecorder';
 
+import { FGC_ICON_BASE64 } from './fgcLogoBase64';
+
 const FGC_GREEN = '#97BE14';
 const FGC_GRAY = '#4D5358';
 
@@ -25,12 +27,9 @@ const resolveStationName = (codeOrName: string, linia: string = ''): string => {
   return geo?.name || trimmed;
 };
 
-// SVG Vector Oficial del Símbol d'FGC d'alta fidelitat
-const FGC_LOGO_SVG = `
-<svg width="44" height="44" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="100" height="100" rx="20" fill="${FGC_GREEN}"/>
-  <path d="M 28 32 C 28 25 34 20 42 20 L 68 20 C 76 20 82 26 82 34 C 82 42 76 48 68 48 L 44 48 C 36 48 32 52 32 60 C 32 68 36 72 44 72 L 72 72 C 80 72 86 78 86 86 C 86 92 80 96 72 96 L 32 96 C 24 96 18 90 18 82 C 18 74 24 68 32 68 L 58 68 C 64 68 68 64 68 58 C 68 52 64 48 58 48 L 42 48 C 34 48 28 42 28 32 Z" fill="#FFFFFF"/>
-</svg>
+// Logotip Oficial FGC segons el Manual d'Identitat Visual Corporativa
+const FGC_OFFICIAL_LOGO = `
+<img src="${FGC_ICON_BASE64}" alt="FGC" class="fgc-logo-badge" style="width: 48px; height: 48px; object-fit: contain; border-radius: 10px; display: block; flex-shrink: 0;" />
 `;
 
 export interface AgentReportData {
@@ -460,7 +459,7 @@ export function generateAgentReportPrint(data: AgentReportData): void {
     <!-- CAPÇALERA OFICIAL FGC -->
     <div class="fgc-header">
       <div class="fgc-brand">
-        ${FGC_LOGO_SVG}
+        ${FGC_OFFICIAL_LOGO}
         <div class="fgc-titles">
           <h1>FGC Operacions</h1>
           <p>Centre de Supervisió Operativa (CSO) · Línies Metropolitanes</p>
@@ -904,7 +903,7 @@ export function generateGlobalReportPrint(data: GlobalReportData): void {
   <div class="sheet">
     <div class="fgc-header">
       <div class="fgc-brand">
-        ${FGC_LOGO_SVG}
+        ${FGC_OFFICIAL_LOGO}
         <div class="fgc-titles">
           <h1>Resum Operacional CSO</h1>
           <p>Centre de Supervisió Operativa · Xarxa Barcelona-Vallès (FGC)</p>

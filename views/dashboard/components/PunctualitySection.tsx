@@ -9,6 +9,7 @@ import { usePunctualityData, DelayedCirculation } from '../hooks/usePunctualityD
 import { feedback } from '../../../utils/feedback';
 import { getPunctualityInfo } from '../../../utils/delayNotifications';
 import { generateGlobalReportPrint, generateGlobalReportExcel } from '../../../utils/officialReports';
+import { CsoReportModal } from '../../../components/CsoReportModal';
 
 const LINE_COLORS: Record<string, string> = {
   'S1': '#E46608',
@@ -52,20 +53,7 @@ export const PunctualitySection: React.FC<PunctualitySectionProps> = ({ onNaviga
   const [selectedLineFilter, setSelectedLineFilter] = useState<string>('Tots');
   const [selectedHourFilter, setSelectedHourFilter] = useState<number | null>(null);
   const [searchFilter, setSearchFilter] = useState<string>('');
-  const [showReportMenu, setShowReportMenu] = useState<boolean>(false);
-  const reportMenuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (reportMenuRef.current && !reportMenuRef.current.contains(e.target as Node)) {
-        setShowReportMenu(false);
-      }
-    };
-    if (showReportMenu) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showReportMenu]);
+  const [isCsoModalOpen, setIsCsoModalOpen] = useState<boolean>(false);
 
   const handleRefresh = () => {
     feedback.click();
@@ -179,66 +167,17 @@ export const PunctualitySection: React.FC<PunctualitySectionProps> = ({ onNaviga
           </button>
 
           {/* Informe Oficial CSO per la data seleccionada */}
-          <div className="relative" ref={reportMenuRef}>
-            <button
-              onClick={() => {
-                feedback.click();
-                setShowReportMenu(prev => !prev);
-              }}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/60 dark:bg-white/[0.04] border border-gray-200/60 dark:border-white/10 text-xs font-semibold text-[#4D5358] dark:text-gray-300 hover:bg-fgc-green/15 hover:text-fgc-green transition-all active:scale-95 group"
-              title="Generar informe oficial de puntualitat per a aquesta data"
-            >
-              <FileText size={12} className="text-fgc-green group-hover:scale-110 transition-transform" />
-              <span>Informe</span>
-              <ChevronDown size={11} className={`text-gray-400 transition-transform duration-200 ${showReportMenu ? 'rotate-180' : ''}`} />
-            </button>
-
-            {showReportMenu && (
-              <div className="absolute right-0 top-full mt-2 w-60 bg-white dark:bg-[#25292D] rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 p-2 z-[250] animate-in fade-in zoom-in-95 duration-150">
-                <div className="px-3 py-1.5 text-[10px] font-black uppercase text-gray-400 dark:text-gray-500 tracking-wider">
-                  Informe de Servei ({selectedDate})
-                </div>
-                <button
-                  onClick={() => {
-                    feedback.click();
-                    setShowReportMenu(false);
-                    generateGlobalReportPrint({
-                      serviceDate: selectedDate,
-                      stats
-                    });
-                  }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs font-bold text-[#4D5358] dark:text-white hover:bg-fgc-green/15 hover:text-fgc-green transition-colors"
-                >
-                  <div className="p-1.5 rounded-lg bg-fgc-green/15 text-fgc-green shrink-0">
-                    <Printer size={13} />
-                  </div>
-                  <div>
-                    <div className="font-bold">Imprimir / PDF Oficial</div>
-                    <div className="text-[10px] font-normal text-gray-400">Model oficial CSO A4</div>
-                  </div>
-                </button>
-                <button
-                  onClick={() => {
-                    feedback.click();
-                    setShowReportMenu(false);
-                    generateGlobalReportExcel({
-                      serviceDate: selectedDate,
-                      stats
-                    });
-                  }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-xs font-bold text-[#4D5358] dark:text-white hover:bg-blue-500/15 hover:text-blue-600 dark:hover:text-blue-400 transition-colors mt-1"
-                >
-                  <div className="p-1.5 rounded-lg bg-blue-500/15 text-blue-500 shrink-0">
-                    <Download size={13} />
-                  </div>
-                  <div>
-                    <div className="font-bold">Exportar a Excel / CSV</div>
-                    <div className="text-[10px] font-normal text-gray-400">Full de càlcul amb BOM UTF-8</div>
-                  </div>
-                </button>
-              </div>
-            )}
-          </div>
+          <button
+            onClick={() => {
+              feedback.click();
+              setIsCsoModalOpen(true);
+            }}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/60 dark:bg-white/[0.04] border border-gray-200/60 dark:border-white/10 text-xs font-semibold text-[#4D5358] dark:text-gray-300 hover:bg-fgc-green/15 hover:text-fgc-green transition-all active:scale-95 group cursor-pointer"
+            title="Generar informe oficial de puntualitat per a aquesta data"
+          >
+            <FileText size={12} className="text-fgc-green group-hover:scale-110 transition-transform" />
+            <span>Informe</span>
+          </button>
           <button
             onClick={() => {
               feedback.click();
@@ -779,6 +718,14 @@ export const PunctualitySection: React.FC<PunctualitySectionProps> = ({ onNaviga
       </div>
         </div>
       )}
+
+      {/* Modal d'Informe Oficial CSO */}
+      <CsoReportModal
+        isOpen={isCsoModalOpen}
+        onClose={() => setIsCsoModalOpen(false)}
+        serviceDate={selectedDate}
+        stats={stats}
+      />
     </GlassPanel>
   );
 };
