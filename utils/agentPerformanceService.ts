@@ -190,8 +190,12 @@ export const syncAllAgentsPerformance = async (
 
       if (best?.circulations && Array.isArray(best.circulations)) {
         best.circulations.forEach((c: any) => {
-          const code = typeof c === 'string' ? c : (c.codi || c.realCodi || c.id);
-          if (code && code !== 'Viatger') allCircCodes.add(code);
+          const code = typeof c === 'string' ? c : c.codi;
+          const realCode = typeof c === 'object' ? c.realCodi : null;
+          const obsCode = (typeof c === 'object' && c.observacions) ? c.observacions.split('-')[0]?.trim() : null;
+          if (code && code !== '-' && code !== 'Viatger') allCircCodes.add(code);
+          if (realCode && realCode !== '-') allCircCodes.add(realCode);
+          if (obsCode && obsCode.length >= 3 && obsCode !== 'Viatger') allCircCodes.add(obsCode);
         });
       }
     });
@@ -243,6 +247,7 @@ export const syncAllAgentsPerformance = async (
 
       circs.forEach((c: any) => {
         const codi = typeof c === 'string' ? c : (c.codi || c.realCodi || c.id);
+        const realCodi = typeof c === 'object' ? c.realCodi : null;
         const sortida = typeof c === 'object' ? c.sortida : undefined;
         const arribada = typeof c === 'object' ? c.arribada : undefined;
         const linia = typeof c === 'object' ? (c.linia || (codi?.startsWith('F') ? 'S2' : (codi?.startsWith('D') ? 'S1' : 'FGC'))) : undefined;
@@ -264,7 +269,14 @@ export const syncAllAgentsPerformance = async (
           }
         }
 
-        const cPassages = status === 'PENDING' ? [] : (passagesByCirc.get(codi) || []);
+        // Recuperar passos GIP reals pel codi comercial o pel realCodi
+        const realPassages = passagesByCirc.get(codi) || (realCodi ? passagesByCirc.get(realCodi) : []) || [];
+        if (realPassages.length > 0 && status === 'PENDING') {
+          status = (eMin !== null && nowMin >= eMin) ? 'COMPLETED' : 'IN_PROGRESS';
+          if (status === 'COMPLETED') completedCircs++; else inProgressCircs++;
+        }
+
+        const cPassages = (status === 'PENDING' && realPassages.length === 0) ? [] : realPassages;
         const totalStops = cPassages.length;
         const onTimeStops = cPassages.filter(p => p.estat === 'en_hora' || p.estat === 'avanc').length;
         const delayedStops = cPassages.filter(p => p.estat === 'retard');
@@ -274,7 +286,7 @@ export const syncAllAgentsPerformance = async (
         const fallbackUt = cicle ? cycleToTrainMap.get(String(cicle).trim().toUpperCase()) : null;
         const resolvedUt = passageUt || fallbackUt || (typeof c === 'object' ? (c.ut || c.train) : null) || null;
 
-        if (status !== 'PENDING' && isShiftStarted) {
+        if (totalStops > 0 || (status !== 'PENDING' && isShiftStarted)) {
           totalShiftPassages += totalStops;
           onTimeShiftPassages += onTimeStops;
           delayedShiftPassagesCount += delayedStops.length;
@@ -310,7 +322,7 @@ export const syncAllAgentsPerformance = async (
         });
       });
 
-      const rate = (isShiftStarted && totalShiftPassages > 0)
+      const rate = totalShiftPassages > 0
         ? Number(((onTimeShiftPassages / totalShiftPassages) * 100).toFixed(1))
         : null;
 
@@ -342,7 +354,7 @@ export const syncAllAgentsPerformance = async (
         circulacions_en_curs: inProgressCircs,
         circulacions_pendents: pendingCircs,
         detall_circulacions: circDetails,
-        estat_torn: !isShiftStarted 
+        estat_torn: (!isShiftStarted && totalShiftPassages === 0)
           ? 'NO_INICIAT' 
           : (completedCircs === circs.length && circs.length > 0) 
             ? 'COMPLETAT' 

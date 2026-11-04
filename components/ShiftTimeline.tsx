@@ -1,7 +1,8 @@
 
 import React, { useState } from 'react';
-import { LayoutGrid, Train, Coffee, AlertTriangle, X, Settings, Wrench } from 'lucide-react';
+import { LayoutGrid, Train, Coffee, AlertTriangle, X, Settings, Wrench, ShieldAlert, Shield } from 'lucide-react';
 import { getFgcMinutes, formatFgcTime } from '../utils/time';
+import { isReserveShift } from '../utils/stations';
 
 interface ShiftTimelineProps {
     turn: any;
@@ -22,32 +23,54 @@ export const ShiftTimeline: React.FC<ShiftTimelineProps> = ({
 }) => {
     const [selectedSeg, setSelectedSeg] = useState<any>(null);
     const startMin = getFgcMinutes(turn.inici_torn);
-    const endMin = getFgcMinutes(turn.final_torn);
+    let endMin = getFgcMinutes(turn.final_torn);
+    if (startMin === null || endMin === null) return null;
+    if (endMin <= startMin) {
+        endMin += 24 * 60; // Overnight wrapping (e.g. 22:00 -> 06:00 = 1320 -> 1800)
+    }
     const totalDuration = endMin - startMin;
     if (totalDuration <= 0) return null;
 
     const segments: any[] = [];
-    let currentPos = startMin;
-    const circulations = turn.fullCirculations || [];
+    const isReserve = isReserveShift(turn);
 
-    circulations.forEach((circ: any, index: number) => {
-        const circStart = getFgcMinutes(circ.sortida);
-        const circEnd = getFgcMinutes(circ.arribada);
-        if (circStart > currentPos) {
-            const locationCode = index === 0 ? (circ.machinistInici || turn.dependencia || '') : (circulations[index - 1].machinistFinal || '');
-            segments.push({ start: currentPos, end: circStart, type: 'gap', codi: locationCode || 'DESCANS', color: getStatusColor(locationCode) });
+    if (isReserve) {
+        const depCode = turn.dependencia || 'SR';
+        segments.push({
+            start: startMin,
+            end: endMin,
+            type: 'reserve',
+            codi: `RESERVA ${depCode}`,
+            color: 'bg-emerald-600 dark:bg-emerald-700',
+            locationCode: depCode
+        });
+    } else {
+        let currentPos = startMin;
+        const circulations = turn.fullCirculations || [];
+
+        circulations.forEach((circ: any, index: number) => {
+            const circStart = getFgcMinutes(circ.sortida);
+            const circEnd = getFgcMinutes(circ.arribada);
+            if (circStart > currentPos) {
+                const locationCode = index === 0 ? (circ.machinistInici || turn.dependencia || '') : (circulations[index - 1].machinistFinal || '');
+                segments.push({ start: currentPos, end: circStart, type: 'gap', codi: locationCode || 'DESCANS', color: getStatusColor(locationCode) });
+            }
+            segments.push({ start: circStart, end: circEnd, type: 'circ', codi: circ.codi, realCodi: circ.realCodi, color: 'bg-black/10 dark:bg-white/10', linia: circ.linia, train: circ.train, cicle: circ.cicle });
+            currentPos = Math.max(currentPos, circEnd);
+        });
+
+        if (currentPos < endMin) {
+            const lastLoc = circulations.length > 0 ? circulations[circulations.length - 1].machinistFinal : turn.dependencia;
+            segments.push({ start: currentPos, end: endMin, type: 'gap', codi: lastLoc || 'FINAL', color: getStatusColor(lastLoc) });
         }
-        segments.push({ start: circStart, end: circEnd, type: 'circ', codi: circ.codi, realCodi: circ.realCodi, color: 'bg-black/10 dark:bg-white/10', linia: circ.linia, train: circ.train, cicle: circ.cicle });
-        currentPos = Math.max(currentPos, circEnd);
-    });
-
-    if (currentPos < endMin) {
-        const lastLoc = circulations.length > 0 ? circulations[circulations.length - 1].machinistFinal : turn.dependencia;
-        segments.push({ start: currentPos, end: endMin, type: 'gap', codi: lastLoc || 'FINAL', color: getStatusColor(lastLoc) });
     }
 
-    const showMarker = nowMin >= startMin && nowMin <= endMin;
-    const progressPct = Math.max(0, Math.min(100, ((nowMin - startMin) / totalDuration) * 100));
+    let effectiveNowMin = nowMin;
+    if (endMin > 1440 && effectiveNowMin < startMin && effectiveNowMin <= (endMin - 1440)) {
+        effectiveNowMin += 1440;
+    }
+    const showMarker = effectiveNowMin >= startMin && effectiveNowMin <= endMin;
+    const progressPct = Math.max(0, Math.min(100, ((effectiveNowMin - startMin) / totalDuration) * 100));
 
     return (
         <div className="space-y-4 mb-10 p-2 relative">
@@ -86,20 +109,22 @@ export const ShiftTimeline: React.FC<ShiftTimelineProps> = ({
             </div>
 
             {selectedSeg && (
-                <div className={`mt-4 p-5 rounded-2xl border animate-in fade-in slide-in-from-top-2 duration-300 flex items-center justify-between shadow-xl ${selectedSeg.type === 'circ' && selectedSeg.train && trainStatuses[selectedSeg.train]?.is_broken ? 'bg-red-600 text-white' : (selectedSeg.color + ' ' + (selectedSeg.type === 'circ' ? 'text-fgc-grey dark:text-gray-200 border-gray-300 dark:border-gray-700 shadow-gray-200 dark:shadow-black' : 'text-white border-white/20'))}`}>
+                <div className={`mt-4 p-5 rounded-2xl border animate-in fade-in slide-in-from-top-2 duration-300 flex items-center justify-between shadow-xl ${selectedSeg.type === 'circ' && selectedSeg.train && trainStatuses[selectedSeg.train]?.is_broken ? 'bg-red-600 text-white' : selectedSeg.type === 'reserve' ? 'bg-emerald-600 text-white border-emerald-500 shadow-emerald-950/20' : (selectedSeg.color + ' ' + (selectedSeg.type === 'circ' ? 'text-fgc-grey dark:text-gray-200 border-gray-300 dark:border-gray-700 shadow-gray-200 dark:shadow-black' : 'text-white border-white/20'))}`}>
                     <div className="flex items-center gap-4">
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-inner border ${selectedSeg.type === 'circ' ? `${getLiniaColor(selectedSeg.linia)} border-white/20` : 'bg-white/20 border-white/20 backdrop-blur-sm'}`}>
+                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-inner border ${selectedSeg.type === 'circ' ? `${getLiniaColor(selectedSeg.linia)} border-white/20` : selectedSeg.type === 'reserve' ? 'bg-white/20 border-white/20 backdrop-blur-sm' : 'bg-white/20 border-white/20 backdrop-blur-sm'}`}>
                             {selectedSeg.type === 'circ' ? (
                                 <Train size={24} className="text-white" />
+                            ) : selectedSeg.type === 'reserve' ? (
+                                <Shield size={24} className="text-white" />
                             ) : (
                                 <Coffee size={24} className="text-white" />
                             )}
                         </div>
                         <div>
-                            <p className={`text-[10px] font-black uppercase tracking-widest ${selectedSeg.type === 'circ' ? (selectedSeg.train && trainStatuses[selectedSeg.train]?.is_broken ? 'text-white/60' : 'text-gray-500 dark:text-gray-400') : 'text-white/60'}`}>{selectedSeg.type === 'circ' ? 'CIRCULACIÓ' : 'DESCANS / ESTADA'}</p>
+                            <p className={`text-[10px] font-black uppercase tracking-widest ${selectedSeg.type === 'circ' ? (selectedSeg.train && trainStatuses[selectedSeg.train]?.is_broken ? 'text-white/60' : 'text-gray-500 dark:text-gray-400') : 'text-white/60'}`}>{selectedSeg.type === 'circ' ? 'CIRCULACIÓ' : selectedSeg.type === 'reserve' ? 'RESERVA OPERATIVA' : 'DESCANS / ESTADA'}</p>
                             <div className="flex items-center gap-2">
                                 <p className="text-xl font-black flex items-center gap-2">
-                                    {selectedSeg.codi === 'Viatger' ? `Viatger (${selectedSeg.realCodi})` : selectedSeg.codi}
+                                    {selectedSeg.type === 'reserve' ? `Reserva a Destacament (${selectedSeg.locationCode})` : selectedSeg.codi === 'Viatger' ? `Viatger (${selectedSeg.realCodi})` : selectedSeg.codi}
                                 </p>
                                 {selectedSeg.type === 'circ' && selectedSeg.cicle && (
                                     <button
@@ -114,6 +139,11 @@ export const ShiftTimeline: React.FC<ShiftTimelineProps> = ({
                             {selectedSeg.type === 'circ' && selectedSeg.train && trainStatuses[selectedSeg.train]?.is_broken && (
                                 <span className="bg-white text-red-600 px-2 py-0.5 rounded-lg text-[10px] flex items-center gap-1 border border-red-100 shadow-sm animate-pulse mt-1">
                                     <Wrench size={10} /> AVARIA
+                                </span>
+                            )}
+                            {selectedSeg.type === 'reserve' && (
+                                <span className="text-[10px] text-white/80 font-medium">
+                                    Disponibilitat presencial per a incidències i regulació CSO
                                 </span>
                             )}
                         </div>

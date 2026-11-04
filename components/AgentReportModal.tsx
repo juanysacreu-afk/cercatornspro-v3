@@ -9,6 +9,7 @@ import { feedback } from '../utils/feedback';
 import { FGC_ICON_BASE64 } from '../utils/fgcLogoBase64';
 import { getFgcServiceDate } from '../utils/gipRecorder';
 import { getAgentPerformanceHistory } from '../utils/agentPerformanceService';
+import { isReserveShift } from '../utils/stations';
 import { 
   generateAgentReportPrint, 
   generateAgentReportExcel, 
@@ -151,6 +152,16 @@ export const AgentReportModal: React.FC<AgentReportModalProps> = ({
   // Comprovar si el dia seleccionat coincideix amb avui o amb un registre arxivat
   const isSelectedDateToday = selectedDate === todayDate;
   const matchedHistoricalRecord = localHistory.find(r => r.data_servei === selectedDate);
+  const currentShiftId = agent.torn || shiftData?.id || matchedHistoricalRecord?.torn;
+  const isReserve = isReserveShift(currentShiftId || shiftData);
+  const effectivePassages = (overallPunctuality?.totalPassages && overallPunctuality.totalPassages > 0)
+    ? overallPunctuality.totalPassages
+    : (matchedHistoricalRecord?.passos_totals ?? 0);
+  const effectiveRate = overallPunctuality?.rate !== null && overallPunctuality?.rate !== undefined
+    ? overallPunctuality.rate
+    : (matchedHistoricalRecord?.puntualitat_percentatge !== null && matchedHistoricalRecord?.puntualitat_percentatge !== undefined
+        ? Number(matchedHistoricalRecord.puntualitat_percentatge)
+        : null);
 
   // Quick dates helpers
   const handleSetToday = () => {
@@ -393,13 +404,23 @@ export const AgentReportModal: React.FC<AgentReportModalProps> = ({
                 </div>
 
                 <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
-                  {isSelectedDateToday ? (
+                  {isReserve ? (
+                    <>
+                      <div>
+                        Torn assignat: <strong className="text-[#4D5358] dark:text-gray-200">{currentShiftId || 'S/A'}</strong> · Horari: <strong className="text-[#4D5358] dark:text-gray-200">{agent.hora_inici || shiftData?.inici_torn || matchedHistoricalRecord?.hora_inici || '--:--'} — {agent.hora_fi || shiftData?.final_torn || matchedHistoricalRecord?.hora_fi || '--:--'}</strong>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 font-semibold">
+                        <Shield size={14} className="shrink-0" />
+                        <span>Torn de Reserva Operativa a Destacament ({shiftData?.dependencia || agent.dependencia || 'SR'}) · Disponibilitat activa</span>
+                      </div>
+                    </>
+                  ) : isSelectedDateToday ? (
                     <>
                       <div>
                         Torn assignat: <strong className="text-[#4D5358] dark:text-gray-200">{agent.torn || 'S/A'}</strong> · Horari: <strong className="text-[#4D5358] dark:text-gray-200">{agent.hora_inici || shiftData?.inici_torn || '--:--'} — {agent.hora_fi || shiftData?.final_torn || '--:--'}</strong>
                       </div>
                       <div>
-                        Puntualitat d'avui: <strong className="text-fgc-green">{overallPunctuality?.rate !== null && overallPunctuality?.rate !== undefined ? `${overallPunctuality.rate}%` : 'En auditoria'}</strong> ({overallPunctuality?.totalPassages || 0} passos registrats)
+                        Puntualitat d'avui: <strong className="text-fgc-green">{effectiveRate !== null && effectiveRate !== undefined ? `${effectiveRate}%` : 'En auditoria'}</strong> ({effectivePassages} passos registrats)
                       </div>
                     </>
                   ) : matchedHistoricalRecord ? (
@@ -408,7 +429,7 @@ export const AgentReportModal: React.FC<AgentReportModalProps> = ({
                         Torn registrat: <strong className="text-[#4D5358] dark:text-gray-200">{matchedHistoricalRecord.torn}</strong> · Horari: <strong className="text-[#4D5358] dark:text-gray-200">{matchedHistoricalRecord.hora_inici} — {matchedHistoricalRecord.hora_fi}</strong>
                       </div>
                       <div>
-                        Puntualitat aconseguida: <strong className={matchedHistoricalRecord.puntualitat_percentatge !== null && matchedHistoricalRecord.puntualitat_percentatge >= 95 ? 'text-emerald-500' : 'text-amber-500'}>{matchedHistoricalRecord.puntualitat_percentatge !== null ? `${matchedHistoricalRecord.puntualitat_percentatge}%` : 'N/D'}</strong> ({matchedHistoricalRecord.passos_totals} passos)
+                        Puntualitat aconseguida: <strong className={effectiveRate !== null && effectiveRate >= 95 ? 'text-emerald-500' : 'text-amber-500'}>{effectiveRate !== null ? `${effectiveRate}%` : 'N/D'}</strong> ({effectivePassages} passos)
                       </div>
                     </>
                   ) : (

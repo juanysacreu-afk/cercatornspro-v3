@@ -887,16 +887,41 @@ const AgentsViewComponent: React.FC<AgentsViewProps> = ({ isPrivacyMode, onNavig
       )}
 
       {/* MODAL INFORME OFICIAL DE L'AGENT (DIA EN CONCRET O GENÈRIC) */}
-      {reportAgent && (
-        <AgentReportModal
-          isOpen={Boolean(reportAgent)}
-          onClose={() => setReportAgent(null)}
-          agent={reportAgent}
-          contact={contacts[normalizeId(reportAgent.empleat_id)] || { phones: [], email: null }}
-          isPrivacyMode={isPrivacyMode}
-          initialDate={selectedPerfDate}
-        />
-      )}
+      {reportAgent && (() => {
+        const normId = normalizeId(reportAgent.empleat_id);
+        const perf = dailyPerfMap[normId] || dailyPerfMap[String(reportAgent.empleat_id)];
+        const punctualityPayload = perf ? {
+          rate: perf.puntualitat_percentatge !== null ? Number(perf.puntualitat_percentatge) : null,
+          totalPassages: perf.passos_totals || 0,
+          onTimePassages: perf.passos_en_hora || 0,
+          delayedCount: perf.passos_retard || 0,
+          completedCircs: perf.circulacions_completades || 0,
+          totalCircs: perf.circulacions_totals || 0,
+          maxDelaySec: perf.retard_maxim_segons || 0,
+          avgDelaySec: perf.retard_mitja_segons || 0
+        } : undefined;
+
+        const shiftPayload = {
+          id: perf?.torn || reportAgent.torn || 'S/A',
+          inici_torn: perf?.hora_inici || reportAgent.hora_inici || '--:--',
+          final_torn: perf?.hora_fi || reportAgent.hora_fi || '--:--',
+          dependencia: perf?.dependencia || reportAgent.dependencia || ''
+        };
+
+        return (
+          <AgentReportModal
+            isOpen={Boolean(reportAgent)}
+            onClose={() => setReportAgent(null)}
+            agent={reportAgent}
+            shiftData={shiftPayload}
+            overallPunctuality={punctualityPayload}
+            circulationsList={perf?.detall_circulacions || []}
+            contact={contacts[normId] || { phones: [], email: null }}
+            isPrivacyMode={isPrivacyMode}
+            initialDate={selectedPerfDate}
+          />
+        );
+      })()}
 
       {/* MODAL EXPORTACIÓ TANCAMENT EN LOT (.ZIP) */}
       {isBulkZipModalOpen && (

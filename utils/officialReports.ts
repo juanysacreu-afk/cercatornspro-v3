@@ -8,11 +8,12 @@
  * - Composició alineada a l'esquerra, caixes de validació i signatures oficials CSO.
  */
 
-import { formatFgcTime, resolveStationId, getCandidateShiftIds, normalizeTimeDiffSec } from './stations';
+import { formatFgcTime, resolveStationId, getCandidateShiftIds, normalizeTimeDiffSec, isReserveShift } from './stations';
 import { STATION_GEO_MAP } from './stationGeoData';
 import { supabase } from '../supabaseClient';
 import { fetchFullTurns } from './queries';
 import { getFgcServiceDate } from './gipRecorder';
+import { getServiceForDate } from './serviceCalendar';
 import { getAgentPerformanceHistory } from './agentPerformanceService';
 import type { AgentPerformanceHistory } from '../types';
 
@@ -579,10 +580,15 @@ export function buildAgentReportHtml(data: AgentReportData): string {
         </tr>
       </thead>
       <tbody>
-        ${circulationsList.length === 0 ? `
+        ${circulationsList.length === 0 || isReserveShift(shiftData) || isReserveShift(agent.torn) ? `
           <tr>
-            <td colspan="9" style="text-align:center; padding:18px; color:#9CA3AF;">
-              No hi ha circulacions detallades assignades a aquest torn.
+            <td colspan="9" style="text-align:center; padding:22px; color:#4D5358; background:#f9fafb;">
+              <div style="font-weight:800; font-size:10.5pt; color:#059669; margin-bottom:6px;">
+                🛡️ TORN DE RESERVA OPERATIVA A DESTACAMENT (${shiftData?.dependencia || agent.dependencia || 'SR'})
+              </div>
+              <div style="font-size:8.5pt; color:#6B7280; max-width:550px; margin:0 auto; line-height:1.4;">
+                Aquest torn no disposa de circulacions comercials fixes assignades al quadre horari regular. L'agent maquinista roman de guàrdia presencial al destacament a disposició del Centre de Supervisió Operativa (CSO) per a la gestió d'incidències, relleus imprevistos o maniobres de material.
+              </div>
             </td>
           </tr>
         ` : circulationsList.map(c => {
@@ -1740,6 +1746,9 @@ export async function generateAgentReportDirectly(
 
   if (targetTorn && (!isSpecialNonShift || obsTorn)) {
     const cleanTorn = targetTorn.toUpperCase();
+    const targetDateObj = new Date(sDate + 'T12:00:00');
+    const targetService = getServiceForDate(targetDateObj);
+
     const numMatch = cleanTorn.match(/\d+/);
     const num = numMatch ? numMatch[0] : '';
     const numPadded = num.padStart(3, '0');
@@ -1753,6 +1762,7 @@ export async function generateAgentReportDirectly(
       ...prefixes.map(p => `Q${p}${num}`),
       `Q${numPadded}`,
       num,
+      ...getCandidateShiftIds(cleanTorn, targetService),
       ...getCandidateShiftIds(cleanTorn, 'Tots')
     ])).filter(Boolean);
 
@@ -1762,7 +1772,10 @@ export async function generateAgentReportDirectly(
         .select('*')
         .in('id', candidatePool);
 
-      const bestDbShift = foundShifts?.find(s => s.circulations?.length > 0) || foundShifts?.[0];
+      const bestDbShift = foundShifts?.find(s => s.servei === targetService && s.circulations?.length > 0)
+        || foundShifts?.find(s => s.circulations?.length > 0)
+        || foundShifts?.find(s => s.servei === targetService)
+        || foundShifts?.[0];
 
       if (bestDbShift) {
         const enrichedList = await fetchFullTurns([bestDbShift.id], bestDbShift.servei);
@@ -1780,19 +1793,22 @@ export async function generateAgentReportDirectly(
     }
 
     // Query GIP passages
-    const circCodes: string[] = Array.from(new Set(
-      fullCircs
-        .map((c: any) => typeof c === 'string' ? c : (c.codi || c.realCodi || c.id))
-        .filter((c: string) => c && c !== 'Viatger')
-    ));
+    const circCodes = new Set<string>();
+    fullCircs.forEach((c: any) => {
+      const codi = typeof c === 'string' ? c : c.codi;
+      const real = typeof c === 'object' ? c.realCodi : null;
+      if (codi && codi !== '-' && codi !== 'Viatger') circCodes.add(codi);
+      if (real && real !== '-') circCodes.add(real);
+    });
+    const circCodeList = Array.from(circCodes);
 
-    if (circCodes.length > 0) {
+    if (circCodeList.length > 0) {
       try {
         const { data: passages } = await supabase
           .from('gip_registre_pas')
           .select('*')
           .eq('data_servei', sDate)
-          .in('circulacio_id', circCodes);
+          .in('circulacio_id', circCodeList);
         if (passages) gipPassages = passages;
       } catch (e) {
         console.warn('[officialReports] Error fetching GIP passages:', e);
@@ -1810,47 +1826,71 @@ export async function generateAgentReportDirectly(
     };
   }
 
+  // Fallback if GIP returned 0 passages: check if agent_performance_history has recorded performance for this date
+  let historyRecord: AgentPerformanceHistory | null = null;
+  if (gipPassages.length === 0 && agent?.empleat_id) {
+    try {
+      const { data: hist } = await supabase
+        .from('agent_performance_history')
+        .select('*')
+        .eq('data_servei', sDate)
+        .eq('empleat_id', String(agent.empleat_id))
+        .single();
+      if (hist && (hist.passos_totals || 0) > 0) {
+        historyRecord = hist as AgentPerformanceHistory;
+      }
+    } catch {}
+  }
+
   // Calculate circulations list and punctuality
-  const circulationsList = fullCircs.map((c: any) => {
-    const codi = typeof c === 'string' ? c : (c.codi || c.realCodi || c.id);
-    const passagesForCirc = gipPassages.filter(p => p.circulacio_id === codi);
-    const onTimePassages = passagesForCirc.filter(p => p.estat === 'en_hora' || p.estat === 'avanc').length;
-    const delayedStops = passagesForCirc.filter(p => p.estat === 'retard');
-    const totalStops = passagesForCirc.length;
-    const rate = totalStops > 0 ? Number(((onTimePassages / totalStops) * 100).toFixed(1)) : null;
-    const maxDelaySec = delayedStops.length > 0
-      ? Math.max(...delayedStops.map(p => normalizeTimeDiffSec(p.diferencia_segons)))
-      : 0;
+  const circulationsList = (historyRecord?.detall_circulacions && historyRecord.detall_circulacions.length > 0 && gipPassages.length === 0)
+    ? historyRecord.detall_circulacions
+    : fullCircs.map((c: any) => {
+      const codi = typeof c === 'string' ? c : (c.codi || c.realCodi || c.id);
+      const realCodi = typeof c === 'object' ? c.realCodi : null;
+      const passagesForCirc = gipPassages.filter(p => 
+        p.circulacio_id === codi || (realCodi && p.circulacio_id === realCodi)
+      );
+      const onTimePassages = passagesForCirc.filter(p => p.estat === 'en_hora' || p.estat === 'avanc').length;
+      const delayedStops = passagesForCirc.filter(p => p.estat === 'retard');
+      const totalStops = passagesForCirc.length;
+      const rate = totalStops > 0 ? Number(((onTimePassages / totalStops) * 100).toFixed(1)) : null;
+      const maxDelaySec = delayedStops.length > 0
+        ? Math.max(...delayedStops.map(p => normalizeTimeDiffSec(p.diferencia_segons)))
+        : 0;
 
-    return {
-      codi,
-      linia: c.linia || (codi?.startsWith('F') ? 'S2' : (codi?.startsWith('D') ? 'S1' : 'FGC')),
-      inici: c.inici,
-      final: c.final,
-      sortida: c.sortida,
-      arribada: c.arribada,
-      cicle: c.cicle,
-      train: c.train || c.ut,
-      ut: c.ut || c.train,
-      status: totalStops > 0 ? 'COMPLETED' : 'PENDING',
-      rate,
-      totalStops,
-      onTimeStops: onTimePassages,
-      delayedStopsCount: delayedStops.length,
-      maxDelaySec
-    };
-  });
+      return {
+        codi,
+        linia: c.linia || (codi?.startsWith('F') ? 'S2' : (codi?.startsWith('D') ? 'S1' : 'FGC')),
+        inici: c.inici,
+        final: c.final,
+        sortida: c.sortida,
+        arribada: c.arribada,
+        cicle: c.cicle,
+        train: c.train || c.ut,
+        ut: c.ut || c.train,
+        status: totalStops > 0 ? 'COMPLETED' : (c.status || 'PENDING'),
+        rate,
+        totalStops,
+        onTimeStops: onTimePassages,
+        delayedStopsCount: delayedStops.length,
+        maxDelaySec
+      };
+    });
 
-  const totalPassages = gipPassages.length;
-  const onTimePassages = gipPassages.filter(p => p.estat === 'en_hora' || p.estat === 'avanc').length;
-  const delayedPassages = gipPassages.filter(p => p.estat === 'retard');
-  const overallRate = totalPassages > 0 ? Number(((onTimePassages / totalPassages) * 100).toFixed(1)) : null;
+  const totalPassages = gipPassages.length > 0 ? gipPassages.length : (historyRecord?.passos_totals || 0);
+  const onTimePassages = gipPassages.length > 0 ? gipPassages.filter(p => p.estat === 'en_hora' || p.estat === 'avanc').length : (historyRecord?.passos_en_hora || 0);
+  const delayedPassages = gipPassages.length > 0 ? gipPassages.filter(p => p.estat === 'retard') : [];
+  const delayedCount = gipPassages.length > 0 ? delayedPassages.length : (historyRecord?.passos_retard || 0);
+  const overallRate = totalPassages > 0 
+    ? Number(((onTimePassages / totalPassages) * 100).toFixed(1)) 
+    : (historyRecord?.puntualitat_percentatge !== null && historyRecord?.puntualitat_percentatge !== undefined ? Number(historyRecord.puntualitat_percentatge) : null);
   const maxDelay = delayedPassages.length > 0
     ? Math.max(...delayedPassages.map(p => normalizeTimeDiffSec(p.diferencia_segons)))
-    : 0;
+    : (historyRecord?.retard_maxim_segons || 0);
   const avgDelay = delayedPassages.length > 0
     ? Math.round(delayedPassages.reduce((acc, p) => acc + normalizeTimeDiffSec(p.diferencia_segons), 0) / delayedPassages.length)
-    : 0;
+    : (historyRecord?.retard_mitja_segons || 0);
 
   const reportPayload: AgentReportData = {
     agent,

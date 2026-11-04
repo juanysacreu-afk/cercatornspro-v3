@@ -84,6 +84,58 @@ export const resolveStationId = (name: string, _linia: string = ''): string => {
     return n.length > 2 ? n.substring(0, 2) : n;
 };
 
+export const STATION_CODE_TO_NAME: Record<string, string> = {
+    'PC': 'Pl. Catalunya',
+    'PR': 'Provença',
+    'GR': 'Gràcia',
+    'SG': 'Sant Gervasi',
+    'MN': 'Muntaner',
+    'BN': 'La Bonanova',
+    'TT': 'Les Tres Torres',
+    'SR': 'Sarrià',
+    'RE': 'Reina Elisenda',
+    'PF': 'Peu del Funicular',
+    'VL': 'Vallvidrera Superior',
+    'LP': 'Les Planes',
+    'LF': 'La Floresta',
+    'VD': 'Valldoreix',
+    'SC': 'Sant Cugat',
+    'MS': 'Mira-sol',
+    'HG': 'Hospital General',
+    'RB': 'Rubí Centre',
+    'RC': 'Rubí Can Vallhonrat',
+    'FN': 'Les Fonts',
+    'TR': 'Terrassa Rambla',
+    'VP': 'Vallparadís Universitat',
+    'EN': 'Terrassa Estació del Nord',
+    'NA': 'Terrassa Nacions Unides',
+    'VO': 'Volpelleres',
+    'SJ': 'Sant Joan',
+    'BT': 'Bellaterra',
+    'UN': 'Universitat Autònoma',
+    'SQ': 'Sant Quirze',
+    'CF': 'Can Feu - Gràcia',
+    'PJ': 'Sabadell Plaça Major',
+    'CT': 'La Creu Alta',
+    'NO': 'Sabadell Nord',
+    'PN': 'Sabadell Parc del Nord',
+    'PM': 'Plaça Molina',
+    'PD': 'Pàdua',
+    'EP': 'El Putxet',
+    'TB': 'Av. Tibidabo',
+    'CR': 'Can Ros',
+};
+
+/** Resolves station code or raw string to friendly display station name */
+export const resolveStationName = (codeOrName: string, linia: string = ''): string => {
+    if (!codeOrName) return '';
+    const trimmed = codeOrName.trim().toUpperCase();
+    if (STATION_CODE_TO_NAME[trimmed]) return STATION_CODE_TO_NAME[trimmed];
+    const code = resolveStationId(trimmed, linia);
+    if (STATION_CODE_TO_NAME[code]) return STATION_CODE_TO_NAME[code];
+    return codeOrName;
+};
+
 // ──────────────────────────────────────────────
 // Line Color Constants
 // ──────────────────────────────────────────────
@@ -260,6 +312,22 @@ export const getShortTornId = (id: string): string => {
     const trimmed = id.trim();
     if (trimmed.startsWith('Q') && !trimmed.startsWith('QR') && trimmed.length === 5) return trimmed[0] + trimmed.slice(2);
     return trimmed;
+};
+
+/** Detects whether a shift is an operational standby / reserve shift without regular train timetables */
+export const isReserveShift = (shift: any): boolean => {
+    if (!shift) return false;
+    const id = (typeof shift === 'string' ? shift : shift.id || '').trim().toUpperCase();
+    if (id.startsWith('QR') || id.startsWith('R') || id.includes('RES')) return true;
+    const circs = shift.fullCirculations || shift.circulations || [];
+    if (!Array.isArray(circs) || circs.length === 0) {
+        return Boolean(shift.dependencia);
+    }
+    return circs.every((c: any) => {
+        if (!c) return true;
+        const codi = typeof c === 'string' ? c.trim() : (c.codi || '').trim();
+        return !codi || codi === '-' || codi === 'RESERVA';
+    });
 };
 
 /** Generates candidate shift IDs for database lookup given user search input and active service */

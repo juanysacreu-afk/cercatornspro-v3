@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { SearchType } from '../types.ts';
-import { Search, User, Train, MapPin, Map as MapIcon, Hash, ArrowRight, Loader2, Info, Phone, Clock, FileText, ChevronDown, LayoutGrid, Timer, X, BookOpen, AlertTriangle, Users, Camera, Brush, Save, Check, Share2, Zap, ArrowUp, ArrowDown, RefreshCcw, Milestone, TrendingUp, TrainFront, Activity } from 'lucide-react';
+import { Search, User, Train, MapPin, Map as MapIcon, Hash, ArrowRight, Loader2, Info, Phone, Clock, FileText, ChevronDown, LayoutGrid, Timer, X, BookOpen, AlertTriangle, Users, Camera, Brush, Save, Check, Share2, Zap, ArrowUp, ArrowDown, RefreshCcw, Milestone, TrendingUp, TrainFront, Activity, Shield } from 'lucide-react';
 
 import { decodeGeotrenUt, decodeGeotrenCirculation } from '../utils/geotrenDecoders';
 
@@ -12,7 +12,7 @@ import { logLopdAccess } from '../utils/auditLogger';
 import { getFgcMinutes, checkIfActive, calculateGap } from '../utils/time';
 import { getFgcServiceDate } from '../utils/gipRecorder';
 import { fetchAllFromSupabase } from '../utils/supabase';
-import { getStatusColor, getLiniaColor, getShortTornId, getCandidateShiftIds, getTrainPhone, ALL_STATIONS, STATION_CODE_MAP, getCirculationParity, ALL_FLEET_UNITS } from '../utils/fgc';
+import { getStatusColor, getLiniaColor, getShortTornId, getCandidateShiftIds, getTrainPhone, ALL_STATIONS, STATION_CODE_MAP, getCirculationParity, ALL_FLEET_UNITS, isReserveShift } from '../utils/fgc';
 import { resolveStationId } from '../utils/stations';
 import { fetchFullTurns, fetchPassengerInfo } from '../utils/queries';
 import { syncOfflineData } from '../utils/offlineSync';
@@ -2704,27 +2704,97 @@ const CercarViewComponent: React.FC<{
                 </div>
                 <GlassPanel className="p-4 sm:p-10 !rounded-b-[32px] sm:!rounded-b-[48px] !rounded-t-none overflow-hidden relative">
                   <ShiftTimeline turn={group} nowMin={nowMin} trainStatuses={trainStatuses} getLiniaColor={getLiniaColor} openUnitMenu={openUnitMenu} getStatusColor={getStatusColor} />
-                  <div className="border border-gray-100 dark:border-white/5 rounded-[32px] overflow-hidden bg-white dark:bg-black/20 shadow-sm mb-4">
-                    <CirculationHeader />
-                    <div className="flex flex-col divide-y divide-gray-100 dark:divide-white/5">
-                      {group.fullCirculations?.[0] && (<TimeGapRow from={group.inici_torn} to={group.fullCirculations[0].sortida} id={`gap-pre-${idx}`} nowMin={nowMin} />)}
-                      {group.fullCirculations?.map((circ: any, cIdx: number) => {
-                        const shiftItemKey = `${idx}-${cIdx}`;
-                        const isActive = checkIfActive(circ.sortida as string, circ.arribada as string, nowMin);
-                        return (
-                          <React.Fragment key={cIdx}>
-                            <div id={`circ-row-${shiftItemKey}`} className={`flex flex-col relative scroll-mt-24 ${isActive ? 'ring-2 ring-inset ring-red-600 z-10' : ''}`}>
-                              <CirculationRow circ={circ} itemKey={shiftItemKey} nowMin={nowMin} trainStatuses={trainStatuses} getTrainPhone={getTrainPhone} getLiniaColor={getLiniaColor} openUnitMenu={openUnitMenu} toggleItinerari={toggleItinerari} isPrivacyMode={isPrivacyMode} passengerInfo={passengerInfoMap[circ.codi] || []} onCycleClick={handleCycleClick} />
-                              {expandedItinerari === shiftItemKey && (
-                                <ItineraryTimeline circ={circ} nowMin={nowMin} />
-                              )}
+                  {isReserveShift(group) ? (
+                    <div className="border border-emerald-500/30 rounded-[32px] overflow-hidden bg-emerald-500/5 dark:bg-emerald-950/20 p-6 sm:p-8 space-y-6 shadow-sm mb-4">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-emerald-500/20 pb-5">
+                        <div className="flex items-center gap-3.5">
+                          <div className="p-3 bg-emerald-500 text-white rounded-2xl shadow-md shadow-emerald-500/20">
+                            <Shield size={24} />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 font-mono">
+                                FGC Operacions · Torn de Reserva
+                              </span>
+                              <span className="px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+                                {group.dependencia || 'SR'}
+                              </span>
                             </div>
-                            <TimeGapRow from={circ.arribada} to={group.fullCirculations?.[cIdx + 1]?.sortida || group.final_torn} id={`gap-row-${idx}-${cIdx}`} nowMin={nowMin} />
-                          </React.Fragment>
-                        );
-                      })}
+                            <h3 className="text-lg sm:text-xl font-black text-[#4D5358] dark:text-white uppercase tracking-tight">
+                              Destacament de {resolveStationName(group.dependencia || 'SR')}
+                            </h3>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <span className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                            Guàrdia Presencial Activa
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="p-4 rounded-2xl bg-white dark:bg-black/30 border border-gray-100 dark:border-white/5 space-y-1">
+                          <span className="text-[10px] font-black uppercase text-gray-400 dark:text-gray-500">Horari de Cobertura</span>
+                          <div className="text-base sm:text-lg font-black text-[#4D5358] dark:text-white flex items-center gap-2">
+                            <Clock size={16} className="text-fgc-green" />
+                            <span>{group.inici_torn} — {group.final_torn}</span>
+                          </div>
+                          <span className="text-[10px] font-medium text-gray-400">8 hores presencials a la base</span>
+                        </div>
+
+                        <div className="p-4 rounded-2xl bg-white dark:bg-black/30 border border-gray-100 dark:border-white/5 space-y-1">
+                          <span className="text-[10px] font-black uppercase text-gray-400 dark:text-gray-500">Ubicació Destacament</span>
+                          <div className="text-base sm:text-lg font-black text-[#4D5358] dark:text-white flex items-center gap-2">
+                            <MapPin size={16} className="text-emerald-500" />
+                            <span>{resolveStationName(group.dependencia || 'SR')}</span>
+                          </div>
+                          <span className="text-[10px] font-medium text-gray-400">Codi Estació: {group.dependencia || 'SR'}</span>
+                        </div>
+
+                        <div className="p-4 rounded-2xl bg-white dark:bg-black/30 border border-gray-100 dark:border-white/5 space-y-1">
+                          <span className="text-[10px] font-black uppercase text-gray-400 dark:text-gray-500">Funció Operativa</span>
+                          <div className="text-base sm:text-lg font-black text-[#4D5358] dark:text-white flex items-center gap-2">
+                            <Activity size={16} className="text-blue-500" />
+                            <span>Cobertura & CSO</span>
+                          </div>
+                          <span className="text-[10px] font-medium text-gray-400">Substitucions, incidències i maniobres</span>
+                        </div>
+                      </div>
+
+                      <div className="p-4 rounded-2xl bg-white/80 dark:bg-black/20 border border-emerald-500/20 text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+                        <div className="flex items-start gap-2.5">
+                          <Info size={16} className="text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                          <p>
+                            Aquest torn correspon a una <strong>Reserva Operativa</strong> assignada al destacament de <strong>{resolveStationName(group.dependencia || 'SR')}</strong>. No disposa de trens regulars fixos programats al quadre horari comercial. L'agent maquinista roman de guàrdia presencial a disposició del <strong>Centre de Supervisió Operativa (CSO)</strong> per cobrir de forma immediata qualsevol contingència de trànsit, tren especial, suport a línia o relleu imprevist.
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="border border-gray-100 dark:border-white/5 rounded-[32px] overflow-hidden bg-white dark:bg-black/20 shadow-sm mb-4">
+                      <CirculationHeader />
+                      <div className="flex flex-col divide-y divide-gray-100 dark:divide-white/5">
+                        {group.fullCirculations?.[0] && (<TimeGapRow from={group.inici_torn} to={group.fullCirculations[0].sortida} id={`gap-pre-${idx}`} nowMin={nowMin} />)}
+                        {group.fullCirculations?.map((circ: any, cIdx: number) => {
+                          const shiftItemKey = `${idx}-${cIdx}`;
+                          const isActive = checkIfActive(circ.sortida as string, circ.arribada as string, nowMin);
+                          return (
+                            <React.Fragment key={cIdx}>
+                              <div id={`circ-row-${shiftItemKey}`} className={`flex flex-col relative scroll-mt-24 ${isActive ? 'ring-2 ring-inset ring-red-600 z-10' : ''}`}>
+                                <CirculationRow circ={circ} itemKey={shiftItemKey} nowMin={nowMin} trainStatuses={trainStatuses} getTrainPhone={getTrainPhone} getLiniaColor={getLiniaColor} openUnitMenu={openUnitMenu} toggleItinerari={toggleItinerari} isPrivacyMode={isPrivacyMode} passengerInfo={passengerInfoMap[circ.codi] || []} onCycleClick={handleCycleClick} />
+                                {expandedItinerari === shiftItemKey && (
+                                  <ItineraryTimeline circ={circ} nowMin={nowMin} />
+                                )}
+                              </div>
+                              <TimeGapRow from={circ.arribada} to={group.fullCirculations?.[cIdx + 1]?.sortida || group.final_torn} id={`gap-row-${idx}-${cIdx}`} nowMin={nowMin} />
+                            </React.Fragment>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </GlassPanel>
               </div>
             );
