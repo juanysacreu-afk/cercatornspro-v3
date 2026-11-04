@@ -522,13 +522,13 @@ export const RadarReservesPanel: React.FC<RadarReservesPanelProps> = ({
 
                       {/* Metric 2: Descans Computable */}
                       {(() => {
-                        const isCompliant = item.audit.restBreakMin >= 30;
+                        const isCompliant = item.audit.restBreakMin >= 15;
                         return (
                           <div className="bg-white dark:bg-gray-800/90 p-2.5 rounded-xl border border-gray-100 dark:border-white/5 flex flex-col justify-between">
                             <div>
                               <div className="flex items-center justify-between text-[10px]">
                                 <span className="font-bold text-gray-400 uppercase tracking-wider">Descans Computable</span>
-                                <span className="text-[10px] text-gray-400">Mín 30 min</span>
+                                <span className="text-[10px] text-gray-400">Mín 15 min</span>
                               </div>
                               <div className="flex items-baseline justify-between mt-1">
                                 <span className="font-mono font-black text-sm text-gray-900 dark:text-white">
@@ -545,11 +545,11 @@ export const RadarReservesPanel: React.FC<RadarReservesPanelProps> = ({
                                   className={`h-full transition-all duration-500 ${
                                     isCompliant ? 'bg-emerald-500' : 'bg-amber-500'
                                   }`} 
-                                  style={{ width: `${Math.min(100, Math.max(15, (item.audit.restBreakMin / 30) * 100))}%` }}
+                                  style={{ width: `${Math.min(100, Math.max(15, (item.audit.restBreakMin / 15) * 100))}%` }}
                                 />
                               </div>
                               <p className="text-[9px] text-gray-400 mt-1 truncate">
-                                {isCompliant ? `Pausa ininterrompuda ≥ 30m assolida` : 'Pendent de descans reglamentari'}
+                                {isCompliant ? `Pausa de no conducció ≥ 15m assolida` : 'Pendent de descans reglamentari'}
                               </p>
                             </div>
                           </div>
@@ -646,7 +646,7 @@ export const RadarReservesPanel: React.FC<RadarReservesPanelProps> = ({
                     <div className="flex items-center gap-1.5 pt-1 text-[10px] text-gray-500 dark:text-gray-400 border-t border-gray-200/50 dark:border-white/5">
                       <Info size={11} className="shrink-0 text-gray-400" />
                       <span>
-                        Criteris FGC BV: Màx. 5h 30m de conducció continuada · Descans computable mínim de 30 min ininterromputs (les pauses tècniques de gir de via no reinicien el còmput) · Topall de jornada 8h 45m.
+                        Criteris FGC BV: Màx. 5h 30m de conducció continuada · Qualsevol temps de no conducció ≥ 15 min es considera descans (reinicia el còmput) · Topall de jornada 8h 45m.
                       </span>
                     </div>
                   </div>

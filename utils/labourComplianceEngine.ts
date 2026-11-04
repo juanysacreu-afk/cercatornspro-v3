@@ -26,8 +26,8 @@ export interface LabourComplianceResult {
 /**
  * Motor d'Auditoria Laboral en Temps Real (FGC Legal & Rest Compliance Engine)
  * Reglamentació oficial de treball ferroviari FGC BV:
- * 1. Conducció continuada màxima: 5h 30m (330 minuts) sense descans computable (>= 30m).
- * 2. Descans mínim computable: Almenys 30 minuts de descans ininterromput.
+ * 1. Conducció continuada màxima: 5h 30m (330 minuts) sense descans computable (>= 15 min).
+ * 2. Descans mínim computable: Qualsevol temps de no conducció de 15 minuts o més es considera descans.
  * 3. Límit màxim de perllongament per necessitat del servei: +45 minuts (topall absolut 8h 45m = 525 minuts).
  * 4. Descans interjornada mínim: 12 hores consecutives entre torns.
  */
@@ -92,14 +92,15 @@ export function auditLabourCompliance(
           const nextDep = getFgcMinutes(nextC.sortida);
           if (nextDep !== null) {
             const gap = nextDep >= cArr ? (nextDep - cArr) : (nextDep + 1440 - cArr);
-            if (gap >= 30) {
+            // Qualsevol temps de no conducció de 15 minuts o més es considera descans computable
+            if (gap >= 15) {
               if (gap > maxRestFound) maxRestFound = gap;
               if (currentContinuousDriving > maxContinuousDriving) {
                 maxContinuousDriving = currentContinuousDriving;
               }
-              currentContinuousDriving = 0; // Reset descans computable assolit (>= 30 min)
+              currentContinuousDriving = 0; // Reset descans computable assolit (>= 15 min)
             }
-            // NOTA: Els intervals tècnics habituals de gir a capçalera inferiors a 30 minuts
+            // NOTA: Els intervals tècnics habituals de gir a capçalera inferiors a 15 minuts
             // simplement no computen com a descans reglamentari (la conducció continuada no es reinicia),
             // però NO constitueixen cap advertència ni anomalia laboral.
           }
@@ -118,16 +119,16 @@ export function auditLabourCompliance(
   if (maxContinuousExceeded) {
     violations.push(`Temps de conducció continuada de ${Math.floor(totalContinuousDriving / 60)}h ${totalContinuousDriving % 60}m supera el màxim permès de 5h 30m.`);
   } else if (totalContinuousDriving >= 270) { // 4h 30m
-    warnings.push(`Conducció continuada elevada: acumula ${Math.floor(totalContinuousDriving / 60)}h ${totalContinuousDriving % 60}m sense descans mínim de 30 minuts (límit màxim 5h 30m).`);
+    warnings.push(`Conducció continuada elevada: acumula ${Math.floor(totalContinuousDriving / 60)}h ${totalContinuousDriving % 60}m sense descans mínim de 15 minuts (límit màxim 5h 30m).`);
   }
 
   // 3. Descans computable
   let restBreakWarning = false;
   const declaredRest = shift?.restSeg ? (shift.restSeg.end - shift.restSeg.start) : maxRestFound;
-  // Només si el torn és llarg (>= 5h / 300 min) i no té cap descans >= 30 minuts
-  if (baseShiftDurationMin >= 300 && declaredRest < 30) {
+  // Només si el torn és llarg (>= 5h / 300 min) i no té cap descans >= 15 minuts
+  if (baseShiftDurationMin >= 300 && declaredRest < 15) {
     restBreakWarning = true;
-    warnings.push(`Torn de més de 5h sense cap descans continuat programat d'un mínim de 30 minuts.`);
+    warnings.push(`Torn de més de 5h sense cap descans continuat programat d'un mínim de 15 minuts.`);
   }
 
   // 4. Descans interjornada (mínim 12 hores consecutives)
