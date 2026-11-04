@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { DailyAssignment, AgentPerformanceHistory } from '../types.ts';
 import { 
   Search, Phone, User, Loader2, Clock, CheckCircle2, Info, 
   Filter, UserCircle, ChevronDown, Mail, Users, RefreshCw, 
-  X, Activity, ArrowRight, Database, RotateCcw, Sun, Moon, Calendar 
+  X, Activity, ArrowRight, Database, RotateCcw, Sun, Moon, Calendar,
+  FileText, Printer, Download
 } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
 import { decryptAgentRows } from '../utils/crypto.ts';
@@ -14,6 +15,7 @@ import { useToast } from '../components/ToastProvider';
 import { getDailyPerformanceSummary, syncAllAgentsPerformance } from '../utils/agentPerformanceService';
 import { getFgcServiceDate } from '../utils/gipRecorder';
 import { getFgcMinutes } from '../utils/stations';
+import { generateAgentReportDirectly } from '../utils/officialReports';
 import ErrorBoundary from '../components/common/ErrorBoundary';
 import AgentDetailModal from '../components/AgentDetailModal';
 
@@ -83,7 +85,8 @@ const MemoizedMaquinistaCard = React.memo(({
   isDES, 
   isPrivacyMode,
   onNavigateToSearch,
-  onSelect
+  onSelect,
+  onReportClick
 }: {
   maquinista: any;
   contact: { phones: string[]; email: string | null };
@@ -95,6 +98,7 @@ const MemoizedMaquinistaCard = React.memo(({
   isPrivacyMode: boolean;
   onNavigateToSearch?: (type: string, query: string) => void;
   onSelect: () => void;
+  onReportClick?: (maquinista: any) => void;
 }) => {
   const { phones = [], email } = contact;
   return (
@@ -237,13 +241,29 @@ const MemoizedMaquinistaCard = React.memo(({
         )}
       </div>
 
-      {/* Botó indicador de Fitxa i Puntualitat */}
+      {/* Botó indicador de Fitxa i Puntualitat + Accés directe a Informe */}
       <div className="pt-2 border-t border-gray-100/60 dark:border-white/5 flex items-center justify-between text-[11px] font-bold text-gray-400 group-hover:text-fgc-green transition-colors">
         <span className="flex items-center gap-1.5">
           <Activity size={12} className="text-fgc-green" />
           Fitxa i puntualitat
         </span>
-        <ArrowRight size={13} className="opacity-40 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+        <div className="flex items-center gap-2">
+          {onReportClick && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onReportClick(maquinista);
+              }}
+              title="Generar informe oficial FGC per a aquest agent"
+              className="px-2 py-0.5 rounded-lg bg-gray-100 dark:bg-white/10 hover:bg-fgc-green/20 text-[#4D5358] dark:text-gray-300 hover:text-fgc-green text-[10px] font-bold flex items-center gap-1 transition-all"
+            >
+              <FileText size={11} className="text-fgc-green" />
+              <span>Informe</span>
+            </button>
+          )}
+          <ArrowRight size={13} className="opacity-40 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+        </div>
       </div>
     </div>
   );
@@ -276,6 +296,19 @@ const AgentsViewComponent: React.FC<AgentsViewProps> = ({ isPrivacyMode, onNavig
 
   const todayService = useServiceToday();
   const { showToast } = useToast();
+
+  const handleQuickAgentReport = useCallback(async (maquinista: any) => {
+    feedback.click();
+    showToast(`Generant informe oficial FGC per a ${maquinista.nom || ''} ${maquinista.cognoms || ''}...`, 'info');
+    try {
+      const contact = contacts[normalizeId(maquinista.empleat_id)] || { phones: [], email: null };
+      await generateAgentReportDirectly(maquinista, 'pdf', selectedPerfDate, contact, isPrivacyMode);
+      showToast('Informe oficial obert correctament', 'success');
+    } catch (e) {
+      console.error('[AgentsView] Error generant informe ràpid:', e);
+      showToast("Error en generar l'informe oficial", 'error');
+    }
+  }, [contacts, selectedPerfDate, isPrivacyMode, showToast]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -809,6 +842,7 @@ const AgentsViewComponent: React.FC<AgentsViewProps> = ({ isPrivacyMode, onNavig
                       isDES={isDES}
                       isPrivacyMode={isPrivacyMode}
                       onNavigateToSearch={onNavigateToSearch}
+                      onReportClick={handleQuickAgentReport}
                       onSelect={() => {
                         feedback.click();
                         setSelectedAgent({ maquinista, contact });
