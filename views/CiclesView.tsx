@@ -116,6 +116,8 @@ const CiclesViewComponent: React.FC<CiclesViewProps> = ({ parkedUnits, onParkedU
                   imageTrains={imageTrains}
                   recordTrains={recordTrains}
                   cleaningTrains={cleaningTrains}
+                  assignments={assignments}
+                  onParkedUnitsChange={onParkedUnitsChange}
                   handleAddParkedUnit={handleAddParkedUnit}
                   handleRemoveParkedUnit={handleRemoveParkedUnit}
                 />

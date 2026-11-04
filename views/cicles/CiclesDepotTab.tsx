@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import GlassPanel from '../../components/common/GlassPanel';
 import DraggableUnit from './train/DraggableUnit';
 import DroppableTrack from './depot/DroppableTrack';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, Sparkles } from 'lucide-react';
+import AutoDepotModal from '../../components/AutoDepotModal';
+import type { Assignment } from '../../types';
 
 // Hardcoded depot layout (could also be extracted if needed globally)
 const DEPOT_LAYOUTS: Record<string, {
@@ -17,6 +19,7 @@ const DEPOT_LAYOUTS: Record<string, {
 }> = {
     'PC': { sections: [{ name: 'Estació', tracks: [{ id: '1', label: 'Via 1', capacity: 1 }, { id: '2', label: 'Via 2', capacity: 1 }, { id: '3', label: 'Via 3', capacity: 1 }, { id: '4', label: 'Via 4', capacity: 1 }, { id: '5', label: 'Via 5', capacity: 1 }] }] },
     'RE': { sections: [{ name: 'Depòsit', tracks: [{ id: '1', label: 'Via 1', capacity: 3 }, { id: '2', label: 'Via 2', capacity: 3 }] }] },
+    'SR': { sections: [{ name: 'Estació i Vies de Cua', tracks: [{ id: '1', label: 'Via 1', capacity: 1 }, { id: '2', label: 'Via 2', capacity: 1 }, { id: '3', label: 'Via 3', capacity: 1 }, { id: '4', label: 'Via 4', capacity: 1 }, { id: '0', label: 'Via 0 (Cua Man.)', capacity: 1 }] }] },
     'NA': { sections: [{ name: 'Estació', tracks: [{ id: 'E1', label: 'Via 1 (Est.)', capacity: 2 }, { id: 'E2', label: 'Via 2 (Est.)', capacity: 2 }] }, { name: 'Zona Maniobres', tracks: [{ id: 'M1', label: 'Via 1 (Man.)', capacity: 2 }, { id: 'M2', label: 'Via 2 (Man.)', capacity: 1 }] }, { name: 'Depòsit', tracks: [{ id: 'D1', label: 'Via 1 (Dep.)', capacity: 2 }, { id: 'D2', label: 'Via 2 (Dep.)', capacity: 2 }, { id: 'D3', label: 'Via 3 (Dep.)', capacity: 2 }, { id: 'D4', label: 'Via 4 (Dep.)', capacity: 2 }] }] },
     'PN': { sections: [{ name: 'Estació', tracks: [{ id: 'E1', label: 'Via 1', capacity: 2 }, { id: 'E2', label: 'Via 2', capacity: 2 }] }, { name: 'Depòsit', tracks: [{ id: '1A', label: 'Via 1A', capacity: 2 }, { id: '1B', label: 'Via 1B', capacity: 1 }, { id: '0A', label: 'Via 0A', capacity: 1 }, { id: '0B', label: 'Via 0B', capacity: 1 }, { id: '2A', label: 'Via 2A', capacity: 1 }, { id: '2B', label: 'Via 2B', capacity: 2 }] }] },
     'RB': { sections: [{ name: 'Platja de Vies', tracks: [{ id: '4', label: 'Via 4', capacity: 6 }, { id: '6', label: 'Via 6', capacity: 6 }, { id: '8', label: 'Via 8', capacity: 3 }, { id: '10', label: 'Via 10', capacity: 2 }] }, { name: 'Taller', tracks: [{ id: '1', label: 'Via 1 (Torn)', capacity: 2 }, { id: '9', label: 'Via 9', capacity: 1 }, { id: '11', label: 'Via 11', capacity: 1 }, { id: '13', label: 'Via 13', capacity: 1 }, { id: '15', label: 'Via 15', capacity: 1 }, { id: '17', label: 'Via 17', capacity: 1 }, { id: '19', label: 'Via 19', capacity: 1 }] }, { name: 'IF', tracks: [{ id: '21', label: 'Via 21', capacity: 1 }, { id: '23', label: 'Via 23', capacity: 1 }, { id: '25', label: 'Via 25', capacity: 1 }] }] }
@@ -25,9 +28,10 @@ const DEPOT_LAYOUTS: Record<string, {
 const DEPOT_CAPACITIES_LOCAL: Record<string, { total: number; label: string }> = {
     'PC': { total: 5, label: 'Plaça Catalunya' },
     'RE': { total: 6, label: 'Reina Elisenda' },
-    'RB': { total: 28, label: 'Rubí (COR)' },
+    'SR': { total: 5, label: 'Sarrià' },
     'NA': { total: 15, label: 'Terrassa' },
     'PN': { total: 12, label: 'Sabadell' },
+    'RB': { total: 28, label: 'Rubí (COR)' },
 };
 
 interface CiclesDepotTabProps {
@@ -37,16 +41,20 @@ interface CiclesDepotTabProps {
     imageTrains: Set<string>;
     recordTrains: Set<string>;
     cleaningTrains: Set<string>;
+    assignments?: Assignment[];
+    onParkedUnitsChange?: () => Promise<void>;
     handleAddParkedUnit: (unit: string, depot: string, track: string, capacity: number) => Promise<void>;
     handleRemoveParkedUnit: (unit: string) => Promise<void>;
 }
 
 const CiclesDepotTab: React.FC<CiclesDepotTabProps> = ({
     parkedUnits, allFleetTrains, brokenTrains, imageTrains, recordTrains, cleaningTrains,
+    assignments = [], onParkedUnitsChange,
     handleAddParkedUnit, handleRemoveParkedUnit
 }) => {
     const [selectedDepot, setSelectedDepot] = useState<string>('PC');
     const [depotFleetFilter, setDepotFleetFilter] = useState<string>('ALL');
+    const [showAutoDepotModal, setShowAutoDepotModal] = useState<boolean>(false);
 
     return (
         <div className="animate-in fade-in slide-in-from-right-8 duration-700 space-y-8">
@@ -54,9 +62,34 @@ const CiclesDepotTab: React.FC<CiclesDepotTabProps> = ({
                 <div className="p-8 border-b border-gray-100 dark:border-white/5 bg-gray-50/20 flex flex-col md:flex-row md:items-center justify-between gap-6">
                     <div>
                         <h2 className="text-xl font-black uppercase tracking-tight text-fgc-grey dark:text-white">Dipòsits</h2>
-                        <p className="text-sm text-gray-400">Arrossega trens per organitzar-los.</p>
+                        <p className="text-sm text-gray-400">Arrossega trens per organitzar-los o fes servir l'auto-ubicació intel·ligent.</p>
                     </div>
-                    <div className="flex flex-wrap gap-2">{Object.keys(DEPOT_CAPACITIES_LOCAL).map(id => <button key={id} onClick={() => setSelectedDepot(id)} className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${selectedDepot === id ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-100 dark:bg-white/5 text-gray-400 hover:text-fgc-grey'}`}>{id}</button>)}</div>
+                    <div className="flex flex-wrap items-center gap-3">
+                        <button
+                            onClick={() => setShowAutoDepotModal(true)}
+                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black bg-[#97BE14] hover:bg-[#86aa12] text-black shadow-lg shadow-[#97BE14]/20 transition-all active:scale-95"
+                            title="Assignar trens automàticament segons cicles i horaris"
+                        >
+                            <Sparkles size={15} />
+                            <span>Auto-Ubicar Flota</span>
+                        </button>
+                        <div className="h-6 w-px bg-gray-200 dark:bg-white/10 hidden sm:block" />
+                        <div className="flex flex-wrap gap-2">
+                            {Object.keys(DEPOT_CAPACITIES_LOCAL).map(id => (
+                                <button
+                                    key={id}
+                                    onClick={() => setSelectedDepot(id)}
+                                    className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                                        selectedDepot === id
+                                            ? 'bg-blue-600 text-white shadow-lg'
+                                            : 'bg-gray-100 dark:bg-white/5 text-gray-400 hover:text-fgc-grey'
+                                    }`}
+                                >
+                                    {id}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                 </div>
                 <div className="p-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
                     <div className="lg:col-span-3 flex flex-col gap-6">
@@ -123,6 +156,18 @@ const CiclesDepotTab: React.FC<CiclesDepotTabProps> = ({
                     </div>
                 </div>
             </GlassPanel>
+
+            <AutoDepotModal
+                isOpen={showAutoDepotModal}
+                onClose={() => setShowAutoDepotModal(false)}
+                allFleetTrains={allFleetTrains}
+                assignments={assignments}
+                brokenTrains={brokenTrains}
+                cleaningTrains={cleaningTrains}
+                imageTrains={imageTrains}
+                recordTrains={recordTrains}
+                onApplied={onParkedUnitsChange}
+            />
         </div>
     );
 };
