@@ -202,12 +202,18 @@ export const syncAllAgentsPerformance = async (
 
     const circCodeList = Array.from(allCircCodes);
     let allPassages: GipRegistrePas[] = [];
+    const circMetaMap = new Map<string, any>();
+
     if (circCodeList.length > 0) {
+      const sCode = realService === '0' ? '000' : realService;
       const chunkSize = 40;
-      const promises = [];
+      const passagePromises = [];
+      const metaV2Promises = [];
+      const metaLegacyPromises = [];
+
       for (let i = 0; i < circCodeList.length; i += chunkSize) {
         const chunk = circCodeList.slice(i, i + chunkSize);
-        promises.push(
+        passagePromises.push(
           supabase
             .from('gip_registre_pas')
             .select('*')
@@ -215,10 +221,39 @@ export const syncAllAgentsPerformance = async (
             .in('circulacio_id', chunk)
             .limit(5000)
         );
+        metaV2Promises.push(
+          supabase
+            .from('circulationsv2')
+            .select('id, servei, linia, inici, final, sortida, arribada')
+            .eq('servei', sCode)
+            .in('id', chunk)
+        );
+        metaLegacyPromises.push(
+          supabase
+            .from('circulations')
+            .select('id, linia, inici, final, sortida, arribada')
+            .in('id', chunk)
+        );
       }
-      const results = await Promise.all(promises);
-      results.forEach(r => {
+
+      const [passageResults, metaV2Results, metaLegacyResults] = await Promise.all([
+        Promise.all(passagePromises),
+        Promise.all(metaV2Promises),
+        Promise.all(metaLegacyPromises)
+      ]);
+
+      passageResults.forEach(r => {
         if (r.data) allPassages = allPassages.concat(r.data as GipRegistrePas[]);
+      });
+      metaLegacyResults.forEach(r => {
+        (r.data || []).forEach((m: any) => {
+          if (m.id) circMetaMap.set(m.id.toUpperCase(), m);
+        });
+      });
+      metaV2Results.forEach(r => {
+        (r.data || []).forEach((m: any) => {
+          if (m.id) circMetaMap.set(m.id.toUpperCase(), m);
+        });
       });
     }
 
@@ -233,7 +268,11 @@ export const syncAllAgentsPerformance = async (
     const perfMap: Record<string, AgentPerformanceHistory> = {};
 
     agentShiftPairs.forEach(({ agent: a, shift: s }) => {
-      const circs = s?.circulations || [];
+      const rawCircs = s?.circulations || [];
+      const circs = rawCircs.filter((c: any) => {
+        const codi = (typeof c === 'string' ? c : (c?.codi || '')).trim();
+        return codi && codi !== '-' && codi !== 'RESERVA';
+      });
       const shiftStartMin = getFgcMinutes(s?.inici_torn || a.hora_inici);
       const isShiftStarted = shiftStartMin !== null && nowMin >= shiftStartMin;
 
@@ -248,11 +287,16 @@ export const syncAllAgentsPerformance = async (
       circs.forEach((c: any) => {
         const codi = typeof c === 'string' ? c : (c.codi || c.realCodi || c.id);
         const realCodi = typeof c === 'object' ? c.realCodi : null;
-        const sortida = typeof c === 'object' ? c.sortida : undefined;
-        const arribada = typeof c === 'object' ? c.arribada : undefined;
-        const linia = typeof c === 'object' ? (c.linia || (codi?.startsWith('F') ? 'S2' : (codi?.startsWith('D') ? 'S1' : 'FGC'))) : undefined;
-        const inici = typeof c === 'object' ? c.inici : undefined;
-        const final = typeof c === 'object' ? c.final : undefined;
+        const obsCode = (typeof c === 'object' && c.observacions && codi === 'Viatger') ? c.observacions.split('-')[0]?.trim() : null;
+        const lookupCode = (realCodi || obsCode || codi || '').toUpperCase();
+        const meta = circMetaMap.get(lookupCode) || circMetaMap.get((codi || '').toUpperCase());
+
+        const sortida = (typeof c === 'object' && c.sortida && c.sortida !== '-') ? c.sortida : meta?.sortida;
+        const arribada = (typeof c === 'object' && c.arribada && c.arribada !== '-') ? c.arribada : meta?.arribada;
+        const rawLinia = (typeof c === 'object' ? c.linia : undefined) || meta?.linia;
+        const linia = rawLinia || (codi?.startsWith('F') || codi?.startsWith('P') ? 'S2' : (codi?.startsWith('D') || codi?.startsWith('K') || codi?.startsWith('M') ? 'S1' : (codi?.startsWith('A') ? 'L6' : (codi?.startsWith('B') ? 'L7' : (codi?.startsWith('E') ? 'L12' : (codi?.startsWith('V') ? 'MSR' : 'FGC'))))));
+        const inici = (typeof c === 'object' && c.inici) ? c.inici : meta?.inici;
+        const final = (typeof c === 'object' && c.final) ? c.final : meta?.final;
         const cicle = typeof c === 'object' ? c.cicle : undefined;
 
         const sMin = getFgcMinutes(sortida);
@@ -270,16 +314,22 @@ export const syncAllAgentsPerformance = async (
         }
 
         // Recuperar passos GIP reals pel codi comercial o pel realCodi
-        const realPassages = passagesByCirc.get(codi) || (realCodi ? passagesByCirc.get(realCodi) : []) || [];
-        if (realPassages.length > 0 && status === 'PENDING') {
+        const realPassages = (passagesByCirc.get(codi) || (realCodi ? passagesByCirc.get(realCodi) : []) || [])
+          .slice()
+          .sort((pA, pB) => (getFgcMinutes(pA.hora_real || pA.hora_teorica) ?? 0) - (getFgcMinutes(pB.hora_real || pB.hora_teorica) ?? 0));
+
+        if (realPassages.length > 0 && status === 'PENDING' && isShiftStarted) {
           status = (eMin !== null && nowMin >= eMin) ? 'COMPLETED' : 'IN_PROGRESS';
           if (status === 'COMPLETED') completedCircs++; else inProgressCircs++;
         }
 
-        const cPassages = (status === 'PENDING' && realPassages.length === 0) ? [] : realPassages;
+        const cPassages = (status === 'PENDING' && !isShiftStarted) ? [] : realPassages;
         const totalStops = cPassages.length;
         const onTimeStops = cPassages.filter(p => p.estat === 'en_hora' || p.estat === 'avanc').length;
         const delayedStops = cPassages.filter(p => p.estat === 'retard');
+
+        const sortidaReal = cPassages.length > 0 ? cPassages[0].hora_real : undefined;
+        const arribadaReal = cPassages.length > 0 ? cPassages[cPassages.length - 1].hora_real : undefined;
 
         // Resolució del tren (UT) emprat a la circulació
         const passageUt = cPassages.find(p => p.ut)?.ut;
@@ -298,14 +348,17 @@ export const syncAllAgentsPerformance = async (
 
         circDetails.push({
           codi,
+          realCodi,
           linia,
-          inici,
-          final,
+          inici: inici || (cPassages[0]?.estacio_codi) || '',
+          final: final || (cPassages[cPassages.length - 1]?.estacio_codi) || '',
           cicle,
           ut: resolvedUt,
           train: resolvedUt,
           sortida,
           arribada,
+          sortidaReal,
+          arribadaReal,
           status,
           totalStops,
           onTimeStops,

@@ -468,63 +468,76 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
   const circPunctualityList = useMemo(() => {
     if (!shiftData?.fullCirculations) return [];
 
-    return shiftData.fullCirculations.map((c: any) => {
-      const codi = (c.codi === 'Viatger' && c.realCodi) ? c.realCodi : (c.codi || c.realCodi);
-      const sMin = getFgcMinutes(c.sortida);
-      const eMin = getFgcMinutes(c.arribada);
+    return shiftData.fullCirculations
+      .filter((c: any) => {
+        const codi = (typeof c === 'string' ? c : (c?.codi || '')).trim();
+        return codi && codi !== '-' && codi !== 'RESERVA';
+      })
+      .map((c: any) => {
+        const codi = (c.codi === 'Viatger' && c.realCodi) ? c.realCodi : (c.codi || c.realCodi);
+        const sMin = getFgcMinutes(c.sortida);
+        const eMin = getFgcMinutes(c.arribada);
 
-      // Determine real-time status strictly based on scheduled time
-      let status: 'COMPLETED' | 'IN_PROGRESS' | 'PENDING' = 'PENDING';
-      if (sMin !== null && eMin !== null) {
-        if (nowMin >= eMin) {
-          status = 'COMPLETED';
-        } else if (nowMin >= sMin && nowMin < eMin) {
-          status = 'IN_PROGRESS';
-        } else {
-          status = 'PENDING';
+        // Determine real-time status strictly based on scheduled time
+        let status: 'COMPLETED' | 'IN_PROGRESS' | 'PENDING' = 'PENDING';
+        if (sMin !== null && eMin !== null) {
+          if (nowMin >= eMin) {
+            status = 'COMPLETED';
+          } else if (nowMin >= sMin && nowMin < eMin) {
+            status = 'IN_PROGRESS';
+          } else {
+            status = 'PENDING';
+          }
         }
-      }
 
-      // If circulation has not started yet (PENDING), it has NO passages yet today
-      const cPassages = status === 'PENDING'
-        ? []
-        : gipPassages.filter(p => p.circulacio_id === codi || (c.realCodi && p.circulacio_id === c.realCodi) || (c.codi && p.circulacio_id === c.codi));
+        // If circulation has not started yet (PENDING), it has NO passages yet today
+        const cPassages = status === 'PENDING'
+          ? []
+          : gipPassages
+              .filter(p => p.circulacio_id === codi || (c.realCodi && p.circulacio_id === c.realCodi) || (c.codi && p.circulacio_id === c.codi))
+              .slice()
+              .sort((a, b) => (getFgcMinutes(a.hora_real || a.hora_teorica) ?? 0) - (getFgcMinutes(b.hora_real || b.hora_teorica) ?? 0));
 
-      const totalStops = cPassages.length;
-      const onTimeStops = cPassages.filter(p => p.estat === 'en_hora' || p.estat === 'avanc').length;
-      const delayedStops = cPassages.filter(p => p.estat === 'retard');
+        const totalStops = cPassages.length;
+        const onTimeStops = cPassages.filter(p => p.estat === 'en_hora' || p.estat === 'avanc').length;
+        const delayedStops = cPassages.filter(p => p.estat === 'retard');
 
-      const rate = totalStops > 0 ? Number(((onTimeStops / totalStops) * 100).toFixed(1)) : null;
+        const sortidaReal = cPassages.length > 0 ? cPassages[0].hora_real : undefined;
+        const arribadaReal = cPassages.length > 0 ? cPassages[cPassages.length - 1].hora_real : undefined;
 
-      const maxDelaySec = delayedStops.length > 0 
-        ? Math.max(...delayedStops.map(p => normalizeTimeDiffSec(p.diferencia_segons))) 
-        : 0;
+        const rate = totalStops > 0 ? Number(((onTimeStops / totalStops) * 100).toFixed(1)) : null;
 
-      // Resolució del tren (UT): primer del registre real de pas GIP, després de la circulació o cicle
-      const passageUt = cPassages.find(p => p.ut)?.ut;
-      const fallbackUt = c.cicle ? cycleToTrainMap.get(String(c.cicle).trim().toUpperCase()) : null;
-      const resolvedUt = passageUt || fallbackUt || c.train || c.ut || null;
+        const maxDelaySec = delayedStops.length > 0 
+          ? Math.max(...delayedStops.map(p => normalizeTimeDiffSec(p.diferencia_segons))) 
+          : 0;
 
-      return {
-        circulation: c,
-        codi,
-        linia: c.linia || (codi?.startsWith('F') ? 'S2' : (codi?.startsWith('D') ? 'S1' : 'FGC')),
-        inici: c.inici,
-        final: c.final,
-        sortida: c.sortida,
-        arribada: c.arribada,
-        cicle: c.cicle,
-        train: resolvedUt,
-        ut: resolvedUt,
-        status,
-        totalStops,
-        onTimeStops,
-        delayedStopsCount: delayedStops.length,
-        delayedStopsList: delayedStops,
-        rate,
-        maxDelaySec
-      };
-    });
+        // Resolució del tren (UT): primer del registre real de pas GIP, després de la circulació o cicle
+        const passageUt = cPassages.find(p => p.ut)?.ut;
+        const fallbackUt = c.cicle ? cycleToTrainMap.get(String(c.cicle).trim().toUpperCase()) : null;
+        const resolvedUt = passageUt || fallbackUt || c.train || c.ut || null;
+
+        return {
+          circulation: c,
+          codi,
+          linia: c.linia || (codi?.startsWith('F') || codi?.startsWith('P') ? 'S2' : (codi?.startsWith('D') || codi?.startsWith('K') || codi?.startsWith('M') ? 'S1' : (codi?.startsWith('A') ? 'L6' : (codi?.startsWith('B') ? 'L7' : (codi?.startsWith('E') ? 'L12' : (codi?.startsWith('V') ? 'MSR' : 'FGC')))))),
+          inici: c.inici || (cPassages[0]?.estacio_codi) || '',
+          final: c.final || (cPassages[cPassages.length - 1]?.estacio_codi) || '',
+          sortida: c.sortida,
+          arribada: c.arribada,
+          sortidaReal,
+          arribadaReal,
+          cicle: c.cicle,
+          train: resolvedUt,
+          ut: resolvedUt,
+          status,
+          totalStops,
+          onTimeStops,
+          delayedStopsCount: delayedStops.length,
+          delayedStopsList: delayedStops,
+          rate,
+          maxDelaySec
+        };
+      });
   }, [shiftData, gipPassages, nowMin, cycleToTrainMap]);
 
   // 3. Shift Global Punctuality Summary

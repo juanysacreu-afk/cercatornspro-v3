@@ -124,6 +124,11 @@ export const STATION_CODE_TO_NAME: Record<string, string> = {
     'EP': 'El Putxet',
     'TB': 'Av. Tibidabo',
     'CR': 'Can Ros',
+    'S0': 'Sarrià (Via 0)',
+    'COR': 'Centre Operacions Rubí',
+    'DNA': 'Dipòsit Can Roca',
+    'DPN': 'Dipòsit Ca n\'Oriac',
+    'DRE': 'Dipòsit Reina Elisenda',
 };
 
 /** Resolves station code or raw string to friendly display station name */
@@ -317,11 +322,12 @@ export const getShortTornId = (id: string): string => {
 /** Detects whether a shift is an operational standby / reserve shift without regular train timetables */
 export const isReserveShift = (shift: any): boolean => {
     if (!shift) return false;
-    const id = (typeof shift === 'string' ? shift : shift.id || '').trim().toUpperCase();
-    if (id.startsWith('QR') || id.startsWith('R') || id.includes('RES')) return true;
-    const circs = shift.fullCirculations || shift.circulations || [];
+    const id = (typeof shift === 'string' ? shift : shift.id || shift.torn || '').trim().toUpperCase();
+    if (id.startsWith('QR') || /^R[A-Z]\d/i.test(id) || id.includes('RESERVA')) return true;
+    if (typeof shift === 'string') return false;
+    const circs = shift.fullCirculations || shift.circulations;
     if (!Array.isArray(circs) || circs.length === 0) {
-        return Boolean(shift.dependencia);
+        return false;
     }
     return circs.every((c: any) => {
         if (!c) return true;

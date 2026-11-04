@@ -181,26 +181,7 @@ export const AgentReportModal: React.FC<AgentReportModalProps> = ({
     feedback.click();
     setIsGenerating(true);
     try {
-      if (isSelectedDateToday && circulationsList && circulationsList.length > 0) {
-        // Utilitzar les dades ja carregades directament
-        const payload = {
-          agent,
-          shiftData,
-          overallPunctuality,
-          circulationsList,
-          serviceDate: selectedDate,
-          contact,
-          isPrivacyMode
-        };
-        if (format === 'excel') {
-          generateAgentReportExcel(payload);
-        } else {
-          generateAgentReportPrint(payload);
-        }
-      } else {
-        // Carregar directament des de la base de dades per a la data escollida
-        await generateAgentReportDirectly(agent, format, selectedDate, contact, isPrivacyMode);
-      }
+      await generateAgentReportDirectly(agent, format, selectedDate, contact, isPrivacyMode);
       onClose();
     } catch (e) {
       console.error('[AgentReportModal] Error generant informe diari:', e);

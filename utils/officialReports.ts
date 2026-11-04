@@ -8,7 +8,7 @@
  * - Composició alineada a l'esquerra, caixes de validació i signatures oficials CSO.
  */
 
-import { formatFgcTime, resolveStationId, getCandidateShiftIds, normalizeTimeDiffSec, isReserveShift } from './stations';
+import { formatFgcTime, getFgcMinutes, resolveStationId, getCandidateShiftIds, normalizeTimeDiffSec, isReserveShift, STATION_CODE_TO_NAME } from './stations';
 import { STATION_GEO_MAP } from './stationGeoData';
 import { supabase } from '../supabaseClient';
 import { fetchFullTurns } from './queries';
@@ -25,9 +25,33 @@ const FGC_GRAY = '#4D5358';
 const resolveStationName = (codeOrName: string, linia: string = ''): string => {
   if (!codeOrName) return '';
   const trimmed = codeOrName.trim();
+  const upper = trimmed.toUpperCase();
+  if (STATION_CODE_TO_NAME[upper]) return STATION_CODE_TO_NAME[upper];
   const code = resolveStationId(trimmed, linia);
   const geo = STATION_GEO_MAP.get(code);
-  return geo?.name || trimmed;
+  if (geo?.name) return geo.name;
+  if (STATION_CODE_TO_NAME[code]) return STATION_CODE_TO_NAME[code];
+  return trimmed;
+};
+
+const formatShortTime = (t?: string): string => {
+  if (!t || t === '-') return '--:--';
+  const parts = t.trim().split(':');
+  if (parts.length >= 2) return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+  return t;
+};
+
+const resolveLiniaName = (codi?: string, linia?: string): string => {
+  if (linia && linia !== 'FGC' && linia !== '-') return linia;
+  if (!codi) return 'FGC';
+  const c = codi.trim().toUpperCase();
+  if (c.startsWith('F') || c.startsWith('P')) return 'S2';
+  if (c.startsWith('D') || c.startsWith('K') || c.startsWith('M')) return 'S1';
+  if (c.startsWith('A')) return 'L6';
+  if (c.startsWith('B')) return 'L7';
+  if (c.startsWith('E')) return 'L12';
+  if (c.startsWith('V')) return 'MSR';
+  return linia || 'FGC';
 };
 
 // Logotip Oficial FGC segons el Manual d'Identitat Visual Corporativa
@@ -69,11 +93,14 @@ export interface AgentReportData {
   };
   circulationsList?: Array<{
     codi: string;
+    realCodi?: string | null;
     linia?: string;
     inici?: string;
     final?: string;
     sortida?: string;
     arribada?: string;
+    sortidaReal?: string;
+    arribadaReal?: string;
     train?: string;
     ut?: string;
     cicle?: string;
@@ -165,8 +192,8 @@ export interface GlobalReportData {
 /**
  * Funció auxiliar per obrir la finestra d'impressió oficial amb estil A4 FGC
  */
-const openPrintWindow = (htmlContent: string, title: string) => {
-  const printWin = window.open('', '_blank', 'width=1020,height=900,menubar=no,toolbar=no,location=no,status=no');
+const openPrintWindow = (htmlContent: string, title: string, existingWin?: Window | null) => {
+  const printWin = existingWin || window.open('', '_blank', 'width=1020,height=900,menubar=no,toolbar=no,location=no,status=no');
   if (!printWin) {
     alert("Si us plau, permet les finestres emergents per obrir l'informe oficial d'FGC.");
     return;
@@ -188,6 +215,15 @@ export function buildAgentReportHtml(data: AgentReportData): string {
   const dateFormatted = serviceDate || now.toISOString().slice(0, 10);
   const timeFormatted = now.toLocaleTimeString('ca-ES', { hour: '2-digit', minute: '2-digit' });
   const refCode = `FGC-OP-AGT-${agent.empleat_id}-${dateFormatted.replace(/-/g, '')}`;
+
+  const validCirculations = circulationsList.filter(c => {
+    const codi = (typeof c === 'string' ? c : c?.codi || '').trim();
+    return codi && codi !== '-' && codi !== 'RESERVA';
+  });
+  const isShiftReserve = validCirculations.length === 0 && (
+    isReserveShift(shiftData?.id || agent.torn) ||
+    isReserveShift({ id: shiftData?.id || agent.torn, circulations: circulationsList })
+  );
 
   const rate = overallPunctuality?.rate ?? null;
   const rateClass = rate === null ? '#888' : rate >= 95 ? '#059669' : rate >= 85 ? '#d97706' : '#dc2626';
@@ -539,7 +575,7 @@ export function buildAgentReportHtml(data: AgentReportData): string {
       <div class="kpi-box">
         <div class="lbl">Circulacions Jornada</div>
         <div class="val" style="color:${FGC_GRAY};">
-          ${overallPunctuality?.completedCircs || 0} / ${overallPunctuality?.totalCircs || circulationsList.length}
+          ${overallPunctuality?.completedCircs || 0} / ${overallPunctuality?.totalCircs || validCirculations.length}
         </div>
         <div style="font-size:7.5pt; color:#6C7378; margin-top:2px;">Completades / Programades</div>
       </div>
@@ -562,25 +598,25 @@ export function buildAgentReportHtml(data: AgentReportData): string {
     <!-- DETALL DE LES CIRCULACIONS -->
     <h3 class="section-title">
       <span>Taula de Circulacions Assignades</span>
-      <span style="font-size:8pt; font-weight:600; color:#6C7378;">Total: ${circulationsList.length} circulacions</span>
+      <span style="font-size:8pt; font-weight:600; color:#6C7378;">Total: ${validCirculations.length} circulacions</span>
     </h3>
 
     <table class="data-table">
       <thead>
         <tr>
-          <th style="width: 50px;">Tren</th>
-          <th style="width: 45px;">Línia</th>
+          <th style="width: 52px;">Tren</th>
+          <th style="width: 44px;">Línia</th>
           <th>Trajecte (Origen → Destinació)</th>
-          <th style="width: 70px;">Sortida</th>
-          <th style="width: 70px;">Arribada</th>
-          <th style="width: 60px;">UT</th>
-          <th style="width: 50px;">Cicle</th>
-          <th style="width: 75px; text-align:right;">Puntualitat</th>
-          <th style="width: 80px; text-align:center;">Estat</th>
+          <th style="width: 82px;">Sortida</th>
+          <th style="width: 82px;">Arribada</th>
+          <th style="width: 58px;">UT</th>
+          <th style="width: 52px;">Cicle</th>
+          <th style="width: 82px; text-align:right;">Puntualitat</th>
+          <th style="width: 78px; text-align:center;">Estat</th>
         </tr>
       </thead>
       <tbody>
-        ${circulationsList.length === 0 || isReserveShift(shiftData) || isReserveShift(agent.torn) ? `
+        ${isShiftReserve ? `
           <tr>
             <td colspan="9" style="text-align:center; padding:22px; color:#4D5358; background:#f9fafb;">
               <div style="font-weight:800; font-size:10.5pt; color:#059669; margin-bottom:6px;">
@@ -591,7 +627,13 @@ export function buildAgentReportHtml(data: AgentReportData): string {
               </div>
             </td>
           </tr>
-        ` : circulationsList.map(c => {
+        ` : validCirculations.length === 0 ? `
+          <tr>
+            <td colspan="9" style="text-align:center; padding:18px; color:#9CA3AF;">
+              No s'han trobat circulacions comercials assignades a aquest torn per a la data seleccionada.
+            </td>
+          </tr>
+        ` : validCirculations.map(c => {
           const isPassenger = c.codi === 'Viatger';
           const isDelayed = (c.delayedStopsCount || 0) > 0 || (c.maxDelaySec || 0) > 239;
           const statusBadge = isPassenger
@@ -602,17 +644,34 @@ export function buildAgentReportHtml(data: AgentReportData): string {
                 ? '<span class="badge" style="background:#fef3c7; color:#92400e;">En curs</span>'
                 : '<span class="badge badge-pending">Pendent</span>';
 
+          const liniaLabel = resolveLiniaName(c.codi, c.linia);
+          const origName = resolveStationName(c.inici || '', liniaLabel);
+          const destName = resolveStationName(c.final || '', liniaLabel);
+          const routeText = (origName || destName) ? `${origName || '—'} → ${destName || '—'}` : '—';
+
           return `
             <tr>
-              <td><strong>${c.codi}</strong></td>
-              <td><span style="font-weight:700; color:${FGC_GRAY};">${c.linia || '—'}</span></td>
-              <td>${resolveStationName(c.inici || '')} → ${resolveStationName(c.final || '')}</td>
-              <td>${c.sortida || '--:--'}</td>
-              <td>${c.arribada || '--:--'}</td>
+              <td>
+                <strong>${c.codi}</strong>
+                ${c.realCodi && c.realCodi !== c.codi ? `<div style="font-size:6.8pt; color:#6B7280;">(${c.realCodi})</div>` : ''}
+              </td>
+              <td><span style="font-weight:700; color:${FGC_GRAY};">${liniaLabel}</span></td>
+              <td>${routeText}</td>
+              <td>
+                <div style="font-weight:700;">${formatShortTime(c.sortida)}</div>
+                ${c.sortidaReal ? `<div style="font-size:6.8pt; color:#059669; font-family:monospace; font-weight:600;">Real: ${c.sortidaReal}</div>` : ''}
+              </td>
+              <td>
+                <div style="font-weight:700;">${formatShortTime(c.arribada)}</div>
+                ${c.arribadaReal ? `<div style="font-size:6.8pt; color:#059669; font-family:monospace; font-weight:600;">Real: ${c.arribadaReal}</div>` : ''}
+              </td>
               <td style="font-family:monospace; font-weight:700;">${c.ut || c.train || '—'}</td>
               <td>${c.cicle || '—'}</td>
               <td style="text-align:right; font-weight:700; color:${c.rate !== null && c.rate !== undefined ? (c.rate >= 95 ? '#059669' : c.rate >= 85 ? '#d97706' : '#dc2626') : '#9CA3AF'};">
-                ${c.rate !== null && c.rate !== undefined ? `${c.rate}%` : '—'}
+                ${c.rate !== null && c.rate !== undefined ? `
+                  <div>${c.rate}%</div>
+                  ${c.totalStops ? `<div style="font-size:6.8pt; color:#6B7280; font-weight:600;">${c.onTimeStops ?? c.totalStops}/${c.totalStops} passos</div>` : ''}
+                ` : '—'}
               </td>
               <td style="text-align:center;">${statusBadge}</td>
             </tr>
@@ -644,10 +703,10 @@ export function buildAgentReportHtml(data: AgentReportData): string {
   return html;
 }
 
-export function generateAgentReportPrint(data: AgentReportData): void {
+export function generateAgentReportPrint(data: AgentReportData, existingWin?: Window | null): void {
   const html = buildAgentReportHtml(data);
   const dateFormatted = data.serviceDate || new Date().toISOString().slice(0, 10);
-  openPrintWindow(html, `Informe_Agent_${data.agent.empleat_id}_${dateFormatted}`);
+  openPrintWindow(html, `Informe_Agent_${data.agent.empleat_id}_${dateFormatted}`, existingWin);
 }
 
 /**
@@ -659,6 +718,10 @@ export function buildAgentReportCsv(data: AgentReportData): string {
   const { agent, shiftData, overallPunctuality, circulationsList = [], serviceDate } = data;
   const now = new Date();
   const dateStr = serviceDate || now.toISOString().slice(0, 10);
+  const validCirculations = circulationsList.filter(c => {
+    const codi = (typeof c === 'string' ? c : c?.codi || '').trim();
+    return codi && codi !== '-' && codi !== 'RESERVA';
+  });
 
   const lines: string[] = [
     'FERROCARRILS DE LA GENERALITAT DE CATALUNYA — NEXUS SUPERVISORS',
@@ -672,14 +735,15 @@ export function buildAgentReportCsv(data: AgentReportData): string {
     '',
     '--- INDICADORS DE PUNTUALITAT (GIP) ---',
     'Puntualitat Global (%),Passos Totals,Passos a l\'hora,Passos amb Retard,Circulacions Fetes,Circulacions Programades,Demora Màxima (segons),Demora Mitjana (segons)',
-    `"${overallPunctuality?.rate !== null && overallPunctuality?.rate !== undefined ? overallPunctuality.rate : 'N/D'}","${overallPunctuality?.totalPassages || 0}","${overallPunctuality?.onTimePassages || 0}","${overallPunctuality?.delayedCount || 0}","${overallPunctuality?.completedCircs || 0}","${overallPunctuality?.totalCircs || circulationsList.length}","${overallPunctuality?.maxDelaySec || 0}","${overallPunctuality?.avgDelaySec || 0}"`,
+    `"${overallPunctuality?.rate !== null && overallPunctuality?.rate !== undefined ? overallPunctuality.rate : 'N/D'}","${overallPunctuality?.totalPassages || 0}","${overallPunctuality?.onTimePassages || 0}","${overallPunctuality?.delayedCount || 0}","${overallPunctuality?.completedCircs || 0}","${overallPunctuality?.totalCircs || validCirculations.length}","${overallPunctuality?.maxDelaySec || 0}","${overallPunctuality?.avgDelaySec || 0}"`,
     '',
     '--- DETALL DE CIRCULACIONS ---',
-    'Codi Tren,Línia,Origen,Destinació,Sortida Teòrica,Arribada Teòrica,UT Conduïda,Cicle,Puntualitat (%),Passos a temps,Passos retard,Estat',
-    ...circulationsList.map(c => {
-      const orig = resolveStationName(c.inici || '');
-      const dest = resolveStationName(c.final || '');
-      return `"${c.codi}","${c.linia || ''}","${orig}","${dest}","${c.sortida || ''}","${c.arribada || ''}","${c.ut || c.train || ''}","${c.cicle || ''}","${c.rate !== null && c.rate !== undefined ? c.rate : ''}","${c.onTimeStops || 0}","${c.delayedStopsCount || 0}","${c.status || ''}"`;
+    'Codi Tren,Línia,Origen,Destinació,Sortida Teòrica,Sortida Real GIP,Arribada Teòrica,Arribada Real GIP,UT Conduïda,Cicle,Puntualitat (%),Passos a temps,Passos retard,Estat',
+    ...validCirculations.map(c => {
+      const liniaLabel = resolveLiniaName(c.codi, c.linia);
+      const orig = resolveStationName(c.inici || '', liniaLabel);
+      const dest = resolveStationName(c.final || '', liniaLabel);
+      return `"${c.codi}","${liniaLabel}","${orig}","${dest}","${formatShortTime(c.sortida)}","${c.sortidaReal || ''}","${formatShortTime(c.arribada)}","${c.arribadaReal || ''}","${c.ut || c.train || ''}","${c.cicle || ''}","${c.rate !== null && c.rate !== undefined ? c.rate : ''}","${c.onTimeStops || 0}","${c.delayedStopsCount || 0}","${c.status || ''}"`;
     }),
     '',
     '--- DILIGÈNCIA DE VALIDACIÓ ---',
@@ -1731,8 +1795,39 @@ export async function generateAgentReportDirectly(
   contact?: { phones: string[]; email: string | null },
   isPrivacyMode: boolean = false
 ): Promise<boolean> {
-  const sDate = serviceDate || getFgcServiceDate();
-  const rawTorn = (agent?.torn || '').trim();
+  let pendingWin: Window | null = null;
+  if (format === 'pdf') {
+    pendingWin = window.open('', '_blank', 'width=1020,height=900,menubar=no,toolbar=no,location=no,status=no');
+    if (pendingWin) {
+      pendingWin.document.open();
+      pendingWin.document.write(`<!DOCTYPE html><html lang="ca"><head><meta charset="UTF-8"><title>Generant Informe Oficial FGC...</title></head><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#1E2124;color:#FFF;"><div style="text-align:center;"><div style="font-size:16px;font-weight:700;color:#97BE14;margin-bottom:8px;">FGC OPERACIONS · NEXUS SUPERVISORS</div><div style="font-size:13px;color:#9CA3AF;">Carregant circulacions del torn i registres oficials GIP...</div></div></body></html>`);
+      pendingWin.document.close();
+    }
+  }
+
+  const todayServiceDate = getFgcServiceDate();
+  const sDate = serviceDate || todayServiceDate;
+  const now = new Date();
+  const nowTimeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+  const nowMin = getFgcMinutes(nowTimeStr) ?? 0;
+
+  // Check if agent_performance_history has a record for this date (useful for past dates or fallback)
+  let historyRecord: AgentPerformanceHistory | null = null;
+  if (agent?.empleat_id) {
+    try {
+      const { data: hist } = await supabase
+        .from('agent_performance_history')
+        .select('*')
+        .eq('data_servei', sDate)
+        .eq('empleat_id', String(agent.empleat_id).trim())
+        .maybeSingle();
+      if (hist) {
+        historyRecord = hist as AgentPerformanceHistory;
+      }
+    } catch {}
+  }
+
+  const rawTorn = ((sDate !== todayServiceDate && historyRecord?.torn) ? historyRecord.torn : (agent?.torn || historyRecord?.torn || '')).trim();
   const obsMatch = (agent?.observacions || '').match(/(?:COBREIX\s+|TORN\s+)(Q?\d+[A-Z]?)/i)
     || (agent?.observacions || '').match(/\b(Q[A-Z0-9]+)\b/i);
   const obsTorn = obsMatch ? obsMatch[1].toUpperCase() : null;
@@ -1758,10 +1853,12 @@ export async function generateAgentReportDirectly(
       cleanTorn,
       `Q${cleanTorn}`,
       ...(obsTorn ? [obsTorn, `Q${obsTorn}`] : []),
-      ...prefixes.map(p => `Q${p}${numPadded}`),
-      ...prefixes.map(p => `Q${p}${num}`),
-      `Q${numPadded}`,
-      num,
+      ...(num ? [
+        ...prefixes.map(p => `Q${p}${numPadded}`),
+        ...prefixes.map(p => `Q${p}${num}`),
+        `Q${numPadded}`,
+        num
+      ] : []),
       ...getCandidateShiftIds(cleanTorn, targetService),
       ...getCandidateShiftIds(cleanTorn, 'Tots')
     ])).filter(Boolean);
@@ -1820,86 +1917,136 @@ export async function generateAgentReportDirectly(
   if (!resolvedShift) {
     resolvedShift = {
       id: targetTorn || 'S/A',
-      inici_torn: agent?.hora_inici || '--:--',
-      final_torn: agent?.hora_fi || '--:--',
-      dependencia: agent?.dependencia || ''
+      inici_torn: historyRecord?.hora_inici || agent?.hora_inici || '--:--',
+      final_torn: historyRecord?.hora_fi || agent?.hora_fi || '--:--',
+      dependencia: historyRecord?.dependencia || agent?.dependencia || ''
     };
   }
 
-  // Fallback if GIP returned 0 passages: check if agent_performance_history has recorded performance for this date
-  let historyRecord: AgentPerformanceHistory | null = null;
-  if (gipPassages.length === 0 && agent?.empleat_id) {
-    try {
-      const { data: hist } = await supabase
-        .from('agent_performance_history')
-        .select('*')
-        .eq('data_servei', sDate)
-        .eq('empleat_id', String(agent.empleat_id))
-        .single();
-      if (hist && (hist.passos_totals || 0) > 0) {
-        historyRecord = hist as AgentPerformanceHistory;
-      }
-    } catch {}
-  }
+  const shiftStartMin = getFgcMinutes(resolvedShift.inici_torn || agent?.hora_inici);
+  const isShiftStarted = sDate < todayServiceDate || (sDate === todayServiceDate && shiftStartMin !== null && nowMin >= shiftStartMin);
+
+  // Filter out placeholder '-' circulations on reserve shifts
+  const realFullCircs = fullCircs.filter((c: any) => {
+    const codi = (typeof c === 'string' ? c : (c?.codi || '')).trim();
+    return codi && codi !== '-' && codi !== 'RESERVA';
+  });
 
   // Calculate circulations list and punctuality
-  const circulationsList = (historyRecord?.detall_circulacions && historyRecord.detall_circulacions.length > 0 && gipPassages.length === 0)
-    ? historyRecord.detall_circulacions
-    : fullCircs.map((c: any) => {
+  const circulationsList = (realFullCircs.length === 0 && historyRecord?.detall_circulacions && historyRecord.detall_circulacions.length > 0)
+    ? historyRecord.detall_circulacions.filter((c: any) => c?.codi && c.codi !== '-' && c.codi !== 'RESERVA')
+    : realFullCircs.map((c: any) => {
       const codi = typeof c === 'string' ? c : (c.codi || c.realCodi || c.id);
       const realCodi = typeof c === 'object' ? c.realCodi : null;
-      const passagesForCirc = gipPassages.filter(p => 
-        p.circulacio_id === codi || (realCodi && p.circulacio_id === realCodi)
+      const histCirc = historyRecord?.detall_circulacions?.find((hc: any) =>
+        hc.codi === codi || (realCodi && hc.codi === realCodi)
       );
-      const onTimePassages = passagesForCirc.filter(p => p.estat === 'en_hora' || p.estat === 'avanc').length;
+
+      const rawPassagesForCirc = gipPassages
+        .filter(p => p.circulacio_id === codi || (realCodi && p.circulacio_id === realCodi))
+        .sort((a, b) => (getFgcMinutes(a.hora_real || a.hora_teorica) ?? 0) - (getFgcMinutes(b.hora_real || b.hora_teorica) ?? 0));
+
+      const sMin = getFgcMinutes(c.sortida);
+      const eMin = getFgcMinutes(c.arribada);
+      let status: 'COMPLETED' | 'IN_PROGRESS' | 'PENDING' = 'PENDING';
+
+      if (sDate < todayServiceDate) {
+        status = 'COMPLETED';
+      } else if (sDate === todayServiceDate) {
+        if (sMin !== null && eMin !== null) {
+          if (nowMin >= eMin) {
+            status = 'COMPLETED';
+          } else if (nowMin >= sMin && nowMin < eMin) {
+            status = 'IN_PROGRESS';
+          } else if (rawPassagesForCirc.length > 0 && isShiftStarted) {
+            status = 'IN_PROGRESS';
+          }
+        } else if (rawPassagesForCirc.length > 0) {
+          status = 'COMPLETED';
+        }
+      }
+
+      const passagesForCirc = (sDate === todayServiceDate && status === 'PENDING' && !isShiftStarted)
+        ? []
+        : rawPassagesForCirc;
+
+      const totalStops = passagesForCirc.length > 0 ? passagesForCirc.length : (histCirc?.totalStops || 0);
+      const onTimePassages = passagesForCirc.length > 0
+        ? passagesForCirc.filter(p => p.estat === 'en_hora' || p.estat === 'avanc').length
+        : (histCirc?.onTimeStops || 0);
       const delayedStops = passagesForCirc.filter(p => p.estat === 'retard');
-      const totalStops = passagesForCirc.length;
-      const rate = totalStops > 0 ? Number(((onTimePassages / totalStops) * 100).toFixed(1)) : null;
+      const delayedStopsCount = passagesForCirc.length > 0 ? delayedStops.length : (histCirc?.delayedStopsCount || 0);
+      const rate = totalStops > 0 ? Number(((onTimePassages / totalStops) * 100).toFixed(1)) : (histCirc?.rate ?? null);
       const maxDelaySec = delayedStops.length > 0
         ? Math.max(...delayedStops.map(p => normalizeTimeDiffSec(p.diferencia_segons)))
-        : 0;
+        : (histCirc?.maxDelaySec || 0);
+
+      const sortidaReal = passagesForCirc.length > 0
+        ? passagesForCirc[0].hora_real
+        : (histCirc?.sortidaReal || undefined);
+      const arribadaReal = passagesForCirc.length > 0
+        ? passagesForCirc[passagesForCirc.length - 1].hora_real
+        : (histCirc?.arribadaReal || undefined);
+
+      const passageUt = passagesForCirc.find(p => p.ut)?.ut;
+      const resolvedUt = passageUt || c.ut || c.train || histCirc?.ut || histCirc?.train || undefined;
+      const resolvedInici = c.inici || histCirc?.inici || (passagesForCirc[0]?.estacio_codi) || '';
+      const resolvedFinal = c.final || histCirc?.final || (passagesForCirc[passagesForCirc.length - 1]?.estacio_codi) || '';
+      const resolvedLinia = resolveLiniaName(codi, c.linia || histCirc?.linia || passagesForCirc[0]?.linia);
 
       return {
         codi,
-        linia: c.linia || (codi?.startsWith('F') ? 'S2' : (codi?.startsWith('D') ? 'S1' : 'FGC')),
-        inici: c.inici,
-        final: c.final,
-        sortida: c.sortida,
-        arribada: c.arribada,
-        cicle: c.cicle,
-        train: c.train || c.ut,
-        ut: c.ut || c.train,
-        status: totalStops > 0 ? 'COMPLETED' : (c.status || 'PENDING'),
+        realCodi,
+        linia: resolvedLinia,
+        inici: resolvedInici,
+        final: resolvedFinal,
+        sortida: c.sortida || histCirc?.sortida,
+        arribada: c.arribada || histCirc?.arribada,
+        sortidaReal,
+        arribadaReal,
+        cicle: c.cicle || histCirc?.cicle,
+        train: resolvedUt,
+        ut: resolvedUt,
+        status,
         rate,
         totalStops,
         onTimeStops: onTimePassages,
-        delayedStopsCount: delayedStops.length,
+        delayedStopsCount,
         maxDelaySec
       };
     });
 
-  const totalPassages = gipPassages.length > 0 ? gipPassages.length : (historyRecord?.passos_totals || 0);
-  const onTimePassages = gipPassages.length > 0 ? gipPassages.filter(p => p.estat === 'en_hora' || p.estat === 'avanc').length : (historyRecord?.passos_en_hora || 0);
-  const delayedPassages = gipPassages.length > 0 ? gipPassages.filter(p => p.estat === 'retard') : [];
-  const delayedCount = gipPassages.length > 0 ? delayedPassages.length : (historyRecord?.passos_retard || 0);
-  const overallRate = totalPassages > 0 
-    ? Number(((onTimePassages / totalPassages) * 100).toFixed(1)) 
+  const activeOrCompletedCircs = circulationsList.filter(c => c.status !== 'PENDING' || (c.totalStops || 0) > 0);
+  const sumPassages = activeOrCompletedCircs.reduce((acc, c) => acc + (c.totalStops || 0), 0);
+  const sumOnTime = activeOrCompletedCircs.reduce((acc, c) => acc + (c.onTimeStops || 0), 0);
+  const sumDelayed = activeOrCompletedCircs.reduce((acc, c) => acc + (c.delayedStopsCount || 0), 0);
+
+  const totalPassages = sumPassages > 0 ? sumPassages : (historyRecord?.passos_totals || 0);
+  const onTimePassages = sumPassages > 0 ? sumOnTime : (historyRecord?.passos_en_hora || 0);
+  const delayedCount = sumPassages > 0 ? sumDelayed : (historyRecord?.passos_retard || 0);
+  const overallRate = totalPassages > 0
+    ? Number(((onTimePassages / totalPassages) * 100).toFixed(1))
     : (historyRecord?.puntualitat_percentatge !== null && historyRecord?.puntualitat_percentatge !== undefined ? Number(historyRecord.puntualitat_percentatge) : null);
-  const maxDelay = delayedPassages.length > 0
-    ? Math.max(...delayedPassages.map(p => normalizeTimeDiffSec(p.diferencia_segons)))
-    : (historyRecord?.retard_maxim_segons || 0);
-  const avgDelay = delayedPassages.length > 0
-    ? Math.round(delayedPassages.reduce((acc, p) => acc + normalizeTimeDiffSec(p.diferencia_segons), 0) / delayedPassages.length)
+
+  const allDelayedPassages = gipPassages.filter(p => p.estat === 'retard');
+  const maxDelay = allDelayedPassages.length > 0
+    ? Math.max(...allDelayedPassages.map(p => normalizeTimeDiffSec(p.diferencia_segons)))
+    : Math.max(0, ...circulationsList.map(c => c.maxDelaySec || 0), historyRecord?.retard_maxim_segons || 0);
+  const avgDelay = allDelayedPassages.length > 0
+    ? Math.round(allDelayedPassages.reduce((acc, p) => acc + normalizeTimeDiffSec(p.diferencia_segons), 0) / allDelayedPassages.length)
     : (historyRecord?.retard_mitja_segons || 0);
 
   const reportPayload: AgentReportData = {
-    agent,
+    agent: {
+      ...agent,
+      torn: rawTorn || agent?.torn
+    },
     shiftData: resolvedShift,
     overallPunctuality: {
       rate: overallRate,
       totalPassages,
       onTimePassages,
-      delayedCount: delayedPassages.length,
+      delayedCount,
       maxDelaySec: maxDelay,
       avgDelaySec: avgDelay,
       totalCircs: circulationsList.length,
@@ -1914,7 +2061,7 @@ export async function generateAgentReportDirectly(
   if (format === 'excel') {
     generateAgentReportExcel(reportPayload);
   } else {
-    generateAgentReportPrint(reportPayload);
+    generateAgentReportPrint(reportPayload, pendingWin);
   }
 
   return true;

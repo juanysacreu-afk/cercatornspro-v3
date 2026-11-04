@@ -293,23 +293,33 @@ Centre de Supervisió Operativa (CSO) · Línies Metropolitanes FGC
           message: `Generant informe d'agent (${i + 1}/${totalAgents}): ${agt.cognoms}, ${agt.nom}...`
         });
 
-        const circList = Array.isArray(agt.detall_circulacions) ? agt.detall_circulacions.map((c: any) => ({
-          codi: c.codi || c.id || 'Circulació',
-          linia: c.linia || (c.codi?.startsWith('F') ? 'S2' : (c.codi?.startsWith('D') ? 'S1' : 'FGC')),
-          inici: c.inici,
-          final: c.final,
-          sortida: c.sortida,
-          arribada: c.arribada,
-          cicle: c.cicle,
-          train: c.train || c.ut,
-          ut: c.ut || c.train,
-          status: c.status || 'COMPLETED',
-          rate: c.rate !== undefined ? c.rate : agt.puntualitat,
-          totalStops: c.totalStops || 0,
-          onTimeStops: c.onTimeStops || 0,
-          delayedStopsCount: c.delayedStopsCount || 0,
-          maxDelaySec: c.maxDelaySec || 0
-        })) : [];
+        const circList = Array.isArray(agt.detall_circulacions)
+          ? agt.detall_circulacions
+              .filter((c: any) => {
+                const codi = (typeof c === 'string' ? c : (c?.codi || '')).trim();
+                return codi && codi !== '-' && codi !== 'RESERVA';
+              })
+              .map((c: any) => ({
+                codi: c.codi || c.id || 'Circulació',
+                realCodi: c.realCodi,
+                linia: c.linia || (c.codi?.startsWith('F') || c.codi?.startsWith('P') ? 'S2' : (c.codi?.startsWith('D') || c.codi?.startsWith('K') || c.codi?.startsWith('M') ? 'S1' : (c.codi?.startsWith('A') ? 'L6' : (c.codi?.startsWith('B') ? 'L7' : (c.codi?.startsWith('E') ? 'L12' : (c.codi?.startsWith('V') ? 'MSR' : 'FGC')))))),
+                inici: c.inici,
+                final: c.final,
+                sortida: c.sortida,
+                arribada: c.arribada,
+                sortidaReal: c.sortidaReal,
+                arribadaReal: c.arribadaReal,
+                cicle: c.cicle,
+                train: c.train || c.ut,
+                ut: c.ut || c.train,
+                status: c.status || 'COMPLETED',
+                rate: c.rate !== undefined ? c.rate : agt.puntualitat,
+                totalStops: c.totalStops || 0,
+                onTimeStops: c.onTimeStops || 0,
+                delayedStopsCount: c.delayedStopsCount || 0,
+                maxDelaySec: c.maxDelaySec || 0
+              }))
+          : [];
 
         const agentPayload: AgentReportData = {
           agent: {
