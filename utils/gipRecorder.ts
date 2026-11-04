@@ -1,8 +1,7 @@
 import { supabase } from '../supabaseClient';
 import { resolveStationId, calculateTimeDiffSec, normalizeTimeDiffSec, timeStringToSeconds, secondsToTimeString } from './stations';
 import { STATION_GEO_DATA, STATION_GEO_MAP, haversineKm } from './stationGeoData';
-import { decodeGeotrenUt } from '../views/incidencia/utils/decodeUt';
-import { decodeGeotrenCirculation } from '../views/incidencia/utils/decodeCirculation';
+import { decodeGeotrenUt, decodeGeotrenCirculation } from './geotrenDecoders';
 import { getFgcMinutes } from './time';
 import { getServiceToday } from './serviceCalendar';
 import { GipRegistrePas } from '../types';
@@ -50,15 +49,31 @@ let isCacheInitialized = false;
  */
 const initRecordedKeys = async (serviceDate: string) => {
   try {
-    const { data } = await supabase
-      .from('gip_registre_pas')
-      .select('circulacio_id, estacio_codi')
-      .eq('data_servei', serviceDate);
+    let from = 0;
+    const pageSize = 1000;
+    let hasMore = true;
 
-    if (data) {
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from('gip_registre_pas')
+        .select('circulacio_id, estacio_codi')
+        .eq('data_servei', serviceDate)
+        .range(from, from + pageSize - 1);
+
+      if (error || !data || data.length === 0) {
+        hasMore = false;
+        break;
+      }
+
       data.forEach(row => {
         recordedKeys.add(`${serviceDate}:${row.circulacio_id}:${row.estacio_codi}`);
       });
+
+      if (data.length < pageSize) {
+        hasMore = false;
+      } else {
+        from += pageSize;
+      }
     }
     isCacheInitialized = true;
   } catch (err) {

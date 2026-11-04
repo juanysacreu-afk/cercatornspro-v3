@@ -1,6 +1,5 @@
 import { supabase } from '../supabaseClient';
-import { decodeGeotrenUt } from '../views/incidencia/utils/decodeUt';
-import { decodeGeotrenCirculation } from '../views/incidencia/utils/decodeCirculation';
+import { decodeGeotrenUt, decodeGeotrenCirculation } from './geotrenDecoders';
 import { calendarCodeToFilterCode, getServiceToday } from './serviceCalendar';
 
 const GEOTREN_API = 'https://dadesobertes.fgc.cat/api/v2/catalog/datasets/posicionament-dels-trens/exports/json';

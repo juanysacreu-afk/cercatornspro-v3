@@ -51,6 +51,7 @@ export const syncOfflineData = async (onProgress?: (msg: string, progressValue?:
             if (data.length < 500) break;
         }
 
+        await db.daily_assignments.clear();
         if (dailyRows.length > 0) {
             await db.daily_assignments.bulkPut(dailyRows);
         }

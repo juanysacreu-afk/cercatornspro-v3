@@ -34,12 +34,6 @@ const TOUR_STEPS: TourStep[] = [
         targetSelector: '[data-tour="incidencia-tab"]'
     },
     {
-        id: 'missatges',
-        title: 'Missatgeria',
-        content: 'Comunica\'t amb la resta de l\'equip de CSO, comparteix arxius i fixa missatges importants.',
-        targetSelector: '[data-tour="mensajeria-tab"]'
-    },
-    {
         id: 'cicles',
         title: 'Material Mòbil',
         content: 'Controla l\'estat de tota la flota de trens, inspeccions i manteniment.',

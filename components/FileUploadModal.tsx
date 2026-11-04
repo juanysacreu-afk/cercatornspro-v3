@@ -1,7 +1,13 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Download, FileText, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { X, Download, FileText, Loader2, CheckCircle2, AlertCircle, AlertTriangle } from 'lucide-react';
 import { supabase } from '../supabaseClient.ts';
+import { logLopdAccess } from '../utils/auditLogger';
+import { db } from '../utils/offlineDb';
+import { getServiceForDateAsync, calendarCodeToFilterCode, getServiceToday } from '../utils/serviceCalendar';
+import { getShortTornId, isServiceVisible } from '../utils/stations';
+import { useToast } from './ToastProvider';
+import { feedback } from '../utils/feedback';
 import * as pdfjsLib from 'pdfjs-dist';
 
 // Use unpkg for matching worker version
@@ -11,15 +17,52 @@ interface FileUploadModalProps {
   onClose: () => void;
 }
 
+interface UncoveredShiftInfo {
+  shiftId: string;
+  shortId: string;
+  inici_torn: string;
+  final_torn: string;
+  dependencia: string;
+  wasPreviouslyCovered: boolean;
+}
+
+const EXCLUDED_STATUS_CODES = new Set([
+  'VAC', 'DIS', 'DES', 'FOR', 'DAG', 'FORA', 'AJN', 'FESTES', 'DISPONIBLE', 'FORA DE SERVEI', 'RMD'
+]);
+
+const normalizeShiftCode = (rawTorn: string): { cleanedTorn: string; tipusTorn: string | null } => {
+  let cleanedTorn = rawTorn.trim().toUpperCase();
+  let tipusTorn: string | null = null;
+
+  // Ex: 107R -> Q107 (Reducció), 032T -> Q032 (Torn)
+  const rtNumericMatch = cleanedTorn.match(/^Q?(\d{3})([RT])$/);
+  // Ex: QN2R -> QN02 (Reducció), QP2R -> QP02
+  const rtLetterMatch = cleanedTorn.match(/^Q?([FNPS])0?(\d)([RT])$/);
+
+  if (rtNumericMatch) {
+    cleanedTorn = `Q${rtNumericMatch[1]}`;
+    tipusTorn = rtNumericMatch[2] === 'R' ? 'Reducció' : 'Torn';
+  } else if (rtLetterMatch) {
+    cleanedTorn = `Q${rtLetterMatch[1]}0${rtLetterMatch[2]}`;
+    tipusTorn = rtLetterMatch[3] === 'R' ? 'Reducció' : 'Torn';
+  } else if (/^\d+$/.test(cleanedTorn)) {
+    cleanedTorn = `Q${cleanedTorn}`;
+  }
+
+  return { cleanedTorn, tipusTorn };
+};
+
 const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const [lastUploadDate, setLastUploadDate] = useState<string | null>(null);
+  const [uncoveredShifts, setUncoveredShifts] = useState<UncoveredShiftInfo[]>([]);
+  const { showToast } = useToast();
 
   const fetchLastUploadDate = async () => {
     try {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('daily_assignments')
         .select('data_servei')
         .order('created_at', { ascending: false })
@@ -41,6 +84,7 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0]);
+      setUncoveredShifts([]);
     }
   };
 
@@ -60,13 +104,16 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
     const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
     const pdf = await loadingTask.promise;
     const extractedData: any[] = [];
+    const explicitUncoveredInPdf: Map<string, { inici: string; fi: string }> = new Map();
     let currentDate: string | null = null;
 
     const dateRegex = /Data:\s*(\d{2}\.\d{2}\.\d{2})/;
 
-    // Regex per Torns Operatius (Q301, 107R, etc.) que contenen dos horaris HH:MM HH:MM
-    // Captura: Torn, (Opcional Variant), Inici, Fi, ID Empleat, Cognoms, resta...
+    // Regex per Torns Operatius (Q301, 107R, QN2R, etc.) amb empleat assignat
     const operativeShiftRegex = /([QR0-9][A-Z0-9]{2,5})\s+(?:\d+\s+)?(\d{2}:\d{2})\s+(\d{2}:\d{2})\s+(\d{5,8})\s+([^,]+),\s+(.*)$/;
+
+    // Regex per Torns Operatius que apareguin al PDF amb horari però SENSE maquinista assignat
+    const unassignedOperativeShiftRegex = /([QR0-9][A-Z0-9]{2,5})\s+(?:\d+\s+)?(\d{2}:\d{2})\s+(\d{2}:\d{2})\s*$/;
 
     // Regex per Estats de personal (VAC, DIS, DES, FOR, DAG, etc.) sense horaris
     const statusRowRegex = /^(VAC|DIS|DES|FOR|DAG|FORA|AJN|FESTES|DISPONIBLE|FORA DE SERVEI)\s+(?:MQ\s+)?(?:BA\s+)?(?:[A-Z]{2}\s+)?(\d{5,8})\s+([^,]+),\s+(.*)$/;
@@ -103,30 +150,36 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
         let match: any = null;
         let lineType: 'OPERATIVE' | 'STATUS' | 'ALTERATION' | null = null;
 
-        // Provar primer torn operatiu (té horaris)
         const opMatch = textLine.match(operativeShiftRegex);
         if (opMatch) {
           match = opMatch;
           lineType = 'OPERATIVE';
         } else {
-          // Provar alteració
           const altMatch = textLine.match(alterationRowRegex);
           if (altMatch) {
             match = altMatch;
             lineType = 'ALTERATION';
           } else {
-            // Provar estat (VAC, DIS, etc.)
             const statMatch = textLine.match(statusRowRegex);
             if (statMatch) {
               match = statMatch;
               lineType = 'STATUS';
+            } else {
+              const unassignedMatch = textLine.match(unassignedOperativeShiftRegex);
+              if (unassignedMatch) {
+                const { cleanedTorn } = normalizeShiftCode(unassignedMatch[1]);
+                explicitUncoveredInPdf.set(cleanedTorn, {
+                  inici: unassignedMatch[2],
+                  fi: unassignedMatch[3]
+                });
+              }
             }
           }
         }
 
         if (match && lineType) {
           let cleanedTorn = "";
-          let tipusTorn = null;
+          let tipusTorn: string | null = null;
           let horaInici = "00:00";
           let horaFi = "23:59";
           let empId = "";
@@ -159,18 +212,11 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
             restOfLine = match[4].trim();
           }
 
-          // Normalització del codi del torn (Ex: 107R -> Q107 amb tipus Reducció)
           if (lineType !== 'ALTERATION') {
-            const rtMatch = cleanedTorn.match(/^(\d+)([RT])$/);
-            if (rtMatch) {
-              cleanedTorn = 'Q' + rtMatch[1];
-              tipusTorn = rtMatch[2] === 'R' ? 'Reducció' : 'Torn';
-            } else if (/^\d+$/.test(cleanedTorn)) {
-              cleanedTorn = 'Q' + cleanedTorn;
-            }
+            const normalized = normalizeShiftCode(cleanedTorn);
+            cleanedTorn = normalized.cleanedTorn;
+            tipusTorn = normalized.tipusTorn;
 
-            // Extreure Nom i Flags de la resta de la línia (per OPERATIVE i STATUS)
-            // Busquem patrons N o S aïllats que indiquen els flags Abs.parc.C, Dta, Dpa...
             const flagsPattern = /\s+([SN])\s+([SN])\s+([SN])(?:\s+[SN])?(?:\s+(.*))?$/;
             const flagsMatch = restOfLine.match(flagsPattern);
 
@@ -181,13 +227,15 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
               f3 = flagsMatch[3];
               obs = flagsMatch[4] ? flagsMatch[4].trim() : "";
             } else {
-              // Si no hi ha flags clars, agafem tot el que queda com a nom i mirem si hi ha dobles espais per a observacions
               const parts = restOfLine.split(/\s{2,}/);
               nom = parts[0].trim();
               if (parts.length > 1) {
                 obs = parts.slice(1).join(" ").trim();
               }
             }
+          } else {
+            const normalized = normalizeShiftCode(cleanedTorn);
+            cleanedTorn = normalized.cleanedTorn;
           }
 
           extractedData.push({
@@ -208,29 +256,199 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
       });
     }
 
-    return extractedData;
+    return { extractedData, explicitUncoveredInPdf, currentDate };
+  };
+
+  const detectUncoveredShifts = async (
+    extractedData: any[],
+    explicitUncoveredInPdf: Map<string, { inici: string; fi: string }>,
+    targetDate: string | null,
+    previousRows: any[]
+  ): Promise<UncoveredShiftInfo[]> => {
+    // 1. Determinar torns operatius que estaven coberts en la càrrega anterior (si era del mateix dia)
+    const previouslyCoveredSet = new Set<string>();
+    const previousShiftMeta = new Map<string, { inici: string; fi: string }>();
+    previousRows.forEach(r => {
+      if (!r.torn) return;
+      const code = String(r.torn).trim().toUpperCase();
+      if (EXCLUDED_STATUS_CODES.has(code)) return;
+      if (!targetDate || !r.data_servei || r.data_servei === targetDate) {
+        const shortCode = getShortTornId(code);
+        previouslyCoveredSet.add(shortCode);
+        if (r.hora_inici && r.hora_fi) {
+          previousShiftMeta.set(shortCode, { inici: r.hora_inici, fi: r.hora_fi });
+        }
+      }
+    });
+
+    // 2. Determinar codi de servei teòric per a la data del PDF
+    let serviceFilter = getServiceToday();
+    if (targetDate) {
+      const parsedDate = new Date(`${targetDate}T12:00:00`);
+      if (!isNaN(parsedDate.getTime())) {
+        const rawCode = await getServiceForDateAsync(parsedDate);
+        serviceFilter = calendarCodeToFilterCode(rawCode);
+      }
+    }
+
+    // 3. Obtenir els torns teòrics de la taula shifts per a aquest servei
+    const { data: allShifts } = await supabase
+      .from('shifts')
+      .select('id, servei, inici_torn, final_torn, dependencia');
+
+    const serviceShifts = (allShifts || []).filter(s =>
+      isServiceVisible(s.servei, serviceFilter) ||
+      (s.id && s.id.toUpperCase().startsWith('QR') && isServiceVisible(s.servei, serviceFilter))
+    );
+
+    // 4. Comprovar quins torns estan realment coberts al nou PDF
+    const isShiftCoveredInNewPdf = (shiftId: string, shortId: string): boolean => {
+      const sUpper = shiftId.toUpperCase();
+      const shortUpper = shortId.toUpperCase();
+
+      const hasDirectDriver = extractedData.some(a => {
+        const aTorn = String(a.torn || '').trim().toUpperCase();
+        const aShort = getShortTornId(aTorn);
+        const hasEmployee = Boolean(a.empleat_id && String(a.empleat_id).trim().length > 0);
+        return hasEmployee && (aTorn === sUpper || aTorn === shortUpper || aShort === shortUpper);
+      });
+
+      if (hasDirectDriver) return true;
+
+      const hasExplicitCover = extractedData.some(a => {
+        if (!a.observacions) return false;
+        const obs = String(a.observacions).toUpperCase();
+        return (
+          obs.includes(`COBREIX ${shortUpper}`) ||
+          obs.includes(`COBREIX ${sUpper}`) ||
+          obs.includes(`COBRINT ${shortUpper}`) ||
+          obs.includes(`COBRINT ${sUpper}`) ||
+          obs.includes(`COBREIX: ${shortUpper}`)
+        );
+      });
+
+      return hasExplicitCover;
+    };
+
+    const uncoveredMap = new Map<string, UncoveredShiftInfo>();
+
+    // A) Comprovar tots els torns teòrics del servei
+    serviceShifts.forEach(s => {
+      const shortId = getShortTornId(s.id).toUpperCase();
+      if (!isShiftCoveredInNewPdf(s.id, shortId)) {
+        uncoveredMap.set(shortId, {
+          shiftId: s.id,
+          shortId,
+          inici_torn: s.inici_torn || '--:--',
+          final_torn: s.final_torn || '--:--',
+          dependencia: s.dependencia || 'CSO',
+          wasPreviouslyCovered: previouslyCoveredSet.has(shortId)
+        });
+      }
+    });
+
+    // B) Comprovar si algun torn que estava cobert al PDF anterior del mateix dia ha desaparegut
+    previouslyCoveredSet.forEach(shortId => {
+      if (!uncoveredMap.has(shortId) && !isShiftCoveredInNewPdf(shortId, shortId)) {
+        const meta = previousShiftMeta.get(shortId);
+        uncoveredMap.set(shortId, {
+          shiftId: shortId,
+          shortId,
+          inici_torn: meta?.inici || '--:--',
+          final_torn: meta?.fi || '--:--',
+          dependencia: 'CSO',
+          wasPreviouslyCovered: true
+        });
+      }
+    });
+
+    // C) Comprovar si el propi PDF contenia línies de torn sense maquinista
+    explicitUncoveredInPdf.forEach((times, shortId) => {
+      const upper = shortId.toUpperCase();
+      if (!uncoveredMap.has(upper) && !isShiftCoveredInNewPdf(upper, upper)) {
+        uncoveredMap.set(upper, {
+          shiftId: upper,
+          shortId: upper,
+          inici_torn: times.inici,
+          final_torn: times.fi,
+          dependencia: 'CSO',
+          wasPreviouslyCovered: previouslyCoveredSet.has(upper)
+        });
+      }
+    });
+
+    return Array.from(uncoveredMap.values()).sort((a, b) => a.shortId.localeCompare(b.shortId));
   };
 
   const handleUpload = async () => {
     if (!file) return;
     setStatus('processing');
+    setUncoveredShifts([]);
     try {
-      const extractedData = await parsePDF(file);
+      const { extractedData, explicitUncoveredInPdf, currentDate } = await parsePDF(file);
       if (extractedData.length === 0) {
         throw new Error("No s'han pogut identificar dades vàlides al PDF. Comprova que el format coincideix amb el llistat de torns.");
       }
 
-      // Netejem dades existents abans de la nova càrrega per evitar duplicats i escombrar modificacions
+      const targetDate = currentDate || extractedData[0]?.data_servei || null;
+
+      // Llegim els torns anteriors ÚNICAMENT per detectar si algun torn que abans estava cobert ha quedat ara descobert.
+      // MAI es restauren torns anteriors: si un torn no ve al nou PDF, queda com a descobert.
+      const { data: existingRows } = await supabase
+        .from('daily_assignments')
+        .select('torn, hora_inici, hora_fi, data_servei');
+
+      // 1. Esborrem totes les assignacions anteriors a Supabase (sense restaurar-les mai)
       const { error: deleteError } = await supabase.from('daily_assignments').delete().gte('id', 0);
       if (deleteError) throw deleteError;
-      if (deleteError) throw deleteError;
 
-      // Inserció per blocs per evitar límits de payload
+      // 2. Inserim exclusivament les dades del nou PDF per blocs
       const chunkSize = 50;
       for (let i = 0; i < extractedData.length; i += chunkSize) {
         const { error } = await supabase.from('daily_assignments').insert(extractedData.slice(i, i + chunkSize));
         if (error) throw error;
       }
+
+      // 3. Netegem la memòria cau local (IndexedDB) perquè no quedi cap torn antic cobert
+      try {
+        await db.daily_assignments.clear();
+        await db.daily_assignments.bulkPut(extractedData);
+      } catch (cacheErr) {
+        console.warn('Error sincronitzant memòria cau local:', cacheErr);
+      }
+
+      // 4. Detectem immediatament si falten torns per cobrir
+      const missingShifts = await detectUncoveredShifts(
+        extractedData,
+        explicitUncoveredInPdf,
+        targetDate,
+        existingRows || []
+      );
+      setUncoveredShifts(missingShifts);
+
+      // 5. Notifiquem a totes les vistes (Monitor CSO i Malla Operativa) perquè s'actualitzin a l'instant
+      window.dispatchEvent(new CustomEvent('fgc:assignments-updated'));
+
+      // 6. Avisem imperativament si hi ha torns sense cobrir
+      if (missingShifts.length > 0) {
+        feedback.error();
+        const shiftList = missingShifts.map(s => s.shortId).join(', ');
+        showToast(
+          `🚨 ATENCIÓ: S'han detectat ${missingShifts.length} torn(s) SENSE COBRIR al PDF (${shiftList})`,
+          'error'
+        );
+      } else {
+        feedback.success();
+        showToast('Servei actualitzat: tots els torns estan coberts.', 'success');
+      }
+
+      logLopdAccess('UPLOAD_DAILY_ASSIGNMENTS', undefined, {
+        file_name: file.name,
+        service_date: targetDate,
+        records_count: extractedData.length,
+        uncovered_shifts_count: missingShifts.length,
+        uncovered_shifts: missingShifts.map(s => s.shortId)
+      });
 
       setStatus('success');
       fetchLastUploadDate();
@@ -273,7 +491,7 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
                   <div className="space-y-4 flex flex-col items-center">
                     <Loader2 className="text-fgc-green animate-spin" size={48} />
                     <p className="font-bold text-fgc-grey dark:text-white text-lg">Analitzant document...</p>
-                    <p className="text-xs text-gray-400">Extreient horaris, personal i alteracions</p>
+                    <p className="text-xs text-gray-400">Extreient horaris, personal i verificant torns descoberts</p>
                   </div>
                 ) : (
                   <>
@@ -298,12 +516,54 @@ const FileUploadModal: React.FC<FileUploadModalProps> = ({ onClose }) => {
               )}
             </div>
           ) : status === 'success' ? (
-            <div className="text-center py-8 space-y-6">
-              <div className="w-20 h-20 bg-green-50 dark:bg-green-900/20 text-green-600 rounded-full flex items-center justify-center mx-auto shadow-inner"><CheckCircle2 size={48} /></div>
-              <div className="space-y-2">
-                <h3 className="text-2xl font-black text-fgc-grey dark:text-white">Dades Carregades</h3>
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">S'han importat correctament tots els torns del document, incloent-hi els operatius i les alteracions.</p>
-              </div>
+            <div className="text-center py-4 space-y-6">
+              {uncoveredShifts.length > 0 ? (
+                <>
+                  <div className="w-20 h-20 bg-red-50 dark:bg-red-900/20 text-red-600 rounded-full flex items-center justify-center mx-auto shadow-inner animate-pulse">
+                    <AlertTriangle size={48} />
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="text-2xl font-black text-red-600 dark:text-red-400 uppercase tracking-tight">
+                      Atenció: {uncoveredShifts.length} {uncoveredShifts.length === 1 ? 'Torn Sense Cobrir' : 'Torns Sense Cobrir'}
+                    </h3>
+                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-300">
+                      S'ha carregat el nou PDF però els següents torns no tenen maquinista assignat (descoberts):
+                    </p>
+                  </div>
+                  <div className="max-h-56 overflow-y-auto space-y-2 text-left bg-red-50/70 dark:bg-red-950/30 border border-red-200 dark:border-red-500/30 rounded-2xl p-4">
+                    {uncoveredShifts.map((u) => (
+                      <div
+                        key={u.shiftId}
+                        className="flex items-center justify-between gap-2 bg-white dark:bg-black/40 px-3.5 py-2.5 rounded-xl border border-red-100 dark:border-red-500/20 shadow-sm"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span className="px-2.5 py-1 rounded-lg bg-red-600 text-white font-black text-xs tracking-wider">
+                            {u.shortId}
+                          </span>
+                          <div>
+                            <p className="text-xs font-extrabold text-fgc-grey dark:text-white">
+                              Dep: {u.dependencia} · {u.inici_torn} – {u.final_torn}
+                            </p>
+                            <p className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase">
+                              {u.wasPreviouslyCovered ? '⚠️ Abans cobert · Ara descobert al nou PDF' : '🔴 Torn descobert (sense maquinista)'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="w-20 h-20 bg-green-50 dark:bg-green-900/20 text-green-600 rounded-full flex items-center justify-center mx-auto shadow-inner"><CheckCircle2 size={48} /></div>
+                  <div className="space-y-2">
+                    <h3 className="text-2xl font-black text-fgc-grey dark:text-white">Dades Carregades</h3>
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                      S'han importat correctament tots els torns del document. Tots els torns del servei estan coberts.
+                    </p>
+                  </div>
+                </>
+              )}
               <button onClick={onClose} className="w-full bg-fgc-grey dark:bg-black text-white py-4 rounded-xl font-bold hover:brightness-110 transition-all">TANCAR</button>
             </div>
           ) : (

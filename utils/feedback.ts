@@ -152,6 +152,14 @@ class FeedbackManager {
         this.playDeepClick();
         this.haptic(8);
     }
+
+    /**
+     * Alert/Error sequence: Sound + Haptic
+     */
+    error() {
+        this.playDeepClick();
+        this.haptic([50, 40, 80]);
+    }
 }
 
 export const feedback = new FeedbackManager();

@@ -2,14 +2,18 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
 
-const VAPID_PUBLIC_KEY = "BNQstO2w84c7CPzPC_ZULMNDTFxptTB_Bzd84DNPxFnzaIEZISASCy0smt_tKbZsAihU2LGVPAUBOtP6qK0d-6I";
-const VAPID_PRIVATE_KEY = "fARW9oOq-yqofv2skPbQzBwJ4M8MLOoRBiMchk2KI5I";
-const VAPID_SUBJECT = "mailto:operacions@nexus.fgc.cat";
+const VAPID_PUBLIC_KEY = Deno.env.get("VAPID_PUBLIC_KEY") || "BNQstO2w84c7CPzPC_ZULMNDTFxptTB_Bzd84DNPxFnzaIEZISASCy0smt_tKbZsAihU2LGVPAUBOtP6qK0d-6I";
+const VAPID_PRIVATE_KEY = Deno.env.get("VAPID_PRIVATE_KEY") || "";
+const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") || "mailto:operacions@nexus.fgc.cat";
 
-try {
-  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
-} catch (e) {
-  console.warn("VAPID setup warning:", e);
+if (VAPID_PRIVATE_KEY) {
+  try {
+    webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+  } catch (e) {
+    console.warn("VAPID setup warning:", e);
+  }
+} else {
+  console.warn("[check-delays] VAPID_PRIVATE_KEY is not configured in Supabase secrets");
 }
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -411,6 +415,25 @@ serve(async (req: Request) => {
       try {
         body = await req.json();
       } catch (_) {}
+    }
+
+    // Verificació d'autorització per a accions iniciades per clients (elimina vectors no autenticats)
+    if (body.action === "test_push" || body.action === "notify_delay") {
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader) {
+        return new Response(JSON.stringify({ error: "Unauthorized: Missing Authorization header" }), {
+          status: 401,
+          headers: { ...CORS, "Content-Type": "application/json" }
+        });
+      }
+      const token = authHeader.replace(/^Bearer\s+/i, "");
+      const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+      if (userError || !user) {
+        return new Response(JSON.stringify({ error: "Unauthorized: Invalid user session" }), {
+          status: 401,
+          headers: { ...CORS, "Content-Type": "application/json" }
+        });
+      }
     }
 
     // ACCIÓ 1: Test de notificació push al mòbil

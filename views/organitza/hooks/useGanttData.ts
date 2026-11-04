@@ -129,14 +129,12 @@ export function useGanttData() {
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
-            const todayStr = new Date().toISOString().split('T')[0];
             const svc = selectedServiceRef.current;
 
             const [shiftsRes, assignRes, agentsRes, commentsRes] = await Promise.all([
                 supabase.from('shifts').select('id, servei, inici_torn, final_torn, dependencia, circulations'),
                 supabase.from('daily_assignments')
-                    .select('id, torn, cognoms, nom, abs_parc_c, empleat_id, incident_start_time, hora_inici, hora_fi, data_servei, observacions')
-                    .eq('data_servei', todayStr),
+                    .select('id, torn, cognoms, nom, abs_parc_c, empleat_id, incident_start_time, hora_inici, hora_fi, data_servei, observacions'),
                 supabase.from('agents').select('nomina, phone'),
                 supabase.from('shift_comments').select('shift_id').eq('date', svc)
             ]);
@@ -555,8 +553,15 @@ export function useGanttData() {
     useEffect(() => {
         fetchData();
 
+        const handleAssignmentsUpdated = () => {
+            fetchData();
+        };
+        window.addEventListener('fgc:assignments-updated', handleAssignmentsUpdated);
+
         // N1 – Supabase Realtime subscription for Gantt updates
-        if (realtimeConnectedRef.current) return;
+        if (realtimeConnectedRef.current) {
+            return () => window.removeEventListener('fgc:assignments-updated', handleAssignmentsUpdated);
+        }
         realtimeConnectedRef.current = true;
 
         const channel = supabase
@@ -572,6 +577,7 @@ export function useGanttData() {
             .subscribe();
 
         return () => {
+            window.removeEventListener('fgc:assignments-updated', handleAssignmentsUpdated);
             supabase.removeChannel(channel);
             realtimeConnectedRef.current = false;
         };

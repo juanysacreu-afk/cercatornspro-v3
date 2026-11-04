@@ -502,7 +502,12 @@ export function useDashboardData(onThresholdAlert?: (msg: string) => void) {
     useEffect(() => {
         fetchData();
         intervalRef.current = setInterval(fetchData, 60000);
-        return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+        const handleAssignmentsUpdated = () => fetchData();
+        window.addEventListener('fgc:assignments-updated', handleAssignmentsUpdated);
+        return () => {
+            if (intervalRef.current) clearInterval(intervalRef.current);
+            window.removeEventListener('fgc:assignments-updated', handleAssignmentsUpdated);
+        };
     }, [fetchData]);
 
     // F1 – Supabase Realtime subscription

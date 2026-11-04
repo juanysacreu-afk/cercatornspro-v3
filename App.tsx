@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, RefreshCcw, Train, Menu, X, Download, BookOpen, Settings, Moon, Sun, ShieldAlert, Eye, Layers, Volume2, VolumeX, MessageCircle, HelpCircle, Calendar, Activity, Users, Bell, BellRing, LogOut } from 'lucide-react';
+import { Search, RefreshCcw, Train, Menu, X, Download, BookOpen, Settings, Moon, Sun, ShieldAlert, Eye, Layers, Volume2, VolumeX, HelpCircle, Calendar, Activity, Users, Bell, BellRing, LogOut } from 'lucide-react';
 import { AppTab } from './types.ts';
 import { CercarView } from './views/CercarView.tsx';
 import OrganitzaView from './views/OrganitzaView.tsx';
@@ -8,8 +8,6 @@ import IncidenciaView from './views/IncidenciaView.tsx';
 import GipView from './views/GipView.tsx';
 import AgentsView from './views/AgentsView.tsx';
 import DashboardView from './views/dashboard/DashboardView.tsx';
-import MensajeriaView from './views/mensajeria/MensajeriaView.tsx';
-import { startGipRecorder } from './utils/gipRecorder.ts';
 import { startGeoTrenAutoSync } from './utils/assignmentService.ts';
 import FileUploadModal from './components/FileUploadModal.tsx';
 import CommandPalette from './components/CommandPalette.tsx';
@@ -50,10 +48,8 @@ const App: React.FC = () => {
   const [isInitializing, setIsInitializing] = useState(true);
   const [initProgress, setInitProgress] = useState(0);
   const [initMessage, setInitMessage] = useState('Sincronitzant dades...');
-  const [unreadMessages, setUnreadMessages] = useState(0);
   const [session, setSession] = useState<any>(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
-  const activeTabRef = useRef(activeTab);
   const { showToast } = useToast();
   const [focusLocation, setFocusLocation] = useState<{ lat: number; lon: number; label: string; x?: number; y?: number } | null>(null);
   const [gipCircId, setGipCircId] = useState<string | null>(null);
@@ -151,18 +147,13 @@ const App: React.FC = () => {
       setInitProgress(100);
     };
 
-    const timer = setTimeout(doSync, 500);
+    const timer = setTimeout(doSync, 50);
     return () => clearTimeout(timer);
   }, [session]);
 
-  // Enregistrador en segon pla del GIP (registre de passos per estació a Supabase)
-  useEffect(() => {
-    if (!session) return;
-    const stopRecorder = startGipRecorder(10000);
-    return () => {
-      stopRecorder();
-    };
-  }, [session]);
+  // Nota d'arquitectura: L'enregistrament continu de passos GeoTren a gip_registre_pas
+  // està centralitzat al servidor (Edge Function check-delays mitjançant pg_net / cron.job 24/7)
+  // eliminant el tràfic redundant de xarxa i el consum de bateria en clients mòbils.
 
   // Sincronització automàtica de les unitats de GeoTren cada 10 minuts amb l'app oberta
   useEffect(() => {
@@ -194,57 +185,6 @@ const App: React.FC = () => {
       role: ''
     };
   });
-
-  useEffect(() => {
-    activeTabRef.current = activeTab;
-    if (activeTab === AppTab.Mensajeria) {
-      setUnreadMessages(0);
-      localStorage.setItem('mensajeriaLastRead', new Date().toISOString());
-    }
-  }, [activeTab]);
-
-  useEffect(() => {
-    if (!session) return;
-    const initUnread = async () => {
-      const lastRead = localStorage.getItem('mensajeriaLastRead') || new Date(0).toISOString();
-      const { count, error } = await supabase
-        .from('telegram_messages')
-        .select('*', { count: 'exact', head: true })
-        .gt('created_at', lastRead);
-
-      if (!error && count !== null) {
-        setUnreadMessages(count);
-      }
-    };
-    initUnread();
-
-    const subs = supabase.channel('telegram_messages_unread')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'telegram_messages' }, () => {
-        if (activeTabRef.current !== AppTab.Mensajeria) {
-          setUnreadMessages(prev => prev + 1);
-        } else {
-          localStorage.setItem('mensajeriaLastRead', new Date().toISOString());
-        }
-      })
-      .subscribe();
-
-    return () => { subs.unsubscribe(); };
-  }, [session]);
-
-  useEffect(() => {
-    if (!session) return;
-    const triggerBriefing = async () => {
-      try {
-        await supabase.functions.invoke('daily-briefing');
-      } catch (e) {
-        console.warn('Daily briefing briefing failed to trigger:', e);
-      }
-    };
-    // Trigger after initialization is complete or nearly complete
-    if (!isInitializing) {
-      triggerBriefing();
-    }
-  }, [isInitializing, session]);
 
   const syncSupervisorProfile = useCallback(async (email: string) => {
     try {
@@ -563,8 +503,7 @@ const App: React.FC = () => {
     { id: AppTab.Incidencia, label: 'Incidència', icon: <ShieldAlert size={18} /> },
     { id: AppTab.Gip, label: 'GIP', icon: <Activity size={18} /> },
     { id: AppTab.Agents, label: 'Agents', icon: <Users size={18} /> },
-    { id: AppTab.Cicles, label: 'Unitats', icon: <Train size={18} /> },
-    { id: AppTab.Mensajeria, label: 'Missatges', icon: <MessageCircle size={18} /> }
+    { id: AppTab.Cicles, label: 'Unitats', icon: <Train size={18} /> }
   ];
 
   const toggleAdminMode = () => {
@@ -655,7 +594,7 @@ const App: React.FC = () => {
                     </div>
 
                     <div className="hidden md:flex items-center gap-1">
-                      {navItems.filter((item) => item.id !== AppTab.Mensajeria).map((item) => (
+                      {navItems.map((item) => (
                         <button
                           key={item.id}
                           data-tour={`${item.id}-tab`}
@@ -673,18 +612,6 @@ const App: React.FC = () => {
                       <div className="w-px h-8 bg-white/10 mx-3" />
 
                       <div className="flex items-center gap-3">
-                        <button
-                          data-tour="mensajeria-tab"
-                          onClick={() => handleTabChange(AppTab.Mensajeria)}
-                          title="Missatges"
-                          className={`relative flex items-center justify-center w-12 h-12 rounded-xl transition-all group ${activeTab === AppTab.Mensajeria ? 'bg-fgc-green text-fgc-grey shadow-lg' : 'bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white'}`}
-                        >
-                          <div className="relative">
-                            <MessageCircle size={22} className={activeTab === AppTab.Mensajeria ? '' : 'group-hover:scale-110 transition-transform'} />
-                            {unreadMessages > 0 && <span className="absolute -top-1.5 -right-1.5 flex h-[18px] w-[18px] items-center justify-center rounded-full bg-red-500 ring-2 ring-[#4D5358] dark:ring-[#222222] text-[10px] font-bold text-white shadow-sm animate-in zoom-in">{unreadMessages}</span>}
-                          </div>
-                        </button>
-
                         <button
                           onClick={() => setShowUploadModal(true)}
                           data-tour="upload-btn"
@@ -1024,8 +951,7 @@ const App: React.FC = () => {
                   onNavigateToSearch={handleNavigateToSearch}
                 />
               },
-              { id: AppTab.Cicles, Component: <CiclesView parkedUnits={parkedUnits} onParkedUnitsChange={fetchParkedUnits} /> },
-              { id: AppTab.Mensajeria, Component: <MensajeriaView currentProfile={userProfile} /> }
+              { id: AppTab.Cicles, Component: <CiclesView parkedUnits={parkedUnits} onParkedUnitsChange={fetchParkedUnits} /> }
             ].map(tab => {
               const isActive = activeTab === tab.id;
               return (
@@ -1040,14 +966,12 @@ const App: React.FC = () => {
                     zIndex: isActive ? 10 : 0
                   }}
                   transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                  className={`absolute inset-0 overflow-x-hidden w-full px-4 sm:px-6 lg:px-8 border-none no-scrollbar ${tab.id === AppTab.Mensajeria
-                    ? 'pt-6 lg:pt-8 pb-2 lg:pb-4 h-full overflow-y-hidden'
-                    : tab.id === AppTab.Dashboard
+                  className={`absolute inset-0 overflow-x-hidden w-full px-4 sm:px-6 lg:px-8 border-none no-scrollbar ${tab.id === AppTab.Dashboard
                       ? 'p-0 overflow-y-auto'
                       : 'py-8 safe-bottom overflow-y-auto'
                     }`}
                 >
-                  <div className={tab.id === AppTab.Mensajeria ? 'h-full flex flex-col' : ''}>
+                  <div>
                     {tab.Component}
                   </div>
                 </motion.div>

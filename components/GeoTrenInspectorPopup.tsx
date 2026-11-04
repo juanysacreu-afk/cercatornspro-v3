@@ -2,8 +2,7 @@ import React from 'react';
 import { X, Train, ArrowRight, Activity, Clock, Users, MapPin, Info, AlertTriangle, Timer, User, Phone, Compass, UserX } from 'lucide-react';
 import { getLiniaColorHex, LINIA_STATIONS, resolveStationId } from '../utils/stations';
 import type { GeoTrenEnhanced } from '../views/incidencia/hooks/useLiveMapData';
-import { decodeGeotrenUt } from '../views/incidencia/utils/decodeUt';
-import { decodeGeotrenCirculation } from '../views/incidencia/utils/decodeCirculation';
+import { decodeGeotrenUt, decodeGeotrenCirculation } from '../utils/geotrenDecoders';
 import { getPunctualityInfo } from '../utils/delayNotifications';
 
 interface GeoTrenInspectorPopupProps {

@@ -80,8 +80,7 @@ export enum AppTab {
   Incidencia = 'incidencia',
   Gip = 'gip',
   Agents = 'agents',
-  Cicles = 'cicles',
-  Mensajeria = 'mensajeria'
+  Cicles = 'cicles'
 }
 
 export interface GipRegistrePas {

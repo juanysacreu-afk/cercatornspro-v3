@@ -2,7 +2,7 @@ import { NormalizedGeoTrenTrain } from './geotrenApi';
 import { GipRegistrePas, TrunkConflictAlert } from '../types';
 import { resolveStationId, normalizeTimeDiffSec } from './stations';
 import { STATION_GEO_MAP } from './stationGeoData';
-import { decodeGeotrenCirculation } from '../views/incidencia/utils/decodeCirculation';
+import { decodeGeotrenCirculation } from './geotrenDecoders';
 
 /**
  * Common Trunk Stations (Tronc Comú FGC Barcelona-Vallès)

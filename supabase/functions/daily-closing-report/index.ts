@@ -3,8 +3,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
-// Clau Resend per defecte o variable d'entorn Supabase
-const resendApiKey = Deno.env.get('RESEND_API_KEY') || atob('cmVfR1M5ZmRXN0pfNERwYWJHMXEzbVpGNUV0SmZYMXZ5Q0Ra')
+// Clau Resend obtinguda exclusivament des de les variables d'entorn segures (Supabase Secrets)
+const resendApiKey = Deno.env.get('RESEND_API_KEY') || ''
 
 // Adreça de destinació per defecte sol·licitada
 const DEFAULT_RECIPIENT = 'mlopezj@fgc.cat'

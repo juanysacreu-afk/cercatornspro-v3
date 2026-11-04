@@ -260,9 +260,16 @@ export const sendTestNotification = async (): Promise<boolean> => {
 
   try {
     // Llançar test via Edge Function perquè viatgi a través del servidor Push
+    const sessionRes = await supabase.auth.getSession();
+    const token = sessionRes?.data?.session?.access_token;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const res = await fetch('https://hcpjthnhockfbefclycr.supabase.co/functions/v1/check-delays', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         action: 'test_push',
         title: '⚠️ Prova d\'Alerta Push (NEXUS)',
@@ -429,17 +436,25 @@ export const checkAndNotifyDelay = async (info: DelayAlertInfo): Promise<boolean
 
   // 2. Notificar al servidor Push perquè el servidor ho enviï a tots els telèfons amb l'app TANCADA
   try {
-    fetch('https://hcpjthnhockfbefclycr.supabase.co/functions/v1/check-delays', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'notify_delay',
-        circId: info.circId,
-        linia: info.linia,
-        ut: info.ut,
-        delaySec: info.delaySec,
-        stationName: info.stationName
-      })
+    supabase.auth.getSession().then(({ data }) => {
+      const token = data?.session?.access_token;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      fetch('https://hcpjthnhockfbefclycr.supabase.co/functions/v1/check-delays', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          action: 'notify_delay',
+          circId: info.circId,
+          linia: info.linia,
+          ut: info.ut,
+          delaySec: info.delaySec,
+          stationName: info.stationName
+        })
+      }).catch(() => {});
     }).catch(() => {});
   } catch (e) {}
 

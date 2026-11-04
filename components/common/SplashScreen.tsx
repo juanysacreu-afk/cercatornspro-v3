@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 
@@ -10,56 +10,37 @@ interface SplashScreenProps {
 
 const SplashScreen: React.FC<SplashScreenProps> = ({ progress, message, onComplete }) => {
     const [isVisible, setIsVisible] = useState(true);
-    const [videoFinished, setVideoFinished] = useState(false);
-    const videoRef = useRef<HTMLVideoElement>(null);
+
+    const isReadyToFade = progress >= 100;
 
     useEffect(() => {
-        const isMobile = window.innerWidth < 640;
-        const canClose = isMobile ? (progress >= 100 && videoFinished) : (progress >= 100);
-
-        if (canClose) {
+        if (progress >= 100) {
             const timer = setTimeout(() => {
                 setIsVisible(false);
                 onComplete();
-            }, 800);
+            }, 500);
             return () => clearTimeout(timer);
         }
 
-        // Safety fallback: si el progrés arriba al 100%, forçar tancament en 2.5s encara que el vídeo estigui en pausa
-        if (progress >= 100) {
-            const forceTimer = setTimeout(() => {
-                setIsVisible(false);
-                onComplete();
-            }, 2500);
-            return () => clearTimeout(forceTimer);
-        }
-    }, [progress, videoFinished, onComplete]);
-
-    const handleVideoEnded = () => {
-        if (progress < 100) {
-            // Restart video if still loading
-            videoRef.current?.play();
-        } else {
-            // Signal that video has finished its last loop
-            setVideoFinished(true);
-        }
-    };
+        // Safety fallback: si passen més de 5s i per xarxa no arriba al 100%, obrir directament
+        const forceTimer = setTimeout(() => {
+            setIsVisible(false);
+            onComplete();
+        }, 5000);
+        return () => clearTimeout(forceTimer);
+    }, [progress, onComplete]);
 
     if (!isVisible) return null;
 
-    const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
-    const isReadyToFade = isMobile ? (progress >= 100 && videoFinished) : (progress >= 100);
-
     return createPortal(
-        <div className={`fixed inset-0 z-[10005] flex flex-col items-center justify-end bg-black transition-all duration-700 ${isReadyToFade ? 'opacity-0 scale-105 pointer-events-none' : 'opacity-100'}`}>
+        <div className={`fixed inset-0 z-[10005] flex flex-col items-center justify-end bg-black transition-all duration-500 ease-out ${isReadyToFade ? 'opacity-0 scale-105 pointer-events-none' : 'opacity-100'}`}>
             {/* Fullscreen Video Background */}
             <div className="absolute inset-0 overflow-hidden flex justify-center">
                 <video
-                    ref={videoRef}
                     autoPlay
                     muted
+                    loop
                     playsInline
-                    onEnded={handleVideoEnded}
                     className="w-full h-full object-cover sm:w-auto sm:object-contain"
                 >
                     <source src="/loading.mp4" type="video/mp4" />

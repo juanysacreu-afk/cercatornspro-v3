@@ -1,5 +1,4 @@
-import { decodeGeotrenCirculation } from '../views/incidencia/utils/decodeCirculation';
-import { decodeGeotrenUt } from '../views/incidencia/utils/decodeUt';
+import { decodeGeotrenCirculation, decodeGeotrenUt } from './geotrenDecoders';
 import { resolveStationId, normalizeCircId } from './stations';
 
 export interface NormalizedGeoTrenTrain {

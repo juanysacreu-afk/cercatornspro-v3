@@ -3,11 +3,11 @@ import { createPortal } from 'react-dom';
 import { SearchType } from '../types.ts';
 import { Search, User, Train, MapPin, Map as MapIcon, Hash, ArrowRight, Loader2, Info, Phone, Clock, FileText, ChevronDown, LayoutGrid, Timer, X, BookOpen, AlertTriangle, Users, Camera, Brush, Save, Check, Share2, Zap, ArrowUp, ArrowDown, RefreshCcw, Milestone, TrendingUp, TrainFront, Activity } from 'lucide-react';
 
-import { decodeGeotrenUt } from '../views/incidencia/utils/decodeUt';
-import { decodeGeotrenCirculation } from '../views/incidencia/utils/decodeCirculation';
+import { decodeGeotrenUt, decodeGeotrenCirculation } from '../utils/geotrenDecoders';
 
 import { supabase } from '../supabaseClient.ts';
 import { decryptPhoneArray } from '../utils/crypto.ts';
+import { logLopdAccess } from '../utils/auditLogger';
 
 import { getFgcMinutes, checkIfActive, calculateGap } from '../utils/time';
 import { getFgcServiceDate } from '../utils/gipRecorder';
@@ -1059,6 +1059,9 @@ const CercarViewComponent: React.FC<{
                     .select('phones').eq('nomina', da.empleat_id).single();
                   const decPhones = await decryptPhoneArray(phoneData?.phones || []);
                   driverData = { ...da, phones: decPhones };
+                  if (decPhones && decPhones.length > 0) {
+                    logLopdAccess('VIEW_AGENT_CONTACT', String(da.empleat_id), { context: 'cercar_view_train_driver', torn: shortTorn });
+                  }
                 }
               }
 
@@ -1432,6 +1435,7 @@ const CercarViewComponent: React.FC<{
               case SearchType.Maquinista:
                 const nominaMatch = searchVal.match(/\((\d+)\)/); // More flexible regex
                 const filterVal = nominaMatch ? nominaMatch[1] : searchVal.trim();
+                logLopdAccess('SEARCH_AGENTS', nominaMatch ? filterVal : undefined, { query: filterVal, view: 'cercar' });
 
                 let qAssignments = supabase.from('daily_assignments').select('torn');
                 if (nominaMatch) {
