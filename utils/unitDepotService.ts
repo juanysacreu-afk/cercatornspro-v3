@@ -174,11 +174,11 @@ export const mapStationToDepot = (stationCode: string): DepotId => {
   if (!stationCode) return 'RB';
   const clean = stationCode.trim().toUpperCase();
 
-  // Rubí / COR
-  if (clean === 'RB' || clean === 'COR' || clean.startsWith('RB')) return 'RB';
+  // Rubí / COR / SC
+  if (clean === 'RB' || clean === 'COR' || clean.startsWith('RB') || clean === 'SC') return 'RB';
 
-  // Reina Elisenda / Vies RE
-  if (clean === 'VR' || clean === 'RE' || clean === 'DRE') return 'RE';
+  // Reina Elisenda / Vies RE (VR, RE, DRE, R1, R2, TB)
+  if (clean === 'VR' || clean === 'RE' || clean === 'DRE' || clean === 'R1' || clean === 'R2' || clean === 'TB') return 'RE';
 
   // Terrassa (Nacions Unides, Can Roca, N1, N2, N3, DNA)
   if (
@@ -186,10 +186,10 @@ export const mapStationToDepot = (stationCode: string): DepotId => {
     clean === 'DNA' || clean.startsWith('NA') || /^N\d/.test(clean)
   ) return 'NA';
 
-  // Sabadell (Parc del Nord, Ca n'Oriac, P1, P2, P3, DPN)
+  // Sabadell (Parc del Nord, Ca n'Oriac, P1, P2, P3, DPN, CT)
   if (
     clean === 'PN' || clean === 'P1' || clean === 'P2' || clean === 'P3' ||
-    clean === 'DPN' || clean.startsWith('PN') || /^P\d/.test(clean)
+    clean === 'DPN' || clean === 'CT' || clean.startsWith('PN') || /^P\d/.test(clean)
   ) return 'PN';
 
   // Plaça Catalunya
@@ -197,9 +197,6 @@ export const mapStationToDepot = (stationCode: string): DepotId => {
 
   // Sarrià
   if (clean === 'SR' || clean === 'S0' || clean.startsWith('SR') || clean === 'SAR') return 'SR';
-
-  // Av. Tibidabo: 114s retire to RE or PC
-  if (clean === 'TB') return 'RE';
 
   return 'RB';
 };
@@ -228,6 +225,7 @@ export interface DecodedCycleInfo {
  * Decodes start and destination depot for an FGC cycle based on letters and circulations
  * E.g. RBVR1 -> Starts at VR (RE), Ends at RB (RB)
  * E.g. N1RB1 -> Starts at RB, Ends at N1 (NA)
+ * E.g. P3N11 -> Starts at N1 (NA), Ends at P3 (PN)
  */
 export const decodeCycleDepots = (
   cycleId: string,
@@ -235,77 +233,107 @@ export const decodeCycleDepots = (
 ): { startDepot: DepotId; endDepot: DepotId } => {
   const clean = (cycleId || '').trim().toUpperCase();
 
-  let startDepot: DepotId = 'RB';
-  let endDepot: DepotId = 'RB';
+  let startDepot: DepotId | null = null;
+  let endDepot: DepotId | null = null;
 
-  // Check from circulations first (ground truth)
+  // 1. Check from circulations first (ground truth)
   if (circulations.length > 0) {
     const first = circulations[0];
     const last = circulations[circulations.length - 1];
     if (first?.inici) startDepot = mapStationToDepot(first.inici);
     if (last?.final) endDepot = mapStationToDepot(last.final);
-  } else {
-    // Decode from code letters: [DEST(2)][ORIG(2)][NUM]
-    // Examples: RBVR1 -> Dest: RB, Orig: VR
-    //           VRRB1 -> Dest: VR, Orig: RB
-    //           N1RB1 -> Dest: N1 (NA), Orig: RB
-    //           P1RB1 -> Dest: P1 (PN), Orig: RB
-    if (clean.length >= 4) {
-      const destPrefix = clean.substring(0, 2);
-      const origPrefix = clean.substring(2, 4);
-      endDepot = mapStationToDepot(destPrefix);
-      startDepot = mapStationToDepot(origPrefix);
-    }
   }
 
-  return { startDepot, endDepot };
+  // 2. Fallback to cycle code letters if either was not determined
+  // In FGC BV: [DEST(2)][ORIG(2)][NUM]
+  // Examples:
+  // P3N11 -> Dest: P3 (PN), Orig: N1 (NA)
+  // N2P11 -> Dest: N2 (NA), Orig: P1 (PN)
+  // PCVR1 -> Dest: PC (PC), Orig: VR (RE)
+  // VRRB1 -> Dest: VR (RE), Orig: RB (RB)
+  // N1RB1 -> Dest: N1 (NA), Orig: RB (RB)
+  // P1RB1 -> Dest: P1 (PN), Orig: RB (RB)
+  if (clean.length >= 4) {
+    const destPrefix = clean.substring(0, 2);
+    const origPrefix = clean.substring(2, 4);
+    if (!endDepot) endDepot = mapStationToDepot(destPrefix);
+    if (!startDepot) startDepot = mapStationToDepot(origPrefix);
+  }
+
+  return {
+    startDepot: startDepot || 'RB',
+    endDepot: endDepot || 'RB'
+  };
 };
 
+export interface FetchCyclesDataResult {
+  cyclesMap: Record<string, DecodedCycleInfo>;
+  gipUnitToCycleMap: Map<string, string>;
+  gipUnitLastCircMap: Map<string, { codi: string; time: string; final: string }>;
+}
+
 /**
- * Fetches all shifts and circulations to build an authoritative cycle circulation map
+ * Fetches all shifts, circulations and GIP passages to build an authoritative cycle circulation map
  */
 export const fetchFullCycleCirculationsMap = async (
-  servei?: string
-): Promise<Record<string, DecodedCycleInfo>> => {
+  servei?: string,
+  targetDate?: string
+): Promise<FetchCyclesDataResult> => {
   try {
+    // 1. Load circulations with high range to fetch all ~1,665 circulations
+    let allCircsData: any[] = [];
+    const { data: cData } = await supabase
+      .from('circulations')
+      .select('id, inici, final, linia, sortida, arribada')
+      .range(0, 2500);
+
+    if (cData && cData.length > 0) {
+      allCircsData = cData;
+    } else {
+      // Fallback to circulationsv2 if circulations is empty
+      let qV2 = supabase.from('circulationsv2').select('id, inici, final, linia, sortida, arribada, servei');
+      if (servei && servei !== 'Tots') {
+        const sFilter = (servei === '000' || servei === '0') ? '000' : servei;
+        qV2 = qV2.eq('servei', sFilter);
+      }
+      const { data: v2Data } = await qV2.range(0, 2500);
+      if (v2Data) allCircsData = v2Data;
+    }
+
+    const circDetailsMap = new Map<string, { inici: string; final: string; linia: string; sortida: string; arribada: string }>();
+    allCircsData.forEach((c: any) => {
+      if (c.id) {
+        circDetailsMap.set(c.id.trim().toUpperCase(), {
+          inici: (c.inici || '').trim(),
+          final: (c.final || '').trim(),
+          linia: (c.linia || '').trim(),
+          sortida: (c.sortida || '').trim(),
+          arribada: (c.arribada || '').trim()
+        });
+      }
+    });
+
+    // 2. Load shifts
     let qShifts = supabase.from('shifts').select('id, circulations, servei');
     if (servei && servei !== 'Tots') {
       const sFilter = (servei === '000' || servei === '0') ? ['0', '000'] : [servei];
       qShifts = qShifts.in('servei', sFilter);
     }
+    const { data: shiftsData } = await qShifts.range(0, 1000);
 
-    let qCircs = supabase.from('circulationsv2').select('id, inici, final, linia, sortida, arribada, servei');
-    if (servei && servei !== 'Tots') {
-      const sFilter = (servei === '000' || servei === '0') ? '000' : servei;
-      qCircs = qCircs.eq('servei', sFilter);
-    }
-
-    const [shiftsRes, circsRes] = await Promise.all([qShifts, qCircs]);
-
-    const circDetailsMap = new Map<string, { inici: string; final: string; linia: string; sortida: string; arribada: string }>();
-    if (circsRes.data) {
-      circsRes.data.forEach((c: any) => {
-        if (c.id) {
-          circDetailsMap.set(c.id.trim().toUpperCase(), {
-            inici: c.inici || '',
-            final: c.final || '',
-            linia: c.linia || '',
-            sortida: c.sortida || '',
-            arribada: c.arribada || ''
-          });
-        }
-      });
-    }
-
+    // 3. Group by cycle
     const rawCycleCircs: Record<string, CycleCirculationItem[]> = {};
+    const circToCycleMap = new Map<string, string>();
 
-    if (shiftsRes.data) {
-      shiftsRes.data.forEach((s: any) => {
+    if (shiftsData) {
+      shiftsData.forEach((s: any) => {
         if (!s.circulations) return;
         (s.circulations as any[]).forEach((c: any) => {
           const cicle = (c.cicle || '').trim().toUpperCase();
           const codi = (c.codi || '').trim().toUpperCase();
           if (!cicle || !codi || codi === '-' || codi === 'VIATGER' || codi === 'RESERVA') return;
+
+          circToCycleMap.set(codi, cicle);
 
           const meta = circDetailsMap.get(codi);
           const sortidaStr = c.sortida || meta?.sortida || '';
@@ -315,7 +343,6 @@ export const fetchFullCycleCirculationsMap = async (
 
           if (!rawCycleCircs[cicle]) rawCycleCircs[cicle] = [];
 
-          // Avoid duplicate circulations across multiple shifts sharing the train
           if (!rawCycleCircs[cicle].some(item => item.codi === codi)) {
             rawCycleCircs[cicle].push({
               codi,
@@ -332,17 +359,16 @@ export const fetchFullCycleCirculationsMap = async (
       });
     }
 
-    const result: Record<string, DecodedCycleInfo> = {};
-
+    const cyclesMap: Record<string, DecodedCycleInfo> = {};
     Object.entries(rawCycleCircs).forEach(([cicle, circList]) => {
-      // Sort chronologically by sortidaMin
+      // Sort chronologically by sortidaMin (accounting for midnight via getFgcMinutes)
       circList.sort((a, b) => a.sortidaMin - b.sortidaMin);
 
       const firstCirc = circList[0];
       const lastCirc = circList[circList.length - 1];
       const { startDepot, endDepot } = decodeCycleDepots(cicle, circList);
 
-      result[cicle] = {
+      cyclesMap[cicle] = {
         cycleId: cicle,
         startDepot,
         endDepot,
@@ -352,10 +378,62 @@ export const fetchFullCycleCirculationsMap = async (
       };
     });
 
-    return result;
+    // 4. Fetch GIP passages to identify which unit actually performed each cycle/circulation
+    const gipUnitToCycleMap = new Map<string, string>();
+    const gipUnitLastCircMap = new Map<string, { codi: string; time: string; final: string }>();
+
+    try {
+      const todayDate = targetDate || new Date().toISOString().slice(0, 10);
+      const { data: gipPassages } = await supabase
+        .from('gip_registre_pas')
+        .select('circulacio_id, ut, hora_teorica, data_servei')
+        .eq('data_servei', todayDate)
+        .not('ut', 'is', null)
+        .neq('ut', '')
+        .range(0, 3000);
+
+      if (gipPassages && gipPassages.length > 0) {
+        gipPassages.forEach((gp: any) => {
+          const ut = (gp.ut || '').trim();
+          const circId = (gp.circulacio_id || '').trim().toUpperCase();
+          if (!ut || !circId) return;
+
+          const matchedCycle = circToCycleMap.get(circId);
+          if (matchedCycle && !gipUnitToCycleMap.has(ut)) {
+            gipUnitToCycleMap.set(ut, matchedCycle);
+          }
+
+          const circMeta = circDetailsMap.get(circId);
+          const circTime = gp.hora_teorica || circMeta?.arribada || '';
+          const currentLast = gipUnitLastCircMap.get(ut);
+          const circMins = getFgcMinutes(circTime) ?? 0;
+          const currentLastMins = currentLast ? (getFgcMinutes(currentLast.time) ?? 0) : -1;
+
+          if (!currentLast || circMins > currentLastMins) {
+            gipUnitLastCircMap.set(ut, {
+              codi: circId,
+              time: circTime,
+              final: circMeta?.final || ''
+            });
+          }
+        });
+      }
+    } catch (gipErr) {
+      console.warn('Could not fetch GIP passages for depot auto-placement:', gipErr);
+    }
+
+    return {
+      cyclesMap,
+      gipUnitToCycleMap,
+      gipUnitLastCircMap
+    };
   } catch (err) {
     console.error('Error fetching cycle circulations map:', err);
-    return {};
+    return {
+      cyclesMap: {},
+      gipUnitToCycleMap: new Map(),
+      gipUnitLastCircMap: new Map()
+    };
   }
 };
 
@@ -409,13 +487,17 @@ export interface AutoPlacementResult {
 export type CalculateDepotPlacementsResult = AutoPlacementResult;
 
 /**
- * Core algorithm: Calculates where every unit in the fleet should be placed
+ * Core algorithm: Calculates where every unit in the fleet should be placed.
+ * Fills all depots (NA, PN, RE, SR, PC, RB) according to circulation final terminals and cycle logic.
  */
 export const calculateFleetDepotPlacements = (params: {
   allFleetTrains: string[];
   assignments: Assignment[];
   cyclesMap?: Record<string, DecodedCycleInfo>;
   cycleCirculationsMap?: Record<string, DecodedCycleInfo>;
+  gipUnitsMap?: Map<string, string>;
+  gipUnitToCycleMap?: Map<string, string>;
+  gipUnitLastCircMap?: Map<string, { codi: string; time: string; final: string }>;
   brokenTrains: Set<string>;
   cleaningTrains: Set<string>;
   imageTrains: Set<string>;
@@ -435,22 +517,82 @@ export const calculateFleetDepotPlacements = (params: {
   } = params;
 
   const cyclesMap = params.cyclesMap || params.cycleCirculationsMap || {};
+  const gipUnitToCycle = params.gipUnitsMap || params.gipUnitToCycleMap || new Map<string, string>();
+  const gipUnitLastCirc = params.gipUnitLastCircMap || new Map<string, { codi: string; time: string; final: string }>();
 
   const currentFgcNow = getFgcMinutes(new Date().toTimeString().slice(0, 5)) ?? 0;
   const nowMin = currentTimeMin !== undefined ? currentTimeMin : currentFgcNow;
   const isEndOfService = mode === 'end_of_service' || mode === 'END_OF_SERVICE';
 
-  // Unit to cycle mapping
+  // 1. Identify maintenance units (always stationed at Rubí Taller or IF)
+  const maintUnits = new Set<string>();
+  allFleetTrains.forEach(u => {
+    if (brokenTrains.has(u) || cleaningTrains.has(u) || imageTrains.has(u) || recordTrains.has(u)) {
+      maintUnits.add(u);
+    }
+  });
+
+  // 2. Build complete Unit -> Cycle mapping combining:
+  //    A) Manual supervisor assignments (top priority)
+  //    B) Real GIP passages today
+  //    C) Intelligent pairing for remaining active cycles to available fleet units
   const unitToCycleMap = new Map<string, string>();
+  const usedCycles = new Set<string>();
+
+  // A) Manual assignments
   assignments.forEach(a => {
     if (a.train_number && a.cycle_id) {
-      unitToCycleMap.set(a.train_number.trim(), a.cycle_id.trim().toUpperCase());
+      const u = a.train_number.trim();
+      const c = a.cycle_id.trim().toUpperCase();
+      if (!maintUnits.has(u) && cyclesMap[c]) {
+        unitToCycleMap.set(u, c);
+        usedCycles.add(c);
+      }
+    }
+  });
+
+  // B) GIP recorded units today
+  gipUnitToCycle.forEach((cicle, ut) => {
+    if (!maintUnits.has(ut) && !unitToCycleMap.has(ut) && cyclesMap[cicle] && !usedCycles.has(cicle)) {
+      unitToCycleMap.set(ut, cicle);
+      usedCycles.add(cicle);
+    }
+  });
+
+  // C) Pair remaining active cycles to available fleet units
+  const remainingActiveCycles = Object.keys(cyclesMap).filter(c => !usedCycles.has(c));
+  const availableTrains = allFleetTrains.filter(t => !maintUnits.has(t) && !unitToCycleMap.has(t));
+
+  const unassigned114 = availableTrains.filter(t => t.startsWith('114'));
+  const unassignedOther = availableTrains.filter(t => !t.startsWith('114'));
+
+  const cycles114 = remainingActiveCycles.filter(c => c.startsWith('VR') || c.startsWith('PCVR') || c.startsWith('VRPC'));
+  const cyclesOther = remainingActiveCycles.filter(c => !cycles114.includes(c));
+
+  // Pair 114s to Tibidabo / L7 cycles
+  cycles114.forEach(c => {
+    const train = unassigned114.shift();
+    if (train) {
+      unitToCycleMap.set(train, c);
+      usedCycles.add(c);
+    }
+  });
+
+  // Pair other available trains to remaining cycles
+  const remainingCyclesToPair = [...cyclesOther, ...cycles114.filter(c => !usedCycles.has(c))];
+  const allAvailableToPair = [...unassignedOther, ...unassigned114];
+
+  remainingCyclesToPair.forEach(c => {
+    const train = allAvailableToPair.shift();
+    if (train) {
+      unitToCycleMap.set(train, c);
+      usedCycles.add(c);
     }
   });
 
   const calculatedUnits: UnitCalculatedPlacement[] = [];
 
-  // 1. Process each unit to determine its state and target depot
+  // 3. Process every unit in the fleet to determine its stabling depot and operational status
   allFleetTrains.forEach(unit => {
     const isBroken = brokenTrains.has(unit);
     const isCleaning = cleaningTrains.has(unit);
@@ -458,78 +600,65 @@ export const calculateFleetDepotPlacements = (params: {
     const isRecords = recordTrains.has(unit);
     const isMaint = isBroken || isCleaning || isImages || isRecords;
 
-    const cycleId = unitToCycleMap.get(unit);
-
     if (isMaint) {
       calculatedUnits.push({
         unitNumber: unit,
-        cycleId,
         status: 'MAINTENANCE',
         statusLabel: isBroken ? 'Avariat' : isCleaning ? 'Neteja' : 'Revisió',
         depotId: 'RB',
-        reason: isBroken ? 'Unitat avariada al Taller de Rubí (COR)' : 'Manteniment/Neteja a Rubí (COR)'
+        reason: isBroken ? 'Avariat al Taller de Rubí (COR)' : 'Manteniment/Neteja a Rubí (COR)'
       });
       return;
     }
 
-    if (!cycleId) {
-      // Unassigned spare unit
+    const cycleId = unitToCycleMap.get(unit);
+
+    if (!cycleId || !cyclesMap[cycleId]) {
+      // Spare reserve unit stationed at Rubí Platja de Vies
       calculatedUnits.push({
         unitNumber: unit,
         status: 'UNASSIGNED_SPARE',
-        statusLabel: 'Reserva Disponible',
+        statusLabel: 'Reserva Material',
         depotId: 'RB',
-        reason: 'Sense cicle assignat. Estacionada a Platja de Vies de Rubí (COR)'
+        reason: 'Unitat de reserva disponible. Estacionada a Platja de Vies de Rubí (COR)'
       });
       return;
     }
 
     const cycleInfo = cyclesMap[cycleId];
+    const circs = cycleInfo.circulations || [];
+    const firstCirc = circs[0] || cycleInfo.firstCirc;
+    const lastCirc = circs[circs.length - 1] || cycleInfo.lastCirc;
 
-    if (!cycleInfo || !cycleInfo.circulations || cycleInfo.circulations.length === 0) {
-      // Fallback: decode from cycle name
-      const { endDepot } = decodeCycleDepots(cycleId);
-      calculatedUnits.push({
-        unitNumber: unit,
-        cycleId,
-        status: 'CYCLE_FINISHED',
-        statusLabel: 'Cicle Finalitzat',
-        depotId: endDepot,
-        reason: `Final de servei del cicle ${cycleId} a ${OFFICIAL_DEPOT_CONFIGS[endDepot]?.label || endDepot}`
-      });
-      return;
-    }
+    // Determine destination depot based on the final station where the circulation terminates
+    const gipLast = gipUnitLastCirc.get(unit);
+    const finalStation = lastCirc?.final || gipLast?.final || '';
+    const finalDepot = finalStation ? mapStationToDepot(finalStation) : cycleInfo.endDepot;
 
-    const circs = cycleInfo.circulations;
-    const firstCirc = circs[0];
-    const lastCirc = circs[circs.length - 1];
-
+    // MODE: END_OF_SERVICE (Tancament de servei / Nocturn)
     if (isEndOfService) {
-      // End of service mode: all trains with cycles are parked at their final withdrawal depot
-      const finalDepot = cycleInfo.endDepot;
       calculatedUnits.push({
         unitNumber: unit,
         cycleId,
         status: 'CYCLE_FINISHED',
         statusLabel: 'Retirat a Dipòsit',
         depotId: finalDepot,
-        currentStation: lastCirc.final,
-        currentCirculation: lastCirc.codi,
-        reason: `Finalitzat servei del cicle ${cycleId} a ${lastCirc.final} (${lastCirc.arribada}). Retirat a dipòsit ${finalDepot}.`
+        currentStation: finalStation || finalDepot,
+        currentCirculation: lastCirc?.codi || gipLast?.codi,
+        reason: `Finalitzat servei del cicle ${cycleId} a ${finalStation || finalDepot} (${lastCirc?.arribada || 'final de dia'}). Retirat al dipòsit ${finalDepot}.`
       });
       return;
     }
 
-    // Current time mode: evaluate real-time circulation progress
-    if (nowMin < firstCirc.sortidaMin) {
-      // Before start of cycle
-      const startDepot = cycleInfo.startDepot;
+    // MODE: REAL_TIME (Segons l'hora actual)
+    if (firstCirc && nowMin < firstCirc.sortidaMin) {
+      // Not yet started: parked at origin depot
       calculatedUnits.push({
         unitNumber: unit,
         cycleId,
         status: 'BEFORE_CYCLE',
         statusLabel: 'Pendent d\'Inici',
-        depotId: startDepot,
+        depotId: cycleInfo.startDepot,
         nextCirculation: firstCirc.codi,
         nextTime: firstCirc.sortida,
         reason: `Pendent d'iniciar cicle ${cycleId}. Primer tren: ${firstCirc.codi} a les ${firstCirc.sortida} des de ${firstCirc.inici}.`
@@ -537,22 +666,21 @@ export const calculateFleetDepotPlacements = (params: {
       return;
     }
 
-    if (nowMin >= lastCirc.arribadaMin) {
-      // After last circulation
-      const endDepot = cycleInfo.endDepot;
+    if (lastCirc && nowMin >= lastCirc.arribadaMin) {
+      // Finished all circulations for the day: parked at final depot!
       calculatedUnits.push({
         unitNumber: unit,
         cycleId,
         status: 'CYCLE_FINISHED',
         statusLabel: 'Finalitzat',
-        depotId: endDepot,
-        currentStation: lastCirc.final,
-        reason: `Cicle ${cycleId} finalitzat a ${lastCirc.final} a les ${lastCirc.arribada}. Estacionat a dipòsit ${endDepot}.`
+        depotId: finalDepot,
+        currentStation: finalStation,
+        reason: `Cicle ${cycleId} finalitzat a ${finalStation} a les ${lastCirc.arribada}. Estacionat a dipòsit ${finalDepot}.`
       });
       return;
     }
 
-    // Between first and last: find active or waiting
+    // Active circulation right now
     const activeCirc = circs.find(c => nowMin >= c.sortidaMin && nowMin <= c.arribadaMin);
     if (activeCirc) {
       calculatedUnits.push({
@@ -560,7 +688,7 @@ export const calculateFleetDepotPlacements = (params: {
         cycleId,
         status: 'CIRCULATING',
         statusLabel: 'En Circulació',
-        depotId: null, // Active on track
+        depotId: null, // Active on track between stations
         currentCirculation: activeCirc.codi,
         currentStation: `${activeCirc.inici} → ${activeCirc.final}`,
         nextTime: activeCirc.arribada,
@@ -569,16 +697,15 @@ export const calculateFleetDepotPlacements = (params: {
       return;
     }
 
-    // In turnaround dwell between circulations
+    // Turnaround dwell between circulations
     const nextCircIdx = circs.findIndex(c => c.sortidaMin > nowMin);
     if (nextCircIdx > 0) {
       const prevCirc = circs[nextCircIdx - 1];
       const nextCirc = circs[nextCircIdx];
       const dwellMinutes = nextCirc.sortidaMin - prevCirc.arribadaMin;
-
-      // If dwell is very long (> 120 mins) at a depot station, can consider parked
       const isDepotStation = ['RB', 'NA', 'PN', 'RE', 'SR', 'PC'].includes(prevCirc.final);
-      if (dwellMinutes >= 120 && isDepotStation) {
+
+      if (dwellMinutes >= 90 && isDepotStation) {
         const dId = mapStationToDepot(prevCirc.final);
         calculatedUnits.push({
           unitNumber: unit,
@@ -592,7 +719,6 @@ export const calculateFleetDepotPlacements = (params: {
           reason: `Estacionat a ${prevCirc.final} (${dwellMinutes} min de marge). Proper tren: ${nextCirc.codi} a les ${nextCirc.sortida}.`
         });
       } else {
-        // Dwell on platform/station
         calculatedUnits.push({
           unitNumber: unit,
           cycleId,
@@ -608,18 +734,36 @@ export const calculateFleetDepotPlacements = (params: {
       return;
     }
 
-    // Fallback: cycle finished
+    // Default fallback
     calculatedUnits.push({
       unitNumber: unit,
       cycleId,
       status: 'CYCLE_FINISHED',
       statusLabel: 'Finalitzat',
-      depotId: cycleInfo.endDepot,
-      reason: `Cicle ${cycleId} completat.`
+      depotId: finalDepot,
+      reason: `Cicle ${cycleId} completat. Estacionat a dipòsit ${finalDepot}.`
     });
   });
 
-  // 2. Track allocation within each depot respecting capacities
+  // 4. Capacity Balancing & Overflow Management
+  // Official capacities: PC: 5, RE: 6, SR: 5, NA: 15, PN: 12, RB: 28
+  // Pl. Catalunya (PC) has exactly 5 tracks. Excess trains are transferred to Sarrià (SR) or Rubí (RB)
+  const pcUnits = calculatedUnits.filter(u => u.depotId === 'PC');
+  if (pcUnits.length > 5) {
+    const excess = pcUnits.slice(5);
+    excess.forEach(u => {
+      const currentSrCount = calculatedUnits.filter(x => x.depotId === 'SR').length;
+      if (currentSrCount < 5) {
+        u.depotId = 'SR';
+        u.reason += ' (Reubicat a Sarrià per límit de capacitat a Plaça Catalunya: màx. 5 vies)';
+      } else {
+        u.depotId = 'RB';
+        u.reason += ' (Reubicat a Rubí per límit de capacitat a Plaça Catalunya: màx. 5 vies)';
+      }
+    });
+  }
+
+  // 5. Track allocation within each depot respecting individual track capacities
   const depotBreakdown: Record<DepotId, {
     label: string;
     capacity: number;
@@ -658,13 +802,12 @@ export const calculateFleetDepotPlacements = (params: {
 
   const nowIso = new Date().toISOString();
 
-  // Group units by target depot
+  // Group units by target depot and allocate to specific tracks
   (Object.keys(OFFICIAL_DEPOT_CONFIGS) as DepotId[]).forEach(dId => {
     const unitsForDepot = calculatedUnits.filter(u => u.depotId === dId);
     depotBreakdown[dId].units = unitsForDepot;
     depotBreakdown[dId].occupiedCount = unitsForDepot.length;
 
-    // Track allocation logic
     const depotConfig = OFFICIAL_DEPOT_CONFIGS[dId];
     const allTracksInDepot: DepotTrackConfig[] = [];
     depotConfig.sections.forEach(s => allTracksInDepot.push(...s.tracks));
@@ -672,7 +815,6 @@ export const calculateFleetDepotPlacements = (params: {
     let trackIdx = 0;
 
     unitsForDepot.forEach(u => {
-      // Find track with available capacity
       let assignedTrack: DepotTrackConfig | null = null;
 
       // Special handling for Rubí: Maintenance units go to Taller or IF
@@ -688,7 +830,7 @@ export const calculateFleetDepotPlacements = (params: {
         assignedTrack = allTracksInDepot.find(t => depotBreakdown[dId].tracks[t.id].units.length < t.capacity) || null;
       }
 
-      // Fallback if all full: assign round-robin
+      // Fallback if full: assign round-robin
       if (!assignedTrack) {
         assignedTrack = allTracksInDepot[trackIdx % allTracksInDepot.length];
         trackIdx++;

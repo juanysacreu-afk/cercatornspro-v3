@@ -25,7 +25,8 @@ import {
   calculateFleetDepotPlacements,
   fetchFullCycleCirculationsMap,
   applyAutomatedDepotPlacements,
-  OFFICIAL_DEPOT_CONFIGS
+  OFFICIAL_DEPOT_CONFIGS,
+  FetchCyclesDataResult
 } from '../utils/unitDepotService';
 import type { Assignment } from '../types';
 
@@ -52,25 +53,25 @@ export const AutoDepotModal: React.FC<AutoDepotModalProps> = ({
   recordTrains,
   onApplied
 }) => {
-  const [mode, setMode] = useState<'REAL_TIME' | 'END_OF_SERVICE'>('REAL_TIME');
+  const [mode, setMode] = useState<'REAL_TIME' | 'END_OF_SERVICE'>('END_OF_SERVICE');
   const [loading, setLoading] = useState<boolean>(true);
   const [applying, setApplying] = useState<boolean>(false);
   const [selectedDepotFilter, setSelectedDepotFilter] = useState<'ALL' | DepotId>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [calculationResult, setCalculationResult] = useState<CalculateDepotPlacementsResult | null>(null);
-  const [cyclesMap, setCyclesMap] = useState<Record<string, any>>({});
+  const [cachedData, setCachedData] = useState<FetchCyclesDataResult | null>(null);
   const [feedbackMsg, setFeedbackMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Recalculate placements
-  const runCalculation = useCallback(async (forcedMode?: 'REAL_TIME' | 'END_OF_SERVICE') => {
+  const runCalculation = useCallback(async (forcedMode?: 'REAL_TIME' | 'END_OF_SERVICE', forceRefresh = false) => {
     setLoading(true);
     setFeedbackMsg(null);
     try {
-      let map = cyclesMap;
-      if (Object.keys(map).length === 0) {
-        map = await fetchFullCycleCirculationsMap();
-        setCyclesMap(map);
+      let data = cachedData;
+      if (!data || forceRefresh) {
+        data = await fetchFullCycleCirculationsMap();
+        setCachedData(data);
       }
 
       const activeMode = forcedMode || mode;
@@ -81,7 +82,9 @@ export const AutoDepotModal: React.FC<AutoDepotModalProps> = ({
         cleaningTrains,
         imageTrains,
         recordTrains,
-        cycleCirculationsMap: map,
+        cyclesMap: data.cyclesMap,
+        gipUnitToCycleMap: data.gipUnitToCycleMap,
+        gipUnitLastCircMap: data.gipUnitLastCircMap,
         mode: activeMode
       });
 
@@ -95,7 +98,7 @@ export const AutoDepotModal: React.FC<AutoDepotModalProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [allFleetTrains, assignments, brokenTrains, cleaningTrains, imageTrains, recordTrains, mode, cyclesMap]);
+  }, [allFleetTrains, assignments, brokenTrains, cleaningTrains, imageTrains, recordTrains, mode, cachedData]);
 
   // Initial calculation when opened
   useEffect(() => {
@@ -224,7 +227,7 @@ export const AutoDepotModal: React.FC<AutoDepotModalProps> = ({
 
           <div className="flex items-center gap-2 self-end sm:self-auto">
             <button
-              onClick={() => runCalculation()}
+              onClick={() => runCalculation(undefined, true)}
               disabled={loading || applying}
               className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 hover:text-white transition-all disabled:opacity-50"
               title="Recalcular"
