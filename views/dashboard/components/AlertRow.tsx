@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertTriangle, Clock, Eye, ChevronRight, GitMerge } from 'lucide-react';
+import { AlertTriangle, Clock, Eye, ChevronRight, GitMerge, ShieldAlert } from 'lucide-react';
 import type { PersonnelAlert } from '../hooks/useDashboardData';
 import { feedback } from '../../../utils/feedback';
 
@@ -23,8 +23,16 @@ export const AlertRow: React.FC<{ alert: PersonnelAlert; onNavigate?: (type: str
         info: 'border-l-blue-500 bg-blue-50/60 dark:bg-blue-500/[0.06]'
     };
     const severityIcons = {
-        critical: alert.circId ? <GitMerge size={16} className="text-red-500 animate-pulse" /> : <AlertTriangle size={16} className="text-red-500" />,
-        warning: alert.circId ? <GitMerge size={16} className="text-amber-500" /> : <Clock size={16} className="text-amber-500" />,
+        critical: alert.type === 'relief' 
+            ? <ShieldAlert size={16} className="text-red-500 animate-pulse" />
+            : alert.circId 
+                ? <GitMerge size={16} className="text-red-500 animate-pulse" /> 
+                : <AlertTriangle size={16} className="text-red-500" />,
+        warning: alert.type === 'relief'
+            ? <ShieldAlert size={16} className="text-amber-500" />
+            : alert.circId 
+                ? <GitMerge size={16} className="text-amber-500" /> 
+                : <Clock size={16} className="text-amber-500" />,
         info: <Eye size={16} className="text-blue-500" />
     };
 

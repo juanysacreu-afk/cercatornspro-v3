@@ -2,12 +2,18 @@ import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   X, User, Clock, ArrowRight, Phone, Search, 
-  Shield, CheckCircle2, Info, Users, ChevronDown
+  Shield, CheckCircle2, Info, Users, ChevronDown,
+  ShieldAlert, Zap, AlertTriangle
 } from 'lucide-react';
 import { feedback } from '../utils/feedback';
 import { resolveStationName } from '../utils/stations';
 import { getLiniaColor } from '../utils/fgc';
 import { logLopdAccess } from '../utils/auditLogger';
+import { 
+  evaluatePassengerRelief, 
+  getCirculationLiveDelay,
+  ActiveReserveDriver 
+} from '../utils/reliefWatchdogService';
 
 export interface ViatgerPassengerItem {
   shiftId: string;
@@ -32,6 +38,28 @@ export interface ViatgerPassengerItem {
   abs_parc_c?: string;
   dta?: string;
   dpa?: string;
+
+  // Relief Watchdog fields
+  nextCirc?: {
+    codi: string;
+    cicle?: string;
+    sortida: string;
+    arribada?: string;
+    inici: string;
+    iniciName: string;
+    final?: string;
+    scheduledMarginMin: number | null;
+  };
+  reliefAlert?: {
+    isCompromised: boolean;
+    severity: 'critical' | 'warning';
+    delayMin: number;
+    delaySec: number;
+    estimatedArrival: string;
+    realMarginMin: number;
+    message: string;
+    availableReserves: ActiveReserveDriver[];
+  };
 }
 
 interface ViatgerInfoModalProps {
@@ -53,6 +81,39 @@ export const ViatgerInfoModal: React.FC<ViatgerInfoModalProps> = ({
   const [translateY, setTranslateY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
+
+  // Relief Watchdog: live evaluation state
+  const [evaluatedPassengers, setEvaluatedPassengers] = useState<ViatgerPassengerItem[]>(passengers);
+  const [isEvaluating, setIsEvaluating] = useState<boolean>(false);
+
+  useEffect(() => {
+    setEvaluatedPassengers(passengers);
+  }, [passengers]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const runEvaluation = async () => {
+      setIsEvaluating(true);
+      try {
+        const circId = (circ?.codi || circ?.id || '').trim().toUpperCase();
+        const live = await getCirculationLiveDelay(circId);
+        const enriched = await Promise.all(
+          passengers.map(p => evaluatePassengerRelief(p, live.delaySec, live.delayMin))
+        );
+        if (isMounted) {
+          setEvaluatedPassengers(enriched);
+        }
+      } catch (err) {
+        console.warn('[ViatgerInfoModal] Error evaluating relief watchdog:', err);
+      } finally {
+        if (isMounted) setIsEvaluating(false);
+      }
+    };
+    runEvaluation();
+    return () => {
+      isMounted = false;
+    };
+  }, [passengers, circ]);
 
   const touchStartY = useRef(0);
   const touchStartTime = useRef(0);
@@ -253,8 +314,8 @@ export const ViatgerInfoModal: React.FC<ViatgerInfoModalProps> = ({
           ref={scrollContainerRef}
           className="p-4 sm:p-6 overflow-y-auto space-y-4 divide-y divide-white/5 overscroll-contain"
         >
-          {passengers && passengers.length > 0 ? (
-            passengers.map((p, idx) => {
+          {evaluatedPassengers && evaluatedPassengers.length > 0 ? (
+            evaluatedPassengers.map((p, idx) => {
               const pStart = (p.from || '').trim().toUpperCase();
               const pEnd = (p.to || '').trim().toUpperCase();
               const isFull = circStart && circEnd && pStart === circStart && pEnd === circEnd;
@@ -288,7 +349,17 @@ export const ViatgerInfoModal: React.FC<ViatgerInfoModalProps> = ({
                       </div>
 
                       {/* Badge cobertura */}
-                      <div>
+                      <div className="flex items-center gap-2">
+                        {p.reliefAlert?.isCompromised && (
+                          <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase flex items-center gap-1 animate-pulse ${
+                            p.reliefAlert.severity === 'critical'
+                              ? 'bg-red-500 text-white'
+                              : 'bg-amber-500 text-black'
+                          }`}>
+                            <ShieldAlert size={12} />
+                            {p.reliefAlert.severity === 'critical' ? 'Relleu Fallit' : 'Relleu en Risc'}
+                          </span>
+                        )}
                         {isFull ? (
                           <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30 flex items-center gap-1">
                             <CheckCircle2 size={12} className="text-blue-400" />
@@ -348,6 +419,129 @@ export const ViatgerInfoModal: React.FC<ViatgerInfoModalProps> = ({
                         </div>
                       </div>
                     </div>
+
+                    {/* Proper tren a rellevar / conduir (Relief Mission) */}
+                    {p.nextCirc ? (
+                      <div className="p-3 bg-blue-950/20 rounded-xl border border-blue-500/20 space-y-2">
+                        <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-blue-400">
+                          <span className="flex items-center gap-1.5">
+                            <Zap size={12} className="text-blue-400" />
+                            Proper tren a conduir (Relleu)
+                          </span>
+                          <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 font-mono">
+                            Tren {p.nextCirc.codi} {p.nextCirc.cicle ? `(${p.nextCirc.cicle})` : ''}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-xs text-gray-200 pt-0.5">
+                          <div>
+                            <span className="text-gray-400 text-[10px] block">Estació:</span>
+                            <span className="font-bold text-white truncate block">{p.nextCirc.iniciName}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-400 text-[10px] block">Sortida tren:</span>
+                            <span className="font-mono font-bold text-fgc-green">{p.nextCirc.sortida}</span>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-gray-400 text-[10px] block">Marge teòric:</span>
+                            <span className="font-mono font-bold text-blue-400">{p.nextCirc.scheduledMarginMin ?? '--'} min</span>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-2.5 bg-black/20 rounded-xl border border-white/5 text-[11px] text-gray-400 italic">
+                        ℹ️ Retirada o tancament de jornada (no té cap circulació posterior programada).
+                      </div>
+                    )}
+
+                    {/* ALERTA DE RELLEU EN RISC (Relief Watchdog) */}
+                    {p.reliefAlert?.isCompromised && (
+                      <div className={`p-3.5 rounded-2xl border ${
+                        p.reliefAlert.severity === 'critical'
+                          ? 'bg-red-950/40 border-red-500/40 text-red-200 ring-2 ring-red-500/30'
+                          : 'bg-amber-950/40 border-amber-500/40 text-amber-200 ring-2 ring-amber-500/30'
+                      } space-y-3 animate-fade-up-premium`}>
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <ShieldAlert size={18} className={p.reliefAlert.severity === 'critical' ? 'text-red-400' : 'text-amber-400'} />
+                            <span className="text-xs font-black uppercase tracking-wider">
+                              {p.reliefAlert.severity === 'critical' ? '⚠️ Relleu Críticament Compromès' : '⚠️ Relleu en Risc per Retard'}
+                            </span>
+                          </div>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                            p.reliefAlert.severity === 'critical' ? 'bg-red-500 text-white' : 'bg-amber-500 text-black'
+                          }`}>
+                            {p.reliefAlert.severity === 'critical' ? 'INVIABLE' : 'RISC TIGHT'}
+                          </span>
+                        </div>
+
+                        <p className="text-xs leading-relaxed font-medium">
+                          {p.reliefAlert.message}
+                        </p>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] bg-black/40 p-2.5 rounded-xl border border-white/5">
+                          <div>
+                            <span className="text-gray-400 block text-[10px]">Demora tren:</span>
+                            <span className="font-bold text-red-400">+{p.reliefAlert.delayMin} min</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-400 block text-[10px]">Arribada estimada:</span>
+                            <span className="font-bold text-white font-mono">{p.reliefAlert.estimatedArrival}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-400 block text-[10px]">Sortida relleu:</span>
+                            <span className="font-bold text-white font-mono">{p.nextCirc?.sortida || '--:--'}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-400 block text-[10px]">Marge real restant:</span>
+                            <span className={`font-black font-mono ${p.reliefAlert.realMarginMin <= 0 ? 'text-red-400' : 'text-amber-400'}`}>
+                              {p.reliefAlert.realMarginMin} min
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Reserves disponibles a l'estació de relleu */}
+                        {p.reliefAlert.availableReserves && p.reliefAlert.availableReserves.length > 0 ? (
+                          <div className="pt-2 border-t border-white/10 space-y-2">
+                            <div className="flex items-center justify-between text-[10px] font-black uppercase text-gray-300">
+                              <span>Reserves Operatives a {p.nextCirc?.iniciName}</span>
+                              <span className="text-fgc-green">{p.reliefAlert.availableReserves.length} disponibles</span>
+                            </div>
+                            <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                              {p.reliefAlert.availableReserves.map((res, rIdx) => (
+                                <div key={rIdx} className="flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/10 text-xs">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-[#97BE14] text-black">
+                                        {res.shortTorn}
+                                      </span>
+                                      <span className="font-bold text-white truncate">{res.driverName}</span>
+                                    </div>
+                                    <span className="text-[10px] text-gray-400 block">
+                                      Guàrdia: {res.iniciTorn} — {res.finalTorn} ({res.dependenciaName})
+                                    </span>
+                                  </div>
+                                  {res.phones && res.phones.length > 0 && (
+                                    <a
+                                      href={`tel:${res.phones[0]}`}
+                                      onClick={() => handlePhoneClick(res.nomina, res.phones[0])}
+                                      className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1 shadow-sm shrink-0 ml-2 active:scale-95 transition-all"
+                                      title={`Trucar a la reserva ${res.driverName}`}
+                                    >
+                                      <Phone size={11} />
+                                      <span>Trucar</span>
+                                    </a>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-[10px] text-gray-400 italic pt-1">
+                            Sense reserves directes a {p.nextCirc?.iniciName || 'la capçalera'}. Contacteu amb el CSO per a suport.
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {p.observacions && (
                       <div className="text-xs text-gray-300 italic bg-white/5 px-3 py-2 rounded-xl border border-white/5">

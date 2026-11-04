@@ -29,7 +29,7 @@ export interface DashboardKPIs {
 
 export interface PersonnelAlert {
     id: string;
-    type: 'missing' | 'conflict' | 'broken_assigned' | 'late' | 'upcoming';
+    type: 'missing' | 'conflict' | 'broken_assigned' | 'late' | 'upcoming' | 'relief';
     severity: 'critical' | 'warning' | 'info';
     title: string;
     subtitle: string;

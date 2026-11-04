@@ -300,7 +300,8 @@ export async function fetchPassengerInfo(circulationIds: string[], servei?: stri
         if (likelyPassengerShifts) {
             likelyPassengerShifts.forEach(s => {
                 if (!s.circulations) return;
-                (s.circulations as any[]).forEach(c => {
+                const circsList = s.circulations as any[];
+                circsList.forEach((c, cIdx) => {
                     if (c.codi === 'Viatger' && c.observacions) {
                         const parts = c.observacions.split('-');
                         if (parts.length >= 1) {
@@ -310,6 +311,39 @@ export async function fetchPassengerInfo(circulationIds: string[], servei?: stri
 
                                 const fromCode = (parts[1] || '??').trim().toUpperCase();
                                 const toCode = (parts[2] || '??').trim().toUpperCase();
+
+                                // Find subsequent driving circulation in this shift
+                                let nextCirc: any = null;
+                                for (let j = cIdx + 1; j < circsList.length; j++) {
+                                    const candidate = circsList[j];
+                                    const candCode = (candidate.codi || '').trim();
+                                    if (candCode && candCode !== '-' && candCode !== 'Viatger' && candCode !== 'RESERVA') {
+                                        nextCirc = candidate;
+                                        break;
+                                    }
+                                }
+
+                                let scheduledMarginMin: number | null = null;
+                                let nextCircData: any = undefined;
+
+                                if (nextCirc) {
+                                    const vArrMin = getFgcMinutes(c.arribada);
+                                    const nextDepMin = getFgcMinutes(nextCirc.sortida);
+                                    if (vArrMin !== null && nextDepMin !== null) {
+                                        scheduledMarginMin = nextDepMin >= vArrMin ? (nextDepMin - vArrMin) : (nextDepMin + 1440 - vArrMin);
+                                    }
+                                    const nInici = (nextCirc.inici || toCode).trim().toUpperCase();
+                                    nextCircData = {
+                                        codi: (nextCirc.codi || '').trim().toUpperCase(),
+                                        cicle: (nextCirc.cicle || '').trim().toUpperCase(),
+                                        sortida: nextCirc.sortida || '',
+                                        arribada: nextCirc.arribada || '',
+                                        inici: nInici,
+                                        iniciName: resolveStationName(nInici),
+                                        final: (nextCirc.final || '').trim().toUpperCase(),
+                                        scheduledMarginMin
+                                    };
+                                }
 
                                 result[targetCircId].push({
                                     shiftId: s.id,
@@ -324,7 +358,8 @@ export async function fetchPassengerInfo(circulationIds: string[], servei?: stri
                                     final_torn: s.final_torn || '',
                                     dependencia: s.dependencia || '',
                                     isPartial: false,
-                                    phones: []
+                                    phones: [],
+                                    nextCirc: nextCircData
                                 });
                             }
                         }
@@ -343,7 +378,8 @@ export async function fetchPassengerInfo(circulationIds: string[], servei?: stri
             const offlineShifts = await db.shifts.toArray();
             offlineShifts.forEach(s => {
                 if (!s.circulations) return;
-                (s.circulations as any[]).forEach(c => {
+                const circsList = s.circulations as any[];
+                circsList.forEach((c, cIdx) => {
                     if (c.codi === 'Viatger' && c.observacions) {
                         const parts = c.observacions.split('-');
                         if (parts.length >= 1) {
@@ -352,6 +388,39 @@ export async function fetchPassengerInfo(circulationIds: string[], servei?: stri
                                 if (!result[targetCircId]) result[targetCircId] = [];
                                 const fromCode = (parts[1] || '??').trim().toUpperCase();
                                 const toCode = (parts[2] || '??').trim().toUpperCase();
+
+                                let nextCirc: any = null;
+                                for (let j = cIdx + 1; j < circsList.length; j++) {
+                                    const candidate = circsList[j];
+                                    const candCode = (candidate.codi || '').trim();
+                                    if (candCode && candCode !== '-' && candCode !== 'Viatger' && candCode !== 'RESERVA') {
+                                        nextCirc = candidate;
+                                        break;
+                                    }
+                                }
+
+                                let scheduledMarginMin: number | null = null;
+                                let nextCircData: any = undefined;
+
+                                if (nextCirc) {
+                                    const vArrMin = getFgcMinutes(c.arribada);
+                                    const nextDepMin = getFgcMinutes(nextCirc.sortida);
+                                    if (vArrMin !== null && nextDepMin !== null) {
+                                        scheduledMarginMin = nextDepMin >= vArrMin ? (nextDepMin - vArrMin) : (nextDepMin + 1440 - vArrMin);
+                                    }
+                                    const nInici = (nextCirc.inici || toCode).trim().toUpperCase();
+                                    nextCircData = {
+                                        codi: (nextCirc.codi || '').trim().toUpperCase(),
+                                        cicle: (nextCirc.cicle || '').trim().toUpperCase(),
+                                        sortida: nextCirc.sortida || '',
+                                        arribada: nextCirc.arribada || '',
+                                        inici: nInici,
+                                        iniciName: resolveStationName(nInici),
+                                        final: (nextCirc.final || '').trim().toUpperCase(),
+                                        scheduledMarginMin
+                                    };
+                                }
+
                                 result[targetCircId].push({
                                     shiftId: s.id,
                                     shortTorn: getShortTornId(s.id),
@@ -365,7 +434,8 @@ export async function fetchPassengerInfo(circulationIds: string[], servei?: stri
                                     final_torn: s.final_torn || '',
                                     dependencia: s.dependencia || '',
                                     isPartial: false,
-                                    phones: []
+                                    phones: [],
+                                    nextCirc: nextCircData
                                 });
                             }
                         }

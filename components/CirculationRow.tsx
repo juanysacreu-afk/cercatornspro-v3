@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Phone, AlertTriangle, Camera, FileText, Brush, BookOpen, Settings, Radio, User } from 'lucide-react';
+import { Phone, AlertTriangle, Camera, FileText, Brush, BookOpen, Settings, Radio, User, ShieldAlert } from 'lucide-react';
 import { checkIfActive } from '../utils/time';
 import { ViatgerInfoModal } from './ViatgerInfoModal';
 
@@ -44,6 +44,9 @@ export const CirculationRow: React.FC<CirculationRowProps> = ({
     const needsRecords = status?.needs_records;
     const needsCleaning = status?.needs_cleaning;
     const isViatger = circ.codi === 'Viatger';
+
+    // Relief Watchdog: detect if any viatger on this circ has a compromised relief
+    const hasCompromisedRelief = passengerInfo?.some(p => p.reliefAlert?.isCompromised);
 
     // Determine passenger coverage
     // Logic: Blue if ANY passenger covers the FULL route (Start -> End)
@@ -97,11 +100,25 @@ export const CirculationRow: React.FC<CirculationRowProps> = ({
                                         setShowLocalViatgerModal(true);
                                     }
                                 }}
-                                className={`flex items-center flex-shrink-0 z-10 relative group p-[2px] md:p-1 rounded-full bg-white dark:bg-[#2d2d2d] shadow-sm border border-gray-100 dark:border-gray-700 hover:scale-110 active:scale-95 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-fgc-green ${hasFullCoverage ? 'text-blue-500 hover:border-blue-400' : 'text-orange-500 hover:border-orange-400'}`}
-                                title={`Viatgers:\n${passengerTooltip}\n(Clica per veure la informació completa)`}
+                                className={`flex items-center flex-shrink-0 z-10 relative group p-[2px] md:p-1 rounded-full shadow-sm border transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-fgc-green ${
+                                    hasCompromisedRelief
+                                        ? 'text-red-500 border-red-500 bg-red-500/20 ring-2 ring-red-500 animate-pulse shadow-md'
+                                        : hasFullCoverage
+                                        ? 'text-blue-500 bg-white dark:bg-[#2d2d2d] border-gray-100 dark:border-gray-700 hover:border-blue-400 hover:scale-110 active:scale-95'
+                                        : 'text-orange-500 bg-white dark:bg-[#2d2d2d] border-gray-100 dark:border-gray-700 hover:border-orange-400 hover:scale-110 active:scale-95'
+                                }`}
+                                title={
+                                    hasCompromisedRelief
+                                        ? `⚠️ ALERTA CSO: Relleu compromès per retard!\n${passengerTooltip}\n(Clica per veure reserves i contactar)`
+                                        : `Viatgers:\n${passengerTooltip}\n(Clica per veure la informació completa)`
+                                }
                                 aria-label="Veure informació del maquinista de viatger"
                             >
-                                <User className="w-3 h-3 md:w-3.5 md:h-3.5" strokeWidth={3} />
+                                {hasCompromisedRelief ? (
+                                    <ShieldAlert className="w-3 h-3 md:w-3.5 md:h-3.5 text-red-500 animate-pulse" strokeWidth={3} />
+                                ) : (
+                                    <User className="w-3 h-3 md:w-3.5 md:h-3.5" strokeWidth={3} />
+                                )}
                                 {passengerInfo.length > 1 && (
                                     <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[8px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center border border-white dark:border-gray-800 shadow-xs">
                                         {passengerInfo.length}

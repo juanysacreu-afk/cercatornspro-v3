@@ -24,6 +24,7 @@ import { CirculationHeader } from '../components/CirculationHeader';
 import { CirculationRow } from '../components/CirculationRow';
 import { StationRow } from '../components/StationRow';
 import { ViatgerInfoModal } from '../components/ViatgerInfoModal';
+import { evaluatePassengerRelief, getCirculationLiveDelay } from '../utils/reliefWatchdogService';
 import { MarqueeText } from '../components/MarqueeText';
 import { useServiceToday } from '../utils/useServiceToday';
 import { feedback } from '../utils/feedback';
@@ -1504,6 +1505,25 @@ const CercarViewComponent: React.FC<{
         if (circIds.size > 0) {
           const pInfo = await fetchPassengerInfo(Array.from(circIds), selectedServei === 'Tots' ? undefined : selectedServei);
           setPassengerInfoMap(pInfo);
+
+          // Asynchronously enrich with live delays and relief watchdog evaluations
+          Promise.all(
+            Object.entries(pInfo).map(async ([cId, passengers]) => {
+              const live = await getCirculationLiveDelay(cId);
+              const enriched = await Promise.all(
+                passengers.map(p => evaluatePassengerRelief(p, live.delaySec, live.delayMin))
+              );
+              return [cId, enriched] as const;
+            })
+          ).then(entries => {
+            const enrichedMap: Record<string, any[]> = {};
+            entries.forEach(([cId, pList]) => {
+              enrichedMap[cId] = pList;
+            });
+            setPassengerInfoMap(prev => ({ ...prev, ...enrichedMap }));
+          }).catch(err => {
+            console.warn('[CercarView] Relief watchdog enrichment warning:', err);
+          });
         }
       }
 

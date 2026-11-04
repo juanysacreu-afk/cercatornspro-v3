@@ -28,6 +28,8 @@ import { MonitorView } from './MonitorView';
 import { PunctualitySection } from './components/PunctualitySection';
 import { useTrunkConflicts } from './hooks/useTrunkConflicts';
 import { PredictiveConflictBanner } from '../../components/PredictiveConflictBanner';
+import { ReliefWatchdogBanner } from '../../components/ReliefWatchdogBanner';
+import { fetchGlobalCompromisedReliefs, CompromisedReliefAlert } from '../../utils/reliefWatchdogService';
 import { formatDelayMinutes } from '../../utils/accordionPredictor';
 import type { PersonnelAlert } from './hooks/useDashboardData';
 
@@ -129,6 +131,27 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
     const [isCsoModalOpen, setIsCsoModalOpen] = useState(false);
 
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [compromisedReliefs, setCompromisedReliefs] = useState<CompromisedReliefAlert[]>([]);
+
+    // Periodic & on-mount fetch of Relief Watchdog compromised reliefs
+    useEffect(() => {
+        let isMounted = true;
+        const loadWatchdog = async () => {
+            try {
+                const results = await fetchGlobalCompromisedReliefs(serviceToday);
+                if (isMounted) setCompromisedReliefs(results);
+            } catch (err) {
+                console.error('[Dashboard] Error fetching relief watchdog alerts:', err);
+            }
+        };
+
+        loadWatchdog();
+        const interval = setInterval(loadWatchdog, 60000);
+        return () => {
+            isMounted = false;
+            clearInterval(interval);
+        };
+    }, [serviceToday]);
 
     /**
      * CSO Main Refresh Action
@@ -136,16 +159,19 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
      * 2. Traditional dashboard metrics refresh
      * 3. TRIGGER SYNC: Reset unit cicles from GeoTren (as requested by user)
      * 4. Predictive conflict detector refresh
+     * 5. Relief Watchdog detector refresh
      */
     const handleRefresh = async () => {
         feedback.click();
         setIsRefreshing(true);
         try {
-            // Traditional Dashboard refresh + Predictive conflict refresh
-            await Promise.all([
+            // Traditional Dashboard refresh + Predictive conflict refresh + Relief Watchdog refresh
+            const [_, __, watchdogAlerts] = await Promise.all([
                 refresh(),
-                refreshConflicts()
+                refreshConflicts(),
+                fetchGlobalCompromisedReliefs(serviceToday)
             ]);
+            setCompromisedReliefs(watchdogAlerts);
 
             // SYNC SYNC: Reset units assigned to cycles from live GeoTren map
             // This streamlines operational synchronization between CCO and real-time fleet state.
@@ -163,7 +189,7 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
         }
     };
 
-    // Merged predictive conflicts with personnel alerts for the Alerts Panel
+    // Merged predictive conflicts and compromised reliefs with personnel alerts for the Alerts Panel
     const mergedCriticalAlerts = useMemo(() => {
         const predictiveList: PersonnelAlert[] = trunkConflicts
             .filter(c => c.severity === 'critical')
@@ -175,8 +201,21 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                 subtitle: `${c.trailingCircId} (${c.trailingLine}) afectat per ${c.leadingCircId} (+${formatDelayMinutes(c.leadingDelaySec)} a ${c.leadingStation})`,
                 circId: c.trailingCircId
             }));
-        return [...predictiveList, ...criticalAlerts];
-    }, [trunkConflicts, criticalAlerts]);
+
+        const reliefList: PersonnelAlert[] = compromisedReliefs
+            .filter(r => r.severity === 'critical')
+            .map(r => ({
+                id: r.id,
+                type: 'relief',
+                severity: 'critical',
+                title: `Relleu Crític: ${r.driverName} (${r.shortTorn})`,
+                subtitle: `Tren viatger ${r.travelCircId} (+${r.currentDelayMin}m): no arribarà a temps per agafar el tren ${r.reliefCircId} a ${r.reliefStationName} (${r.reliefScheduledDeparture})`,
+                circId: r.reliefCircId,
+                tornId: r.shiftId
+            }));
+
+        return [...predictiveList, ...reliefList, ...criticalAlerts];
+    }, [trunkConflicts, compromisedReliefs, criticalAlerts]);
 
     const mergedWarningAlerts = useMemo(() => {
         const predictiveList: PersonnelAlert[] = trunkConflicts
@@ -189,10 +228,23 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                 subtitle: `${c.trailingCircId} (${c.trailingLine}) afectat per ${c.leadingCircId} (+${formatDelayMinutes(c.leadingDelaySec)} a ${c.leadingStation})`,
                 circId: c.trailingCircId
             }));
-        return [...predictiveList, ...warningAlerts];
-    }, [trunkConflicts, warningAlerts]);
 
-    const totalAlertsCount = alerts.length + trunkConflicts.length;
+        const reliefList: PersonnelAlert[] = compromisedReliefs
+            .filter(r => r.severity === 'warning')
+            .map(r => ({
+                id: r.id,
+                type: 'relief',
+                severity: 'warning',
+                title: `Relleu en Risc: ${r.driverName} (${r.shortTorn})`,
+                subtitle: `Tren viatger ${r.travelCircId} (+${r.currentDelayMin}m): marge ajustat (${r.realMarginMin}m) per agafar el tren ${r.reliefCircId} a ${r.reliefStationName}`,
+                circId: r.reliefCircId,
+                tornId: r.shiftId
+            }));
+
+        return [...predictiveList, ...reliefList, ...warningAlerts];
+    }, [trunkConflicts, compromisedReliefs, warningAlerts]);
+
+    const totalAlertsCount = alerts.length + trunkConflicts.length + compromisedReliefs.length;
 
     // F5 – export handler (delegates to utils/export.ts)
     const handleExportCSV = useCallback(() => {
@@ -313,6 +365,16 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
                 <div className="flex-none">
                     <PredictiveConflictBanner
                         conflicts={trunkConflicts}
+                        onNavigateToSearch={onNavigateToSearch}
+                    />
+                </div>
+            )}
+
+            {/* Relief Watchdog Banner (Maquinistes de Viatger en Risc) */}
+            {compromisedReliefs.length > 0 && (
+                <div className="flex-none">
+                    <ReliefWatchdogBanner
+                        alerts={compromisedReliefs}
                         onNavigateToSearch={onNavigateToSearch}
                     />
                 </div>
