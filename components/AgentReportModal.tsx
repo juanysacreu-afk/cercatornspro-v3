@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   X, FileText, Printer, Download, Calendar, TrendingUp, 
   Clock, Train, CheckCircle2, AlertTriangle, Shield, Sparkles,
@@ -233,20 +234,28 @@ export const AgentReportModal: React.FC<AgentReportModalProps> = ({
         ? 'text-amber-500' 
         : 'text-red-500';
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[300] bg-black/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-200"
-      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-[100000] flex items-center justify-center p-2.5 sm:p-4 overflow-hidden"
     >
+      {/* Backdrop */}
       <div
-        className="bg-white dark:bg-[#1E2124] border border-gray-100 dark:border-white/10 rounded-[32px] shadow-2xl max-w-xl w-full overflow-hidden relative animate-in zoom-in-95 duration-200"
+        className="fixed inset-0 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+        onClick={onClose}
+      />
+
+      {/* Modal Card */}
+      <div
+        className="relative z-10 bg-white dark:bg-[#1E2124] border border-gray-100 dark:border-white/10 rounded-[28px] sm:rounded-[32px] shadow-2xl max-w-xl w-full max-h-[calc(100dvh-1.5rem)] sm:max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Ambient Glow */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-fgc-green/10 blur-[80px] pointer-events-none -mr-20 -mt-20" />
 
         {/* Modal Header */}
-        <div className="p-6 border-b border-gray-100 dark:border-white/10 flex items-center justify-between relative z-10 bg-white/50 dark:bg-[#1E2124]/50 backdrop-blur-sm">
+        <div className="p-4 sm:p-6 border-b border-gray-100 dark:border-white/10 flex items-center justify-between shrink-0 relative z-20 bg-white/95 dark:bg-[#1E2124]/95 backdrop-blur-md">
           <div className="flex items-center gap-3">
             <img
               src={FGC_ICON_BASE64}
@@ -272,14 +281,16 @@ export const AgentReportModal: React.FC<AgentReportModalProps> = ({
               feedback.click();
               onClose();
             }}
-            className="w-9 h-9 rounded-2xl flex items-center justify-center bg-gray-100 dark:bg-white/5 text-gray-400 hover:text-gray-700 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-white/10 transition-colors"
+            className="w-9 h-9 rounded-2xl flex items-center justify-center bg-gray-100 dark:bg-white/5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors active:scale-95"
+            title="Tancar finestra"
+            aria-label="Tancar finestra"
           >
             <X size={18} />
           </button>
         </div>
 
         {/* Segmented Mode Selector: Dia en concret vs Genèric */}
-        <div className="p-6 pb-2">
+        <div className="p-4 sm:p-6 pb-2 shrink-0 bg-white/50 dark:bg-[#1E2124]/50 border-b border-gray-100/50 dark:border-white/5">
           <div className="grid grid-cols-2 gap-2 p-1.5 bg-gray-100 dark:bg-white/5 rounded-2xl border border-gray-200/50 dark:border-white/10">
             <button
               onClick={() => {
@@ -314,7 +325,7 @@ export const AgentReportModal: React.FC<AgentReportModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 pt-3 space-y-5">
+        <div className="p-4 sm:p-6 pt-3 space-y-4 sm:space-y-5 flex-1 overflow-y-auto overscroll-contain relative z-10 custom-scrollbar">
           {reportType === 'day' ? (
             /* ── SECCIÓ: DIA EN CONCRET ── */
             <div className="space-y-4">
@@ -502,14 +513,24 @@ export const AgentReportModal: React.FC<AgentReportModalProps> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="p-4 bg-gray-50/80 dark:bg-white/[0.02] border-t border-gray-100 dark:border-white/5 flex items-center justify-between text-[11px] text-gray-400">
-          <div className="flex items-center gap-1.5">
-            <Shield size={13} className="text-fgc-green" />
-            <span>Format oficial A4 i taula Excel conforme a RGPD / LOPDGDD</span>
+        <div className="p-3 sm:p-4 bg-gray-50/80 dark:bg-white/[0.02] border-t border-gray-100 dark:border-white/5 flex items-center justify-between text-[11px] text-gray-400 shrink-0 relative z-20">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <Shield size={13} className="text-fgc-green shrink-0" />
+            <span className="truncate">Format oficial A4 i taula Excel conforme a RGPD / LOPDGDD</span>
           </div>
-          <span className="font-mono text-[10px]">v1.7.0 CSO</span>
+          <button
+            onClick={() => {
+              feedback.click();
+              onClose();
+            }}
+            className="px-3.5 py-1.5 rounded-xl bg-gray-200 dark:bg-white/10 hover:bg-gray-300 dark:hover:bg-white/20 text-[#4D5358] dark:text-white text-xs font-bold transition-all active:scale-95 flex items-center gap-1 shrink-0 ml-2"
+          >
+            <X size={13} />
+            <span>Tancar</span>
+          </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

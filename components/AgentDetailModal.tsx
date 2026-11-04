@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   X, Phone, Mail, Clock, Train, MapPin, Activity, 
   CheckCircle2, AlertTriangle, ArrowRight, RefreshCw, 
@@ -839,20 +840,27 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
   const isDIS = agent.torn?.startsWith('DIS');
   const isDES = agent.torn?.startsWith('DES');
 
-  return (
+  return createPortal(
     <div 
-      className="fixed inset-0 z-[200] bg-black/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto animate-in fade-in duration-300"
-      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-[100000] flex items-center justify-center p-2.5 sm:p-6 overflow-hidden"
     >
+      {/* Backdrop */}
       <div 
-        className="bg-white dark:bg-[#1E2124] border border-gray-100 dark:border-white/10 rounded-[32px] sm:rounded-[40px] shadow-2xl max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden relative animate-in zoom-in-95 duration-300"
+        className="fixed inset-0 bg-black/80 backdrop-blur-md animate-in fade-in duration-300"
+        onClick={onClose}
+      />
+
+      <div 
+        className="bg-white dark:bg-[#1E2124] border border-gray-100 dark:border-white/10 rounded-[28px] sm:rounded-[40px] shadow-2xl max-w-4xl w-full max-h-[calc(100dvh-1.5rem)] sm:max-h-[92vh] flex flex-col overflow-hidden relative z-10 animate-in zoom-in-95 duration-300 my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Glow ambient accent */}
         <div className="absolute top-0 right-0 w-96 h-96 bg-fgc-green/10 dark:bg-fgc-green/5 blur-[100px] pointer-events-none -mr-32 -mt-32" />
 
         {/* ── HEADER MODAL ── */}
-        <div className="p-6 sm:p-8 border-b border-gray-100 dark:border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-6 relative z-10 bg-white/50 dark:bg-[#1E2124]/50 backdrop-blur-sm">
+        <div className="p-4 sm:p-8 border-b border-gray-100 dark:border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6 shrink-0 relative z-20 bg-white/95 dark:bg-[#1E2124]/95 backdrop-blur-md">
           <div className="flex items-start sm:items-center gap-4 sm:gap-6 min-w-0">
             {/* Avatar */}
             <div className={`w-16 h-16 sm:w-20 sm:h-20 rounded-[24px] sm:rounded-[28px] flex items-center justify-center font-black text-2xl sm:text-3xl shadow-xl shrink-0 ${
@@ -961,7 +969,7 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
         </div>
 
         {/* ── MODAL SCROLLABLE BODY ── */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-6 sm:space-y-8 no-scrollbar">
+        <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-8 space-y-6 sm:space-y-8 custom-scrollbar">
 
           {/* 1. ON ESTÀ EN AQUEST MOMENT SI ESTÀ TREBALLANT (REAL-TIME STATUS) */}
           {liveStatus && (
@@ -1825,7 +1833,8 @@ export const AgentDetailModal: React.FC<AgentDetailModalProps> = ({
           initialDate={selectedHistoryDate || getFgcServiceDate()}
         />
       )}
-    </div>
+    </div>,
+    document.body
   );
 };
 

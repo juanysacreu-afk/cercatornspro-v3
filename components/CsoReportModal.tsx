@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, FileText, Printer, Download, Clock, Train, Shield, Activity, Package, Mail, Loader2 } from 'lucide-react';
 import { feedback } from '../utils/feedback';
 import { generateGlobalReportPrint, generateGlobalReportExcel } from '../utils/officialReports';
@@ -117,20 +118,28 @@ export const CsoReportModal: React.FC<CsoReportModalProps> = ({
   const globalRate = resolvedStats.globalRate ?? 100;
   const rateColor = globalRate >= 95 ? 'text-emerald-500' : globalRate >= 85 ? 'text-amber-500' : 'text-red-500';
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[300] bg-black/70 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200"
-      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-[100000] flex items-center justify-center p-2.5 sm:p-4 overflow-hidden"
     >
+      {/* Backdrop */}
       <div
-        className="bg-white dark:bg-[#1E2124] border border-gray-100 dark:border-white/10 rounded-[32px] shadow-2xl max-w-lg w-full overflow-hidden relative animate-in zoom-in-95 duration-200"
+        className="fixed inset-0 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+        onClick={onClose}
+      />
+
+      {/* Modal Card */}
+      <div
+        className="relative z-10 bg-white dark:bg-[#1E2124] border border-gray-100 dark:border-white/10 rounded-[28px] sm:rounded-[32px] shadow-2xl max-w-lg w-full max-h-[calc(100dvh-1.5rem)] sm:max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Glow ambient */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-fgc-green/10 blur-[80px] pointer-events-none -mr-20 -mt-20" />
 
-        {/* Header */}
-        <div className="p-6 border-b border-gray-100 dark:border-white/10 flex items-center justify-between relative z-10 bg-white/50 dark:bg-[#1E2124]/50 backdrop-blur-sm">
+        {/* Header (always pinned at top) */}
+        <div className="p-4 sm:p-6 border-b border-gray-100 dark:border-white/10 flex items-center justify-between shrink-0 relative z-20 bg-white/95 dark:bg-[#1E2124]/95 backdrop-blur-md">
           <div className="flex items-center gap-3">
             <img
               src={FGC_ICON_BASE64}
@@ -141,23 +150,27 @@ export const CsoReportModal: React.FC<CsoReportModalProps> = ({
               <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 dark:text-gray-500">
                 Centre de Supervisió Operativa (CSO)
               </span>
-              <h2 className="text-lg font-black text-[#4D5358] dark:text-white leading-tight uppercase">
+              <h2 className="text-base sm:text-lg font-black text-[#4D5358] dark:text-white leading-tight uppercase">
                 Informe Oficial Diari
               </h2>
             </div>
           </div>
 
           <button
-            onClick={onClose}
-            className="p-2.5 rounded-2xl bg-gray-50 dark:bg-white/5 hover:bg-red-50 dark:hover:bg-red-500/10 text-gray-400 hover:text-red-500 border border-gray-100 dark:border-white/5 transition-all"
+            onClick={() => {
+              feedback.click();
+              onClose();
+            }}
+            className="p-2.5 rounded-2xl bg-gray-100 dark:bg-white/5 hover:bg-red-50 dark:hover:bg-red-500/10 text-gray-500 dark:text-gray-400 hover:text-red-500 border border-gray-200/60 dark:border-white/5 transition-all active:scale-95"
             title="Tancar finestra"
+            aria-label="Tancar finestra"
           >
             <X size={18} />
           </button>
         </div>
 
-        {/* Body */}
-        <div className="p-6 space-y-6 relative z-10">
+        {/* Body (scrollable) */}
+        <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto flex-1 overscroll-contain relative z-10 custom-scrollbar">
           {/* Metadata pill & quick summary */}
           <div className="bg-gray-50/70 dark:bg-black/20 rounded-2xl p-4 border border-gray-100 dark:border-white/5 space-y-3">
             <div className="flex items-center justify-between text-xs font-bold text-gray-500 dark:text-gray-400">
@@ -199,7 +212,7 @@ export const CsoReportModal: React.FC<CsoReportModalProps> = ({
             {/* Option 1: PDF Oficial */}
             <button
               onClick={handlePrintPDF}
-              className="w-full flex items-center justify-between p-4 rounded-2xl bg-fgc-green text-[#4D5358] font-bold text-left shadow-lg shadow-fgc-green/20 hover:scale-[1.02] active:scale-[0.98] transition-all group"
+              className="w-full flex items-center justify-between p-4 rounded-2xl bg-fgc-green text-[#4D5358] font-bold text-left shadow-lg shadow-fgc-green/20 hover:scale-[1.01] active:scale-[0.98] transition-all group"
             >
               <div className="flex items-center gap-3">
                 <div className="p-2.5 rounded-xl bg-white/30 text-[#4D5358]">
@@ -294,6 +307,23 @@ export const CsoReportModal: React.FC<CsoReportModalProps> = ({
             )}
           </div>
         </div>
+
+        {/* Footer (always pinned at bottom) */}
+        <div className="p-3 sm:p-4 border-t border-gray-100 dark:border-white/10 bg-gray-50/80 dark:bg-black/20 flex items-center justify-between shrink-0 relative z-20">
+          <span className="text-[11px] font-medium text-gray-400">
+            FGC Operacions · CSO
+          </span>
+          <button
+            onClick={() => {
+              feedback.click();
+              onClose();
+            }}
+            className="px-4 py-2 rounded-xl bg-gray-200 dark:bg-white/10 hover:bg-gray-300 dark:hover:bg-white/20 text-[#4D5358] dark:text-white text-xs font-bold transition-all active:scale-95 flex items-center gap-1.5"
+          >
+            <X size={14} />
+            <span>Tancar finestra</span>
+          </button>
+        </div>
       </div>
 
       {isBulkModalOpen && (
@@ -303,7 +333,8 @@ export const CsoReportModal: React.FC<CsoReportModalProps> = ({
           defaultDate={serviceDate}
         />
       )}
-    </div>
+    </div>,
+    document.body
   );
 };
 
