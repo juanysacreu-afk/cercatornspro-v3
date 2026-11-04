@@ -40,6 +40,12 @@ const TOUR_STEPS: TourStep[] = [
         targetSelector: '[data-tour="cicles-tab"]'
     },
     {
+        id: 'calendari-inspectors',
+        title: 'Calendari Inspectors',
+        content: 'Accés directe al calendari oficial d\'inspectors i planificació de torns (rotacions, festius i serveis).',
+        targetSelector: '[data-tour="calendari-inspectors-btn"]'
+    },
+    {
         id: 'upload',
         title: 'Càrrega de Dades',
         content: 'Puja els horaris diaris i les assignacions de personal directament des de fitxers PDF o Excel per mantenir el sistema actualitzat.',

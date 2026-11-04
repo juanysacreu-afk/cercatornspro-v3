@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AppTab } from '../../types';
-import { Settings, Moon, Sun, Upload, HelpCircle } from 'lucide-react';
+import { Settings, Moon, Sun, Upload, HelpCircle, CalendarDays } from 'lucide-react';
 import { feedback } from '../../utils/feedback';
 
 interface SidebarProps {
@@ -99,6 +99,24 @@ const Sidebar: React.FC<SidebarProps> = ({
 
             {/* Bottom Section */}
             <div className="p-4 space-y-4 border-t border-white/5 bg-black/5">
+                {/* Calendari Inspectors Trigger */}
+                <a
+                    href="https://calendari-fgc.vercel.app"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => feedback.click()}
+                    data-tour="calendari-inspectors-btn"
+                    className="w-full flex items-center px-4 py-3.5 rounded-2xl transition-all text-gray-400 hover:bg-fgc-green/10 hover:text-white group"
+                    title="Calendari Inspectors"
+                >
+                    <div className="shrink-0 group-hover:scale-110 transition-transform duration-300 text-fgc-green">
+                        <CalendarDays size={20} />
+                    </div>
+                    <span className={`ml-4 text-[11px] font-bold uppercase tracking-widest transition-all duration-500 whitespace-nowrap ${isExpanded ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4 pointer-events-none'}`}>
+                        Calendari Inspectors
+                    </span>
+                </a>
+
                 {/* Upload Trigger */}
                 <button
                     onClick={() => {

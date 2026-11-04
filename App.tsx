@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, RefreshCcw, Train, Menu, X, Download, BookOpen, Settings, Moon, Sun, ShieldAlert, Eye, Layers, Volume2, VolumeX, HelpCircle, Calendar, Activity, Users, Bell, BellRing, LogOut } from 'lucide-react';
+import { Search, RefreshCcw, Train, Menu, X, Download, BookOpen, Settings, Moon, Sun, ShieldAlert, Eye, Layers, Volume2, VolumeX, HelpCircle, Calendar, CalendarDays, Activity, Users, Bell, BellRing, LogOut } from 'lucide-react';
 import { AppTab } from './types.ts';
 import { CercarView } from './views/CercarView.tsx';
 import OrganitzaView from './views/OrganitzaView.tsx';
@@ -612,6 +612,18 @@ const App: React.FC = () => {
                       <div className="w-px h-8 bg-white/10 mx-3" />
 
                       <div className="flex items-center gap-3">
+                        <a
+                          href="https://calendari-fgc.vercel.app"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          data-tour="calendari-inspectors-btn"
+                          title="Calendari Inspectors"
+                          aria-label="Obrir Calendari Inspectors"
+                          className="flex items-center justify-center w-12 h-12 bg-white/10 hover:bg-fgc-green hover:text-fgc-grey rounded-xl transition-all group"
+                        >
+                          <CalendarDays size={22} className="group-hover:scale-110 transition-transform text-fgc-green group-hover:text-fgc-grey" />
+                        </a>
+
                         <button
                           onClick={() => setShowUploadModal(true)}
                           data-tour="upload-btn"
@@ -692,6 +704,17 @@ const App: React.FC = () => {
                     <Download size={20} />
                     Carregar PDF Diari
                   </button>
+                  <a
+                    href="https://calendari-fgc.vercel.app"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="w-full flex items-center gap-4 px-6 py-4 text-white hover:text-fgc-green font-bold text-lg border-t border-black/5 dark:border-white/5 menu-item-stagger"
+                    style={{ transitionDelay: `${(navItems.length + 1) * 50}ms` }}
+                  >
+                    <CalendarDays size={20} className="text-fgc-green" />
+                    Calendari Inspectors
+                  </a>
                 </div>
               </motion.nav>
             )}
