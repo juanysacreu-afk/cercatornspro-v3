@@ -461,75 +461,194 @@ export const RadarReservesPanel: React.FC<RadarReservesPanelProps> = ({
 
                 {/* ── Labour Compliance Accordion Breakdown (Proposta 7) ── */}
                 {isAuditOpen && (
-                  <div className="mt-2 pt-3 border-t border-gray-100 dark:border-white/10 bg-gray-50/70 dark:bg-black/30 p-3 rounded-xl space-y-2 text-xs animate-fade-up-premium">
-                    <div className="flex items-center justify-between">
-                      <span className="font-black uppercase tracking-wider text-[10px] text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
-                        <ShieldCheck size={12} className="text-fgc-green" />
-                        Auditoria de Seguretat Laboral (Conveni FGC BV)
-                      </span>
-                      <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${
-                        item.audit.score === 'compliant' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300'
+                  <div className="mt-2 pt-3 border-t border-gray-100 dark:border-white/10 bg-gray-50/80 dark:bg-black/40 p-3 sm:p-4 rounded-xl space-y-3 text-xs animate-fade-up-premium">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <ShieldCheck size={14} className="text-fgc-green shrink-0" />
+                        <span className="font-black uppercase tracking-wider text-[11px] text-gray-800 dark:text-gray-200">
+                          Auditoria de Normativa Ferroviària (Conveni FGC BV)
+                        </span>
+                      </div>
+                      <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${
+                        item.audit.score === 'compliant' 
+                          ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30' 
+                          : item.audit.score === 'warning'
+                          ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30'
+                          : 'bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/30'
                       }`}>
-                        {item.audit.recommendation}
+                        {item.audit.score === 'compliant' ? '✓ 100% Reglamentari' : item.audit.score === 'warning' ? '⚠️ Llindars de Precaució' : '⛔ Incompatible'}
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
-                      {/* Metric 1 */}
-                      <div className="bg-white dark:bg-gray-800 p-2 rounded-lg border border-gray-100 dark:border-white/5">
-                        <span className="text-[9px] font-bold text-gray-400 block uppercase">Conducció Continuada</span>
-                        <div className="flex items-center justify-between mt-0.5">
-                          <span className="font-mono font-black text-xs text-gray-800 dark:text-gray-200">
-                            {Math.floor(item.audit.continuousDrivingMin / 60)}h {item.audit.continuousDrivingMin % 60}m
-                          </span>
-                          <span className="text-[9px] text-gray-400">Màx 5h 30m</span>
-                        </div>
-                      </div>
+                    {/* Progress Metrics Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      {/* Metric 1: Conducció Continuada */}
+                      {(() => {
+                        const pctDriving = Math.min(100, Math.round((item.audit.continuousDrivingMin / item.audit.continuousLimitMin) * 100));
+                        const isDrivingWarning = pctDriving >= 80;
+                        const isDrivingExceeded = item.audit.maxContinuousExceeded;
+                        return (
+                          <div className="bg-white dark:bg-gray-800/90 p-2.5 rounded-xl border border-gray-100 dark:border-white/5 flex flex-col justify-between">
+                            <div>
+                              <div className="flex items-center justify-between text-[10px]">
+                                <span className="font-bold text-gray-400 uppercase tracking-wider">Conducció Continuada</span>
+                                <span className="text-[10px] text-gray-400">Màx 5h 30m</span>
+                              </div>
+                              <div className="flex items-baseline justify-between mt-1">
+                                <span className="font-mono font-black text-sm text-gray-900 dark:text-white">
+                                  {Math.floor(item.audit.continuousDrivingMin / 60)}h {item.audit.continuousDrivingMin % 60}m
+                                </span>
+                                <span className="text-[10px] font-bold text-gray-500">
+                                  {pctDriving}%
+                                </span>
+                              </div>
+                            </div>
+                            <div className="mt-2">
+                              <div className="w-full bg-gray-100 dark:bg-gray-700 h-1.5 rounded-full overflow-hidden">
+                                <div 
+                                  className={`h-full transition-all duration-500 ${
+                                    isDrivingExceeded ? 'bg-red-500' : isDrivingWarning ? 'bg-amber-500' : 'bg-emerald-500'
+                                  }`} 
+                                  style={{ width: `${pctDriving}%` }}
+                                />
+                              </div>
+                              <p className="text-[9px] text-gray-400 mt-1 truncate">
+                                {isDrivingExceeded ? 'Supera límit 5h 30m' : isDrivingWarning ? 'Proper al llindar màxim' : 'Sense risc de fatiga reglamentària'}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })()}
 
-                      {/* Metric 2 */}
-                      <div className="bg-white dark:bg-gray-800 p-2 rounded-lg border border-gray-100 dark:border-white/5">
-                        <span className="text-[9px] font-bold text-gray-400 block uppercase">Descans Computable</span>
-                        <div className="flex items-center justify-between mt-0.5">
-                          <span className="font-mono font-black text-xs text-gray-800 dark:text-gray-200">
-                            {item.audit.restBreakMin} minuts
-                          </span>
-                          <span className="text-[9px] text-gray-400">Mín 30 min</span>
-                        </div>
-                      </div>
+                      {/* Metric 2: Descans Computable */}
+                      {(() => {
+                        const isCompliant = item.audit.restBreakMin >= 30;
+                        return (
+                          <div className="bg-white dark:bg-gray-800/90 p-2.5 rounded-xl border border-gray-100 dark:border-white/5 flex flex-col justify-between">
+                            <div>
+                              <div className="flex items-center justify-between text-[10px]">
+                                <span className="font-bold text-gray-400 uppercase tracking-wider">Descans Computable</span>
+                                <span className="text-[10px] text-gray-400">Mín 30 min</span>
+                              </div>
+                              <div className="flex items-baseline justify-between mt-1">
+                                <span className="font-mono font-black text-sm text-gray-900 dark:text-white">
+                                  {item.audit.restBreakMin} min
+                                </span>
+                                <span className={`text-[10px] font-bold ${isCompliant ? 'text-emerald-500' : 'text-amber-500'}`}>
+                                  {isCompliant ? '✓ Garantit' : 'Sense descans'}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="mt-2">
+                              <div className="w-full bg-gray-100 dark:bg-gray-700 h-1.5 rounded-full overflow-hidden">
+                                <div 
+                                  className={`h-full transition-all duration-500 ${
+                                    isCompliant ? 'bg-emerald-500' : 'bg-amber-500'
+                                  }`} 
+                                  style={{ width: `${Math.min(100, Math.max(15, (item.audit.restBreakMin / 30) * 100))}%` }}
+                                />
+                              </div>
+                              <p className="text-[9px] text-gray-400 mt-1 truncate">
+                                {isCompliant ? `Pausa ininterrompuda ≥ 30m assolida` : 'Pendent de descans reglamentari'}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })()}
 
-                      {/* Metric 3 */}
-                      <div className="bg-white dark:bg-gray-800 p-2 rounded-lg border border-gray-100 dark:border-white/5">
-                        <span className="text-[9px] font-bold text-gray-400 block uppercase">Jornada + Perllongament</span>
-                        <div className="flex items-center justify-between mt-0.5">
-                          <span className="font-mono font-black text-xs text-gray-800 dark:text-gray-200">
-                            {Math.floor(item.audit.totalShiftMin / 60)}h {item.audit.totalShiftMin % 60}m
-                          </span>
-                          <span className="text-[9px] text-gray-400">Màx 8h 45m (+45')</span>
-                        </div>
-                      </div>
+                      {/* Metric 3: Jornada + Perllongament */}
+                      {(() => {
+                        const pctShift = Math.min(100, Math.round((item.audit.totalShiftMin / item.audit.maxShiftLimitMin) * 100));
+                        const isShiftWarning = pctShift >= 90;
+                        const isShiftExceeded = item.audit.shiftExceeded || item.audit.extensionExceeded;
+                        return (
+                          <div className="bg-white dark:bg-gray-800/90 p-2.5 rounded-xl border border-gray-100 dark:border-white/5 flex flex-col justify-between">
+                            <div>
+                              <div className="flex items-center justify-between text-[10px]">
+                                <span className="font-bold text-gray-400 uppercase tracking-wider">Jornada + Perllongament</span>
+                                <span className="text-[10px] text-gray-400">Màx 8h 45m</span>
+                              </div>
+                              <div className="flex items-baseline justify-between mt-1">
+                                <span className="font-mono font-black text-sm text-gray-900 dark:text-white">
+                                  {Math.floor(item.audit.totalShiftMin / 60)}h {item.audit.totalShiftMin % 60}m
+                                </span>
+                                <span className="text-[10px] font-bold text-gray-500">
+                                  {pctShift}%
+                                </span>
+                              </div>
+                            </div>
+                            <div className="mt-2">
+                              <div className="w-full bg-gray-100 dark:bg-gray-700 h-1.5 rounded-full overflow-hidden">
+                                <div 
+                                  className={`h-full transition-all duration-500 ${
+                                    isShiftExceeded ? 'bg-red-500' : isShiftWarning ? 'bg-amber-500' : 'bg-emerald-500'
+                                  }`} 
+                                  style={{ width: `${pctShift}%` }}
+                                />
+                              </div>
+                              <p className="text-[9px] text-gray-400 mt-1 truncate">
+                                {isShiftExceeded ? 'Excedeix màxim de conveni' : `Topall 8h 45m (+45' per servei)`}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
+
+                    {/* Operational Verdict Card */}
+                    {item.audit.score === 'compliant' && (
+                      <div className="bg-emerald-500/10 border border-emerald-500/20 p-2.5 rounded-xl flex items-start gap-2.5">
+                        <CheckCircle2 size={16} className="text-emerald-500 shrink-0 mt-0.5" />
+                        <div className="space-y-0.5">
+                          <p className="text-emerald-800 dark:text-emerald-300 font-bold text-xs">
+                            Torn 100% conforme a la normativa laboral d'FGC
+                          </p>
+                          <p className="text-emerald-700/90 dark:text-emerald-400/90 text-[11px] leading-relaxed">
+                            Aquest maquinista disposa del descans reglamentari acreditat, temps de conducció folgat i marge suficient per cobrir serveis o perllongar sense vulnerar cap requisit legal.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {item.audit.score === 'warning' && (
+                      <div className="bg-amber-500/10 border border-amber-500/25 p-2.5 rounded-xl space-y-1.5">
+                        <div className="flex items-center gap-1.5 text-amber-800 dark:text-amber-300 font-bold text-xs">
+                          <AlertTriangle size={15} className="text-amber-500 shrink-0" />
+                          <span>Llindars operatius ajustats (requereix supervisió):</span>
+                        </div>
+                        <div className="space-y-1 pl-5">
+                          {item.audit.warnings.map((w, i) => (
+                            <p key={i} className="text-amber-700 dark:text-amber-400 font-medium text-[11px] list-item">
+                              {w}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {item.audit.violations.length > 0 && (
-                      <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 p-2.5 rounded-lg space-y-1">
-                        {item.audit.violations.map((v, i) => (
-                          <p key={i} className="text-red-600 dark:text-red-400 font-bold text-[11px] flex items-center gap-1.5">
-                            <ShieldAlert size={12} className="shrink-0" />
-                            <span>{v}</span>
-                          </p>
-                        ))}
+                      <div className="bg-red-500/10 border border-red-500/30 p-2.5 rounded-xl space-y-1.5">
+                        <div className="flex items-center gap-1.5 text-red-700 dark:text-red-400 font-bold text-xs">
+                          <ShieldAlert size={15} className="text-red-500 shrink-0" />
+                          <span>Infraccions de normativa detectades:</span>
+                        </div>
+                        <div className="space-y-1 pl-5">
+                          {item.audit.violations.map((v, i) => (
+                            <p key={i} className="text-red-600 dark:text-red-300 font-bold text-[11px] list-item">
+                              {v}
+                            </p>
+                          ))}
+                        </div>
                       </div>
                     )}
 
-                    {item.audit.warnings.length > 0 && (
-                      <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 p-2.5 rounded-lg space-y-1">
-                        {item.audit.warnings.map((w, i) => (
-                          <p key={i} className="text-amber-700 dark:text-amber-400 font-medium text-[11px] flex items-center gap-1.5">
-                            <AlertTriangle size={12} className="shrink-0" />
-                            <span>{w}</span>
-                          </p>
-                        ))}
-                      </div>
-                    )}
+                    {/* Explanatory footer */}
+                    <div className="flex items-center gap-1.5 pt-1 text-[10px] text-gray-500 dark:text-gray-400 border-t border-gray-200/50 dark:border-white/5">
+                      <Info size={11} className="shrink-0 text-gray-400" />
+                      <span>
+                        Criteris FGC BV: Màx. 5h 30m de conducció continuada · Descans computable mínim de 30 min ininterromputs (les pauses tècniques de gir de via no reinicien el còmput) · Topall de jornada 8h 45m.
+                      </span>
+                    </div>
                   </div>
                 )}
               </div>

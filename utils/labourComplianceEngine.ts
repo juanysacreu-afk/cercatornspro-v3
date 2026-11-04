@@ -60,10 +60,15 @@ export function auditLabourCompliance(
   if (extensionMin > maxAllowedExtensionMin) {
     extensionExceeded = true;
     violations.push(`Perllongament de +${extensionMin} min supera el topall reglamentari de +45 min.`);
+  } else if (extensionMin >= 30) {
+    warnings.push(`Perllongament elevat (+${extensionMin} min); es troba a prop del límit màxim de +45 min.`);
   }
+
   if (totalShiftMin > maxShiftLimitMin) {
     shiftExceeded = true;
     violations.push(`Jornada total de ${Math.floor(totalShiftMin / 60)}h ${totalShiftMin % 60}m supera el màxim permès de 8h 45m.`);
+  } else if (totalShiftMin >= 495) { // 8h 15m
+    warnings.push(`Jornada acumulada propera al topall: ${Math.floor(totalShiftMin / 60)}h ${totalShiftMin % 60}m (límit màxim 8h 45m).`);
   }
 
   // 2. Conducció continuada màxima (màx 330 minuts / 5h 30m)
@@ -92,10 +97,11 @@ export function auditLabourCompliance(
               if (currentContinuousDriving > maxContinuousDriving) {
                 maxContinuousDriving = currentContinuousDriving;
               }
-              currentContinuousDriving = 0; // Reset
-            } else if (gap > 0 && gap < 30) {
-              warnings.push(`Pausa de ${gap} min entre circulacions no és computable com a descans (mínim 30 min).`);
+              currentContinuousDriving = 0; // Reset descans computable assolit (>= 30 min)
             }
+            // NOTA: Els intervals tècnics habituals de gir a capçalera inferiors a 30 minuts
+            // simplement no computen com a descans reglamentari (la conducció continuada no es reinicia),
+            // però NO constitueixen cap advertència ni anomalia laboral.
           }
         }
       }
@@ -111,17 +117,20 @@ export function auditLabourCompliance(
   const maxContinuousExceeded = totalContinuousDriving > continuousLimitMin;
   if (maxContinuousExceeded) {
     violations.push(`Temps de conducció continuada de ${Math.floor(totalContinuousDriving / 60)}h ${totalContinuousDriving % 60}m supera el màxim permès de 5h 30m.`);
+  } else if (totalContinuousDriving >= 270) { // 4h 30m
+    warnings.push(`Conducció continuada elevada: acumula ${Math.floor(totalContinuousDriving / 60)}h ${totalContinuousDriving % 60}m sense descans mínim de 30 minuts (límit màxim 5h 30m).`);
   }
 
   // 3. Descans computable
   let restBreakWarning = false;
   const declaredRest = shift?.restSeg ? (shift.restSeg.end - shift.restSeg.start) : maxRestFound;
-  if (declaredRest > 0 && declaredRest < 30) {
+  // Només si el torn és llarg (>= 5h / 300 min) i no té cap descans >= 30 minuts
+  if (baseShiftDurationMin >= 300 && declaredRest < 30) {
     restBreakWarning = true;
-    warnings.push(`El descans previst (${declaredRest} min) és inferior al mínim reglamentari de 30 minuts.`);
+    warnings.push(`Torn de més de 5h sense cap descans continuat programat d'un mínim de 30 minuts.`);
   }
 
-  // 4. Descans interjornada
+  // 4. Descans interjornada (mínim 12 hores consecutives)
   let interShiftWarning = false;
   let interShiftRestHours = 12;
   const effectiveEndMin = endMin + extensionMin;
@@ -131,7 +140,9 @@ export function auditLabourCompliance(
     interShiftRestHours = Math.round((restAvailMin / 60) * 10) / 10;
     if (interShiftRestHours < 12) {
       interShiftWarning = true;
-      warnings.push(`El perllongament redueix el descans entre jornades consecutives a ${interShiftRestHours}h (mínim 12h).`);
+      violations.push(`El perllongament redueix el descans entre jornades consecutives a ${interShiftRestHours}h (mínim legal 12h).`);
+    } else if (interShiftRestHours < 13) {
+      warnings.push(`Descans entre jornades ajustat: ${interShiftRestHours}h lliures abans del proper servei (mínim 12h).`);
     }
   }
 
