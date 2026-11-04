@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Phone, AlertTriangle, Camera, FileText, Brush, BookOpen, Settings, Radio, User } from 'lucide-react';
 import { checkIfActive } from '../utils/time';
+import { ViatgerInfoModal } from './ViatgerInfoModal';
 
 interface CirculationRowProps {
     circ: any;
@@ -14,6 +15,8 @@ interface CirculationRowProps {
     isPrivacyMode: boolean;
     passengerInfo?: any[];
     onCycleClick?: (cycleId: string) => void;
+    onPassengerClick?: (circ: any, passengers: any[]) => void;
+    onTurnClick?: (turnId: string) => void;
 }
 
 export const CirculationRow: React.FC<CirculationRowProps> = ({
@@ -27,8 +30,11 @@ export const CirculationRow: React.FC<CirculationRowProps> = ({
     toggleItinerari,
     isPrivacyMode,
     passengerInfo = [],
-    onCycleClick
+    onCycleClick,
+    onPassengerClick,
+    onTurnClick
 }) => {
+    const [showLocalViatgerModal, setShowLocalViatgerModal] = useState(false);
     const activeTrainUnit = circ.train || circ.ut || null;
     const trainPhone = getTrainPhone(activeTrainUnit);
     const isActive = checkIfActive(circ.sortida, circ.arribada, nowMin);
@@ -81,11 +87,27 @@ export const CirculationRow: React.FC<CirculationRowProps> = ({
 
                     <div className="flex flex-col md:flex-row items-center gap-1 md:gap-2 -space-y-0.5 md:space-y-0">
                         {passengerInfo && passengerInfo.length > 0 && (
-                            <div className="flex items-center flex-shrink-0 z-10 relative" title={`Viatgers:\n${passengerTooltip}`}>
-                                <div className={`p-[1px] md:p-1 rounded-full bg-white dark:bg-[#2d2d2d] shadow-sm border border-gray-100 dark:border-gray-700 ${hasFullCoverage ? 'text-blue-500' : 'text-orange-500'}`}>
-                                    <User className="w-3 h-3 md:w-3.5 md:h-3.5" strokeWidth={3} />
-                                </div>
-                            </div>
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (onPassengerClick) {
+                                        onPassengerClick(circ, passengerInfo);
+                                    } else {
+                                        setShowLocalViatgerModal(true);
+                                    }
+                                }}
+                                className={`flex items-center flex-shrink-0 z-10 relative group p-[2px] md:p-1 rounded-full bg-white dark:bg-[#2d2d2d] shadow-sm border border-gray-100 dark:border-gray-700 hover:scale-110 active:scale-95 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-fgc-green ${hasFullCoverage ? 'text-blue-500 hover:border-blue-400' : 'text-orange-500 hover:border-orange-400'}`}
+                                title={`Viatgers:\n${passengerTooltip}\n(Clica per veure la informació completa)`}
+                                aria-label="Veure informació del maquinista de viatger"
+                            >
+                                <User className="w-3 h-3 md:w-3.5 md:h-3.5" strokeWidth={3} />
+                                {passengerInfo.length > 1 && (
+                                    <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[8px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center border border-white dark:border-gray-800 shadow-xs">
+                                        {passengerInfo.length}
+                                    </span>
+                                )}
+                            </button>
                         )}
 
                         {activeTrainUnit && trainPhone && (
@@ -185,6 +207,19 @@ export const CirculationRow: React.FC<CirculationRowProps> = ({
                     <BookOpen size={16} />
                 </button>
             </div>
+
+            {showLocalViatgerModal && (
+                <ViatgerInfoModal
+                    circ={circ}
+                    passengers={passengerInfo}
+                    onClose={() => setShowLocalViatgerModal(false)}
+                    onSelectTurn={(turnId) => {
+                        setShowLocalViatgerModal(false);
+                        onTurnClick?.(turnId);
+                    }}
+                    isPrivacyMode={isPrivacyMode}
+                />
+            )}
         </div>
     );
 };

@@ -23,6 +23,7 @@ import { TimeGapRow } from '../components/TimeGapRow';
 import { CirculationHeader } from '../components/CirculationHeader';
 import { CirculationRow } from '../components/CirculationRow';
 import { StationRow } from '../components/StationRow';
+import { ViatgerInfoModal } from '../components/ViatgerInfoModal';
 import { MarqueeText } from '../components/MarqueeText';
 import { useServiceToday } from '../utils/useServiceToday';
 import { feedback } from '../utils/feedback';
@@ -205,11 +206,20 @@ const CercarViewComponent: React.FC<{
     }, 2000);
   };
 
-  // Estat per al nou menú de gestió d'unitat
   const [editingCirc, setEditingCirc] = useState<{ circ: any, cycleId: string } | null>(null);
   const [editUnitNumber, setEditUnitNumber] = useState('');
   const [isSavingUnit, setIsSavingUnit] = useState(false);
   const [tempStatus, setTempStatus] = useState({ is_broken: false, needs_images: false, needs_records: false, needs_cleaning: false });
+
+  // Estat per al modal de detalls de maquinista de viatger
+  const [selectedPassengerData, setSelectedPassengerData] = useState<{ circ: any; passengers: any[] } | null>(null);
+
+  const handleSelectTurnFromPassenger = (turnId: string) => {
+    setSelectedPassengerData(null);
+    setSearchType(SearchType.Torn);
+    setQuery(turnId);
+    executeSearch(turnId, SearchType.Torn);
+  };
 
   useEffect(() => {
     if (externalSearch && onExternalSearchHandled) {
@@ -1479,9 +1489,15 @@ const CercarViewComponent: React.FC<{
         const circIds = new Set<string>();
         newResults.forEach(r => {
           if (r.circulations) { // Cycle / Station
-            r.circulations.forEach((c: any) => c.codi && c.codi !== 'Viatger' && circIds.add(c.codi));
+            r.circulations.forEach((c: any) => {
+              const code = c.codi || c.id;
+              if (code && code !== 'Viatger') circIds.add(code.trim().toUpperCase());
+            });
           } else if (r.fullCirculations) { // Turn
-            r.fullCirculations.forEach((c: any) => c.codi && c.codi !== 'Viatger' && circIds.add(c.codi));
+            r.fullCirculations.forEach((c: any) => {
+              const code = c.codi || c.id;
+              if (code && code !== 'Viatger') circIds.add(code.trim().toUpperCase());
+            });
           }
         });
 
@@ -1922,7 +1938,7 @@ const CercarViewComponent: React.FC<{
                               {isStationGroup ? (
                                 <StationRow circ={circ} itemKey={itemKey} nowMin={nowMin} trainStatuses={trainStatuses} getTrainPhone={getTrainPhone} getLiniaColor={getLiniaColor} getShiftCurrentStatus={getShiftCurrentStatus} openUnitMenu={openUnitMenu} toggleItinerari={toggleItinerari} isPrivacyMode={isPrivacyMode} onCycleClick={handleCycleClick} />
                               ) : (
-                                <CirculationRow circ={circ} itemKey={itemKey} nowMin={nowMin} trainStatuses={trainStatuses} getTrainPhone={getTrainPhone} getLiniaColor={getLiniaColor} openUnitMenu={openUnitMenu} toggleItinerari={toggleItinerari} isPrivacyMode={isPrivacyMode} onCycleClick={handleCycleClick} />
+                                <CirculationRow circ={circ} itemKey={itemKey} nowMin={nowMin} trainStatuses={trainStatuses} getTrainPhone={getTrainPhone} getLiniaColor={getLiniaColor} openUnitMenu={openUnitMenu} toggleItinerari={toggleItinerari} isPrivacyMode={isPrivacyMode} passengerInfo={passengerInfoMap[circ.codi || circ.id] || []} onCycleClick={handleCycleClick} onPassengerClick={(c, p) => setSelectedPassengerData({ circ: c, passengers: p })} onTurnClick={handleSelectTurnFromPassenger} />
                               )}
                               {expandedItinerari === itemKey && (
                                 <ItineraryTimeline circ={circ} nowMin={nowMin} />
@@ -2783,7 +2799,7 @@ const CercarViewComponent: React.FC<{
                           return (
                             <React.Fragment key={cIdx}>
                               <div id={`circ-row-${shiftItemKey}`} className={`flex flex-col relative scroll-mt-24 ${isActive ? 'ring-2 ring-inset ring-red-600 z-10' : ''}`}>
-                                <CirculationRow circ={circ} itemKey={shiftItemKey} nowMin={nowMin} trainStatuses={trainStatuses} getTrainPhone={getTrainPhone} getLiniaColor={getLiniaColor} openUnitMenu={openUnitMenu} toggleItinerari={toggleItinerari} isPrivacyMode={isPrivacyMode} passengerInfo={passengerInfoMap[circ.codi] || []} onCycleClick={handleCycleClick} />
+                                <CirculationRow circ={circ} itemKey={shiftItemKey} nowMin={nowMin} trainStatuses={trainStatuses} getTrainPhone={getTrainPhone} getLiniaColor={getLiniaColor} openUnitMenu={openUnitMenu} toggleItinerari={toggleItinerari} isPrivacyMode={isPrivacyMode} passengerInfo={passengerInfoMap[circ.codi] || []} onCycleClick={handleCycleClick} onPassengerClick={(c, p) => setSelectedPassengerData({ circ: c, passengers: p })} onTurnClick={handleSelectTurnFromPassenger} />
                                 {expandedItinerari === shiftItemKey && (
                                   <ItineraryTimeline circ={circ} nowMin={nowMin} />
                                 )}
@@ -2831,6 +2847,16 @@ const CercarViewComponent: React.FC<{
       {pkMapTarget && createPortal(
         <PkSegmentMap result={pkMapTarget} onClose={() => setPkMapTarget(null)} />,
         document.body
+      )}
+
+      {selectedPassengerData && (
+        <ViatgerInfoModal
+          circ={selectedPassengerData.circ}
+          passengers={selectedPassengerData.passengers}
+          onClose={() => setSelectedPassengerData(null)}
+          onSelectTurn={handleSelectTurnFromPassenger}
+          isPrivacyMode={isPrivacyMode}
+        />
       )}
     </div>
   );

@@ -1,7 +1,7 @@
 
 import { supabase } from '../supabaseClient';
-import { decryptAgentRows } from './crypto';
-import { getShortTornId, getFgcMinutes } from './stations';
+import { decryptAgentRows, decryptPhoneArray } from './crypto';
+import { getShortTornId, getFgcMinutes, resolveStationName } from './stations';
 import { getFgcServiceDate } from './gipRecorder';
 
 export async function fetchFullTurns(turnIds: string[], selectedServei?: string) {
@@ -279,16 +279,20 @@ export async function fetchFullTurns(turnIds: string[], selectedServei?: string)
 export async function fetchPassengerInfo(circulationIds: string[], servei?: string) {
     if (!circulationIds.length) return {};
 
-    const uniqueIds = Array.from(new Set(circulationIds));
+    const uniqueIds = Array.from(new Set(circulationIds.map(id => (typeof id === 'string' ? id.trim().toUpperCase() : '')))).filter(Boolean);
+    if (!uniqueIds.length) return {};
+
     const result: Record<string, any[]> = {};
 
     try {
         let q = supabase.from('shifts')
-            .select('id, circulations')
+            .select('id, circulations, inici_torn, final_torn, dependencia, servei')
             .contains('circulations', JSON.stringify([{ codi: 'Viatger' }]));
 
+        // Normalize servei: '000' in circulationsv2 maps to '0' in shifts
         if (servei && servei !== 'Tots') {
-            q = q.eq('servei', servei);
+            const normalized = (servei === '000' || servei === '0') ? ['0', '000'] : [servei];
+            q = q.in('servei', normalized);
         }
 
         const { data: likelyPassengerShifts } = await q;
@@ -300,15 +304,27 @@ export async function fetchPassengerInfo(circulationIds: string[], servei?: stri
                     if (c.codi === 'Viatger' && c.observacions) {
                         const parts = c.observacions.split('-');
                         if (parts.length >= 1) {
-                            const targetCircId = parts[0];
+                            const targetCircId = parts[0]?.trim().toUpperCase();
                             if (uniqueIds.includes(targetCircId)) {
                                 if (!result[targetCircId]) result[targetCircId] = [];
 
+                                const fromCode = (parts[1] || '??').trim().toUpperCase();
+                                const toCode = (parts[2] || '??').trim().toUpperCase();
+
                                 result[targetCircId].push({
                                     shiftId: s.id,
-                                    from: parts[1] || '??',
-                                    to: parts[2] || '??',
-                                    isPartial: false
+                                    shortTorn: getShortTornId(s.id),
+                                    from: fromCode,
+                                    fromName: resolveStationName(fromCode),
+                                    to: toCode,
+                                    toName: resolveStationName(toCode),
+                                    sortida: c.sortida || '',
+                                    arribada: c.arribada || '',
+                                    inici_torn: s.inici_torn || '',
+                                    final_torn: s.final_torn || '',
+                                    dependencia: s.dependencia || '',
+                                    isPartial: false,
+                                    phones: []
                                 });
                             }
                         }
@@ -318,31 +334,124 @@ export async function fetchPassengerInfo(circulationIds: string[], servei?: stri
         }
     } catch (e) {
         console.error("Exception in fetchPassengerInfo:", e);
-        return {};
     }
 
-    // Now we have the raw connections. We need to fetch driver names for these shifts to be useful.
-    const shiftsToFetch = new Set<string>();
-    Object.values(result).forEach(arr => arr.forEach(p => shiftsToFetch.add(getShortTornId(p.shiftId))));
-
-    if (shiftsToFetch.size > 0) {
-        const { data: assignments } = await supabase
-            .from('daily_assignments')
-            .select('torn, nom, cognoms')
-            .in('torn', Array.from(shiftsToFetch));
-
-        if (assignments) {
-            Object.values(result).forEach(arr => {
-                arr.forEach(p => {
-                    const shortId = getShortTornId(p.shiftId);
-                    const assign = assignments.find((a: any) => a.torn === shortId);
-                    if (assign) {
-                        p.driverName = `${assign.cognoms}, ${assign.nom}`;
-                    } else {
-                        p.driverName = p.shiftId; // Fallback
+    // Offline fallback if result is empty and window is defined
+    if (Object.keys(result).length === 0 && typeof window !== 'undefined') {
+        try {
+            const { db } = await import('./offlineDb');
+            const offlineShifts = await db.shifts.toArray();
+            offlineShifts.forEach(s => {
+                if (!s.circulations) return;
+                (s.circulations as any[]).forEach(c => {
+                    if (c.codi === 'Viatger' && c.observacions) {
+                        const parts = c.observacions.split('-');
+                        if (parts.length >= 1) {
+                            const targetCircId = parts[0]?.trim().toUpperCase();
+                            if (uniqueIds.includes(targetCircId)) {
+                                if (!result[targetCircId]) result[targetCircId] = [];
+                                const fromCode = (parts[1] || '??').trim().toUpperCase();
+                                const toCode = (parts[2] || '??').trim().toUpperCase();
+                                result[targetCircId].push({
+                                    shiftId: s.id,
+                                    shortTorn: getShortTornId(s.id),
+                                    from: fromCode,
+                                    fromName: resolveStationName(fromCode),
+                                    to: toCode,
+                                    toName: resolveStationName(toCode),
+                                    sortida: c.sortida || '',
+                                    arribada: c.arribada || '',
+                                    inici_torn: s.inici_torn || '',
+                                    final_torn: s.final_torn || '',
+                                    dependencia: s.dependencia || '',
+                                    isPartial: false,
+                                    phones: []
+                                });
+                            }
+                        }
                     }
                 });
             });
+        } catch (dexErr) {
+            console.warn("Offline Dexie passenger query skipped:", dexErr);
+        }
+    }
+
+    // Now enrich with driver assignments and phonebook
+    const shiftsToFetch = new Set<string>();
+    Object.values(result).forEach(arr => {
+        arr.forEach(p => {
+            if (p.shiftId) {
+                shiftsToFetch.add(p.shiftId);
+                shiftsToFetch.add(getShortTornId(p.shiftId));
+                const digits = p.shiftId.replace(/\D/g, '');
+                if (digits) {
+                    shiftsToFetch.add(`Q${parseInt(digits, 10)}`);
+                    shiftsToFetch.add(`Q${digits.padStart(3, '0')}`);
+                }
+            }
+        });
+    });
+
+    if (shiftsToFetch.size > 0) {
+        try {
+            const { data: assignments } = await supabase
+                .from('daily_assignments')
+                .select('torn, nom, cognoms, empleat_id, tipus_torn, observacions, hora_inici, hora_fi, abs_parc_c, dta, dpa')
+                .in('torn', Array.from(shiftsToFetch));
+
+            const empIds = Array.from(new Set((assignments || []).map(a => a.empleat_id).filter(Boolean)));
+            const phonesMap: Record<string, string[]> = {};
+
+            if (empIds.length > 0) {
+                try {
+                    const { data: phoneRows } = await supabase
+                        .from('phonebook')
+                        .select('nomina, phones')
+                        .in('nomina', empIds);
+
+                    if (phoneRows) {
+                        await Promise.all(phoneRows.map(async pr => {
+                            const dec = await decryptPhoneArray(pr.phones);
+                            phonesMap[String(pr.nomina)] = dec.filter(Boolean);
+                        }));
+                    }
+                } catch (pe) {
+                    console.warn("Could not fetch phones in fetchPassengerInfo:", pe);
+                }
+            }
+
+            Object.values(result).forEach(arr => {
+                arr.forEach(p => {
+                    const shortId = p.shortTorn || getShortTornId(p.shiftId);
+                    const digits = p.shiftId.replace(/\D/g, '');
+                    const possibleTorns = [
+                        p.shiftId,
+                        shortId,
+                        `Q${parseInt(digits, 10)}`,
+                        `Q${digits.padStart(3, '0')}`
+                    ];
+                    const assign = (assignments || []).find((a: any) => possibleTorns.includes(a.torn));
+                    if (assign) {
+                        p.driverName = `${assign.cognoms}, ${assign.nom}`;
+                        p.driverNom = assign.nom;
+                        p.driverCognoms = assign.cognoms;
+                        p.nomina = assign.empleat_id;
+                        p.tipus_torn = assign.tipus_torn;
+                        if (assign.observacions) p.observacions = assign.observacions;
+                        p.phones = phonesMap[String(assign.empleat_id)] || [];
+                        if (assign.hora_inici) p.inici_torn = assign.hora_inici;
+                        if (assign.hora_fi) p.final_torn = assign.hora_fi;
+                        p.abs_parc_c = assign.abs_parc_c;
+                        p.dta = assign.dta;
+                        p.dpa = assign.dpa;
+                    } else {
+                        p.driverName = p.shiftId;
+                    }
+                });
+            });
+        } catch (err) {
+            console.error("Error enriching assignments in fetchPassengerInfo:", err);
         }
     }
 
