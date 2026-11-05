@@ -11,6 +11,7 @@ import {
 import { fetchLiveGeoTrenTrains, findTrainInGeoTren } from './geotrenApi';
 import { decryptPhoneArray } from './crypto';
 import { getFgcServiceDate } from './gipRecorder';
+import { formatDelayMinutes } from './accordionPredictor';
 import type { ViatgerPassengerItem } from '../components/ViatgerInfoModal';
 
 export interface ActiveReserveDriver {
@@ -333,7 +334,8 @@ export async function evaluatePassengerRelief(
 
   let message = '';
   if (isCompromised) {
-    message = `Sortida compromesa! El tren ${nextCirc.codi} sortirà amb +${projectedDepartureDelayMin} min de retard a ${nextCirc.iniciName} (arribada maquinista: ${estArrival}, sortida teòrica: ${nextCirc.sortida}).`;
+    const formattedDepDelay = formatDelayMinutes(Math.max(0, projectedDepartureDelayMin * 60));
+    message = `Sortida compromesa! El tren ${nextCirc.codi} sortirà amb +${formattedDepDelay} de retard a ${nextCirc.iniciName || nextCirc.inici} (arribada maquinista: ${estArrival}, sortida teòrica: ${nextCirc.sortida}).`;
   }
 
   return {
@@ -529,7 +531,8 @@ export async function fetchGlobalCompromisedReliefs(
         }
 
         const alertId = `RELIEF-${cand.shiftId}-${cand.travelCircId}-${cand.nextCirc.codi}`;
-        const statusMessage = `El tren ${cand.nextCirc.codi} sortirà amb +${departureDelayMin} min de retard a ${nextIniciName} perquè l'agent #nom té arribada estimada a les ${estArrival} (sortida prevista: ${cand.nextCirc.sortida}).`;
+        const formattedDepDelay = formatDelayMinutes(Math.max(0, departureDelayMin * 60));
+        const statusMessage = `El tren ${cand.nextCirc.codi} sortirà amb +${formattedDepDelay} de retard a ${nextIniciName} perquè l'agent #nom té arribada estimada a les ${estArrival} (sortida prevista: ${cand.nextCirc.sortida}).`;
 
         alerts.push({
           id: alertId,

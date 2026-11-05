@@ -4,6 +4,7 @@ import {
   ChevronDown, ChevronUp, User, Train, Users, Sparkles 
 } from 'lucide-react';
 import { CompromisedReliefAlert } from '../utils/reliefWatchdogService';
+import { formatDelayMinutes } from '../utils/accordionPredictor';
 import { feedback } from '../utils/feedback';
 import GlassPanel from './common/GlassPanel';
 
@@ -146,8 +147,8 @@ export const ReliefWatchdogBanner: React.FC<ReliefWatchdogBannerProps> = ({
                       >
                         {alt.travelCircId}
                       </button>
-                      <span className="text-red-500 font-bold">
-                        (+{alt.currentDelayMin} min demora)
+                      <span className="text-red-500 font-bold font-mono">
+                        (+{formatDelayMinutes(alt.currentDelaySec || (alt.currentDelayMin * 60))} demora)
                       </span>
                       <ArrowRight size={12} className="text-gray-400 mx-0.5" />
                       <span>Relleva tren</span>
@@ -169,11 +170,11 @@ export const ReliefWatchdogBanner: React.FC<ReliefWatchdogBannerProps> = ({
 
                     {/* Timing calculations */}
                     <div className="flex flex-wrap items-center gap-3 text-[11px] text-gray-500 dark:text-gray-400">
-                      <span>Marge programat: <strong className="text-gray-700 dark:text-gray-300">{alt.scheduledMarginMin}m</strong></span>
+                      <span>Marge programat: <strong className="text-gray-700 dark:text-gray-300 font-mono">{formatDelayMinutes(alt.scheduledMarginMin * 60)}</strong></span>
                       <span>•</span>
                       <span>Arribada estimada: <strong className="text-red-500 font-mono">{alt.estimatedArrival}</strong></span>
                       <span>•</span>
-                      <span>Marge real restant: <strong className={alt.realMarginMin <= 0 ? 'text-red-500 font-black' : 'text-amber-500 font-black'}>{alt.realMarginMin} min</strong></span>
+                      <span>Marge real restant: <strong className={`font-mono ${alt.realMarginMin <= 0 ? 'text-red-500 font-black' : 'text-amber-500 font-black'}`}>{formatDelayMinutes(Math.max(0, alt.realMarginMin * 60))}</strong></span>
                     </div>
                   </div>
 

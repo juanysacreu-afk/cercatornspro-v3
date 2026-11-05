@@ -36,13 +36,17 @@ const TRUNK_INDEX_MAP = new Map<string, number>(
 export const BOTTLENECK_DELAY_THRESHOLD_SEC = 210; // 3.5 min (3 min 30 s)
 
 /**
- * Formata segons en minuts amb decimals nets (ex: 210s -> "3.5m", 240s -> "4m")
+ * Formata segons en format estàndard ferroviari mm:ss (ex: 200s -> "03:20", 235s -> "03:55")
  */
 export function formatDelayMinutes(sec: number): string {
-  if (!sec || sec <= 0) return '0m';
-  const mins = sec / 60;
-  return Number.isInteger(mins) ? `${mins}m` : `${mins.toFixed(1)}m`;
+  if (!sec || sec <= 0) return '00:00';
+  const totalSec = Math.max(0, Math.round(sec));
+  const mins = Math.floor(totalSec / 60);
+  const secs = totalSec % 60;
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 }
+
+export const formatDelayMmSs = formatDelayMinutes;
 
 /**
  * Returns human-readable name of a station code

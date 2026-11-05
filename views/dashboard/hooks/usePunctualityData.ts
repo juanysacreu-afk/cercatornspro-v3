@@ -54,13 +54,12 @@ export interface PunctualityStats {
 
 export const formatDelayString = (seconds: number): string => {
   const norm = normalizeTimeDiffSec(seconds);
-  if (!norm || norm === 0) return '0s';
+  if (!norm || norm === 0) return '00:00';
   const abs = Math.abs(norm);
   const mins = Math.floor(abs / 60);
   const secs = abs % 60;
   const sign = norm < 0 ? '-' : '+';
-  if (mins === 0) return `${sign}${secs}s`;
-  return `${sign}${mins}m ${secs.toString().padStart(2, '0')}s`;
+  return `${sign}${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 };
 
 const resolveStationLabel = (codeOrName: string, linia: string = ''): string => {

@@ -205,13 +205,15 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
         const reliefList: PersonnelAlert[] = compromisedReliefs
             .filter(r => r.severity === 'critical')
             .map(r => {
-                const depDelay = r.currentDelayMin - r.scheduledMarginMin;
+                const depDelaySec = (r.currentDelaySec || (r.currentDelayMin * 60)) - (r.scheduledMarginMin * 60);
+                const depDelayFormatted = formatDelayMinutes(Math.max(0, depDelaySec));
+                const travelDelayFormatted = formatDelayMinutes(r.currentDelaySec || (r.currentDelayMin * 60));
                 return {
                     id: r.id,
                     type: 'relief',
                     severity: 'critical',
                     title: `Relleu Crític: ${r.driverName} (${r.shortTorn})`,
-                    subtitle: `El tren ${r.reliefCircId} sortirà amb +${depDelay}m de demora a ${r.reliefStationName} (viatger ${r.travelCircId} amb +${r.currentDelayMin}m)`,
+                    subtitle: `El tren ${r.reliefCircId} sortirà amb +${depDelayFormatted} de demora a ${r.reliefStationName} (viatger ${r.travelCircId} amb +${travelDelayFormatted})`,
                     circId: r.reliefCircId,
                     tornId: r.shiftId
                 };
@@ -235,13 +237,15 @@ const DashboardViewComponent: React.FC<DashboardProps> = ({ onNavigateToSearch, 
         const reliefList: PersonnelAlert[] = compromisedReliefs
             .filter(r => r.severity === 'warning')
             .map(r => {
-                const depDelay = r.currentDelayMin - r.scheduledMarginMin;
+                const depDelaySec = (r.currentDelaySec || (r.currentDelayMin * 60)) - (r.scheduledMarginMin * 60);
+                const depDelayFormatted = formatDelayMinutes(Math.max(0, depDelaySec));
+                const travelDelayFormatted = formatDelayMinutes(r.currentDelaySec || (r.currentDelayMin * 60));
                 return {
                     id: r.id,
                     type: 'relief',
                     severity: 'warning',
                     title: `Relleu en Risc: ${r.driverName} (${r.shortTorn})`,
-                    subtitle: `El tren ${r.reliefCircId} sortirà amb +${depDelay}m de demora a ${r.reliefStationName} (viatger ${r.travelCircId} amb +${r.currentDelayMin}m)`,
+                    subtitle: `El tren ${r.reliefCircId} sortirà amb +${depDelayFormatted} de demora a ${r.reliefStationName} (viatger ${r.travelCircId} amb +${travelDelayFormatted})`,
                     circId: r.reliefCircId,
                     tornId: r.shiftId
                 };
