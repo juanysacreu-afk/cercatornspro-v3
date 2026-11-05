@@ -31,14 +31,28 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      // 1. Netejar qualsevol token antic o revocat de sessions anteriors
+      try {
+        await supabase.auth.signOut({ scope: 'local' });
+      } catch (_) {}
+
+      // 2. Executar login amb timeout estricte de 10s per evitar bloquejos infinits
+      const authPromise = supabase.auth.signInWithPassword({
         email: cleanEmail,
         password: password
       });
 
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('TIMEOUT')), 10000)
+      );
+
+      const { data, error } = await Promise.race([authPromise, timeoutPromise]);
+
       if (error) {
         if (error.message.includes('Invalid login credentials')) {
           setErrorMessage('Credencials incorrectes. Si us plau, revisa el correu i la contrasenya.');
+        } else if (error.message.includes('Too many concurrent')) {
+          setErrorMessage("S'ha detectat concurrència de sessions. Torna a prémer 'Entrar al Sistema'.");
         } else {
           setErrorMessage(error.message || 'Error en iniciar sessió.');
         }
@@ -46,13 +60,17 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         return;
       }
 
-      if (data.session) {
+      if (data?.session) {
         feedback.success();
         onLoginSuccess?.(data.session);
       }
     } catch (err: any) {
       console.error('Login error:', err);
-      setErrorMessage(err.message || 'Error de connexió.');
+      if (err.message === 'TIMEOUT') {
+        setErrorMessage("El servidor d'accés està trigant a respondre. Si us plau, torna-ho a intentar.");
+      } else {
+        setErrorMessage(err.message || 'Error de connexió.');
+      }
       feedback.haptic([50, 50, 50]);
     } finally {
       setLoading(false);
@@ -228,6 +246,23 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                     <span>Entrar al Sistema</span>
                   )}
                 </button>
+
+                <div className="pt-2 text-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      try {
+                        localStorage.removeItem('nexus_fgc_auth_session_v2');
+                        localStorage.removeItem('user_profile');
+                        sessionStorage.clear();
+                      } catch (_) {}
+                      window.location.reload();
+                    }}
+                    className="text-[11px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                  >
+                    Problemes d'accés? Netejar sessió local i recarregar
+                  </button>
+                </div>
               </form>
             )}
 
