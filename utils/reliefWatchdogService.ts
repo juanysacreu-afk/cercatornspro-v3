@@ -241,10 +241,12 @@ export async function getCirculationLiveDelay(
     // 2. Fallback to today's GIP passages
     const sDate = targetDate || getFgcServiceDate();
     const candidateIds = [cleanId, normalizeCircId(cleanId)];
-    const digits = cleanId.replace(/\D/g, '');
-    if (digits) {
-      candidateIds.push(digits.padStart(3, '0'));
-      candidateIds.push(parseInt(digits, 10).toString());
+    if (!/^[A-Z]+/i.test(cleanId)) {
+      const digits = cleanId.replace(/\D/g, '');
+      if (digits) {
+        candidateIds.push(digits.padStart(3, '0'));
+        candidateIds.push(parseInt(digits, 10).toString());
+      }
     }
 
     const { data: gipRecords } = await supabase

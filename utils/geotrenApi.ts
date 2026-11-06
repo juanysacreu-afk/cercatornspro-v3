@@ -151,26 +151,38 @@ export async function fetchLiveGeoTrenTrains(forceRefresh = false): Promise<Norm
 export function findTrainInGeoTren(trains: NormalizedGeoTrenTrain[], candidateIds: string[]): NormalizedGeoTrenTrain | null {
   if (!candidateIds || candidateIds.length === 0 || trains.length === 0) return null;
 
-  const searchSet = new Set(candidateIds.map(c => c.trim().toUpperCase()));
-  const searchNormalized = new Set(candidateIds.map(c => normalizeCircId(c.trim().toUpperCase())));
-  const searchDigits = new Set(
-    candidateIds
-      .map(c => c.replace(/\D/g, ''))
-      .filter(Boolean)
-      .flatMap(d => [d, d.padStart(3, '0'), parseInt(d, 10).toString()])
-  );
+  const cleanedCandidates = candidateIds.map(c => c.trim().toUpperCase()).filter(Boolean);
+  const searchSet = new Set(cleanedCandidates);
+  const searchNormalized = new Set(cleanedCandidates.map(c => normalizeCircId(c)));
 
+  // 1. Prioritat estricta: Coincidència exacta de codi complet (amb prefix de línia D, F, A, B, L...)
   for (const t of trains) {
     if (!t.circCode) continue;
     const circCode = t.circCode.toUpperCase();
     if (searchSet.has(circCode) || searchNormalized.has(normalizeCircId(circCode))) {
       return t;
     }
-    const digits = circCode.replace(/\D/g, '');
-    if (digits && searchDigits.has(digits)) {
-      return t;
+  }
+
+  // 2. Fallback per dígits NOMÉS si l'identificador cercat no té prefix de línia (evita confondre D175 amb F175)
+  const hasExplicitLetterPrefix = cleanedCandidates.some(c => /^[A-Z]+/i.test(c));
+  if (!hasExplicitLetterPrefix) {
+    const searchDigits = new Set(
+      cleanedCandidates
+        .map(c => c.replace(/\D/g, ''))
+        .filter(Boolean)
+        .flatMap(d => [d, d.padStart(3, '0'), parseInt(d, 10).toString()])
+    );
+
+    for (const t of trains) {
+      if (!t.circCode) continue;
+      const digits = t.circCode.replace(/\D/g, '');
+      if (digits && searchDigits.has(digits)) {
+        return t;
+      }
     }
   }
 
   return null;
 }
+

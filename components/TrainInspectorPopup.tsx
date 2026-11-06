@@ -23,15 +23,17 @@ const TrainInspectorPopup: React.FC<TrainInspectorPopupProps> = ({ train, onClos
     const [showPassages, setShowPassages] = useState<boolean>(true);
 
     const circCandidateIds = useMemo(() => {
-        const id = train.id || '';
+        const id = (train.id || '').trim();
         const list = new Set<string>();
         if (id) {
             list.add(id.toUpperCase());
             list.add(normalizeCircId(id));
-            const digits = id.replace(/\D/g, '');
-            if (digits) {
-                list.add(digits.padStart(3, '0'));
-                list.add(parseInt(digits, 10).toString());
+            if (!/^[A-Z]+/i.test(id)) {
+                const digits = id.replace(/\D/g, '');
+                if (digits) {
+                    list.add(digits.padStart(3, '0'));
+                    list.add(parseInt(digits, 10).toString());
+                }
             }
         }
         return Array.from(list);

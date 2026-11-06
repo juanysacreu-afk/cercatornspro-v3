@@ -26,10 +26,12 @@ export const ItineraryTimeline: React.FC<ItineraryTimelineProps> = ({ circ, nowM
     const set = new Set<string>();
     set.add(cleanCircId);
     set.add(normalizeCircId(cleanCircId));
-    const digits = cleanCircId.replace(/\D/g, '');
-    if (digits) {
-      set.add(digits.padStart(3, '0'));
-      set.add(parseInt(digits, 10).toString());
+    if (!/^[A-Z]+/i.test(cleanCircId)) {
+      const digits = cleanCircId.replace(/\D/g, '');
+      if (digits) {
+        set.add(digits.padStart(3, '0'));
+        set.add(parseInt(digits, 10).toString());
+      }
     }
     return Array.from(set);
   }, [cleanCircId]);

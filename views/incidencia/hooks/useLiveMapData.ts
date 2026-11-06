@@ -848,12 +848,14 @@ export const useLiveMapData = ({
             if (geoTrenByCirc.has(norm)) return geoTrenByCirc.get(norm);
             const upper = id.toUpperCase();
             if (geoTrenByCirc.has(upper)) return geoTrenByCirc.get(upper);
-            const digits = id.replace(/\D/g, '');
-            if (digits) {
-                const p3 = digits.padStart(3, '0');
-                if (geoTrenByCirc.has(p3)) return geoTrenByCirc.get(p3);
-                const num = parseInt(digits, 10).toString();
-                if (geoTrenByCirc.has(num)) return geoTrenByCirc.get(num);
+            if (!/^[A-Z]+/i.test(id.trim())) {
+                const digits = id.replace(/\D/g, '');
+                if (digits) {
+                    const p3 = digits.padStart(3, '0');
+                    if (geoTrenByCirc.has(p3)) return geoTrenByCirc.get(p3);
+                    const num = parseInt(digits, 10).toString();
+                    if (geoTrenByCirc.has(num)) return geoTrenByCirc.get(num);
+                }
             }
             return undefined;
         };
@@ -864,12 +866,14 @@ export const useLiveMapData = ({
             if (personnelByCirc.has(norm)) return personnelByCirc.get(norm);
             const upper = id.toUpperCase();
             if (personnelByCirc.has(upper)) return personnelByCirc.get(upper);
-            const digits = id.replace(/\D/g, '');
-            if (digits) {
-                const p3 = digits.padStart(3, '0');
-                if (personnelByCirc.has(p3)) return personnelByCirc.get(p3);
-                const num = parseInt(digits, 10).toString();
-                if (personnelByCirc.has(num)) return personnelByCirc.get(num);
+            if (!/^[A-Z]+/i.test(id.trim())) {
+                const digits = id.replace(/\D/g, '');
+                if (digits) {
+                    const p3 = digits.padStart(3, '0');
+                    if (personnelByCirc.has(p3)) return personnelByCirc.get(p3);
+                    const num = parseInt(digits, 10).toString();
+                    if (personnelByCirc.has(num)) return personnelByCirc.get(num);
+                }
             }
             return undefined;
         };
